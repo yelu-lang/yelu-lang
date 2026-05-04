@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Yelu — programmable configuration shell language</title>
+  <title>Yelu — a compositional language for the AI era</title>
   <link rel="stylesheet" href="style.css">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
 </head>
@@ -13,7 +13,7 @@
   <div class="sidebar-logo">
     <a href="./">Yelu</a>
   </div>
-  <p class="sidebar-tagline">a programmable configuration shell language</p>
+  <p class="sidebar-tagline">a compositional language for the AI era</p>
 
   <div class="sidebar-section">Navigation</div>
   <ul class="sidebar-nav">
@@ -37,11 +37,12 @@
 <main class="content">
 
 <section class="hero">
-  <h1>Yelu <span>—</span> a programmable<br>configuration shell language</h1>
+  <h1>Yelu <span>—</span> a compositional<br>language for the AI era</h1>
   <p>
-    A staged DSL that provides universal programmability and local verification
-    for target configuration languages. cmake is the first target; the
-    architecture generalizes.
+    A programmable configuration shell language that separates
+    <em>control</em> (higher-order composition, macro-programming) from
+    <em>theories</em> (domain operations, type checking). cmake is the
+    first target; the architecture generalizes.
   </p>
   <div class="hero-actions">
     <a href="cmake/" class="btn btn-primary">yelu-cmake comparison</a>
@@ -52,18 +53,30 @@
 <h2>What is yelu?</h2>
 
 <p>
-  Configuration languages are the least-studied tier of the programming stack,
-  yet they carry disproportionate operational risk. A single mistyped variable
-  in a Dockerfile, a wrong indentation in a k8s YAML, a misordered
-  <code>set()</code> in cmake — these fail late, fail silently, or produce
-  subtly wrong artifacts that surface only in production.
+  Yelu is a research vehicle with a twofold motivation:
 </p>
 
 <p>
-  Yelu is a controlled front-end for studying whether <strong>regular syntax,
-  explicit namespaces, canonical forms, and local verification</strong> improve
-  model-driven generation and repair for configuration languages. cmake is the
-  specimen, not the thesis.
+  <strong>1. A compositional approach to language design.</strong>
+  Programming languages can be decomposed into a <em>control side</em>
+  (binding, composition, iteration, higher-order abstraction) and
+  <em>theories</em> (domain-specific operations over typed namespaces).
+  Checking and refutation happen at distinct stages — typecheck,
+  wellform, effect, lower — each catching a different class of error.
+  The core theories are target-agnostic; each target pack (cmake, and
+  future json, nix) instantiates them against its own semantics.
+</p>
+
+<p>
+  <strong>2. A testimony for language design in the AI era.</strong>
+  Yelu explores what happens when a language is optimized for
+  <em>both</em> human authoring and machine-driven generation and repair
+  — not one at the expense of the other. It spans traditional PL
+  problems (syntax, typechecking, typing), AI-era PL problems
+  (agent integration, training-time reinforcement, test-time scaling),
+  and the engineering boundary where models and toolchains meet.
+  cmake is the specimen: widely used, always painful, and maximally
+  hostile to automated reasoning — a stress test for the thesis.
 </p>
 
 <h2>The thesis</h2>
@@ -74,44 +87,62 @@
 </p>
 
 <p>
-  "Low entropy" decomposes into six sub-properties, ordered by their impact
-  on machine-driven generation and repair:
+  "Low entropy" means minimizing surface diversity — one way to say a thing,
+  few hidden defaults, few overloaded names, few stringly-typed dispatch
+  points. It decomposes into six sub-properties:
 </p>
 
 <ol>
   <li><strong>Closed-world names and typed slots</strong> — no silent shadowing
-      across namespaces</li>
+      across namespaces. A name lives in exactly one namespace.</li>
   <li><strong>Local, structured failure</strong> — faults surface at their
-      origin with precise diagnostics</li>
-  <li><strong>Canonical surface forms</strong> — canonicalizer collapses
-      equivalent programs into one</li>
+      origin with precise diagnostics, not silently as empty strings.</li>
+  <li><strong>Canonical surface forms</strong> — a canonicalizer collapses
+      equivalent programs, making equivalence decidable.</li>
   <li><strong>Explicit phase boundaries</strong> — compile / configure / build
-      / install are named stages</li>
-  <li><strong>Regular grammar</strong> — one syntactic form per concept</li>
-  <li><strong>Searchable type surfaces</strong> — type info is first-class
-      AST data that tools can query</li>
+      / install are named stages, verified at each boundary.</li>
+  <li><strong>Regular grammar</strong> — one syntactic form per concept,
+      unambiguous parse by construction.</li>
+  <li><strong>Searchable type surfaces</strong> — type information is
+      first-class AST data that tools and models can query.</li>
 </ol>
+
+<p>
+  The language targets <strong>ai-friendliness and human-friendliness
+  simultaneously</strong> — not AI-native at the cost of readability, and not
+  human-idiomatic at the cost of verifiability. The optimal point is where
+  models generate confidently, verifiers catch errors locally, and humans
+  review and direct with clear semantics.
+</p>
 
 <h2>Architecture</h2>
 
 <figure>
-<pre><code>  yelu (core)     &larr; language-agnostic: LANG_TYPES, Make_stmt
+<pre><code>  control side    &larr; binding, composition, iteration, macros
     &mid;
-  cmake-pack       &larr; target-specific: yelu_stmt, Cmake_check
+  theories        &larr; per-domain typed constructors &amp; checkers
     &mid;
-  cmake AST        &larr; stringly-typed, mirrors real cmake
+  target AST      &larr; stringly-typed, mirrors real cmake
     &mid;
-  CMakeLists.txt   &larr; output, verified against reference</code></pre>
-<figcaption>Two-layer design: language-agnostic core + per-target packs</figcaption>
+  target output   &larr; CMakeLists.txt, verified against reference</code></pre>
+<figcaption>Compositional design: a universal control side composes target-specific theories</figcaption>
 </figure>
 
 <p>
-  The core is a collection of <strong>theories</strong> — 14
-  <code>Make_*_op</code> / <code>Make_*_check</code> functor pairs over a
-  shared <code>LANG_TYPES</code> substrate. Each theory defines typed
-  constructors for one cmake command family and validates expression-level
-  types independently. The cmake-pack is the integration point where all 14
-  theories are instantiated.
+  The core is a collection of <strong>14 theories</strong> — each
+  <code>Make_*_op</code> / <code>Make_*_check</code> functor pair defines
+  typed constructors and checking rules for one cmake command family (target,
+  variable, string, path, install, test, …). Theories compose over a shared
+  <code>LANG_TYPES</code> substrate; the cmake-pack is the integration point
+  where all 14 theories are instantiated against cmake's semantics.
+</p>
+
+<p>
+  The <strong>control side</strong> — <code>Ylet</code>, <code>Yif</code>,
+  <code>Ystmt_list</code>, <code>Yc_foreach</code>, <code>Yc_function</code>
+  — is target-agnostic. It provides binding, branching, iteration, and
+  macro-programming uniformly across all target packs. A future json-pack or
+  nix-pack would reuse the same control side with its own theories.
 </p>
 
 <h2>Compositional checking</h2>
@@ -225,14 +256,19 @@
 
 <ul>
   <li><strong>Not a cmake replacement.</strong> Yelu targets cmake as output;
-      it doesn't replace cmake's build orchestration or platform abstraction.</li>
+      it doesn't replace cmake's build orchestration or platform abstraction.
+      cmake is the specimen, not the thesis.</li>
   <li><strong>Not a better template language.</strong> Yelu provides
       programmability and verification; it doesn't compete with
       <code>configure_file()</code> or Jinja.</li>
   <li><strong>Not a build system.</strong> Yelu has no runtime, no scheduler,
       no dependency graph. It emits text that build systems consume.</li>
-  <li><strong>Not a product.</strong> Yelu is a research vehicle. The
-      artifacts exist to test the thesis, not to ship to users.</li>
+  <li><strong>Not a product.</strong> Yelu is a research vehicle for
+      language design in the AI era. The artifacts (compiler, checker,
+      test suite) exist to test the thesis, not to ship to users.</li>
+  <li><strong>Not AI-only.</strong> Yelu is optimized for human-plus-model
+      production with verifier feedback — not for unadorned model consumption,
+      and not for unadorned human authoring. The two must work together.</li>
 </ul>
 
 <h2>Falsifiability</h2>

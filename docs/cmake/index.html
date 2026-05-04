@@ -13,7 +13,7 @@
   <div class="sidebar-logo">
     <a href="../">Yelu</a>
   </div>
-  <p class="sidebar-tagline">a programmable configuration shell language</p>
+  <p class="sidebar-tagline">a compositional language for the AI era</p>
 
   <div class="sidebar-section">Navigation</div>
   <ul class="sidebar-nav">
@@ -44,11 +44,21 @@
 <h2>What is yelu-cmake?</h2>
 
 <p>
-  <strong>yelu-cmake</strong> is the cmake target pack for yelu. It provides a
-  typed surface language that compiles to standard cmake. The compiler performs
-  type erasure: yelu's typed AST is lowered to cmake's stringly-typed AST, then
-  pretty-printed as <code>CMakeLists.txt</code>. The output is verified for
-  structural equivalence against reference cmake implementations.
+  <strong>yelu-cmake</strong> is the cmake target pack for yelu — and the
+  first test of the compositional language thesis. It provides a typed
+  surface language that compiles to standard cmake via type erasure: yelu's
+  typed AST is lowered to cmake's stringly-typed AST, then pretty-printed as
+  <code>CMakeLists.txt</code>. The output is verified for structural
+  equivalence against reference cmake implementations.
+</p>
+
+<p>
+  cmake is the specimen because it is <strong>maximally hostile to automated
+  reasoning</strong>: three decades of accumulated layers with no cleanup,
+  implicit namespace collisions, errors that propagate silently as empty
+  strings, and workarounds fossilized as permanent policies. If the thesis
+  holds here, it likely holds for simpler configuration targets. If it fails,
+  cmake's idiosyncrasies help diagnose why.
 </p>
 
 <h2>Feature comparison</h2>
