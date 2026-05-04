@@ -1,0 +1,17 @@
+; File API equivalence test: cmake ref vs yelu output, compared via cmake File API.
+; Requires cmake on PATH. Run explicitly:
+;   dune build @yelu/test/test-file-api/file-api-test
+;
+; Not attached to (alias runtest) — cmake is an external dep not guaranteed in CI.
+
+(rule
+ (alias file-api-test)
+ (deps
+  (source_tree ../fixtures)
+  ../cmake_file_api_cmp.py
+  run_file_api.py
+  (glob_files ../../src/bin/cmake/*.exe)
+  (glob_files ../../src/bin/yelu/*.exe))
+ (action
+  (setenv TOLA %{workspace_root}
+   (run python3 %{dep:run_file_api.py}))))

@@ -1,0 +1,14 @@
+; Layer 3 build artifact check: cmake --build both sides, compare artifacts.
+; Requires cmake + C++ compiler. Run explicitly:
+;   dune build @yelu/test/test-build/build-check
+
+(rule
+ (alias build-check)
+ (deps
+  (source_tree ../fixtures)
+  ../test-file-api/run_file_api.py
+  run_build_check.py
+  ../../src/bin/cmake/.
+  ../../src/bin/yelu/.)
+ (action
+  (run python3 %{dep:run_build_check.py})))

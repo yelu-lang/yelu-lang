@@ -1,0 +1,5 @@
+(executables
+ (names
+  v2_mathext v2_opadd v2_opmul v2_opsub v2_mathlogger v2_maketable
+  v2_mathfuncs v2_tutorial_exe v2_tests v2_root v2_simpletest)
+ (libraries base yelu_langs step_common))

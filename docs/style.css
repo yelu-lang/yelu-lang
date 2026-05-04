@@ -1,0 +1,527 @@
+/* Yelu Documentation Theme — cmake-inspired
+   Based on cmake.org Sphinx RTD theme: dark sidebar, clean content area,
+   green accent, light code blocks. */
+
+/* ============================================================
+   Variables
+   ============================================================ */
+:root {
+  --sidebar-bg: #343131;
+  --sidebar-fg: #d9d9d9;
+  --sidebar-link: #e6e6e6;
+  --sidebar-active: #ffffff;
+  --sidebar-width: 280px;
+  --brand-green: #2c8f3f;
+  --brand-green-light: #3ca84f;
+  --content-bg: #ffffff;
+  --content-fg: #3d3d3d;
+  --heading-fg: #222222;
+  --link-fg: #2c8f3f;
+  --link-hover: #237333;
+  --code-bg: #f8f8f8;
+  --code-fg: #333333;
+  --border-light: #e1e4e5;
+  --header-bg: #2c8f3f;
+  --header-fg: #ffffff;
+  --table-stripe: #f4f9f5;
+  --table-header: #343131;
+  --font-mono: "SF Mono", "Fira Code", "Fira Mono", "Roboto Mono", "Menlo",
+    "Monaco", "Consolas", monospace;
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans",
+    Helvetica, Arial, sans-serif;
+}
+
+/* ============================================================
+   Reset & Base
+   ============================================================ */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: var(--font-sans);
+  color: var(--content-fg);
+  background: var(--content-bg);
+  line-height: 1.6;
+  display: flex;
+  min-height: 100vh;
+}
+
+a {
+  color: var(--link-fg);
+  text-decoration: none;
+  transition: color 0.15s;
+}
+a:hover {
+  color: var(--link-hover);
+  text-decoration: underline;
+}
+
+/* ============================================================
+   Sidebar
+   ============================================================ */
+.sidebar {
+  width: var(--sidebar-width);
+  min-width: var(--sidebar-width);
+  background: var(--sidebar-bg);
+  color: var(--sidebar-fg);
+  padding: 2rem 1.5rem;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar-logo {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--sidebar-active);
+  margin-bottom: 0.25rem;
+  letter-spacing: -0.02em;
+}
+
+.sidebar-logo a {
+  color: var(--sidebar-active);
+}
+.sidebar-logo a:hover {
+  text-decoration: none;
+}
+
+.sidebar-tagline {
+  font-size: 0.8rem;
+  color: #9b9b9b;
+  margin-bottom: 2rem;
+  line-height: 1.4;
+}
+
+.sidebar-section {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: #808080;
+  margin: 1.4rem 0 0.5rem;
+}
+
+.sidebar-nav {
+  list-style: none;
+}
+
+.sidebar-nav li {
+  margin: 0.15rem 0;
+}
+
+.sidebar-nav a {
+  color: var(--sidebar-link);
+  font-size: 0.9rem;
+  display: block;
+  padding: 0.3rem 0;
+  border-left: 2px solid transparent;
+  padding-left: 0.75rem;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.sidebar-nav a:hover,
+.sidebar-nav a.active {
+  color: var(--sidebar-active);
+  border-left-color: var(--brand-green);
+  text-decoration: none;
+}
+
+.sidebar-footer {
+  margin-top: auto;
+  padding-top: 2rem;
+  font-size: 0.7rem;
+  color: #6b6b6b;
+}
+
+.sidebar-footer a {
+  color: #9b9b9b;
+}
+
+/* ============================================================
+   Main Content
+   ============================================================ */
+.content {
+  flex: 1;
+  max-width: 880px;
+  padding: 2.5rem 3rem 4rem;
+  min-width: 0;
+}
+
+.content h1 {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--heading-fg);
+  margin-bottom: 0.3rem;
+  letter-spacing: -0.02em;
+}
+
+.content h2 {
+  font-size: 1.4rem;
+  font-weight: 600;
+  color: var(--heading-fg);
+  margin: 2.5rem 0 0.75rem;
+  padding-bottom: 0.35rem;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.content h3 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--heading-fg);
+  margin: 1.75rem 0 0.5rem;
+}
+
+.content p {
+  margin: 0.75rem 0;
+}
+
+.content ul,
+.content ol {
+  margin: 0.5rem 0 0.5rem 1.5rem;
+}
+
+.content li {
+  margin: 0.25rem 0;
+}
+
+.content .hero-subtitle {
+  font-size: 1.1rem;
+  color: #666;
+  margin-bottom: 2rem;
+}
+
+/* ============================================================
+   Code Blocks
+   ============================================================ */
+code {
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+  background: var(--code-bg);
+  padding: 0.15em 0.4em;
+  border-radius: 3px;
+  border: 1px solid #e8e8e8;
+}
+
+pre {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  line-height: 1.55;
+  background: var(--code-bg);
+  border: 1px solid var(--border-light);
+  border-radius: 4px;
+  padding: 1rem 1.25rem;
+  overflow-x: auto;
+  margin: 1rem 0;
+}
+
+pre code {
+  background: transparent;
+  border: none;
+  padding: 0;
+  font-size: inherit;
+}
+
+/* Syntax highlighting — light theme matching cmake pygments */
+.highlight .k  { color: #007020; font-weight: bold; }  /* keyword */
+.highlight .nf { color: #007020; }                      /* name.function */
+.highlight .s  { color: #217a21; }                      /* string */
+.highlight .s2 { color: #217a21; }                      /* string.double */
+.highlight .c  { color: #408080; font-style: italic; }  /* comment */
+.highlight .c1 { color: #408080; font-style: italic; }  /* comment.single */
+.highlight .m  { color: #105030; }                      /* number */
+.highlight .mi { color: #105030; }                      /* number.integer */
+.highlight .nb { color: #333333; }                      /* name.builtin */
+.highlight .nv { color: #1080b0; }                      /* name.variable */
+.highlight .vc { color: #1080b0; }                      /* variable */
+.highlight .o  { color: #555555; }                      /* operator */
+.highlight .na { color: #906060; }                      /* name.attribute */
+.highlight .nt { color: #bb60d5; }                      /* name.tag */
+.highlight .no { color: #4070a0; }                      /* name.constant */
+.highlight .ni { color: #70a020; font-style: italic; }  /* name.entity */
+.highlight .ne { color: #ff0000; font-weight: bold; }   /* name.exception */
+.highlight .nl { color: #a0a000; }                      /* name.label */
+.highlight .w  { color: #bbbbbb; }                      /* whitespace */
+
+/* ============================================================
+   Tables
+   ============================================================ */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.25rem 0;
+  font-size: 0.92rem;
+}
+
+thead {
+  background: var(--table-header);
+  color: #ffffff;
+}
+
+thead th {
+  padding: 0.6rem 0.85rem;
+  text-align: left;
+  font-weight: 600;
+  font-size: 0.85rem;
+  letter-spacing: 0.03em;
+}
+
+tbody td {
+  padding: 0.5rem 0.85rem;
+  border-bottom: 1px solid var(--border-light);
+}
+
+tbody tr:nth-child(even) {
+  background: var(--table-stripe);
+}
+
+/* ============================================================
+   Comparison Layout
+   ============================================================ */
+.comparison-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  margin: 1.5rem 0;
+}
+
+.comparison-col h3 {
+  margin-top: 0;
+}
+
+.comparison-col.yelu h3 {
+  color: var(--brand-green);
+}
+
+.comparison-col.cmake h3 {
+  color: #555;
+}
+
+.comparison-col pre {
+  height: 100%;
+  min-height: 120px;
+}
+
+/* ============================================================
+   Header bar (top)
+   ============================================================ */
+.page-header {
+  background: var(--header-bg);
+  color: var(--header-fg);
+  margin: -2.5rem -3rem 2rem;
+  padding: 1.75rem 3rem;
+}
+
+.page-header h1 {
+  color: var(--header-fg);
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.page-header p {
+  margin: 0.3rem 0 0;
+  opacity: 0.9;
+  font-size: 0.95rem;
+}
+
+/* ============================================================
+   Hero section (landing page)
+   ============================================================ */
+.hero {
+  padding: 2rem 0 1.5rem;
+}
+
+.hero h1 {
+  font-size: 2.4rem;
+  line-height: 1.2;
+}
+
+.hero h1 span {
+  color: var(--brand-green);
+}
+
+.hero p {
+  font-size: 1.1rem;
+  color: #555;
+  max-width: 600px;
+  margin: 0.75rem 0 1.5rem;
+}
+
+.hero-actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.btn {
+  display: inline-block;
+  padding: 0.55rem 1.25rem;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 0.15s, color 0.15s;
+}
+
+.btn-primary {
+  background: var(--brand-green);
+  color: #fff;
+}
+.btn-primary:hover {
+  background: var(--brand-green-light);
+  color: #fff;
+  text-decoration: none;
+}
+
+.btn-outline {
+  background: transparent;
+  color: var(--brand-green);
+  border: 1.5px solid var(--brand-green);
+}
+.btn-outline:hover {
+  background: var(--brand-green);
+  color: #fff;
+  text-decoration: none;
+}
+
+/* ============================================================
+   Features grid
+   ============================================================ */
+.features {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+  margin: 1.5rem 0;
+}
+
+.feature-card {
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
+  padding: 1rem 1.2rem;
+}
+
+.feature-card h4 {
+  font-size: 0.95rem;
+  margin: 0 0 0.35rem;
+  color: var(--heading-fg);
+}
+
+.feature-card p {
+  font-size: 0.85rem;
+  color: #666;
+  margin: 0;
+}
+
+/* ============================================================
+   Status badges
+   ============================================================ */
+.badge-done {
+  display: inline-block;
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.1em 0.5em;
+  border-radius: 3px;
+  background: #e6f4ea;
+  color: #1a6b2e;
+}
+
+.badge-todo {
+  display: inline-block;
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.1em 0.5em;
+  border-radius: 3px;
+  background: #fef3e2;
+  color: #9a6700;
+}
+
+/* ============================================================
+   Figure
+   ============================================================ */
+figure {
+  margin: 1.75rem 0;
+}
+
+figure pre {
+  margin: 0;
+  border-radius: 6px 6px 0 0;
+}
+
+figcaption {
+  font-size: 0.82rem;
+  color: #777;
+  padding: 0.5rem 1rem;
+  background: #fafafa;
+  border: 1px solid var(--border-light);
+  border-top: none;
+  border-radius: 0 0 6px 6px;
+}
+
+/* ============================================================
+   Mobile
+   ============================================================ */
+@media (max-width: 768px) {
+  body {
+    flex-direction: column;
+  }
+
+  .sidebar {
+    width: 100%;
+    min-width: 0;
+    height: auto;
+    position: relative;
+    padding: 1.25rem 1.5rem;
+  }
+
+  .sidebar-logo {
+    font-size: 1.3rem;
+  }
+
+  .sidebar-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+  }
+
+  .sidebar-nav a {
+    border-left: none;
+    padding: 0.3rem 0.6rem;
+    border-radius: 3px;
+    font-size: 0.82rem;
+  }
+
+  .sidebar-footer {
+    margin-top: 1rem;
+    padding-top: 0.75rem;
+  }
+
+  .content {
+    padding: 1.5rem;
+  }
+
+  .page-header {
+    margin: -1.5rem -1.5rem 1.5rem;
+    padding: 1.25rem 1.5rem;
+  }
+
+  .comparison-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .hero h1 {
+    font-size: 1.7rem;
+  }
+}

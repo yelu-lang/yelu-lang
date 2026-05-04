@@ -1,0 +1,37 @@
+--
+
+- page from officials
+    - [CONTRIBUTING](https://github.com/Kitware/CMake/blob/master/CONTRIBUTING.rst)
+    - https://github.com/Kitware/CMake/blob/master/Help/dev/README.rst
+    - https://cmake.org/cmake/help/latest/manual/cmake-presets.7.html
+    - https://gitlab.kitware.com/cmake/community/-/wikis/FAQ
+    - https://www.kitware.com/cmake-superbuilds-git-submodules/
+- book
+    - https://discourse.cmake.org/t/professional-cmake-a-practical-guide-20th-edition/13394
+    - [An Introduction to Modern CMake](https://cliutils.gitlab.io/modern-cmake/README.html)
+    - [mastering-cmake](https://cmake.org/cmake/help/book/mastering-cmake/chapter/Getting%20Started.html)
+    - [an introduction to modern cmake](https://cliutils.gitlab.io/modern-cmake/chapters/basics.html)
+    - https://github.com/PacktPublishing/Minimal-CMake
+- cmake security
+    - cmake [cve](https://cve.mitre.org/cgi-bin/cvekey.cgi?keyword=cmake)
+    - https://github.com/microsoft/vscode-cmake-tools/security
+- related
+    - https://makefiletutorial.com/
+- pkgm
+    - [Hunter](https://hunter.readthedocs.io/en/latest/), cmake driven pkgm, [repo](https://github.com/cpp-pm/hunter)
+    - https://docs.fedoraproject.org/en-US/packaging-guidelines/CMake/
+    - https://v3.ocaml.org/manual/5.2/depend.html
+- post
+    - [如何评价Qt6弃用qmake，全面转向CMake？](https://www.zhihu.com/question/434660529)
+    - [CMake Meta-Build System](http://www.kumarakshay.me/cmake/)
+    - https://samthursfield.wordpress.com/2015/11/21/cmake-dependencies-between-targets-and-files-and-custom-commands/
+    - https://discourse.cmake.org/t/why-cmake-functions-cant-return-value/1710/8
+    - https://alexreinking.com/category/blog.html
+    - https://discourse.cmake.org/t/target-sources-and-header-visibility/2096
+    - https://github.com/alan-j-hu/llvm-dune/blob/master/setup.sh
+    - https://github.com/llvm/llvm-project/blob/main/llvm/bindings/ocaml/README.txt
+    - https://discuss.ocaml.org/t/my-fix-of-the-linking-problem-on-z3-ocaml-binding/8691/7
+    - https://github.com/ttroy50/cmake-examples
+- yelu: pictures
+  - https://tieba.baidu.com/p/10473492807?pid=153181820313&cid=0#153181820313
+  - https://tieba.baidu.com/p/10468680287?pid=153175210313&cid=0#153175210313

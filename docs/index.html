@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Yelu — programmable configuration shell language</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+</head>
+<body>
+
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <a href="./">Yelu</a>
+  </div>
+  <p class="sidebar-tagline">a programmable configuration shell language</p>
+
+  <div class="sidebar-section">Navigation</div>
+  <ul class="sidebar-nav">
+    <li><a href="./" class="active">Home</a></li>
+    <li><a href="cmake/">yelu-cmake comparison</a></li>
+  </ul>
+
+  <div class="sidebar-section">Project</div>
+  <ul class="sidebar-nav">
+    <li><a href="https://github.com/yelu-lang/yelu-lang">GitHub</a></li>
+    <li><a href="https://github.com/yelu-lang/yelu-lang/blob/main/doc/yelu_manifesto.md">Manifesto</a></li>
+    <li><a href="https://github.com/yelu-lang/yelu-lang/blob/main/doc/yelu_project_overview.md">Project overview</a></li>
+  </ul>
+
+  <div class="sidebar-footer">
+    yelu-lang &copy; 2026<br>
+    <a href="https://github.com/yelu-lang/yelu-lang">github.com/yelu-lang/yelu-lang</a>
+  </div>
+</aside>
+
+<main class="content">
+
+<section class="hero">
+  <h1>Yelu <span>—</span> a programmable<br>configuration shell language</h1>
+  <p>
+    A staged DSL that provides universal programmability and local verification
+    for target configuration languages. cmake is the first target; the
+    architecture generalizes.
+  </p>
+  <div class="hero-actions">
+    <a href="cmake/" class="btn btn-primary">yelu-cmake comparison</a>
+    <a href="https://github.com/yelu-lang/yelu-lang" class="btn btn-outline">View on GitHub</a>
+  </div>
+</section>
+
+<h2>What is yelu?</h2>
+
+<p>
+  Configuration languages are the least-studied tier of the programming stack,
+  yet they carry disproportionate operational risk. A single mistyped variable
+  in a Dockerfile, a wrong indentation in a k8s YAML, a misordered
+  <code>set()</code> in cmake — these fail late, fail silently, or produce
+  subtly wrong artifacts that surface only in production.
+</p>
+
+<p>
+  Yelu is a controlled front-end for studying whether <strong>regular syntax,
+  explicit namespaces, canonical forms, and local verification</strong> improve
+  model-driven generation and repair for configuration languages. cmake is the
+  specimen, not the thesis.
+</p>
+
+<h2>The thesis</h2>
+
+<p>
+  <strong>Languages with low syntactic and semantic entropy plus strong local
+  verification produce better model-driven generation and repair.</strong>
+</p>
+
+<p>
+  "Low entropy" decomposes into six sub-properties, ordered by their impact
+  on machine-driven generation and repair:
+</p>
+
+<ol>
+  <li><strong>Closed-world names and typed slots</strong> — no silent shadowing
+      across namespaces</li>
+  <li><strong>Local, structured failure</strong> — faults surface at their
+      origin with precise diagnostics</li>
+  <li><strong>Canonical surface forms</strong> — canonicalizer collapses
+      equivalent programs into one</li>
+  <li><strong>Explicit phase boundaries</strong> — compile / configure / build
+      / install are named stages</li>
+  <li><strong>Regular grammar</strong> — one syntactic form per concept</li>
+  <li><strong>Searchable type surfaces</strong> — type info is first-class
+      AST data that tools can query</li>
+</ol>
+
+<h2>Architecture</h2>
+
+<figure>
+<pre><code>  yelu (core)     &larr; language-agnostic: LANG_TYPES, Make_stmt
+    &mid;
+  cmake-pack       &larr; target-specific: yelu_stmt, Cmake_check
+    &mid;
+  cmake AST        &larr; stringly-typed, mirrors real cmake
+    &mid;
+  CMakeLists.txt   &larr; output, verified against reference</code></pre>
+<figcaption>Two-layer design: language-agnostic core + per-target packs</figcaption>
+</figure>
+
+<p>
+  The core is a collection of <strong>theories</strong> — 14
+  <code>Make_*_op</code> / <code>Make_*_check</code> functor pairs over a
+  shared <code>LANG_TYPES</code> substrate. Each theory defines typed
+  constructors for one cmake command family and validates expression-level
+  types independently. The cmake-pack is the integration point where all 14
+  theories are instantiated.
+</p>
+
+<h2>Compositional checking</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>Stage</th>
+      <th>What it checks</th>
+      <th>Status</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>typecheck</code></td>
+      <td>Expression-level type constraints — per-theory, per-statement</td>
+      <td><span class="badge-done">done</span></td>
+    </tr>
+    <tr>
+      <td><code>wellform</code></td>
+      <td>Name binding: cvar/target declarations and cross-theory references</td>
+      <td><span class="badge-done">done</span></td>
+    </tr>
+    <tr>
+      <td><code>effect</code></td>
+      <td>cmake execution-mode constraints</td>
+      <td><span class="badge-todo">next</span></td>
+    </tr>
+    <tr>
+      <td><code>lower</code></td>
+      <td>Structural validity during AST &rarr; cmake</td>
+      <td><span class="badge-todo">partial</span></td>
+    </tr>
+    <tr>
+      <td><code>configure</code></td>
+      <td>cmake itself validates the output (RunCMake compat)</td>
+      <td><span class="badge-done">done</span></td>
+    </tr>
+  </tbody>
+</table>
+
+<p>
+  Type checking is per-theory and per-statement. Well-formedness is cross-theory
+  and whole-program — a target declared in <code>target</code> theory is
+  referenced in <code>install</code>/<code>test</code>/<code>property</code>
+  theory, so no single theory can resolve this alone.
+</p>
+
+<h2>14 theories</h2>
+
+<div class="features">
+  <div class="feature-card">
+    <h4>var</h4>
+    <p>Variable set/unset/cache <span class="badge-done">done</span></p>
+  </div>
+  <div class="feature-card">
+    <h4>target</h4>
+    <p>add_library, link, compile options <span class="badge-done">done</span></p>
+  </div>
+  <div class="feature-card">
+    <h4>string</h4>
+    <p>String operations <span class="badge-done">done</span></p>
+  </div>
+  <div class="feature-card">
+    <h4>path</h4>
+    <p>Path operations <span class="badge-done">done</span></p>
+  </div>
+  <div class="feature-card">
+    <h4>file</h4>
+    <p>File I/O <span class="badge-done">done</span></p>
+  </div>
+  <div class="feature-card">
+    <h4>list</h4>
+    <p>List operations <span class="badge-done">done</span></p>
+  </div>
+  <div class="feature-card">
+    <h4>cond</h4>
+    <p>Conditions <span class="badge-done">done</span></p>
+  </div>
+  <div class="feature-card">
+    <h4>install</h4>
+    <p>Install rules <span class="badge-done">done</span></p>
+  </div>
+  <div class="feature-card">
+    <h4>try</h4>
+    <p>try_compile/run <span class="badge-done">done</span></p>
+  </div>
+  <div class="feature-card">
+    <h4>find</h4>
+    <p>find_package/library/path <span class="badge-done">partial</span></p>
+  </div>
+  <div class="feature-card">
+    <h4>cmake_op</h4>
+    <p>cmake_language, math, execute_process <span class="badge-done">partial</span></p>
+  </div>
+  <div class="feature-card">
+    <h4>dir</h4>
+    <p>Directory ops <span class="badge-done">done</span></p>
+  </div>
+  <div class="feature-card">
+    <h4>test</h4>
+    <p>Test ops <span class="badge-done">minimal</span></p>
+  </div>
+  <div class="feature-card">
+    <h4>genex</h4>
+    <p>Generator expressions <span class="badge-done">done</span></p>
+  </div>
+</div>
+
+<h2>What yelu is not</h2>
+
+<ul>
+  <li><strong>Not a cmake replacement.</strong> Yelu targets cmake as output;
+      it doesn't replace cmake's build orchestration or platform abstraction.</li>
+  <li><strong>Not a better template language.</strong> Yelu provides
+      programmability and verification; it doesn't compete with
+      <code>configure_file()</code> or Jinja.</li>
+  <li><strong>Not a build system.</strong> Yelu has no runtime, no scheduler,
+      no dependency graph. It emits text that build systems consume.</li>
+  <li><strong>Not a product.</strong> Yelu is a research vehicle. The
+      artifacts exist to test the thesis, not to ship to users.</li>
+</ul>
+
+<h2>Falsifiability</h2>
+
+<p>The thesis makes specific, falsifiable claims:</p>
+
+<ol>
+  <li>LLMs using yelu don't produce fewer errors vs raw cmake on matched tasks</li>
+  <li>Error classes caught by yelu's checker are a strict subset of cmake's own errors</li>
+  <li>Adding a new theory requires modifying existing theories' checkers</li>
+  <li>A second target pack requires redesigning <code>LANG_TYPES</code> or
+      <code>checking_stage</code></li>
+</ol>
+
+</main>
+</body>
+</html>

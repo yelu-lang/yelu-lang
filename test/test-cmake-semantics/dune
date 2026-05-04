@@ -1,0 +1,3 @@
+(executable
+ (name probes)
+ (libraries base yelu_langs))

@@ -1,0 +1,4 @@
+(library
+ (name step_common)
+ (package yelu)
+ (libraries base yelu_langs))

@@ -1,0 +1,4 @@
+(library
+ (name yelu_runner)
+ (package yelu)
+ (libraries unix re re.pcre alcotest))

@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>yelu-cmake — comparison</title>
+  <link rel="stylesheet" href="../style.css">
+  <link rel="icon" href="../favicon.svg" type="image/svg+xml">
+</head>
+<body>
+
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <a href="../">Yelu</a>
+  </div>
+  <p class="sidebar-tagline">a programmable configuration shell language</p>
+
+  <div class="sidebar-section">Navigation</div>
+  <ul class="sidebar-nav">
+    <li><a href="../">Home</a></li>
+    <li><a href="./" class="active">yelu-cmake comparison</a></li>
+  </ul>
+
+  <div class="sidebar-section">Project</div>
+  <ul class="sidebar-nav">
+    <li><a href="https://github.com/yelu-lang/yelu-lang">GitHub</a></li>
+    <li><a href="https://github.com/yelu-lang/yelu-lang/blob/main/doc/yelu_manifesto.md">Manifesto</a></li>
+    <li><a href="https://github.com/yelu-lang/yelu-lang/blob/main/doc/yelu_project_overview.md">Project overview</a></li>
+  </ul>
+
+  <div class="sidebar-footer">
+    yelu-lang &copy; 2026<br>
+    <a href="https://github.com/yelu-lang/yelu-lang">github.com/yelu-lang/yelu-lang</a>
+  </div>
+</aside>
+
+<main class="content">
+
+<header class="page-header">
+  <h1>yelu-cmake</h1>
+  <p>Comparing the yelu DSL against raw cmake for the same build logic</p>
+</header>
+
+<h2>What is yelu-cmake?</h2>
+
+<p>
+  <strong>yelu-cmake</strong> is the cmake target pack for yelu. It provides a
+  typed surface language that compiles to standard cmake. The compiler performs
+  type erasure: yelu's typed AST is lowered to cmake's stringly-typed AST, then
+  pretty-printed as <code>CMakeLists.txt</code>. The output is verified for
+  structural equivalence against reference cmake implementations.
+</p>
+
+<h2>Feature comparison</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>Feature</th>
+      <th>Raw cmake</th>
+      <th>yelu-cmake</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Expression type checking</td>
+      <td>Runtime only (empty string on missing var)</td>
+      <td><span class="badge-done">compile-time</span></td>
+    </tr>
+    <tr>
+      <td>Name binding (def-before-use)</td>
+      <td>No checking</td>
+      <td><span class="badge-done">wellform pass</span></td>
+    </tr>
+    <tr>
+      <td>Explicit namespaces</td>
+      <td>All names are strings, implicitly resolved</td>
+      <td><span class="badge-done">9 namespaces</span> (var, target, cache, env, …)</td>
+    </tr>
+    <tr>
+      <td>Error locality</td>
+      <td>Faults cascade through stringly-typed dispatch</td>
+      <td><span class="badge-done">per-statement type errors</span></td>
+    </tr>
+    <tr>
+      <td>Canonical surface form</td>
+      <td>Multiple ways to express the same thing</td>
+      <td><span class="badge-todo">planned (Y2)</span></td>
+    </tr>
+    <tr>
+      <td>Effect / execution-mode checking</td>
+      <td>No checking</td>
+      <td><span class="badge-todo">planned (effect pass)</span></td>
+    </tr>
+    <tr>
+      <td>Structural equivalence oracle</td>
+      <td>N/A</td>
+      <td><span class="badge-done">108 checks</span> (gersemi + RunCMake + File API)</td>
+    </tr>
+    <tr>
+      <td>Concrete surface syntax</td>
+      <td>cmake script syntax</td>
+      <td><span class="badge-todo">planned</span> (Menhir grammar designed)</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>Code comparison</h2>
+
+<p>
+  Concrete syntax is not yet finalized. These placeholders show the structure
+  of the side-by-side comparison that will be filled in once the yelu surface
+  syntax is implemented.
+</p>
+
+<h3>Tutorial Step 1 — Basic executable</h3>
+
+<div class="comparison-grid">
+  <div class="comparison-col cmake">
+    <h3>cmake</h3>
+<pre><code class="highlight"><span class="c1"># CMakeLists.txt</span>
+<span class="nf">cmake_minimum_required</span>(<span class="s2">VERSION</span> <span class="s2">3.20</span>)
+<span class="nf">project</span>(<span class="s2">Tutorial</span>)
+
+<span class="nf">add_executable</span>(<span class="s2">Tutorial</span> <span class="s2">tutorial.cxx</span>)</code></pre>
+  </div>
+  <div class="comparison-col yelu">
+    <h3>yelu-cmake <span class="badge-todo">surface syntax TBD</span></h3>
+<pre><code class="highlight"><span class="c1"># yelu — surface syntax not yet implemented</span>
+<span class="c1"># Current form: OCaml-hosted AST construction</span>
+<span class="c1"># See src/bin/yelu/v1/step1.ml</span>
+
+<span class="nf">cmake_minimum_required</span> <span class="s2">"3.20"</span>
+<span class="nf">project</span> <span class="s2">"Tutorial"</span> <span class="o">:</span><span class="nv">languages</span> <span class="o">[</span><span class="s2">CXX</span><span class="o">]</span>
+
+<span class="nv">tut</span> <span class="o">=</span> <span class="nv">target</span> <span class="s2">"Tutorial"</span>
+<span class="nf">add_executable</span> <span class="nv">tut</span> <span class="o">{</span> <span class="nv">tutorial.cxx</span> <span class="o">}</span>
+<span class="nf">target_include_directories</span> <span class="nv">tut</span> <span class="o">{</span> <span class="s2">"${PROJECT_BINARY_DIR}"</span> <span class="o">}</span></code></pre>
+  </div>
+</div>
+
+<h3>Tutorial Step 2 — Add a library</h3>
+
+<div class="comparison-grid">
+  <div class="comparison-col cmake">
+    <h3>cmake</h3>
+<pre><code class="highlight"><span class="c1"># CMakeLists.txt</span>
+<span class="nf">cmake_minimum_required</span>(<span class="s2">VERSION</span> <span class="s2">3.20</span>)
+<span class="nf">project</span>(<span class="s2">Tutorial</span>)
+
+<span class="c1"># Math library</span>
+<span class="nf">add_library</span>(<span class="s2">MathFunctions</span> <span class="s2">mysqrt.cxx</span>)
+
+<span class="c1"># Executable</span>
+<span class="nf">add_executable</span>(<span class="s2">Tutorial</span> <span class="s2">tutorial.cxx</span>)
+
+<span class="c1"># Link and include</span>
+<span class="nf">target_link_libraries</span>(<span class="s2">Tutorial</span> <span class="s2">PUBLIC</span> <span class="s2">MathFunctions</span>)
+<span class="nf">target_include_directories</span>(<span class="s2">Tutorial</span> <span class="s2">PUBLIC</span>
+  <span class="s2">"${PROJECT_BINARY_DIR}"</span>
+  <span class="s2">"${PROJECT_SOURCE_DIR}/MathFunctions"</span>
+)</code></pre>
+  </div>
+  <div class="comparison-col yelu">
+    <h3>yelu-cmake <span class="badge-todo">surface syntax TBD</span></h3>
+<pre><code class="highlight"><span class="c1"># yelu — surface syntax not yet implemented</span>
+<span class="c1"># See src/bin/yelu/v1/step2.ml</span>
+
+<span class="nf">cmake_minimum_required</span> <span class="s2">"3.20"</span>
+<span class="nf">project</span> <span class="s2">"Tutorial"</span> <span class="o">:</span><span class="nv">languages</span> <span class="o">[</span><span class="s2">CXX</span><span class="o">]</span>
+
+<span class="nv">math</span> <span class="o">=</span> <span class="nv">target</span> <span class="s2">"MathFunctions"</span>
+<span class="nf">add_library</span> <span class="nv">math</span> <span class="o">{</span> <span class="nv">mysqrt.cxx</span> <span class="o">}</span>
+
+<span class="nv">tut</span> <span class="o">=</span> <span class="nv">target</span> <span class="s2">"Tutorial"</span>
+<span class="nf">add_executable</span> <span class="nv">tut</span> <span class="o">{</span> <span class="nv">tutorial.cxx</span> <span class="o">}</span>
+<span class="nf">target_link_libraries</span> <span class="nv">tut</span> <span class="o">{</span> <span class="nv">math</span> <span class="o">}</span>
+<span class="nf">target_include_directories</span> <span class="nv">tut</span> <span class="o">{</span>
+  <span class="s2">"${PROJECT_BINARY_DIR}"</span>
+  <span class="s2">"${PROJECT_SOURCE_DIR}/MathFunctions"</span>
+<span class="o">}</span></code></pre>
+  </div>
+</div>
+
+<h2>Checking pipeline</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>Stage</th>
+      <th>What it catches</th>
+      <th>cmake equivalent</th>
+      <th>Status</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>typecheck</code></td>
+      <td>bool where string expected, path vs string, cache type mismatch</td>
+      <td>Silent empty string / configure-time error far from source</td>
+      <td><span class="badge-done">14 theories</span></td>
+    </tr>
+    <tr>
+      <td><code>wellform</code></td>
+      <td>Undeclared cvar/target, typo'd variable names, cross-theory refs</td>
+      <td>No checking — empty string propagation</td>
+      <td><span class="badge-done">done</span></td>
+    </tr>
+    <tr>
+      <td><code>effect</code></td>
+      <td><code>target_*</code> only in configure mode, genex restrictions</td>
+      <td>Runtime cmake error</td>
+      <td><span class="badge-todo">next</span></td>
+    </tr>
+    <tr>
+      <td><code>lower</code></td>
+      <td>Structural validity during AST &rarr; cmake emission</td>
+      <td>N/A</td>
+      <td><span class="badge-todo">partial</span></td>
+    </tr>
+    <tr>
+      <td><code>configure</code></td>
+      <td><code>REQUIRED</code> find_package, <code>math(EXPR)</code>, policies</td>
+      <td>cmake itself</td>
+      <td><span class="badge-done">61 RunCMake compat</span></td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>Equivalence oracle</h2>
+
+<p>
+  Every yelu program is verified against a reference cmake implementation.
+  The test suite includes:
+</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Suite</th>
+      <th>Count</th>
+      <th>Method</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>cmake-check (v1+v2)</td>
+      <td>35</td>
+      <td>Structural equivalence via gersemi formatting</td>
+    </tr>
+    <tr>
+      <td>CMakeOnly check</td>
+      <td>12</td>
+      <td>Structural equivalence</td>
+    </tr>
+    <tr>
+      <td>RunCMake compat</td>
+      <td>61</td>
+      <td>Output comparison against cmake reference</td>
+    </tr>
+    <tr>
+      <td>File API diff</td>
+      <td>12</td>
+      <td>codemodel-v2 JSON diff (steps 1–12)</td>
+    </tr>
+    <tr>
+      <td>End-to-end (stepN)</td>
+      <td>12</td>
+      <td>Generate &rarr; configure &rarr; build &rarr; run</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>What's next</h2>
+
+<ol>
+  <li><strong>Concrete surface syntax</strong> — Menhir parser, standalone
+      <code>.yl</code> files. Grammar design exists.</li>
+  <li><strong>Effect checking pass</strong> — execution-mode constraints,
+      cache-sensitivity annotations.</li>
+  <li><strong>Code comparison examples</strong> — fill in the side-by-side
+      comparisons above with real yelu surface syntax once it's decided.</li>
+  <li><strong>Second target pack</strong> — json or nix, to test the
+      generalization claim.</li>
+</ol>
+
+</main>
+</body>
+</html>
