@@ -107,6 +107,7 @@ enforced via `CHECKER_BASE` module signature in `Cmake_check`.
 | Gap                       | Category     | Impact                                  |
 | ------------------------- | ------------ | --------------------------------------- |
 | No CI                     | Infra        | Yelu can break silently                 |
+| Website live              | Infra        | ✅ GitHub Pages at yelu-lang.github.io/yelu-lang |
 | No concrete parser        | Language     | Yelu is OCaml-hosted, no standalone `.yl` |
 | ~~No name binding pass~~  | Checker      | ✅ Done: `lang_yelu_wellform.ml`, 41 tests |
 | No effect pass            | Checker      | No execution-mode validation            |
