@@ -10,6 +10,7 @@ depends: [
   "fix"
   "re"
   "ppx_jane"
+  "angstrom"
   "alcotest" {with-test}
   "odoc" {with-doc}
 ]

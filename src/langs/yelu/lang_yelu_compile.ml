@@ -103,6 +103,7 @@ let rec erase_arg env = function
     else Lang_cmake.Bare s
   | Yexpr_string ycs -> Lang_cmake.Bare (ycs_to_s ycs)
   | Yexpr_bool b -> Lang_cmake.Bare (if b then "ON" else "OFF")
+  | _ -> Lang_cmake.Bare ""
 
 (* For cmake fields that expect plain string, not arg *)
 let rec erase_arg_s env = function
@@ -113,6 +114,7 @@ let rec erase_arg_s env = function
   | Yexpr_name { name; _ } -> name
   | Yexpr_string ycs -> ycs_to_s ycs
   | Yexpr_bool b -> if b then "ON" else "OFF"
+  | _ -> ""
 
 let string_of_kind = function
   | Interface -> "INTERFACE"
@@ -176,56 +178,57 @@ let cmake_quote_cond s =
   then Fmt.str "\"%s\"" s
   else s
 
-let rec erase_cond env : yelu_cond -> string list = function
-  | Ytruthy arg -> [ erase_arg_s env arg ]
-  | Ynot c -> "NOT" :: erase_cond env c
-  | Yand (a, b) -> [ "(" ] @ erase_cond env a @ [ "AND" ] @ erase_cond env b @ [ ")" ]
-  | Yor (a, b) -> [ "(" ] @ erase_cond env a @ [ "OR" ] @ erase_cond env b @ [ ")" ]
-  | Yis_target arg -> [ "TARGET"; erase_arg_s env arg ]
-  | Yis_defined arg -> [ "DEFINED"; erase_arg_s env arg ]
-  | Ystrequal (a, b) ->
+let rec erase_bool env : yelu_expr -> string list = function
+  | Yexpr_not c -> "NOT" :: erase_bool env c
+  | Yexpr_and (a, b) -> [ "(" ] @ erase_bool env a @ [ "AND" ] @ erase_bool env b @ [ ")" ]
+  | Yexpr_or (a, b) -> [ "(" ] @ erase_bool env a @ [ "OR" ] @ erase_bool env b @ [ ")" ]
+  | Yexpr_is_target { name; _ } -> [ "TARGET"; name ]
+  | Yexpr_is_defined { name; _ } -> [ "DEFINED"; name ]
+  | Yexpr_str_equal (a, b) ->
     [ cmake_quote_cond (erase_arg_s env a); "STREQUAL";       cmake_quote_cond (erase_arg_s env b) ]
-  | Ystrless (a, b) ->
+  | Yexpr_str_less (a, b) ->
     [ cmake_quote_cond (erase_arg_s env a); "STRLESS";        cmake_quote_cond (erase_arg_s env b) ]
-  | Ystrgreater (a, b) ->
+  | Yexpr_str_greater (a, b) ->
     [ cmake_quote_cond (erase_arg_s env a); "STRGREATER";     cmake_quote_cond (erase_arg_s env b) ]
-  | Ystrless_equal (a, b) ->
+  | Yexpr_str_less_eq (a, b) ->
     [ cmake_quote_cond (erase_arg_s env a); "STRLESS_EQUAL";  cmake_quote_cond (erase_arg_s env b) ]
-  | Ystrgreater_equal (a, b) ->
+  | Yexpr_str_greater_eq (a, b) ->
     [ cmake_quote_cond (erase_arg_s env a); "STRGREATER_EQUAL"; cmake_quote_cond (erase_arg_s env b) ]
-  | Yequal (a, b) ->
+  | Yexpr_equal (a, b) ->
     [ cmake_quote_cond (erase_arg_s env a); "EQUAL";          cmake_quote_cond (erase_arg_s env b) ]
-  | Yless (a, b) ->
+  | Yexpr_less (a, b) ->
     [ cmake_quote_cond (erase_arg_s env a); "LESS";           cmake_quote_cond (erase_arg_s env b) ]
-  | Ygreater (a, b) ->
+  | Yexpr_greater (a, b) ->
     [ cmake_quote_cond (erase_arg_s env a); "GREATER";        cmake_quote_cond (erase_arg_s env b) ]
-  | Yless_equal (a, b) ->
+  | Yexpr_less_eq (a, b) ->
     [ cmake_quote_cond (erase_arg_s env a); "LESS_EQUAL";     cmake_quote_cond (erase_arg_s env b) ]
-  | Ygreater_equal (a, b) ->
+  | Yexpr_greater_eq (a, b) ->
     [ cmake_quote_cond (erase_arg_s env a); "GREATER_EQUAL";  cmake_quote_cond (erase_arg_s env b) ]
-  | Yin_list (value, listvar) ->
+  | Yexpr_in_list (value, listvar) ->
     [ cmake_quote_cond (erase_arg_s env value);
       "IN_LIST";
       erase_arg_s env listvar ]
-  | Ymatches (value, regex) ->
+  | Yexpr_matches (value, regex) ->
     [ cmake_quote_cond (erase_arg_s env value); "MATCHES"; cmake_quote_cond regex ]
-  | Yexists path ->
+  | Yexpr_exists path ->
     [ "EXISTS"; cmake_quote_cond (erase_arg_s env path) ]
-  | Yis_directory path ->
+  | Yexpr_is_directory path ->
     [ "IS_DIRECTORY"; cmake_quote_cond (erase_arg_s env path) ]
-  | Yis_absolute path ->
+  | Yexpr_is_absolute path ->
     [ "IS_ABSOLUTE"; cmake_quote_cond (erase_arg_s env path) ]
-  | Ypolicy_defined p -> [ "POLICY"; p ]
-  | Yversion_less (a, b) ->
+  | Yexpr_policy p -> [ "POLICY"; p ]
+  | Yexpr_ver_less (a, b) ->
     [ cmake_quote_cond (erase_arg_s env a); "VERSION_LESS"; cmake_quote_cond (erase_arg_s env b) ]
-  | Yversion_greater (a, b) ->
+  | Yexpr_ver_greater (a, b) ->
     [ cmake_quote_cond (erase_arg_s env a); "VERSION_GREATER"; cmake_quote_cond (erase_arg_s env b) ]
-  | Yversion_equal (a, b) ->
+  | Yexpr_ver_equal (a, b) ->
     [ cmake_quote_cond (erase_arg_s env a); "VERSION_EQUAL"; cmake_quote_cond (erase_arg_s env b) ]
-  | Yversion_less_equal (a, b) ->
+  | Yexpr_ver_less_eq (a, b) ->
     [ cmake_quote_cond (erase_arg_s env a); "VERSION_LESS_EQUAL"; cmake_quote_cond (erase_arg_s env b) ]
-  | Yversion_greater_equal (a, b) ->
+  | Yexpr_ver_greater_eq (a, b) ->
     [ cmake_quote_cond (erase_arg_s env a); "VERSION_GREATER_EQUAL"; cmake_quote_cond (erase_arg_s env b) ]
+  (* simple expressions used as truthy: bool lit, name, string, var *)
+  | e -> [ erase_arg_s env e ]
 
 let erase_property env (prop, value) : Lang_cmake.property =
   { prop; value = erase_arg env value }
@@ -241,35 +244,30 @@ let rec check_arg env = function
   | Yexpr_name ({ ns = Ns_target; _ } as t) -> warn_undeclared_target env t
   | Yexpr_name _ -> ()
   | Yexpr_string _ | Yexpr_bool _ -> ()
+  | _ -> ()
 
-let rec check_cond env = function
-  | Ytruthy arg -> check_arg env arg
-  | Ynot c -> check_cond env c
-  | Yand (a, b) ->
-      check_cond env a;
-      check_cond env b
-  | Yor (a, b) ->
-      check_cond env a;
-      check_cond env b
-  | Yis_target arg -> check_arg env arg
-  | Yis_defined _ -> () (* DEFINED checks existence, no warning *)
-  | Ystrequal (a, b) | Ystrless (a, b) | Ystrgreater (a, b)
-  | Ystrless_equal (a, b) | Ystrgreater_equal (a, b)
-  | Yequal (a, b) | Yless (a, b) | Ygreater (a, b)
-  | Yless_equal (a, b) | Ygreater_equal (a, b) ->
-      check_arg env a;
-      check_arg env b
-  | Yin_list (value, listvar) ->
-      check_arg env value;
-      check_arg env listvar
-  | Ymatches (value, _regex) -> check_arg env value
-  | Yexists path | Yis_directory path | Yis_absolute path -> check_arg env path
-  | Yversion_less (a, b) | Yversion_greater (a, b)
-  | Yversion_equal (a, b) | Yversion_less_equal (a, b)
-  | Yversion_greater_equal (a, b) ->
-      check_arg env a;
-      check_arg env b
-  | Ypolicy_defined _ -> ()
+let rec check_bool env = function
+  | Yexpr_not c -> check_bool env c
+  | Yexpr_and (a, b) | Yexpr_or (a, b) ->
+      check_bool env a; check_bool env b
+  | Yexpr_is_target _ -> ()
+  | Yexpr_is_defined _ -> ()
+  | Yexpr_str_equal (a, b) | Yexpr_str_less (a, b) | Yexpr_str_greater (a, b)
+  | Yexpr_str_less_eq (a, b) | Yexpr_str_greater_eq (a, b)
+  | Yexpr_equal (a, b) | Yexpr_less (a, b) | Yexpr_greater (a, b)
+  | Yexpr_less_eq (a, b) | Yexpr_greater_eq (a, b) ->
+      check_arg env a; check_arg env b
+  | Yexpr_in_list (value, listvar) ->
+      check_arg env value; check_arg env listvar
+  | Yexpr_matches (value, _) -> check_arg env value
+  | Yexpr_exists e | Yexpr_is_directory e | Yexpr_is_absolute e -> check_arg env e
+  | Yexpr_ver_less (a, b) | Yexpr_ver_greater (a, b)
+  | Yexpr_ver_equal (a, b) | Yexpr_ver_less_eq (a, b)
+  | Yexpr_ver_greater_eq (a, b) ->
+      check_arg env a; check_arg env b
+  | Yexpr_policy _ -> ()
+  (* simple expressions: bool lit, name, string, var — just check args *)
+  | e -> check_arg env e
 
 let check_items_with_kind env { kind = _; items } =
   List.iter items ~f:(check_arg env)
@@ -987,7 +985,7 @@ let rec compile env : yelu_stmt -> env * Lang_cmake.exp = function
       let env = { env with bindings = Map.set env.bindings ~key:name ~data:resolved } in
       (env, Exp_list [])
   | Yif { cond; then_; else_ } ->
-      check_cond env cond;
+      check_bool env cond;
       let then_env, then_cmake = compile env then_ in
       let else_env, else_cmake =
         match else_ with
@@ -1005,7 +1003,7 @@ let rec compile env : yelu_stmt -> env * Lang_cmake.exp = function
         }
       in
       ( env,
-        If { cond = erase_cond env cond; then_ = then_cmake; else_ = else_cmake } )
+        If { cond = erase_bool env cond; then_ = then_cmake; else_ = else_cmake } )
   | Ystmt_list exps ->
       let env, rev_cmds =
         List.fold exps ~init:(env, []) ~f:(fun (env, acc) exp ->
@@ -1099,9 +1097,9 @@ let rec compile env : yelu_stmt -> env * Lang_cmake.exp = function
             lists = List.map ~f:cv_name lists;
             commands = body_cmake } )
   | Yc_while { cond; commands } ->
-      check_cond env cond;
+      check_bool env cond;
       let _body_env, body_cmake = compile env commands in
-      (env, While { cond = erase_cond env cond; commands = body_cmake })
+      (env, While { cond = erase_bool env cond; commands = body_cmake })
   | Yc_break -> (env, Break)
   | Yc_continue -> (env, Continue)
   | Yc_return { propogate_vars } ->

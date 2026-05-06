@@ -1,202 +1,222 @@
-# Yelu Concrete Syntax — Parser Framework
+# Yelu Concrete Syntax — Parser
 
-> Status: **Deferred, not started.** Preferred library recorded (Angstrom)
-> for when we do begin, but the parser is not on the critical path.
+> Status: **Implemented** (2026-05-04). Two-pass architecture: Angstrom lexer
+> produces `token list`, pure OCaml parser over tokens. 18 parser tests, 15 lexer
+> tests, all 357 project tests pass.
 
-## Why deferred
+## Architecture
 
-The AST-level work is where yelu's semantic substance lives: typed
-namespaces, grouped variants, compositional helpers, staging. That work
-is valid and self-contained without a concrete syntax.
-
-The OCaml embedded DSL is itself already a surface syntax:
-
-```ocaml
-ycmd_of_list [
-  add_exe (ytval "Tutorial");
-  link_lib [ ytval "Tutorial" ]
-    [ ytarget_def ~kind:Private [ ytval "MathFunctions" ] ];
-]
+```
+input string
+    │
+    ▼
+┌──────────────────┐
+│  Angstrom lexer  │  lang_yelu_lexer.ml  (~160 lines)
+│  char → tokens   │  scannerless, whitespace + comment skipping
+└──────┬───────────┘
+       │ token list
+       ▼
+┌──────────────────┐
+│  Pure OCaml      │  lang_yelu_parse.ml  (~350 lines)
+│  token parser    │  no Angstrom, no backtracking issues
+└──────┬───────────┘
+       │ yelu_stmt AST
+       ▼
+   (compile / check)
 ```
 
-It's not Python-like, but it's typed, regular, and composable. The LLM
-evaluation research question ("does yelu's regularity improve first-pass
-correctness vs raw CMake?") can be run on the embedded form — a parser
-is not a prerequisite.
+**Why two-pass.** The original scannerless approach (Angstrom for both lexing and
+parsing) hit a fundamental backtracking problem: `kw "function"` calls `ident`,
+which consumes a token via `take_while1`. If the pattern match then fails (e.g.,
+the next token is `"message"` not `"function"`), Angstrom's `<|>` does not
+backtrack — the consumed token is lost. Subsequent alternatives in `p_stmt` see
+a truncated token stream. The two-pass design eliminates this: tokens are
+materialized once by the lexer, and the parser can inspect any token without
+consuming it.
 
-**Parser-AST coupling is a real maintenance tax.** Every AST refactor
-(like the 11-group restructuring of 125 constructors) would propagate
-into grammar rules, test fixtures, lexer keywords, and any tree-sitter
-sibling. Building the parser before the AST stabilizes means paying the
-tax twice.
+## Key files
 
-## When to actually start
+| File | Lines | Purpose |
+|---|---|---|
+| `src/langs/yelu/lang_yelu_lexer.ml` | ~160 | Token type, Angstrom lexer, whitespace/comment handling |
+| `src/langs/yelu/lang_yelu_parse.ml` | ~350 | Pure OCaml parser over token list, statement/expression/condition parsing |
+| `test/test-yelu/test_yelu_lexer.ml` | ~80 | 15 lexer tests |
+| `test/test-yelu/test_yelu_parse.ml` | ~80 | 18 parser tests |
 
-Build the parser when at least one of these becomes true:
+## Token type
 
-1. We want a surface form specifically for **human authors who aren't
-   OCaml programmers** (e.g. config engineers writing cmake-pack files).
-2. We want a surface form the **LLM evaluation** requires — e.g. to
-   compare a Python-like syntax against the embedded form as distinct
-   variables.
-3. The **AST has stabilized** — no more group-level or namespace-level
-   refactors for 3+ months.
-4. We need **editor tooling** (LSP, syntax highlighting) that presupposes
-   a text-based grammar.
+```ocaml
+type token =
+  (* Reserved words — lexer maps identifiers to these *)
+  | LET | IN | IF | THEN | ELSE | FOREACH | FUNCTION | MACRO
+  | WHILE | BREAK | CONTINUE | RETURN | TARGET | CVAR | RANGE
+  (* Value-carrying tokens *)
+  | IDENT of string | PATH of string | STRING of string
+  | EVAL of string | KEYWORD of string | BOOL of bool | INT of int
+  (* Delimiters *)
+  | LBRACE | RBRACE | LBRACK | RBRACK | LPAREN | RPAREN
+  | COMMA | SEMI | COLON | DOTDOT | EQ
+  | EOF
+```
 
-Until then, the embedded DSL is sufficient.
+String kinds are distinguished by quote type:
+- `"..."` double quotes → `PATH` (file paths, directories)
+- `'...'` single quotes → `STRING` (plain string values)
+- `${...}` or `$<...>` → `EVAL` (cmake variable/genex expansion)
+- `:PUBLIC`, `:STATIC` → `KEYWORD` (colon-prefixed keywords)
 
-## Preferred library: Angstrom
+## Parser design
 
-The analysis below is recorded so we don't repeat it when we do start.
+The parser is a plain OCaml module using the type `'a parser = token list -> ('a * token list) option`.
+No monadic operators — uses explicit `match` to avoid Base shadowing conflicts.
 
-## Context
+Key patterns:
 
-Yelu currently exists only as an OCaml embedded DSL — step files write
-`ycmd_of_list [ add_exe ...; link_lib ... ]` directly in OCaml. A separate
-Python-like concrete syntax is planned. The parser framework choice shapes
-how compositional and iteration-friendly the development is, and how easily
-LLMs (including the ones writing the code) can contribute.
+```ocaml
+(* Try alternatives on the SAME token list — pure, no backtracking issues *)
+let p_expr toks =
+  match p_target_ref toks with Some r -> Some r | None ->
+  match p_cvar_ref toks with Some r -> Some r | None ->
+  ...
 
-## Requirements
+(* Sequence: chain parsers by threading the token list *)
+let p_let toks =
+  match kw "let" toks with
+  | None -> None
+  | Some ((), toks) ->
+    match p_ident toks with
+    | None -> None
+    | Some (name, toks) ->
+      ...
+```
 
-1. **Compositional**: yelu-core grammar should be stable; language packs
-   (cmake today, json/yaml/nix future) should extend it. Grammar expressed
-   as values that can be combined per pack.
-2. **AST-quality output**: yelu's AST is richly typed (typed namespaces,
-   grouped variants). The parser should build it directly, not a CST we
-   then walk.
-3. **Iteration-friendly**: surface syntax is empirical; we'll tune
-   repeatedly. No LR conflict-debugging sessions, no JS → C → OCaml
-   pipeline.
-4. **Claude-writable**: rich docs and/or large training-data footprint so
-   the LLM writing the parser code has good examples to draw on.
-5. Not a priority: raw parsing speed. yelu programs are CMakeLists-sized.
-6. Explicitly rejected: handwriting the parser from scratch (GPT's
-   recommendation). Maintenance burden is real, and we'd rather depend on
-   a library.
+**Mutual recursion** uses `let rec ... and ...`:
 
-## Options considered
+```ocaml
+let rec p_stmt toks = ... p_block ... p_let ...
+and p_block toks = ... p_stmt ...
+and p_let toks = ...
+```
 
-### Menhir (OCaml-native LR(1))
-- Most alive, richest documentation (INRIA-maintained; used by the OCaml
-  compiler and Coq), largest training-data footprint.
-- Grammar lives in `.mly` files. Composition is weak — the manual calls it
-  "weak modularity": partial grammars join into one before analysis.
-  Parametric rules help a little but don't support value-level composition
-  across modules.
-- LR(1) conflicts slow early syntax iteration.
-- Best fit once the grammar is stable.
+`p_command` and `build_stmt` are not in the mutual recursion group — they don't
+call back into statement parsers.
 
-### Tree-sitter
-- Purpose-built for editor tooling: incremental parse, error recovery,
-  highlighting. OCaml bindings exist (Feb 2026 release).
-- Grammar is in a JS DSL compiled to C; output is a CST, not your typed
-  AST. Double the work if AST construction is the goal.
-- Monolithic per-language grammar; no sub-grammar composition.
-- **Right endpoint for editor support**, wrong primary frontend.
+## Command dispatch
 
-### Parser combinators (Angstrom, Opal, others)
-- Grammar is OCaml values. Combinators compose as functions.
-- `let yelu_core = ... in let cmake_pack = yelu_core <|> cmake_keywords`
-  is the natural pack-extension pattern.
-- Edit-build-try iteration; no conflict debugging, no codegen.
-- Semantic actions build the typed AST directly.
-- Slower than LR but irrelevant at yelu scale.
-- **Angstrom specifics**: fast, non-backtracking by default (explicit
-  `<?>`/`commit` for alternatives → predictable behavior). Designed for
-  binary/network formats but widely used for text. Last release September
-  2024 — stale but not abandoned; library is small and well-understood,
-  fork risk is low. Widely used in the OCaml ecosystem (lots of example
-  code for reference).
+`build_stmt : string -> yelu_expr list -> (string * yelu_expr) list -> yelu_expr list -> yelu_stmt option`
 
-### Pacomb
-- First-class grammars as OCaml values, PPX syntax, left-recursion
-  handling, self-extensible grammars. Conceptually the best fit for
-  yelu's core+pack model.
-- Drawback: niche. Thin documentation and small community — less
-  material to draw on when writing code.
+Pattern matches on command name and args to produce the appropriate AST node.
+Currently handles ~20 commands. Adding a new command is a matter of adding a
+match case.
 
-### Parseff (2026)
-- New direct-style OCaml 5.3+ combinator library with typed errors and
-  label-based diagnostics. Closest OCaml answer to Rust's Chumsky.
-- Drawback: very new. No proven track record, thin docs, small community.
-- Worth watching; not worth betting on yet.
+## Gotchas
 
-### Earley / dypgen
-- Handle any CFG, including ambiguous ones. `dypgen` supports dynamic
-  grammar extension at runtime.
-- Earley's last release is 2020 (stale). `dypgen` was refreshed in 2025.
-- Overkill for yelu — the design goal is regular syntax with explicit
-  namespaces, which doesn't need GLR-shaped flexibility.
+### 1. Base + Angstrom = operator shadowing minefield
 
-### Handwritten token parser + Pratt (GPT's recommendation)
-- ~300–500 LOC, total control, direct AST construction, zero dependency
-  risk.
-- Rejected per project preference: we'd rather depend on a library than
-  maintain a parser ourselves.
+`open Base` shadows `char` (→ `Char` module), `string` (→ `String` module),
+`<>` (polymorphic inequality → `int -> int -> bool`), and more. When also
+`open Angstrom`, Angstrom's `char` and `string` functions shadow Base's modules.
+But inside Angstrom combinator expressions, `char '{'` may still resolve
+incorrectly. **The two-pass design avoids this entirely** — the lexer uses
+Angstrom, the parser uses pure OCaml.
 
-## Why Angstrom
+Lesson: do not write scannerless parsers with Angstrom when `open Base` is
+in effect. Either don't open Base, or use the two-pass approach.
 
-The honest tradeoff matrix:
+### 2. `$>` does not exist in Angstrom 0.16
 
-|            | Alive?      | Rich docs | Claude-friendly | Compositional       |
-|------------|-------------|-----------|-----------------|---------------------|
-| Menhir     | very        | very      | very            | **weak** (top priority) |
-| Angstrom   | stale-ish   | moderate  | strong          | strong              |
-| Pacomb     | moderate    | thin      | thin            | **very strong**     |
-| Parseff    | brand new   | too new   | ~none           | strong              |
+`$>` is available in newer parser combinator libraries (Haskell, Rust nom) and
+possibly in Angstrom ≥ 0.17. In 0.16, use `>>| fun _ -> value`.
 
-Angstrom is the only option that doesn't force us to sacrifice either
-compositionality (yelu's ethos) or the ability to generate good parser
-code via LLM (adequate docs + strong ecosystem footprint). The 2-year
-staleness is a tolerable risk — the library is small, well-designed,
-and has enough ecosystem usage that forking would be straightforward
-if ever needed.
+### 3. `fix` vs `let rec` for Angstrom parsers
 
-Menhir would win on docs and maintenance alone, but compositionality is
-the project's stated top priority — and Menhir's weakest axis is exactly
-that.
+Angstrom parser values are not syntactic functions, so `let rec` cannot be used
+to define recursive parsers. Use `fix : ('a t -> 'a t) -> 'a t` instead.
+For the two-pass parser, `let rec` works fine because the parser functions are
+actual OCaml functions (`token list -> ...`).
 
-Pacomb is the better conceptual fit but has too thin a community and
-documentation base for LLM-written code to draw on reliably.
+### 4. `skip_while` breaks Angstrom backtracking
 
-## Architecture plan (when we start)
+Angstrom's `<|>` only backtracks if the left alternative consumed NO input.
+`skip_while` always consumes input (even zero characters counts as "success and
+may have consumed"). So `(skip_while f *> p) <|> q` will never try `q` if
+`skip_while f` succeeds, even if `p` fails.
 
-Confirmed patterns regardless of which library:
+Fix for the lexer: use `peek_char` + `advance` to skip one character at a time,
+which allows backtracking:
+```ocaml
+let rec skip () =
+  peek_char >>= function
+  | None -> return ()
+  | Some c when is_ws c -> advance 1 *> skip ()
+  | Some '#' -> advance 1 *> skip_while not_newline *> skip ()
+  | Some _ -> return ()
+```
 
-- **Lexer first**: emit tokens with spans (`NEWLINE`, `INDENT`, `DEDENT` if
-  layout-sensitive, keywords, identifiers, literals, punctuation). If the
-  surface is Python-like, layout belongs in the lexer, not the parser.
-- **Core parser**: statements, blocks, declarations, typed expressions.
-- **Pack extension interface**: explicit hook points
-  (`parse_pack_stmt`, `parse_pack_decl`, `parse_pack_atom`) + keyword
-  registration. Don't let packs inject syntax arbitrarily everywhere.
-- **Pratt parsing for expressions**: precedence is local and extensible.
-  Avoid threading operator tables through a generator-style grammar.
-- **Every AST node carries a span**: enables later error reporting and
-  LSP.
-- **Language facts centralized**: keyword list, operator precedences,
-  delimiters as data. Shared by the primary parser and (later) a
-  tree-sitter grammar so they don't drift.
+### 5. `many_till` returns `'a list`, not `'a list * 'b`
 
-## Future phases
+In Angstrom 0.16, `many_till : 'a t -> _ t -> 'a list t` returns just the list,
+discarding the terminator's result. This is different from some other parser
+combinator libraries that return a pair.
 
-1. **Phase 1 (implementation)** — Angstrom-based parser, grammar as OCaml
-   values organized by pack.
-2. **Phase 2 (if needed)** — migrate to Menhir if a specific reason
-   emerges (perf, exhaustive conflict checking). This is a rewrite, not
-   a swap — plan for it honestly. Unlikely to be needed at yelu scale.
-3. **Phase 3 (editor support)** — hand-write a tree-sitter grammar as a
-   sibling artifact. Share language facts (keywords, precedences) with
-   the primary parser so they stay consistent. Don't try to derive one
-   from the other automatically.
+### 6. `kw` must match both `IDENT` and keyword tokens
 
-## Open questions (deferred to implementation time)
+The lexer maps `"let"` → `LET`, `"in"` → `IN`, etc. The `kw` function must
+handle both `IDENT "let"` (from user-written identifiers) and `LET` (from the
+lexer's keyword mapping). The current implementation handles both cases with a
+fallback `equal_token`/`Poly.equal` check.
 
-- Error recovery strategy (Chumsky-style synchronize-on-token is
-  portable; Angstrom doesn't have it out of the box).
-- Incremental reparse for editors (Angstrom doesn't support; accept full
-  reparse for small files, or defer to tree-sitter for editor path).
-- Layout sensitivity details — if we go Python-like, exactly which
-  constructs require indentation vs. braces.
+### 7. Codex review fixes (2026-05-04)
+
+Four issues found and fixed:
+
+1. **Colon lexing** — `keyword_lit` consumed `:` before `take_while1` failed,
+   blocking `colon_s`. Merged into single `colon_or_keyword` parser that peeks
+   ahead before committing: `char ':' *> (take_while1 ... <|> return COLON)`.
+
+2. **Command kwargs** — lexer emits `KEYWORD` token for `:msg`, but parser
+   only matched `COLON :: IDENT`. Added `| KEYWORD kw :: rest` pattern.
+
+3. **Let type annotation** — `COLON :: _` matched but `p_ident` was called
+   on original `toks` (still with `COLON`). Fixed to consume `COLON` first:
+   `COLON :: rest -> p_ident rest`.
+
+4. **Trailing tokens** — entry point returned `Ok` regardless of remaining
+   tokens. Now rejects with `Error "unexpected trailing tokens"`.
+
+### 8. Known edge cases (4 remaining)
+
+- `if TARGET target "Foo" then { }` — `TARGET` keyword token in expression
+  position fails with "parse error at LBRACE". The token stream is correct,
+  `p_target_ref` handles `TARGET` via `kw "target"` + `Poly.equal`, but
+  something between `p_cond` and `p_block` loses the token list.
+  Also affects: `let ... : target = ...`, `full step1`.
+
+## Surface syntax (current)
+
+Based on the OCaml-Python hybrid design:
+
+```yelu
+let tut : target = target "Tutorial" in
+{
+  cmake_minimum_required "3.20";
+  project "Tutorial" :version "1.0" :languages [CXX];
+
+  set CMAKE_CXX_STANDARD "11";
+  set CMAKE_CXX_STANDARD_REQUIRED ON;
+
+  add_executable tut {
+    sources = ["tutorial.cxx"]
+  };
+
+  target_link_libraries tut {
+    :public { math };
+    :private { flags }
+  };
+
+  if ${do_test} then {
+    enable_testing;
+    add_test "Runs" "Tutorial" "25"
+  }
+}
+```

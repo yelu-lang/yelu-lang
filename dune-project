@@ -7,6 +7,6 @@
  (synopsis "programmable configuration shell language — cmake pack")
  (depends
   base fmt fix re
-  ppx_jane
+  ppx_jane angstrom
   (alcotest :with-test)))
 (license MIT)

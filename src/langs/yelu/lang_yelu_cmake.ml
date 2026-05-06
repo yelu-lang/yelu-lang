@@ -89,10 +89,39 @@ type compatibility = Lang_cmake.compatibility =
 include Lang_yelu_genex
 
 type yelu_expr =
-  | Yexpr_name of tc_name  (* typed cmake named entity — namespace in tc_name.ns *)
-  | Yexpr_string of yc_string (* path, keyword, string, or configure-time eval *)
+  | Yexpr_name of tc_name
+  | Yexpr_string of yc_string
   | Yexpr_bool of bool
-  | Yexpr_var of yelu_var (* compile-time variable reference *)
+  | Yexpr_var of yelu_var
+  (* boolean ops — from cond theory *)
+  | Yexpr_not of yelu_expr
+  | Yexpr_and of yelu_expr * yelu_expr
+  | Yexpr_or of yelu_expr * yelu_expr
+  (* comparisons *)
+  | Yexpr_str_equal of yelu_expr * yelu_expr
+  | Yexpr_str_less of yelu_expr * yelu_expr
+  | Yexpr_str_greater of yelu_expr * yelu_expr
+  | Yexpr_str_less_eq of yelu_expr * yelu_expr
+  | Yexpr_str_greater_eq of yelu_expr * yelu_expr
+  | Yexpr_equal of yelu_expr * yelu_expr
+  | Yexpr_less of yelu_expr * yelu_expr
+  | Yexpr_greater of yelu_expr * yelu_expr
+  | Yexpr_less_eq of yelu_expr * yelu_expr
+  | Yexpr_greater_eq of yelu_expr * yelu_expr
+  | Yexpr_ver_less of yelu_expr * yelu_expr
+  | Yexpr_ver_greater of yelu_expr * yelu_expr
+  | Yexpr_ver_equal of yelu_expr * yelu_expr
+  | Yexpr_ver_less_eq of yelu_expr * yelu_expr
+  | Yexpr_ver_greater_eq of yelu_expr * yelu_expr
+  | Yexpr_matches of yelu_expr * string
+  | Yexpr_in_list of yelu_expr * yelu_expr
+  (* domain tests *)
+  | Yexpr_is_target of tc_name
+  | Yexpr_is_defined of tc_name
+  | Yexpr_exists of yelu_expr
+  | Yexpr_is_directory of yelu_expr
+  | Yexpr_is_absolute of yelu_expr
+  | Yexpr_policy of string
 
 (* cmake-pack substrate for Lang_yelu functors *)
 module Cmake_types = struct
@@ -133,7 +162,7 @@ type yelu_stmt =
   | Ys_cmake of yelu_cmake_stmt
   (* core *)
   | Ylet of { var : yelu_var; value : yelu_expr }
-  | Yif of { cond : yelu_cond; then_ : yelu_stmt; else_ : yelu_stmt option }
+  | Yif of { cond : yelu_expr; then_ : yelu_stmt; else_ : yelu_stmt option }
   | Ystmt_list of yelu_stmt list
   (* cmake-specific scripting *)
   | Yc_include of { file : yelu_expr; optional : bool }
@@ -175,7 +204,7 @@ type yelu_stmt =
       lists : yelu_cvar list;
       commands : yelu_stmt;
     }
-  | Yc_while of { cond : yelu_cond; commands : yelu_stmt }
+  | Yc_while of { cond : yelu_expr; commands : yelu_stmt }
   | Yc_break
   | Yc_continue
   | Yc_return of { propogate_vars : string list }
@@ -193,7 +222,6 @@ module Cmake_check = struct
   open Base
   open Lang_yelu_type
   let stage = Stage_typecheck
-  module Cond_check = Lang_yelu_cond.Make_cond_check (Cmake_types)
   module Str_check = Lang_yelu_string.Make_string_check (Cmake_types)
   module Target_check = Lang_yelu_target.Make_target_check (Cmake_types)
   module File_check = Lang_yelu_file.Make_file_io_check (Cmake_types)
@@ -209,7 +237,7 @@ module Cmake_check = struct
   module Cmake_op_check = Lang_yelu_cmake_op.Make_cmake_op_check (Cmake_types)
 
   let _ : (module CHECKER_BASE) list = [
-    (module Cond_check);     (module Str_check);      (module Target_check);
+    (module Str_check);      (module Target_check);
     (module File_check);     (module Path_check);     (module List_check);
     (module Var_check);      (module Property_check); (module Find_check);
     (module Dir_check);      (module Install_check);  (module Test_check);
@@ -228,6 +256,18 @@ module Cmake_check = struct
     | Yexpr_name { ns = Ns_target; _ } -> Ty_target
     | Yexpr_name { name; _ } | Yexpr_var (Yvar name) ->
         Map.find env name |> Option.value ~default:Ty_any
+    (* all boolean ops → Ty_bool *)
+    | Yexpr_not _ | Yexpr_and _ | Yexpr_or _
+    | Yexpr_str_equal _ | Yexpr_str_less _ | Yexpr_str_greater _
+    | Yexpr_str_less_eq _ | Yexpr_str_greater_eq _
+    | Yexpr_equal _ | Yexpr_less _ | Yexpr_greater _
+    | Yexpr_less_eq _ | Yexpr_greater_eq _
+    | Yexpr_ver_less _ | Yexpr_ver_greater _ | Yexpr_ver_equal _
+    | Yexpr_ver_less_eq _ | Yexpr_ver_greater_eq _
+    | Yexpr_matches _ | Yexpr_in_list _
+    | Yexpr_is_target _ | Yexpr_is_defined _
+    | Yexpr_exists _ | Yexpr_is_directory _ | Yexpr_is_absolute _
+    | Yexpr_policy _ -> Ty_bool
 
   let bind env name ty = Map.set env ~key:name ~data:ty
 
@@ -292,7 +332,7 @@ module Cmake_check = struct
         in
         (env', errs)
     | Yif { cond; then_; else_ } ->
-        let cond_errs = Cond_check.check ~type_of:(type_of env) cond in
+        let cond_errs = check_compat ~context:"if cond" Ty_bool (type_of env cond) in
         let env1, then_errs = check_stmt env then_ in
         let _, else_errs =
           Option.value_map else_ ~default:(env, []) ~f:(check_stmt env)

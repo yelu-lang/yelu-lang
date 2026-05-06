@@ -1,6 +1,56 @@
 open Base
 open Lang_yelu_type
 
+(* ============================================================
+   Variable & Cache Theory — cmake namespace semantics
+
+   cmake has three overlapping namespaces for named values:
+     Variable  — set(NAME val), ${NAME}, if(DEFINED NAME)
+     Cache     — set(NAME val CACHE TYPE "doc"), -DNAME=val, $CACHE{NAME}
+     Env       — set(ENV{NAME} val), $ENV{NAME}
+
+   Write-once persistent binding.  "Cache" is misleading — it is not a cache
+   (you cannot recompute).  It is a write-once persistent value: once set (by
+   the program, or by -D), the program cannot change it.  Only -D (user
+   override) or -U / deleting CMakeCache.txt can reset it.
+
+   Dual-write trap.  On first configure, set(...CACHE...) writes to BOTH the
+   Cache and Variable namespaces.  On re-configure (cache entry already
+   exists), it is a no-op for BOTH — the variable is NOT re-set.  This means
+   the same program text has different behavior depending on whether a build
+   directory already exists.  The dual-write is an implementation artifact:
+   it makes the persistent value visible to ${NAME} without requiring
+   $CACHE{NAME} everywhere.  But it creates non-idempotent semantics.
+
+   Decision tree (verified against cmake 4.3.1, 15 tests in test_set.ml):
+
+   Write
+     set(NAME val CACHE ...)
+     ├── cache entry exists? → NO-OP (writes nothing)
+     └── no                 → write NAME=val to BOTH Cache AND Variable
+     set(NAME val)           → always writes Variable
+     -DNAME=val              → always writes Cache only
+     unset(NAME)             → removes Variable  only
+     unset(NAME CACHE)       → removes BOTH Cache AND Variable
+
+   Read
+     ${NAME} / if(DEFINED NAME)
+     ├── Variable has NAME (non-empty)? → return it / true
+     └── no → Cache has NAME?           → return it / true  [fallback]
+                                   └── no → "" / false
+     $CACHE{NAME} / if(DEFINED CACHE{NAME})
+     └── Cache has NAME? → return it / true, else "" / false
+
+   Equivalences (provable):
+     option(VAR "msg" ON)  ≡ set(VAR ON  CACHE BOOL "msg")
+     option(VAR "msg" OFF) ≡ set(VAR OFF CACHE BOOL "msg")
+
+   Future split.  The six constructors below mix three namespaces.  A clean
+   split would move Yvar_option / Yvar_set_cache / Yvar_unset_cache into a
+   separate `cache` theory owning the write-once semantics, the dual-write
+   behavior, and the persistence model.  See doc/cmake_cache_semantics.md.
+   ============================================================ *)
+
 module Make_var_op (T : LANG_TYPES) = struct
   type yelu_var_stmt =
     (* Variable namespace: set(), if(DEFINED), ${} *)

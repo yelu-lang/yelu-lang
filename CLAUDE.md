@@ -260,6 +260,7 @@ Numbers are stable (never renumbered). Priority order tracks `yelu_project_overv
 | Y11  | Policy-aware compiler                   | Auto-emit policy preamble per construct      |
 | Y13  | Persistent value primitive              | `@cached` with content-addressed store       |
 | Y14  | Reserved keyword validation             | Enumerate cmake keywords, warn on clashes    |
+| Y15  | Binding feature library                 | Design space of binding mechanisms — lexical vs global, immutable vs mutable, expression vs statement, name-as-syntax vs name-as-data. Current: `let` (lexical/immutable/expression) + `set` (global/mutable/statement). Future: named choices selectable per pack |
 
 ### Research (likely papers/material)
 
@@ -327,6 +328,10 @@ while targeting different semantics.
 - **`open Base` shadows stdlib**: `result`, `prefix`, `id`, `append` are shadowed — rename
   in pattern matches.
 - **OCaml LSP stale diagnostics**: Cross-module edits show false errors until dune rebuilds.
+- **Catch-all ordering in large match expressions**: `| e -> ...` must come LAST after all
+  specialized patterns. Putting it first makes everything below unreachable — the compiler
+  warns with `redundant-case` but doesn't error. Check this in wellform, typechecker, and
+  compiler whenever adding new expression or statement constructors.
   ocamllsp reads compiled `.cmi` files directly. Always verify with `dune build` at the end.
   Do not re-attempt edits in response to stale LSP errors mid-turn.
 - **`Fmt.sp` / `Fmt.cut` box sensitivity**: Break *hints* whose behavior depends on the

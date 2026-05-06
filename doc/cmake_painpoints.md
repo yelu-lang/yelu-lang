@@ -229,6 +229,61 @@ namespace; `add_test(NAME name ...)` uses the Test namespace; but both
 values. The only way to know which namespace an argument occupies is to
 memorize each command's parameter table.
 
+**The Variable/Cache collision is the most dangerous case** because the two
+namespaces share the same write command (`set()`), can hold different values
+under the same name, and have different read semantics depending on the access
+method:
+
+```cmake
+set(VAR "normal")                    # writes to Variable namespace
+set(VAR "cached" CACHE STRING "")    # writes to Cache namespace (same name)
+```
+
+The read path is consistent (normal first, cache fallback for both `${VAR}`
+and `DEFINED VAR`). The pain point is in the **write path**:
+
+```cmake
+set(VAR "normal")                    # writes only to Variable namespace
+set(VAR "cached" CACHE STRING "")    # writes to Cache AND Variable (both!)
+```
+
+On first configure, `set(...CACHE...)` is a **dual-write**: it sets both the
+cache entry and the normal variable to the same value. On re-configure (when
+the cache entry already exists), the same command becomes a silent no-op for
+BOTH namespaces — the normal variable is NOT set either.
+
+| Scenario | `${VAR}` reads | Why |
+|---|---|---|
+| First configure: `set(VAR "cached" CACHE...)` | `"cached"` | Cache set also wrote normal |
+| Re-configure: `set(VAR "cached" CACHE...)` | `"cached"` (from previous run) | Cache entry sticky, normal untouched |
+| `unset(VAR)` then `set(VAR "cached" CACHE...)` | `"cached"` | Cache still exists, normal re-set |
+| `unset(VAR)` after cache set | `"cached"` | `unset` only removes normal; cache persists |
+
+The read path is regular (`${VAR}` → normal, fall through to cache;
+`DEFINED VAR` → same chain). But the dual-write semantics of
+`set(...CACHE...)` — writing to two namespaces from one command, with
+different stickiness rules per namespace across configure runs — makes
+the write behavior hard to reason about without testing each case.
+
+The `-D` command-line flag writes to the Cache namespace:
+```
+cmake -DVAR=cmdline ...
+```
+This sets `VAR` in the cache, not the normal variable. Inside CMakeLists.txt,
+`${VAR}` sees `"cmdline"` (through fallback), but `set(VAR "normal")` only
+affects the normal variable and leaves the cache entry untouched. The resulting
+shadowing — normal over cache, but only for reads, not DEFINED — is a
+persistent source of debugging confusion.
+
+**What yelu does.** Yelu's `tc_name` records the namespace explicitly:
+`{ ns = Ns_var; name = "VAR" }` vs. `{ ns = Ns_cache; name = "VAR" }`. These
+are distinct types; a command expecting a variable will not accept a cache key,
+and vice versa. The `wellform` pass already checks that all references resolve
+to declarations in the correct namespace. The `cache` theory (see
+[cmake_cache_semantics.md](cmake_cache_semantics.md)) owns the read/write
+rules — including the fallback chain and DEFINED inconsistency — as
+verifiable invariants.
+
 For LLMs generating cmake, this means every identifier must carry implicit
 namespace disambiguation that is absent from the surface syntax — a constant
 source of namespace-crossing mistakes that only surface as build errors or

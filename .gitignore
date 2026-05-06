@@ -2,3 +2,7 @@ _build/
 debug.log
 *.exe
 __pycache__/
+
+asset/
+build/
+CMakeLists.txt

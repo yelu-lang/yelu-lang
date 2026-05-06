@@ -1,3 +1,5 @@
 (tests
- (names test_yelu_compile test_yelu_check)
- (libraries base alcotest yelu_langs))
+ (names test_yelu_compile test_yelu_check test_yelu_lexer test_yelu_cmake_parse)
+ (libraries base alcotest angstrom yelu_langs)
+ (preprocess
+  (pps ppx_jane)))

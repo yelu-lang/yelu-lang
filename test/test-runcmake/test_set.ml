@@ -93,14 +93,115 @@ let cache_string_type =
       (yc_message ~mode:Mm_fatal_error ["cache_string_type: greeting should be hello"]);
   ])
 
+(* --- Dual-write: cache set also writes normal on first configure --- *)
+let cache_writes_normal =
+  Alcotest.test_case "cache_writes_normal" `Quick (fun () ->
+    let result = run_configure (compile (Ystmt_list [
+      yc_set_cache (ycvar "dual") [ ystr "cached" ] ~docstring:"test";
+      yifthen (ynot (ystrequal (ycref "dual") (ystr "cached")))
+        (yc_message ~mode:Mm_fatal_error ["dual: normal should be cached"]);
+    ])) in
+    check_cache "dual" "cached" result)
+
+(* --- Re-configure: cache already exists, script cache-set is no-op --- *)
+let cache_noop_on_reconfigure =
+  (* We simulate by calling run_configure twice — but the second run
+     creates a fresh temp dir, so the cache from run 1 doesn't persist.
+     Instead, test: one configure with two cache-sets of the same name. *)
+  Alcotest.test_case "cache_noop_on_reconfigure" `Quick (fun () ->
+    let result = run_configure (compile (Ystmt_list [
+      yc_set_cache (ycvar "sticky") [ ystr "first" ] ~docstring:"t";
+      (* second set without FORCE — should be ignored because cache already exists
+         from the first set in the same configure run *)
+      yc_set_cache (ycvar "sticky") [ ystr "second" ] ~docstring:"t";
+      yifthen (ynot (ystrequal (ycref "sticky") (ystr "first")))
+        (yc_message ~mode:Mm_fatal_error ["sticky: should remain first"]);
+    ])) in
+    check_cache "sticky" "first" result)
+
+(* --- unset(normal) — cache persists, ${VAR} falls back to cache --- *)
+let unset_normal_cache_persists =
+  Alcotest.test_case "unset_normal_cache_persists" `Quick (fun () ->
+    let result = run_configure (compile (Ystmt_list [
+      yc_set (ycvar "unc") [ ystr "normal_val" ];
+      yc_set_cache (ycvar "unc") [ ystr "cache_val" ] ~docstring:"t";
+      yc_set (ycvar "unc") [];  (* unset normal: set to empty *)
+      yifthen (ynot (yis_defined (ycstr "unc")))
+        (yc_message ~mode:Mm_fatal_error ["unc: should still be defined via cache fallback"]);
+      yifthen (ynot (ystrequal (ycref "unc") (ystr "cache_val")))
+        (yc_message ~mode:Mm_fatal_error ["unc: should fallback to cache_val"]);
+    ])) in
+    check_cache "unc" "cache_val" result)
+
+(* --- unset(CACHE) — removes BOTH cache and normal --- *)
+let unset_cache_removes_both =
+  Alcotest.test_case "unset_cache_removes_both" `Quick (fun () ->
+    let result = run_configure (compile (Ystmt_list [
+      yc_set_cache (ycvar "rm") [ ystr "val" ] ~docstring:"t";
+      yc_unset_cache (ycvar "rm");
+      yifthen (yis_defined (ycstr "rm"))
+        (yc_message ~mode:Mm_fatal_error ["rm: should be undefined after unset CACHE"]);
+    ])) in
+  (* cache variable should be absent *)
+  match cache_get "rm" result with
+  | None -> ()
+  | Some _ -> Alcotest.fail "rm: cache entry should be absent after unset CACHE")
+
+(* --- normal then cache (same name): cache overwrites normal --- *)
+let normal_then_cache =
+  Alcotest.test_case "normal_then_cache" `Quick (fun () ->
+    let result = run_configure (compile (Ystmt_list [
+      yc_set (ycvar "nc") [ ystr "first_n" ];
+      yc_set_cache (ycvar "nc") [ ystr "then_c" ] ~docstring:"t";
+      yifthen (ynot (ystrequal (ycref "nc") (ystr "then_c")))
+        (yc_message ~mode:Mm_fatal_error ["nc: normal should be overwritten by cache dual-write"]);
+    ])) in
+    check_cache "nc" "then_c" result)
+
+(* --- cache then normal: normal reads first --- *)
+let cache_then_normal =
+  Alcotest.test_case "cache_then_normal" `Quick (fun () ->
+    let result = run_configure (compile (Ystmt_list [
+      yc_set_cache (ycvar "cn") [ ystr "first_c" ] ~docstring:"t";
+      yc_set (ycvar "cn") [ ystr "then_n" ];
+      yifthen (ynot (ystrequal (ycref "cn") (ystr "then_n")))
+        (yc_message ~mode:Mm_fatal_error ["cn: normal should win read"]);
+      yifthen (ynot (ystrequal (ycref "cn") (ystr "then_n")))
+        (yc_message ~mode:Mm_fatal_error ["cn: read should be then_n"]);
+    ])) in
+    check_cache "cn" "first_c" result)
+
+(* --- option() equivalence: option(VAR "msg" ON) === set(VAR ON CACHE BOOL "msg") --- *)
+let option_equiv_set_cache_bool =
+  Alcotest.test_case "option_equiv" `Quick (fun () ->
+    let prog_opt = Ystmt_list [
+      yc_option ~value:(ybool true) ~msg:"enable foo" (ycvar "opt1");
+    ] in
+    let prog_set = Ystmt_list [
+      yc_set_cache ~cache_type:Ct_bool (ycvar "opt1") [ ystr "ON" ] ~docstring:"enable foo";
+    ] in
+    let r1 = run_configure (compile prog_opt) in
+    let r2 = run_configure (compile prog_set) in
+    match cache_get "opt1" r1, cache_get "opt1" r2 with
+    | Some v1, Some v2 when String.equal v1 v2 -> ()
+    | v1, v2 -> Alcotest.failf "option_equiv: opt1 values differ: option=%s, set_cache=%s"
+                 (Option.value ~default:"<none>" v1) (Option.value ~default:"<none>" v2))
+
 let () =
   Alcotest.run "set"
-    [ ("normal_unset",           [ normal_unset ]);
-      ("parent_scope",           [ parent_scope ]);
-      ("cache_first_write_wins", [ cache_first_write_wins ]);
-      ("cache_force",            [ cache_force ]);
-      ("cache_path_type",        [ cache_path_type ]);
-      ("cache_bool_type",        [ cache_bool_type ]);
-      ("cache_string_type",      [ cache_string_type ]);
-      ("unset_cache",            [ unset_cache ]);
+    [ ("normal_unset",                 [ normal_unset ]);
+      ("parent_scope",                 [ parent_scope ]);
+      ("cache_first_write_wins",       [ cache_first_write_wins ]);
+      ("cache_force",                  [ cache_force ]);
+      ("cache_path_type",              [ cache_path_type ]);
+      ("cache_bool_type",              [ cache_bool_type ]);
+      ("cache_string_type",            [ cache_string_type ]);
+      ("unset_cache",                  [ unset_cache ]);
+      ("cache_writes_normal",          [ cache_writes_normal ]);
+      ("cache_noop_on_reconfigure",    [ cache_noop_on_reconfigure ]);
+      ("unset_normal_cache_persists",  [ unset_normal_cache_persists ]);
+      ("unset_cache_removes_both",     [ unset_cache_removes_both ]);
+      ("normal_then_cache",            [ normal_then_cache ]);
+      ("cache_then_normal",            [ cache_then_normal ]);
+      ("option_equiv",                 [ option_equiv_set_cache_bool ]);
     ]

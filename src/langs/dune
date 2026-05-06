@@ -3,6 +3,6 @@
 (library
  (name yelu_langs)
  (package yelu)
- (libraries base fmt)
+ (libraries base fmt angstrom)
  (preprocess
   (pps ppx_jane)))

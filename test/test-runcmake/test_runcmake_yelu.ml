@@ -260,7 +260,7 @@ endwhile()
 let while_counter_yelu =
   Ystmt_list [
     yc_set (ycvar "i") [ystr "0"];
-    yc_while (Yless (ystr_eval "${i}", ystr "3"))
+    yc_while (Yexpr_less (ystr_eval "${i}", ystr "3"))
       (Ystmt_list [
         yc_message ~mode:Mm_none ["${i}"];
         yc_math "${i} + 1" (ycvar "i");
@@ -282,7 +282,7 @@ endwhile()
 let while_break_yelu =
   Ystmt_list [
     yc_set (ycvar "i") [ystr "0"];
-    yc_while (Yless (ystr_eval "${i}", ystr "10"))
+    yc_while (Yexpr_less (ystr_eval "${i}", ystr "10"))
       (Ystmt_list [
         yifthen (ystrequal (ystr_eval "${i}") (ystr "3")) yc_break;
         yc_message ~mode:Mm_none ["${i}"];

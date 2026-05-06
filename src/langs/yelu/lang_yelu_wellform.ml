@@ -46,6 +46,7 @@ let cvar_refs_of_expr ?(in_defined = false) = function
   | Yexpr_name { ns = Ns_var; name } -> if in_defined then [] else [ name ]
   | Yexpr_name _ | Yexpr_string _ | Yexpr_bool _ -> []
   | Yexpr_var _ -> []
+  | _ -> []
 
 let target_refs_of_expr = function
   | Yexpr_name { ns = Ns_target; name } -> [ name ]
@@ -55,43 +56,45 @@ let cvar_name_of_tcname ({ ns; name } : tc_name) =
   match ns with Ns_var -> [ name ] | _ -> []
 
 (* Condition traversal — Yis_defined exempts its argument from cvar checking *)
-let rec cvar_refs_of_cond = function
-  | Ytruthy arg -> cvar_refs_of_expr arg
-  | Ynot c -> cvar_refs_of_cond c
-  | Yand (a, b) | Yor (a, b) -> cvar_refs_of_cond a @ cvar_refs_of_cond b
-  | Yis_target arg -> cvar_refs_of_expr arg
-  | Yis_defined arg -> cvar_refs_of_expr ~in_defined:true arg
-  | Yin_list (value, listvar) -> cvar_refs_of_expr value @ cvar_refs_of_expr listvar
-  | Ymatches (value, _) | Yexists value | Yis_directory value | Yis_absolute value ->
+let rec cvar_refs_of_bool = function
+  | Yexpr_bool _ -> []
+  | Yexpr_not c -> cvar_refs_of_bool c
+  | Yexpr_and (a, b) | Yexpr_or (a, b) -> cvar_refs_of_bool a @ cvar_refs_of_bool b
+  | Yexpr_is_target _ -> []
+  | Yexpr_is_defined _ -> []
+  | Yexpr_in_list (value, listvar) -> cvar_refs_of_expr value @ cvar_refs_of_expr listvar
+  | Yexpr_matches (value, _) | Yexpr_exists value | Yexpr_is_directory value | Yexpr_is_absolute value ->
     cvar_refs_of_expr value
-  | Ystrequal (a, b) | Ystrless (a, b) | Ystrgreater (a, b)
-  | Ystrless_equal (a, b) | Ystrgreater_equal (a, b)
-  | Yequal (a, b) | Yless (a, b) | Ygreater (a, b)
-  | Yless_equal (a, b) | Ygreater_equal (a, b)
-  | Yversion_less (a, b) | Yversion_greater (a, b)
-  | Yversion_equal (a, b) | Yversion_less_equal (a, b)
-  | Yversion_greater_equal (a, b) ->
+  | Yexpr_str_equal (a, b) | Yexpr_str_less (a, b) | Yexpr_str_greater (a, b)
+  | Yexpr_str_less_eq (a, b) | Yexpr_str_greater_eq (a, b)
+  | Yexpr_equal (a, b) | Yexpr_less (a, b) | Yexpr_greater (a, b)
+  | Yexpr_less_eq (a, b) | Yexpr_greater_eq (a, b)
+  | Yexpr_ver_less (a, b) | Yexpr_ver_greater (a, b)
+  | Yexpr_ver_equal (a, b) | Yexpr_ver_less_eq (a, b)
+  | Yexpr_ver_greater_eq (a, b) ->
     cvar_refs_of_expr a @ cvar_refs_of_expr b
-  | Ypolicy_defined _ -> []
-
-let rec target_refs_of_cond = function
-  | Ytruthy arg -> target_refs_of_expr arg
-  | Ynot c -> target_refs_of_cond c
-  | Yand (a, b) | Yor (a, b) -> target_refs_of_cond a @ target_refs_of_cond b
-  | Yis_target _ -> []  (* Yis_target checks existence, exempt from decl check *)
-  | Yis_defined _ -> []
-  | Yin_list (value, listvar) -> target_refs_of_expr value @ target_refs_of_expr listvar
-  | Ymatches (value, _) | Yexists value | Yis_directory value | Yis_absolute value ->
+  | Yexpr_policy _ -> []
+  (* simple expressions in if position *)
+  | e -> cvar_refs_of_expr e
+let rec target_refs_of_bool = function
+  | Yexpr_bool _ -> []
+  | Yexpr_not c -> target_refs_of_bool c
+  | Yexpr_and (a, b) | Yexpr_or (a, b) -> target_refs_of_bool a @ target_refs_of_bool b
+  | Yexpr_is_target _ -> []
+  | Yexpr_is_defined _ -> []
+  | Yexpr_in_list (value, listvar) -> target_refs_of_expr value @ target_refs_of_expr listvar
+  | Yexpr_matches (value, _) | Yexpr_exists value | Yexpr_is_directory value | Yexpr_is_absolute value ->
     target_refs_of_expr value
-  | Ystrequal (a, b) | Ystrless (a, b) | Ystrgreater (a, b)
-  | Ystrless_equal (a, b) | Ystrgreater_equal (a, b)
-  | Yequal (a, b) | Yless (a, b) | Ygreater (a, b)
-  | Yless_equal (a, b) | Ygreater_equal (a, b)
-  | Yversion_less (a, b) | Yversion_greater (a, b)
-  | Yversion_equal (a, b) | Yversion_less_equal (a, b)
-  | Yversion_greater_equal (a, b) ->
+  | Yexpr_str_equal (a, b) | Yexpr_str_less (a, b) | Yexpr_str_greater (a, b)
+  | Yexpr_str_less_eq (a, b) | Yexpr_str_greater_eq (a, b)
+  | Yexpr_equal (a, b) | Yexpr_less (a, b) | Yexpr_greater (a, b)
+  | Yexpr_less_eq (a, b) | Yexpr_greater_eq (a, b)
+  | Yexpr_ver_less (a, b) | Yexpr_ver_greater (a, b)
+  | Yexpr_ver_equal (a, b) | Yexpr_ver_less_eq (a, b)
+  | Yexpr_ver_greater_eq (a, b) ->
     target_refs_of_expr a @ target_refs_of_expr b
-  | Ypolicy_defined _ -> []
+  (* simple expressions in if position *)
+  | e -> target_refs_of_expr e
 
 (* Check helpers *)
 let check_cvar_ref env ~context name =
@@ -681,8 +684,8 @@ let rec check_stmt (env : env) : yelu_stmt -> env * error list = function
     let env = { env with bindings = Map.set env.bindings ~key:name ~data:resolved } in
     (env, [])
   | Yif { cond; then_; else_ } ->
-    let cond_errs = check_cvar_refs env ~context:"if" (cvar_refs_of_cond cond)
-                  @ check_target_refs env ~context:"if" (target_refs_of_cond cond) in
+    let cond_errs = check_cvar_refs env ~context:"if" (cvar_refs_of_bool cond)
+                  @ check_target_refs env ~context:"if" (target_refs_of_bool cond) in
     let then_env, then_errs = check_stmt env then_ in
     let else_env, else_errs =
       Option.value_map else_ ~default:(env, []) ~f:(check_stmt env) in
@@ -742,8 +745,8 @@ let rec check_stmt (env : env) : yelu_stmt -> env * error list = function
     let env = add_cvars env (List.map loop_vars ~f:(fun v -> v.name)) in
     (env, list_errs @ body_errs)
   | Yc_while { cond; commands } ->
-    let cond_errs = check_cvar_refs env ~context:"while" (cvar_refs_of_cond cond)
-                  @ check_target_refs env ~context:"while" (target_refs_of_cond cond) in
+    let cond_errs = check_cvar_refs env ~context:"while" (cvar_refs_of_bool cond)
+                  @ check_target_refs env ~context:"while" (target_refs_of_bool cond) in
     let _, body_errs = check_stmt env commands in
     (env, cond_errs @ body_errs)
   | Yc_break | Yc_continue | Yc_return _ -> (env, [])

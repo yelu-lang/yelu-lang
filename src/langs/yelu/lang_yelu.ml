@@ -18,7 +18,6 @@ module type LANG_TYPES = Lang_yelu_type.LANG_TYPES
    each pack composes its own statement type from these group bundles
    plus its pack-specific scripting vocabulary. *)
 module Make_stmt (T : LANG_TYPES) = struct
-  include Lang_yelu_cond.Make_cond (T)
   include Lang_yelu_string.Make_string_op (T)
   include Lang_yelu_target.Make_target_op (T)
   include Lang_yelu_file.Make_file_io_op (T)
