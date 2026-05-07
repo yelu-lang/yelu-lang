@@ -39,10 +39,10 @@
 <section class="hero">
   <h1>Yelu <span>—</span> a compositional<br>language for the AI era</h1>
   <p>
-    A programmable configuration shell language that separates
-    <em>control</em> (higher-order composition, macro-programming) from
-    <em>theories</em> (domain operations, type checking). cmake is the
-    first target; the architecture generalizes.
+    A programmable configuration shell language with a typed surface syntax.
+    Separates <em>control</em> (binding, branching, iteration) from
+    <em>theories</em> (domain operations with type checking).
+    cmake is the first target; the architecture generalizes.
   </p>
   <div class="hero-actions">
     <a href="cmake/" class="btn btn-primary">yelu-cmake comparison</a>
@@ -50,36 +50,103 @@
   </div>
 </section>
 
+<h2>Concrete syntax</h2>
+
+<p>
+  Yelu's surface syntax is an OCaml-Python hybrid: expression-oriented with
+  ML-style bindings and a Python-ish concrete feel. The parser is implemented
+  and tested (168 parser tests), covering all 14 cmake theories.
+</p>
+
+<h3>Tutorial Step 1</h3>
+
+<pre><code>( cmake_minimum_required "3.20";
+  project "Tutorial" ~version:"1.0" ~languages:[CXX];
+
+  set CMAKE_CXX_STANDARD "11";
+  set CMAKE_CXX_STANDARD_REQUIRED ON;
+
+  configure_file "TutorialConfig.h.in" "TutorialConfig.h";
+
+  let tut : target = Target Tutorial in
+  add_exe tut { tutorial.cxx };
+  include_dirs tut { "${PROJECT_BINARY_DIR}" }
+)</code></pre>
+
+<h3>Tutorial Step 2 — with a library</h3>
+
+<pre><code>( cmake_minimum_required "3.20";
+  project "Tutorial" ~version:"1.0" ~languages:[CXX];
+
+  let math : target = Target MathFunctions in
+  add_lib math { mysqrt.cxx };
+
+  let tut : target = Target Tutorial in
+  add_exe tut { tutorial.cxx };
+  link_lib tut { math };
+  include_dirs tut {
+    "${PROJECT_BINARY_DIR}";
+    "${PROJECT_SOURCE_DIR}/MathFunctions"
+  }
+)</code></pre>
+
+<h3>Key syntax</h3>
+
+<table>
+  <thead>
+    <tr><th>Feature</th><th>Syntax</th><th>Example</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Binding</td><td><code>let x : type = expr in body</code></td><td><code>let t : target = Target Foo in ( )</code></td></tr>
+    <tr><td>Block</td><td><code>( stmt1; stmt2 )</code></td><td><code>( message 'hi'; set VAR "val" )</code></td></tr>
+    <tr><td>Record arg</td><td><code>{ item1; item2 }</code></td><td><code>add_exe tut { tutorial.cxx; util.cxx }</code></td></tr>
+    <tr><td>Conditional</td><td><code>if cond then ( ) else ( )</code></td><td><code>if target Target Foo then ( message 'found' )</code></td></tr>
+    <tr><td>Loop</td><td><code>foreach x in [a, b] ( )</code></td><td><code>foreach i in RANGE 1..10 ( message ${i} )</code></td></tr>
+    <tr><td>Named args</td><td><code>~label:value</code> / <code>~flag</code></td><td><code>project "T" ~version:"1.0" ~languages:[CXX]</code></td></tr>
+    <tr><td>Keyword</td><td><code>:PUBLIC</code></td><td><code>compile_feats tgt ~public:[cxx_std_11]</code></td></tr>
+    <tr><td>String kinds</td><td><code>"path"</code> <code>'plain'</code></td><td><code>message "hello"</code>, <code>message 'hello'</code></td></tr>
+    <tr><td>Eval / genex</td><td><code>${VAR}</code> <code>$&lt;GENEX&gt;</code></td><td><code>message ${CMAKE_VERSION}</code>, <code>$&lt;CONFIG&gt;</code></td></tr>
+    <tr><td>Assignment</td><td><code>VAR := value</code></td><td><code>CMAKE_CXX_STANDARD := "11"</code></td></tr>
+  </tbody>
+</table>
+
 <h2>What is yelu?</h2>
 
 <p>
-  Yelu is a research vehicle with a twofold motivation:
+  Yelu is a research vehicle for language design in the AI era, organized in
+  five layers. Each layer answers a question and builds on the one below it.
+</p>
+
+<h3>Layer 1 — The specimen: cmake</h3>
+
+<p>
+  Configuration languages carry disproportionate operational risk — a typo in
+  a variable name, a misordered command, and the fault surfaces three calls
+  later as an empty string. cmake is the exemplar: three decades of accumulated
+  layers (scripting &rarr; modules &rarr; generator expressions &rarr; presets
+  &rarr; policy stack) with no cleanup between them. It is widely adopted
+  (important enough that results transfer) yet maximally hostile to automated
+  reasoning (a stress test for the claims).
+</p>
+
+<h3>Layer 2 — The architecture: control side + theories</h3>
+
+<p>
+  The language separates a <strong>universal control side</strong> (binding,
+  branching, iteration, macros) from target-specific
+  <strong>theories</strong> (per-domain typed constructors and checkers).
+  Theories compose over a shared substrate; the control side is reused across
+  all target packs (cmake, future json, nix).
 </p>
 
 <p>
-  <strong>1. A compositional approach to language design.</strong>
-  Programming languages can be decomposed into a <em>control side</em>
-  (binding, composition, iteration, higher-order abstraction) and
-  <em>theories</em> (domain-specific operations over typed namespaces).
-  Checking and refutation happen at distinct stages — typecheck,
-  wellform, effect, lower — each catching a different class of error.
-  The core theories are target-agnostic; each target pack (cmake, and
-  future json, nix) instantiates them against its own semantics.
+  Checking decomposes into distinct passes — <code>typecheck</code>,
+  <code>wellform</code>, <code>effect</code>, <code>lower</code>,
+  <code>configure</code> — each catching a different class of error without a
+  monolithic type checker.
 </p>
 
-<p>
-  <strong>2. A testimony for language design in the AI era.</strong>
-  Yelu explores what happens when a language is optimized for
-  <em>both</em> human authoring and machine-driven generation and repair
-  — not one at the expense of the other. It spans traditional PL
-  problems (syntax, typechecking, typing), AI-era PL problems
-  (agent integration, training-time reinforcement, test-time scaling),
-  and the engineering boundary where models and toolchains meet.
-  cmake is the specimen: widely used, always painful, and maximally
-  hostile to automated reasoning — a stress test for the thesis.
-</p>
-
-<h2>The thesis</h2>
+<h3>Layer 3 — The thesis: low entropy</h3>
 
 <p>
   <strong>Languages with low syntactic and semantic entropy plus strong local
@@ -87,62 +154,59 @@
 </p>
 
 <p>
-  "Low entropy" means minimizing surface diversity — one way to say a thing,
-  few hidden defaults, few overloaded names, few stringly-typed dispatch
-  points. It decomposes into six sub-properties:
+  The target workflow is <strong>human-plus-model production with verifier
+  feedback</strong>: a model generates or repairs under verifier guidance,
+  a human reviews and directs. The language is optimized for this loop — not
+  for unadorned model consumption, and not for unadorned human authoring.
 </p>
 
-<ol>
-  <li><strong>Closed-world names and typed slots</strong> — no silent shadowing
-      across namespaces. A name lives in exactly one namespace.</li>
-  <li><strong>Local, structured failure</strong> — faults surface at their
-      origin with precise diagnostics, not silently as empty strings.</li>
-  <li><strong>Canonical surface forms</strong> — a canonicalizer collapses
-      equivalent programs, making equivalence decidable.</li>
-  <li><strong>Explicit phase boundaries</strong> — compile / configure / build
-      / install are named stages, verified at each boundary.</li>
-  <li><strong>Regular grammar</strong> — one syntactic form per concept,
-      unambiguous parse by construction.</li>
-  <li><strong>Searchable type surfaces</strong> — type information is
-      first-class AST data that tools and models can query.</li>
-</ol>
+<h3>Layer 4 — pl &agrave; la carte</h3>
 
 <p>
-  The language targets <strong>ai-friendliness and human-friendliness
-  simultaneously</strong> — not AI-native at the cost of readability, and not
-  human-idiomatic at the cost of verifiability. The optimal point is where
-  models generate confidently, verifiers catch errors locally, and humans
-  review and direct with clear semantics.
-</p>
-
-<h2>Architecture</h2>
-
-<figure>
-<pre><code>  control side    &larr; binding, composition, iteration, macros
-    &mid;
-  theories        &larr; per-domain typed constructors &amp; checkers
-    &mid;
-  target AST      &larr; stringly-typed, mirrors real cmake
-    &mid;
-  target output   &larr; CMakeLists.txt, verified against reference</code></pre>
-<figcaption>Compositional design: a universal control side composes target-specific theories</figcaption>
-</figure>
-
-<p>
-  The core is a collection of <strong>14 theories</strong> — each
-  <code>Make_*_op</code> / <code>Make_*_check</code> functor pair defines
-  typed constructors and checking rules for one cmake command family (target,
-  variable, string, path, install, test, …). Theories compose over a shared
-  <code>LANG_TYPES</code> substrate; the cmake-pack is the integration point
-  where all 14 theories are instantiated against cmake's semantics.
+  The control side and theory side are independently variable — composable
+  ingredients that can be mixed and matched. This is
+  <strong>pl &agrave; la carte</strong>: not one language, but a design space
+  for assembling languages from parts.
 </p>
 
 <p>
-  The <strong>control side</strong> — <code>Ylet</code>, <code>Yif</code>,
-  <code>Ystmt_list</code>, <code>Yc_foreach</code>, <code>Yc_function</code>
-  — is target-agnostic. It provides binding, branching, iteration, and
-  macro-programming uniformly across all target packs. A future json-pack or
-  nix-pack would reuse the same control side with its own theories.
+  The <strong>control side</strong> is a set of choices: expression-oriented vs.
+  imperative, stateful vs. stateless, macros vs. functions, gradual vs.
+  mandatory typing. The <strong>theory side</strong> is domain-specific and
+  self-contained. Any theory pairs with any control side.
+</p>
+
+<p>
+  For LLM-based evaluation, the control side itself becomes an experimental
+  variable: does a model generate better cmake with an imperative surface or a
+  functional one? With macros or without? pl &agrave; la carte makes these
+  questions answerable by experiment rather than by debate.
+</p>
+
+<h3>Layer 5 — The AI-era argument: why now</h3>
+
+<p>
+  AI has crossed a critical threshold: models can generate and repair cmake,
+  bash, YAML, Dockerfile — the existing irregular configuration languages.
+  This has two consequences.
+</p>
+
+<p>
+  First, <strong>compatibility with existing syntax is not a constraint</strong>.
+  We don't need to retain cmake script syntax for human familiarity — LLMs can
+  translate, a CLI can round-trip, and developers can learn yelu alongside cmake.
+  The locked-in syntax that accumulated over decades can be replaced.
+</p>
+
+<p>
+  Second, <strong>AI is not just a consumer of the language but part of its
+  design motivation</strong>. Each theory is a unit of AI tooling: a training
+  unit (fine-tune on per-theory test suites), a prompt context (few-shot
+  examples scoped to one theory), and a tool boundary (each checker is a
+  verifier an agent can call). An agent facing a novel build task doesn't need
+  to know "cmake" — it needs the <code>target</code> theory, the
+  <code>find</code> theory, the <code>install</code> theory, and the control
+  side teaches it how to compose them.
 </p>
 
 <h2>Compositional checking</h2>
@@ -183,13 +247,6 @@
     </tr>
   </tbody>
 </table>
-
-<p>
-  Type checking is per-theory and per-statement. Well-formedness is cross-theory
-  and whole-program — a target declared in <code>target</code> theory is
-  referenced in <code>install</code>/<code>test</code>/<code>property</code>
-  theory, so no single theory can resolve this alone.
-</p>
 
 <h2>14 theories</h2>
 
@@ -232,11 +289,11 @@
   </div>
   <div class="feature-card">
     <h4>find</h4>
-    <p>find_package/library/path <span class="badge-done">partial</span></p>
+    <p>find_package/library/path <span class="badge-todo">partial</span></p>
   </div>
   <div class="feature-card">
     <h4>cmake_op</h4>
-    <p>cmake_language, math, execute_process <span class="badge-done">partial</span></p>
+    <p>cmake_language, math, execute_process <span class="badge-todo">partial</span></p>
   </div>
   <div class="feature-card">
     <h4>dir</h4>
@@ -244,7 +301,7 @@
   </div>
   <div class="feature-card">
     <h4>test</h4>
-    <p>Test ops <span class="badge-done">minimal</span></p>
+    <p>Test ops <span class="badge-todo">minimal</span></p>
   </div>
   <div class="feature-card">
     <h4>genex</h4>
@@ -252,36 +309,35 @@
   </div>
 </div>
 
+<h2>Falsifiability</h2>
+
+<p>The thesis makes specific, testable claims:</p>
+
+<ol>
+  <li>LLMs using yelu produce fewer type errors, fewer silent semantic errors,
+      and require fewer repair rounds than LLMs given cmake directly, on
+      matched tasks.</li>
+  <li>Error classes caught by yelu's checker are a strict subset of cmake's
+      own errors.</li>
+  <li>Adding a new theory requires no modifications to existing theories'
+      checkers.</li>
+  <li>A second target pack does not require redesigning
+      <code>LANG_TYPES</code> or <code>checking_stage</code>.</li>
+</ol>
+
 <h2>What yelu is not</h2>
 
 <ul>
   <li><strong>Not a cmake replacement.</strong> Yelu targets cmake as output;
-      it doesn't replace cmake's build orchestration or platform abstraction.
       cmake is the specimen, not the thesis.</li>
-  <li><strong>Not a better template language.</strong> Yelu provides
-      programmability and verification; it doesn't compete with
-      <code>configure_file()</code> or Jinja.</li>
   <li><strong>Not a build system.</strong> Yelu has no runtime, no scheduler,
       no dependency graph. It emits text that build systems consume.</li>
-  <li><strong>Not a product.</strong> Yelu is a research vehicle for
-      language design in the AI era. The artifacts (compiler, checker,
-      test suite) exist to test the thesis, not to ship to users.</li>
+  <li><strong>Not a product.</strong> Yelu is a research vehicle for language
+      design in the AI era. The artifacts exist to test the thesis, not to
+      ship to users.</li>
   <li><strong>Not AI-only.</strong> Yelu is optimized for human-plus-model
-      production with verifier feedback — not for unadorned model consumption,
-      and not for unadorned human authoring. The two must work together.</li>
+      production with verifier feedback — not for either alone.</li>
 </ul>
-
-<h2>Falsifiability</h2>
-
-<p>The thesis makes specific, falsifiable claims:</p>
-
-<ol>
-  <li>LLMs using yelu don't produce fewer errors vs raw cmake on matched tasks</li>
-  <li>Error classes caught by yelu's checker are a strict subset of cmake's own errors</li>
-  <li>Adding a new theory requires modifying existing theories' checkers</li>
-  <li>A second target pack requires redesigning <code>LANG_TYPES</code> or
-      <code>checking_stage</code></li>
-</ol>
 
 </main>
 </body>

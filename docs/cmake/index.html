@@ -38,7 +38,7 @@
 
 <header class="page-header">
   <h1>yelu-cmake</h1>
-  <p>Comparing the yelu DSL against raw cmake for the same build logic</p>
+  <p>Typed surface language that compiles to cmake — with concrete syntax</p>
 </header>
 
 <h2>What is yelu-cmake?</h2>
@@ -46,10 +46,9 @@
 <p>
   <strong>yelu-cmake</strong> is the cmake target pack for yelu — and the
   first test of the compositional language thesis. It provides a typed
-  surface language that compiles to standard cmake via type erasure: yelu's
-  typed AST is lowered to cmake's stringly-typed AST, then pretty-printed as
-  <code>CMakeLists.txt</code>. The output is verified for structural
-  equivalence against reference cmake implementations.
+  surface language with concrete syntax that compiles to standard cmake
+  via type erasure. The output is verified for structural equivalence
+  against reference cmake implementations.
 </p>
 
 <p>
@@ -57,8 +56,7 @@
   reasoning</strong>: three decades of accumulated layers with no cleanup,
   implicit namespace collisions, errors that propagate silently as empty
   strings, and workarounds fossilized as permanent policies. If the thesis
-  holds here, it likely holds for simpler configuration targets. If it fails,
-  cmake's idiosyncrasies help diagnose why.
+  holds here, it likely holds for simpler configuration targets.
 </p>
 
 <h2>Feature comparison</h2>
@@ -85,12 +83,27 @@
     <tr>
       <td>Explicit namespaces</td>
       <td>All names are strings, implicitly resolved</td>
-      <td><span class="badge-done">9 namespaces</span> (var, target, cache, env, …)</td>
+      <td><span class="badge-done">9 namespaces</span> (var, target, cache, env, &hellip;)</td>
     </tr>
     <tr>
       <td>Error locality</td>
       <td>Faults cascade through stringly-typed dispatch</td>
       <td><span class="badge-done">per-statement type errors</span></td>
+    </tr>
+    <tr>
+      <td>Concrete surface syntax</td>
+      <td>cmake script syntax</td>
+      <td><span class="badge-done">implemented</span> (168 parser tests)</td>
+    </tr>
+    <tr>
+      <td>Structural equivalence oracle</td>
+      <td>N/A</td>
+      <td><span class="badge-done">108 checks</span> (gersemi + RunCMake + File API)</td>
+    </tr>
+    <tr>
+      <td>Generator expression nesting</td>
+      <td>Flat <code>$&lt;...&gt;</code> — nesting implicit</td>
+      <td><span class="badge-done">bracket-counting lexer</span> on <code>$&lt;</code>/<code>&gt;</code> pairs</td>
     </tr>
     <tr>
       <td>Canonical surface form</td>
@@ -102,69 +115,60 @@
       <td>No checking</td>
       <td><span class="badge-todo">planned (effect pass)</span></td>
     </tr>
-    <tr>
-      <td>Structural equivalence oracle</td>
-      <td>N/A</td>
-      <td><span class="badge-done">108 checks</span> (gersemi + RunCMake + File API)</td>
-    </tr>
-    <tr>
-      <td>Concrete surface syntax</td>
-      <td>cmake script syntax</td>
-      <td><span class="badge-todo">planned</span> (Menhir grammar designed)</td>
-    </tr>
   </tbody>
 </table>
 
-<h2>Code comparison</h2>
-
-<p>
-  Concrete syntax is not yet finalized. These placeholders show the structure
-  of the side-by-side comparison that will be filled in once the yelu surface
-  syntax is implemented.
-</p>
-
-<h3>Tutorial Step 1 — Basic executable</h3>
+<h2>Code comparison — Tutorial Step 1</h2>
 
 <div class="comparison-grid">
   <div class="comparison-col cmake">
     <h3>cmake</h3>
-<pre><code class="highlight"><span class="c1"># CMakeLists.txt</span>
+<pre><code><span class="c1"># CMakeLists.txt</span>
 <span class="nf">cmake_minimum_required</span>(<span class="s2">VERSION</span> <span class="s2">3.20</span>)
 <span class="nf">project</span>(<span class="s2">Tutorial</span>)
 
-<span class="nf">add_executable</span>(<span class="s2">Tutorial</span> <span class="s2">tutorial.cxx</span>)</code></pre>
+<span class="nf">set</span>(<span class="s2">CMAKE_CXX_STANDARD</span> <span class="s2">11</span>)
+<span class="nf">set</span>(<span class="s2">CMAKE_CXX_STANDARD_REQUIRED</span> <span class="s2">ON</span>)
+
+<span class="nf">configure_file</span>(<span class="s2">TutorialConfig.h.in</span> <span class="s2">TutorialConfig.h</span>)
+
+<span class="nf">add_executable</span>(<span class="s2">Tutorial</span> <span class="s2">tutorial.cxx</span>)
+
+<span class="nf">target_include_directories</span>(<span class="s2">Tutorial</span> <span class="s2">PUBLIC</span>
+  <span class="s2">"${PROJECT_BINARY_DIR}"</span>
+)</code></pre>
   </div>
   <div class="comparison-col yelu">
-    <h3>yelu-cmake <span class="badge-todo">surface syntax TBD</span></h3>
-<pre><code class="highlight"><span class="c1"># yelu — surface syntax not yet implemented</span>
-<span class="c1"># Current form: OCaml-hosted AST construction</span>
-<span class="c1"># See src/bin/yelu/v1/step1.ml</span>
+    <h3>yelu-cmake</h3>
+<pre><code><span class="c1"># step1.yl</span>
+( cmake_minimum_required <span class="s2">"3.20"</span>;
+  project <span class="s2">"Tutorial"</span> <span class="o">~</span><span class="nv">version</span>:<span class="s2">"1.0"</span> <span class="o">~</span><span class="nv">languages</span>:[<span class="s2">CXX</span>];
 
-<span class="nf">cmake_minimum_required</span> <span class="s2">"3.20"</span>
-<span class="nf">project</span> <span class="s2">"Tutorial"</span> <span class="o">:</span><span class="nv">languages</span> <span class="o">[</span><span class="s2">CXX</span><span class="o">]</span>
+  set <span class="s2">'CMAKE_CXX_STANDARD'</span> <span class="s2">"11"</span>;
+  set <span class="s2">'CMAKE_CXX_STANDARD_REQUIRED'</span> ON;
 
-<span class="nv">tut</span> <span class="o">=</span> <span class="nv">target</span> <span class="s2">"Tutorial"</span>
-<span class="nf">add_executable</span> <span class="nv">tut</span> <span class="o">{</span> <span class="nv">tutorial.cxx</span> <span class="o">}</span>
-<span class="nf">target_include_directories</span> <span class="nv">tut</span> <span class="o">{</span> <span class="s2">"${PROJECT_BINARY_DIR}"</span> <span class="o">}</span></code></pre>
+  configure_file <span class="s2">"TutorialConfig.h.in"</span> <span class="s2">"TutorialConfig.h"</span>;
+
+  <span class="k">let</span> tut : target = Target <span class="s2">"Tutorial"</span> <span class="k">in</span>
+  add_exe tut { tutorial.cxx };
+  include_dirs tut { <span class="s2">"${PROJECT_BINARY_DIR}"</span> }
+)</code></pre>
   </div>
 </div>
 
-<h3>Tutorial Step 2 — Add a library</h3>
+<h2>Code comparison — Tutorial Step 2</h2>
 
 <div class="comparison-grid">
   <div class="comparison-col cmake">
     <h3>cmake</h3>
-<pre><code class="highlight"><span class="c1"># CMakeLists.txt</span>
+<pre><code><span class="c1"># CMakeLists.txt</span>
 <span class="nf">cmake_minimum_required</span>(<span class="s2">VERSION</span> <span class="s2">3.20</span>)
 <span class="nf">project</span>(<span class="s2">Tutorial</span>)
 
-<span class="c1"># Math library</span>
 <span class="nf">add_library</span>(<span class="s2">MathFunctions</span> <span class="s2">mysqrt.cxx</span>)
 
-<span class="c1"># Executable</span>
 <span class="nf">add_executable</span>(<span class="s2">Tutorial</span> <span class="s2">tutorial.cxx</span>)
 
-<span class="c1"># Link and include</span>
 <span class="nf">target_link_libraries</span>(<span class="s2">Tutorial</span> <span class="s2">PUBLIC</span> <span class="s2">MathFunctions</span>)
 <span class="nf">target_include_directories</span>(<span class="s2">Tutorial</span> <span class="s2">PUBLIC</span>
   <span class="s2">"${PROJECT_BINARY_DIR}"</span>
@@ -172,23 +176,108 @@
 )</code></pre>
   </div>
   <div class="comparison-col yelu">
-    <h3>yelu-cmake <span class="badge-todo">surface syntax TBD</span></h3>
-<pre><code class="highlight"><span class="c1"># yelu — surface syntax not yet implemented</span>
-<span class="c1"># See src/bin/yelu/v1/step2.ml</span>
+    <h3>yelu-cmake</h3>
+<pre><code><span class="c1"># step2.yl</span>
+( cmake_minimum_required <span class="s2">"3.20"</span>;
+  project <span class="s2">"Tutorial"</span> <span class="o">~</span><span class="nv">version</span>:<span class="s2">"1.0"</span> <span class="o">~</span><span class="nv">languages</span>:[<span class="s2">CXX</span>];
 
-<span class="nf">cmake_minimum_required</span> <span class="s2">"3.20"</span>
-<span class="nf">project</span> <span class="s2">"Tutorial"</span> <span class="o">:</span><span class="nv">languages</span> <span class="o">[</span><span class="s2">CXX</span><span class="o">]</span>
+  <span class="k">let</span> math : target = Target <span class="s2">"MathFunctions"</span> <span class="k">in</span>
+  add_lib math { mysqrt.cxx };
 
-<span class="nv">math</span> <span class="o">=</span> <span class="nv">target</span> <span class="s2">"MathFunctions"</span>
-<span class="nf">add_library</span> <span class="nv">math</span> <span class="o">{</span> <span class="nv">mysqrt.cxx</span> <span class="o">}</span>
+  <span class="k">let</span> tut : target = Target <span class="s2">"Tutorial"</span> <span class="k">in</span>
+  add_exe tut { tutorial.cxx };
+  link_lib tut { math };
+  include_dirs tut {
+    <span class="s2">"${PROJECT_BINARY_DIR}"</span>;
+    <span class="s2">"${PROJECT_SOURCE_DIR}/MathFunctions"</span>
+  }
+)</code></pre>
+  </div>
+</div>
 
-<span class="nv">tut</span> <span class="o">=</span> <span class="nv">target</span> <span class="s2">"Tutorial"</span>
-<span class="nf">add_executable</span> <span class="nv">tut</span> <span class="o">{</span> <span class="nv">tutorial.cxx</span> <span class="o">}</span>
-<span class="nf">target_link_libraries</span> <span class="nv">tut</span> <span class="o">{</span> <span class="nv">math</span> <span class="o">}</span>
-<span class="nf">target_include_directories</span> <span class="nv">tut</span> <span class="o">{</span>
-  <span class="s2">"${PROJECT_BINARY_DIR}"</span>
-  <span class="s2">"${PROJECT_SOURCE_DIR}/MathFunctions"</span>
-<span class="o">}</span></code></pre>
+<h2>More syntax examples</h2>
+
+<h3>Conditionals</h3>
+
+<div class="comparison-grid">
+  <div class="comparison-col cmake">
+    <h3>cmake</h3>
+<pre><code><span class="k">if</span>(<span class="s2">TARGET</span> <span class="s2">Foo</span>)
+  <span class="nf">message</span>(<span class="s2">STATUS</span> <span class="s2">"found"</span>)
+<span class="k">else</span>()
+  <span class="nf">message</span>(<span class="s2">STATUS</span> <span class="s2">"not found"</span>)
+<span class="k">endif</span>()</code></pre>
+  </div>
+  <div class="comparison-col yelu">
+    <h3>yelu-cmake</h3>
+<pre><code>( <span class="k">if</span> target Target Foo <span class="k">then</span>
+    ( message <span class="s2">'found'</span> )
+  <span class="k">else</span>
+    ( message <span class="s2">'not found'</span> )
+)</code></pre>
+  </div>
+</div>
+
+<h3>Foreach loops</h3>
+
+<div class="comparison-grid">
+  <div class="comparison-col cmake">
+    <h3>cmake</h3>
+<pre><code><span class="k">foreach</span>(<span class="nv">item</span> <span class="s2">a</span> <span class="s2">b</span> <span class="s2">c</span>)
+  <span class="nf">message</span>(<span class="s2">"item: ${item}"</span>)
+<span class="k">endforeach</span>()</code></pre>
+  </div>
+  <div class="comparison-col yelu">
+    <h3>yelu-cmake</h3>
+<pre><code>( <span class="k">foreach</span> item in [<span class="s2">"a"</span> <span class="s2">"b"</span> <span class="s2">"c"</span>]
+    ( message <span class="s2">"item: ${item}"</span> )
+)</code></pre>
+  </div>
+</div>
+
+<h3>Generator expressions</h3>
+
+<div class="comparison-grid">
+  <div class="comparison-col cmake">
+    <h3>cmake</h3>
+<pre><code><span class="nf">target_compile_options</span>(<span class="s2">Tutorial</span> <span class="s2">PRIVATE</span>
+  <span class="s2">$&lt;$&lt;CONFIG:Debug&gt;:-Wall&gt;</span>
+)
+
+<span class="nf">install</span>(<span class="s2">TARGETS</span> <span class="s2">Tutorial</span>
+  <span class="s2">RUNTIME</span> <span class="s2">DESTINATION</span> <span class="s2">bin</span>
+)</code></pre>
+  </div>
+  <div class="comparison-col yelu">
+    <h3>yelu-cmake</h3>
+<pre><code>( compile_opts Target Tutorial <span class="o">~</span><span class="nv">private</span>:[<span class="o">$&lt;</span><span class="k">IF</span>:<span class="o">$&lt;</span><span class="k">CONFIG</span>:Debug<span class="o">&gt;</span>,<span class="o">-</span>Wall<span class="o">&gt;</span>];
+
+  install_targets [Target Tutorial] <span class="s2">"bin"</span>
+)</code></pre>
+  </div>
+</div>
+
+<h3>Functions and macros</h3>
+
+<div class="comparison-grid">
+  <div class="comparison-col cmake">
+    <h3>cmake</h3>
+<pre><code><span class="k">function</span>(<span class="nf">my_func</span> <span class="nv">arg1</span> <span class="nv">arg2</span>)
+  <span class="nf">message</span>(<span class="s2">"${arg1}: ${arg2}"</span>)
+<span class="k">endfunction</span>()
+
+<span class="k">macro</span>(<span class="nf">my_macro</span> <span class="nv">x</span> <span class="nv">y</span>)
+  <span class="k">set</span>(<span class="s2">${x}</span> <span class="s2">${y}</span>)
+<span class="k">endmacro</span>()</code></pre>
+  </div>
+  <div class="comparison-col yelu">
+    <h3>yelu-cmake</h3>
+<pre><code>( <span class="k">fun</span> my_func(arg1, arg2)
+    ( message <span class="s2">'${arg1}: ${arg2}'</span> );
+
+  <span class="k">macro</span> my_macro(x, y)
+    ( set <span class="s2">'${x}'</span> <span class="s2">'${y}'</span> )
+)</code></pre>
   </div>
 </div>
 
@@ -239,11 +328,6 @@
 
 <h2>Equivalence oracle</h2>
 
-<p>
-  Every yelu program is verified against a reference cmake implementation.
-  The test suite includes:
-</p>
-
 <table>
   <thead>
     <tr>
@@ -278,20 +362,25 @@
       <td>12</td>
       <td>Generate &rarr; configure &rarr; build &rarr; run</td>
     </tr>
+    <tr>
+      <td>Unit tests</td>
+      <td>515</td>
+      <td>25 lexer + 168 parser + 322 check/compile/wellform</td>
+    </tr>
   </tbody>
 </table>
 
 <h2>What's next</h2>
 
 <ol>
-  <li><strong>Concrete surface syntax</strong> — Menhir parser, standalone
-      <code>.yl</code> files. Grammar design exists.</li>
   <li><strong>Effect checking pass</strong> — execution-mode constraints,
       cache-sensitivity annotations.</li>
-  <li><strong>Code comparison examples</strong> — fill in the side-by-side
-      comparisons above with real yelu surface syntax once it's decided.</li>
+  <li><strong>Canonical surface forms</strong> — collapse equivalent programs
+      into one, making equivalence decidable.</li>
   <li><strong>Second target pack</strong> — json or nix, to test the
       generalization claim.</li>
+  <li><strong>LLM evaluation</strong> — paired oracle-backed benchmarks with
+      contamination-aware evaluation.</li>
 </ol>
 
 </main>
