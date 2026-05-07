@@ -353,6 +353,50 @@ be distinct but not yet typed.
 
 ---
 
+## 8. Computation and Storage Are Fused
+
+**The cmake problem.**
+cmake has no return values. Every operation stores its result in a named output
+variable, fusing computation and storage at the call site. There is no way to
+compose operations:
+
+```cmake
+# Cannot compose — must name every intermediate
+string(TOLOWER "${x}" tmp)
+string(TOUPPER "${tmp}" result)
+
+# What you want — but cmake can't
+string(TOUPPER string(TOLOWER "${x}"))
+```
+
+This means every dataflow chain requires manual variable naming for each
+intermediate step. A typo in `tmp` silently produces `""` three calls later
+(see §3). The output variable's position in the argument list varies by
+command: `string(TOUPPER input out)` puts the output last;
+`string(TIMESTAMP out)` puts it first; `list(LENGTH list out)` puts it
+last; `find_library(out names...)` puts it first. The only way to know is
+to memorize each command's signature.
+
+For LLMs generating cmake, this means every value-producing operation also
+requires inventing a variable name — a combinatorial explosion of naming
+decisions that adds no information but creates failure points.
+
+**What yelu does.**
+Yelu labels output variables with `~out:name` consistently across all commands:
+
+```yelu
+string_tolower ${x} ~out:tmp
+string_toupper tmp ~out:result
+```
+
+The `~out:` label makes the storage slot explicit and position-independent.
+The underlying cmake output still uses a variable (the target language
+can't express return values), but the yelu surface regularizes the pattern.
+The wellform pass catches typos in output variable names before cmake sees
+them.
+
+---
+
 ## Summary
 
 | Pain point                      | cmake behavior                    | Yelu response                                                                       |

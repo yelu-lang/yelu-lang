@@ -71,6 +71,10 @@ let lex_tests = ("lex", [
     "Target Foo"
     ["TARGET"; "(IDENT Foo)"];
 
+  assert_tokens "~label:value lexes as TILDE IDENT KEYWORD"
+    "~out:OUT"
+    ["TILDE"; "(IDENT out)"; "(KEYWORD OUT)"];
+
   assert_tokens "block with semis"
     "{ stmt1; stmt2 }"
     ["LBRACE"; "(IDENT stmt1)"; "SEMI"; "(IDENT stmt2)"; "RBRACE"];

@@ -1,523 +1,106 @@
-````markdown
-# Architecture decision: expression extensibility in yelu
+# Boolean expressions and theories — design discussion
 
-## Summary
+> Status: analysis done, implementation deferred. The current code works (382 tests)
+> but the `yelu_cond` merge into `yelu_expr` was architectural overreach.
+> This doc captures the conclusions for the next attempt.
 
-Do not treat `boolean theory` as the owner of all expressions that return `Ty_bool`.
+## The problem
 
-Instead:
+`yelu_cond` had 24 constructors. Some were pure boolean logic (`not`, `and`, `or`),
+some were domain tests (`Yis_defined`, `Yis_target`) that conceptually belong to
+var/target theories, and some were comparisons (`Ystrequal`, `Yequal`) that
+belong to string/int theories. The type was a grab-bag.
 
-- Each theory owns its own expression-level operations.
-- An operation may return `Ty_bool`, `Ty_string`, `Ty_int`, `Ty_path`, etc.
-- `Ty_bool` is a result type, not an ownership boundary.
-- `if` should accept `yelu_expr`, and the typechecker should verify that the expression has type `Ty_bool`.
-- The final pack-level language owns the closed recursive `yelu_expr` type.
-- Individual theories should define small parameterized expression fragments, usually of the form `'expr t`.
+The attempt: merge all 24 into `yelu_expr`, make `if` accept `yelu_expr` directly,
+remove `Ytruthy`. Result: 382 tests pass, but the merge was wrong in principle.
 
-This means:
+## What we learned
 
-```ocaml
-Yif : { cond : yelu_expr; then_ : yelu_stmt; else_ : yelu_stmt option }
-````
+### 1. `if`/`while` are consumers of boolean-valued things, not owners
 
-not:
+In cmake, booleans are only consumed by `if()`/`while()`. They're never assigned
+to variables or passed to commands. `set(VAR str_eq a b)` does not exist.
 
-```ocaml
-Yif : { cond : yelu_cond; ... }
-```
+### 2. Cond is the only expression-level fragment
 
-The old `yelu_cond` type should either disappear or be reduced to a real bool/logical operation fragment.
+All 14 fragments consume `T.var`/`T.expr`/`T.target` to embed expressions in
+their **statement types**. Cond is the outlier: it produces an **expression-level
+type** (`yelu_cond`), not a statement type.
 
-## Important distinction
+| Fragment | Produces | Needs `T`? |
+|---|---|---|
+| string, target, file, path, list, find, install, test, try, var, property, dir, cmake_op | statement types | yes (T.expr, T.var) |
+| cond | expression type (yelu_cond) | no (if domain tests move out) |
+| genex | pure data | no |
 
-The existing alias:
+### 3. `yelu_cond` should be small and standalone
 
-```ocaml
-type expr = yelu_expr
-```
-
-inside the final pack does not implement open recursion.
-
-It only lets statement fragments consume the final expression type through `T.expr`.
-
-For example:
-
-```ocaml
-module Make_list_op (T : LANG_TYPES) = struct
-  type yelu_list_stmt =
-    | Ylist_append of { cvar : T.var; values : T.expr list }
-end
-```
-
-After pack instantiation, `T.expr` becomes `yelu_expr`.
-
-So `T.expr` is useful plumbing for statement fragments, but it does not allow fragments to contribute new constructors to `yelu_expr`.
-
-In short:
-
-```text
-T.expr lets fragments consume the final expression type.
-T.expr does not let fragments extend the final expression type.
-```
-
-## Recommended model
-
-Use parameterized expression fragments for theory-owned operations.
-
-For example:
-
-```ocaml
-module Lang_yelu_bool_expr = struct
-  type 'expr t =
-    | Not of 'expr
-    | And of 'expr * 'expr
-    | Or of 'expr * 'expr
-end
-```
-
-```ocaml
-module Lang_yelu_int_expr = struct
-  type 'expr t =
-    | Equal of 'expr * 'expr
-    | Less of 'expr * 'expr
-    | Less_equal of 'expr * 'expr
-    | Greater of 'expr * 'expr
-    | Greater_equal of 'expr * 'expr
-end
-```
-
-```ocaml
-module Lang_yelu_string_expr = struct
-  type 'expr t =
-    | Equal of 'expr * 'expr
-    | Matches of { value : 'expr; regex : string }
-end
-```
-
-```ocaml
-module Lang_yelu_file_expr = struct
-  type 'expr t =
-    | Exists of 'expr
-    | Is_directory of 'expr
-    | Is_regular_file of 'expr
-end
-```
-
-```ocaml
-module Lang_yelu_var_expr = struct
-  type 'expr t =
-    | Is_defined of 'expr
-end
-```
-
-```ocaml
-module Lang_yelu_target_expr = struct
-  type 'expr t =
-    | Exists of 'expr
-end
-```
-
-Then the final cmake pack ties the recursive knot:
-
-```ocaml
-type yelu_expr =
-  | Yexpr_name of tc_name
-  | Yexpr_string of yc_string
-  | Yexpr_bool of bool
-  | Yexpr_var of yelu_var
-  | Yexpr_bool_op of yelu_expr Lang_yelu_bool_expr.t
-  | Yexpr_int_op of yelu_expr Lang_yelu_int_expr.t
-  | Yexpr_string_op of yelu_expr Lang_yelu_string_expr.t
-  | Yexpr_file_op of yelu_expr Lang_yelu_file_expr.t
-  | Yexpr_var_op of yelu_expr Lang_yelu_var_expr.t
-  | Yexpr_target_op of yelu_expr Lang_yelu_target_expr.t
-```
-
-This gives the intended structure:
-
-```text
-Theory owns operation shape.
-Pack owns final recursive expression type.
-Typechecker assigns result types.
-Control flow consumes expressions of type Ty_bool.
-```
-
-## Why this is better than putting everything in `yelu_cond`
-
-The old model makes `yelu_cond` a dumping ground:
+Stripped of domain tests and comparisons, the core boolean theory is:
 
 ```ocaml
 type yelu_cond =
+  | Ytruthy of yelu_expr      (* gateway: any expr returning Ty_bool *)
   | Ynot of yelu_cond
   | Yand of yelu_cond * yelu_cond
-  | Ystrequal of yelu_expr * yelu_expr
-  | Ymatches of yelu_expr * string
-  | Yis_target of yelu_expr
-  | Yis_defined of yelu_expr
-  | Yexists of yelu_expr
-  | Yis_directory of yelu_expr
+  | Yor of yelu_cond * yelu_cond
 ```
 
-This mixes unrelated ownership domains:
+No `T` parameter needed. No functor. Defined alongside `yelu_expr` in
+`lang_yelu_cmake.ml`. The `Ytruthy` gateway connects it to `yelu_expr`: any
+expression typed `Ty_bool` can flow into `if`.
 
-* `not`, `and`, `or` belong to bool/logical theory.
-* string equality belongs to string theory.
-* regex matching belongs to regex or string theory.
-* file existence belongs to file theory.
-* target existence belongs to target theory.
-* variable definedness belongs to var theory.
+### 4. Domain tests and comparisons belong in `yelu_expr`
 
-The fact that all these operations return `Ty_bool` does not mean they belong to the boolean theory.
-
-The better model is:
-
-```text
-Bool theory:
-  bool algebra, such as not/and/or
-
-Int theory:
-  int comparisons returning Ty_bool
-
-String theory:
-  string predicates returning Ty_bool
-
-File theory:
-  file predicates returning Ty_bool
-
-Target theory:
-  target predicates returning Ty_bool
-
-Var theory:
-  variable predicates returning Ty_bool
-```
-
-## Typechecking model
-
-The expression typechecker should infer the type of `yelu_expr`.
-
-Example:
-
-```ocaml
-let rec infer_expr env expr =
-  match expr with
-  | Yexpr_name name ->
-      infer_name env name
-
-  | Yexpr_string s ->
-      infer_string env s
-
-  | Yexpr_bool _ ->
-      Ty_bool
-
-  | Yexpr_var v ->
-      infer_var env v
-
-  | Yexpr_bool_op op ->
-      infer_bool_op env op
-
-  | Yexpr_int_op op ->
-      infer_int_op env op
-
-  | Yexpr_string_op op ->
-      infer_string_op env op
-
-  | Yexpr_file_op op ->
-      infer_file_op env op
-
-  | Yexpr_var_op op ->
-      infer_var_op env op
-
-  | Yexpr_target_op op ->
-      infer_target_op env op
-
-and check_expr_has_type env expr expected =
-  let actual = infer_expr env expr in
-  check_type_compatible ~expected ~actual
-```
-
-Bool/logical operations:
-
-```ocaml
-and infer_bool_op env op =
-  match op with
-  | Lang_yelu_bool_expr.Not expr ->
-      check_expr_has_type env expr Ty_bool;
-      Ty_bool
-
-  | Lang_yelu_bool_expr.And (lhs, rhs)
-  | Lang_yelu_bool_expr.Or (lhs, rhs) ->
-      check_expr_has_type env lhs Ty_bool;
-      check_expr_has_type env rhs Ty_bool;
-      Ty_bool
-```
-
-Int comparisons:
-
-```ocaml
-and infer_int_op env op =
-  match op with
-  | Lang_yelu_int_expr.Equal (lhs, rhs)
-  | Lang_yelu_int_expr.Less (lhs, rhs)
-  | Lang_yelu_int_expr.Less_equal (lhs, rhs)
-  | Lang_yelu_int_expr.Greater (lhs, rhs)
-  | Lang_yelu_int_expr.Greater_equal (lhs, rhs) ->
-      check_expr_has_type env lhs Ty_int;
-      check_expr_has_type env rhs Ty_int;
-      Ty_bool
-```
-
-File predicates:
-
-```ocaml
-and infer_file_op env op =
-  match op with
-  | Lang_yelu_file_expr.Exists path
-  | Lang_yelu_file_expr.Is_directory path
-  | Lang_yelu_file_expr.Is_regular_file path ->
-      check_expr_has_type env path Ty_path;
-      Ty_bool
-```
-
-Var predicates:
-
-```ocaml
-and infer_var_op env op =
-  match op with
-  | Lang_yelu_var_expr.Is_defined expr ->
-      ignore (infer_expr env expr : yelu_ty);
-      Ty_bool
-```
-
-Target predicates:
-
-```ocaml
-and infer_target_op env op =
-  match op with
-  | Lang_yelu_target_expr.Exists expr ->
-      check_expr_has_type env expr Ty_target;
-      Ty_bool
-```
-
-## Statement model
-
-The top-level statement type should change from:
-
-```ocaml
-| Yif of { cond : yelu_cond; then_ : yelu_stmt; else_ : yelu_stmt option }
-```
-
-to:
-
-```ocaml
-| Yif of { cond : yelu_expr; then_ : yelu_stmt; else_ : yelu_stmt option }
-```
-
-Then the statement typechecker does:
-
-```ocaml
-| Yif { cond; then_; else_ } ->
-    check_expr_has_type env cond Ty_bool;
-    check_stmt env then_;
-    Option.iter else_ ~f:(check_stmt env)
-```
-
-This allows all of the following to be valid conditions if they infer to `Ty_bool`:
-
-```text
-true
-not x
-int_less(a, b)
-string_matches(name, ".*test.*")
-file_exists(path)
-target_exists(t)
-var_is_defined(v)
-```
-
-`if` should not care which theory produced the boolean expression.
-
-## Relationship to statement fragments
-
-Statement fragments can keep the current functor shape:
-
-```ocaml
-module type LANG_TYPES = sig
-  type var
-  type expr
-  type target
-end
-```
-
-For example:
-
-```ocaml
-module Make_list_op (T : LANG_TYPES) = struct
-  type yelu_list_stmt =
-    | Ylist_append of { cvar : T.var; values : T.expr list }
-    | Ylist_join of { cvar : T.var; glue : T.expr; out : T.var }
-end
-```
-
-This is still useful because statement fragments need to refer to the final pack expression type.
-
-But expression fragments do not need the full `LANG_TYPES` functor if they only need recursive expression positions. Prefer:
-
-```ocaml
-type 'expr t = ...
-```
-
-instead of:
-
-```ocaml
-module Make_expr (T : LANG_TYPES) = struct
-  type t = ...
-end
-```
-
-Use a functor only if the expression fragment genuinely needs multiple external language types such as `var`, `target`, or `expr`.
-
-Even then, consider using parameters directly:
-
-```ocaml
-type ('var, 'expr, 'target) t =
-  | Some_op of { var : 'var; expr : 'expr; target : 'target }
-```
-
-instead of a module functor.
-
-## Avoid recursive modules for now
-
-A large recursive module is not necessary.
-
-Recursive modules can tie this knot:
-
-```text
-Types.expr = Expr.t
-Expr.t contains File_expr.t
-File_expr.t mentions Types.expr
-```
-
-But they add complexity in signatures, initialization safety, and error messages.
-
-They are acceptable for small type-only knots, but they should not include parser, checker, compiler, wellform, or statement modules.
-
-For this design, parameterized fragments are simpler:
+These produce values (they just happen to return `Ty_bool`):
 
 ```ocaml
 type yelu_expr =
-  | Yexpr_file_op of yelu_expr Lang_yelu_file_expr.t
+  | ...
+  | Yexpr_is_defined of tc_name     (* var theory: "does this var exist?" *)
+  | Yexpr_is_target of tc_name      (* target theory: "does this target exist?" *)
+  | Yexpr_exists of yelu_expr       (* file theory: "does this path exist?" *)
+  | Yexpr_str_equal of yelu_expr * yelu_expr  (* string theory *)
+  | Yexpr_equal of yelu_expr * yelu_expr      (* numeric *)
+  | ...
 ```
 
-This already ties the recursive knot without recursive modules.
+They're expression constructors in the closed `yelu_expr` type. The typechecker
+maps them to `Ty_bool`. Each theory "owns" them by convention (variant in the
+central type + typechecker case), not by open recursion.
 
-## Migration plan
+### 5. The open-recursive problem
 
-1. Introduce theory-owned expression fragment modules.
+Ideally, each theory would contribute boolean-valued constructors to `yelu_expr`
+without modifying the central type. OCaml can't express this without polymorphic
+variants (lose exhaustiveness) or GADTs (complex). The practical answer at this
+scale: a closed sum type with ~30 constructors, manually maintained. The number
+is bounded by the cmake surface area (finite commands).
 
-   Example:
-
-   ```ocaml
-   module Lang_yelu_file_expr = struct
-     type 'expr t =
-       | Exists of 'expr
-       | Is_directory of 'expr
-   end
-   ```
-
-2. Add corresponding slots to `yelu_expr`.
-
-   ```ocaml
-   type yelu_expr =
-     | Yexpr_name of tc_name
-     | Yexpr_string of yc_string
-     | Yexpr_bool of bool
-     | Yexpr_var of yelu_var
-     | Yexpr_bool_op of yelu_expr Lang_yelu_bool_expr.t
-     | Yexpr_file_op of yelu_expr Lang_yelu_file_expr.t
-     | Yexpr_string_op of yelu_expr Lang_yelu_string_expr.t
-     | Yexpr_var_op of yelu_expr Lang_yelu_var_expr.t
-     | Yexpr_target_op of yelu_expr Lang_yelu_target_expr.t
-   ```
-
-3. Change `Yif.cond` from `yelu_cond` to `yelu_expr`.
-
-4. Move logical operations into `Lang_yelu_bool_expr`.
-
-   Keep only real bool algebra there:
-
-   ```ocaml
-   type 'expr t =
-     | Not of 'expr
-     | And of 'expr * 'expr
-     | Or of 'expr * 'expr
-   ```
-
-5. Move domain predicates out of `yelu_cond`.
-
-   Examples:
-
-   * `Yis_defined` -> `Lang_yelu_var_expr.Is_defined`
-   * `Yis_target` -> `Lang_yelu_target_expr.Exists`
-   * `Yexists` -> `Lang_yelu_file_expr.Exists`
-   * `Yis_directory` -> `Lang_yelu_file_expr.Is_directory`
-   * `Ymatches` -> `Lang_yelu_string_expr.Matches` or regex theory
-   * `Ystrequal` -> `Lang_yelu_string_expr.Equal`
-
-6. Update typechecker so every expression operation fragment has its own inference function.
-
-7. Update compiler and wellform passes with the same structure.
-
-8. Keep parser normalization simple: surface syntax should directly build final `yelu_expr`.
-
-   Avoid letting both `fragment-local AST` and `final yelu_expr` flow through the full pipeline.
-
-## Naming guidance
-
-Avoid names that imply all boolean-producing operations belong to boolean theory:
-
-```ocaml
-yelu_cond
-yelu_bool_expr
-```
-
-Prefer theory-owned names:
-
-```ocaml
-Lang_yelu_bool_expr
-Lang_yelu_int_expr
-Lang_yelu_string_expr
-Lang_yelu_file_expr
-Lang_yelu_regex_expr
-Lang_yelu_var_expr
-Lang_yelu_target_expr
-```
-
-The result type can still be `Ty_bool`.
-
-## Final decision
-
-Use this architecture:
-
-```text
-Statements:
-  Keep current functorized fragments over LANG_TYPES.
-
-Expressions:
-  Use parameterized theory-owned operation fragments.
-
-Final pack:
-  Owns the closed recursive yelu_expr type.
-
-Boolean:
-  Bool theory owns only bool algebra.
-  Other theories own their own predicates and comparisons.
-  Typechecker assigns Ty_bool where appropriate.
-
-Control flow:
-  Yif accepts yelu_expr.
-  Typechecker checks that cond has Ty_bool.
-```
-
-This keeps the system understandable, avoids over-engineering, preserves OCaml exhaustiveness checking, avoids recursive module complexity, and leaves room for future packs such as json/nix.
+## Recommended design (next attempt)
 
 ```
+yelu_expr (values, ~12 constructors)     yelu_cond (booleans, 4 constructors)
+  Yexpr_name                                Ytruthy of yelu_expr
+  Yexpr_string                              Ynot of yelu_cond
+  Yexpr_bool                                Yand of yelu_cond * yelu_cond
+  Yexpr_var                                 Yor of yelu_cond * yelu_cond
+  Yexpr_is_defined of tc_name
+  Yexpr_is_target of tc_name             Yif { cond : yelu_cond; ... }
+  Yexpr_exists of yelu_expr              Yc_while { cond : yelu_cond; ... }
+  Yexpr_str_equal of yelu_expr * yelu_expr
+  Yexpr_equal of yelu_expr * yelu_expr
+  Yexpr_matches of yelu_expr * string
+  ... (~15 comparison/domain-test variants)
 ```
+
+- `yelu_expr` holds value expressions including domain tests and comparisons
+- `yelu_cond` is the boolean logic layer: not, and, or, plus the gateway
+- `Yif` takes `yelu_cond`, not `yelu_expr` directly
+- `Ytruthy e` is the bridge: `if e then ...` where `e` types as `Ty_bool`
+- Domain tests are `yelu_expr` constructors — owned by their theories
+- `lang_yelu_cond.ml` becomes a typechecker module only (no type definition)
+
+## Current state (2026-05-06)
+
+The code currently has the merged state (382 tests pass). The revert to the
+design above is deferred. Priority: concrete syntax parser completion.

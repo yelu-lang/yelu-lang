@@ -150,6 +150,20 @@ let p_cond toks =
    Command builder (pure, no recursion into statements)
    ============================================================ *)
 
+
+(* Helper: extract ~out labeled arg as tc_name *)
+let out_var kwargs =
+  match List.Assoc.find kwargs ~equal:String.equal "out" with
+  | Some (Yexpr_name { ns = Ns_var; name }) -> { ns = Ns_var; name }
+  | Some (Yexpr_var (Yvar name)) -> { ns = Ns_var; name }
+  | _ -> { ns = Ns_var; name = "?" }
+
+(* Helper: extract first positional arg as tc_name *)
+let cvar_of_expr = function
+  | Yexpr_name n -> n
+  | Yexpr_var (Yvar name) -> { ns = Ns_var; name }
+  | _ -> { ns = Ns_var; name = "?" }
+
 let build_stmt name args kwargs record_args =
   match name, args with
   | "cmake_minimum_required", [v] ->
@@ -201,6 +215,72 @@ let build_stmt name args kwargs record_args =
   | "find_package", [name] ->
     let s = match name with Yexpr_string (Ycs_path s') | Yexpr_string (Ycs_string s') -> s' | _ -> "" in
     Some (Ys_find (Yfind_package { name = s; version = None; exact = false; quiet = false; config_mode = false; required = false; components = []; optional_components = [] }))
+  (* Tier 1: remaining target commands *)
+  | "compile_feats", [target] ->
+    Some (Ys_target (Ytgt_compile_features { target; features = [] }))
+  | "link_opts", [target] ->
+    Some (Ys_target (Ytgt_link_options { target; before = false; items = [] }))
+  | "link_dirs", [target] ->
+    Some (Ys_target (Ytgt_link_directories { target; before = false; items = [] }))
+  | "precompile_headers", [target] ->
+    Some (Ys_target (Ytgt_precompile_headers { target; items = [] }))
+  | "add_lib_alias", [name; target] ->
+    Some (Ys_target (Ytgt_add_library_alias { name = (match name with Yexpr_string (Ycs_string s) -> s | _ -> "?"); target = (match target with Yexpr_string (Ycs_string s) -> s | _ -> "?") }))
+  | "add_exe_alias", [name; target] ->
+    Some (Ys_target (Ytgt_add_executable_alias { name = (match name with Yexpr_string (Ycs_string s) -> s | _ -> "?"); target = (match target with Yexpr_string (Ycs_string s) -> s | _ -> "?") }))
+  | "add_custom_target", [name] ->
+    Some (Ys_target (Ytgt_add_custom_target { name = (match name with Yexpr_string (Ycs_string s) -> s | _ -> "?"); all = false; commands = []; depends = []; comment = None }))
+  | "add_dependencies", [target; dep] ->
+    Some (Ys_target (Ytgt_add_dependencies { target = (match target with Yexpr_string (Ycs_string s) -> s | _ -> "?"); dep = (match dep with Yexpr_string (Ycs_string s) -> s | _ -> "?") }))
+  | "string_toupper", [s] -> Some (Ys_string (Ystr_toupper { string = s; out = out_var kwargs }))
+  | "string_tolower", [s] -> Some (Ys_string (Ystr_tolower { string = s; out = out_var kwargs }))
+  | "string_length", [s] -> Some (Ys_string (Ystr_length { string = s; out = out_var kwargs }))
+  | "string_strip", [s] -> Some (Ys_string (Ystr_strip { string = s; out = out_var kwargs }))
+  | "string_concat", inputs -> Some (Ys_string (Ystr_concat { out = out_var kwargs; inputs }))
+  | "string_replace", [match_s; repl_s; input] ->
+    Some (Ys_string (Ystr_replace { match_string = match_s; replace_string = repl_s; out = out_var kwargs; inputs = [input] }))
+  | "string_regex_match", [regex; input] ->
+    let re_s = match regex with Yexpr_string (Ycs_string s) | Yexpr_string (Ycs_path s) -> s | _ -> "" in
+    Some (Ys_string (Ystr_regex_match { regex = re_s; out = out_var kwargs; inputs = [input] }))
+  | "string_join", glue :: inputs ->
+    Some (Ys_string (Ystr_join { glue; out = out_var kwargs; inputs }))
+  | "string_find", [sub; s] ->
+    Some (Ys_string (Ystr_find { string = s; substring = sub; out = out_var kwargs; reverse = false }))
+  | "string_timestamp", [] ->
+    let utc = List.Assoc.find kwargs ~equal:String.equal "utc" |> Option.is_some in
+    Some (Ys_string (Ystr_timestamp { out = out_var kwargs; format = None; utc }))
+  | "string_hex", [s] -> Some (Ys_string (Ystr_hex { string = s; out = out_var kwargs }))
+  | "string_make_c_identifier", [s] -> Some (Ys_string (Ystr_make_c_identifier { string = s; out = out_var kwargs }))
+  (* Tier 3: list operations *)
+  | "list_append", cvar :: values ->
+    let n = cvar_of_expr cvar in
+    Some (Ys_list (Ylist_append { cvar = n; values }))
+  | "list_length", [cvar] ->
+    Some (Ys_list (Ylist_length { cvar = cvar_of_expr cvar; out = out_var kwargs }))
+  | "list_get", [cvar] ->
+    Some (Ys_list (Ylist_get { cvar = cvar_of_expr cvar; indices = []; out = out_var kwargs }))
+  | "list_remove_item", cvar :: values ->
+    Some (Ys_list (Ylist_remove_item { cvar = cvar_of_expr cvar; values }))
+  | "list_remove_duplicates", [cvar] ->
+    Some (Ys_list (Ylist_remove_duplicates { cvar = cvar_of_expr cvar }))
+  | "list_reverse", [cvar] ->
+    Some (Ys_list (Ylist_reverse { cvar = cvar_of_expr cvar }))
+  | "list_sort", [cvar] ->
+    Some (Ys_list (Ylist_sort { cvar = cvar_of_expr cvar; order = None; compare = None; case = None }))
+  | "list_join", [cvar; glue] ->
+    Some (Ys_list (Ylist_join { cvar = cvar_of_expr cvar; glue; out = out_var kwargs }))
+  | "list_find", [cvar; value] ->
+    Some (Ys_list (Ylist_find { cvar = cvar_of_expr cvar; value; out = out_var kwargs }))
+  | "list_prepend", cvar :: values ->
+    Some (Ys_list (Ylist_prepend { cvar = cvar_of_expr cvar; values }))
+  | "list_insert", [cvar] ->
+    Some (Ys_list (Ylist_insert { cvar = cvar_of_expr cvar; index = 0; values = [] }))
+  | "list_remove_at", cvar :: _ ->
+    Some (Ys_list (Ylist_remove_at { cvar = cvar_of_expr cvar; indices = [] }))
+  | "list_pop_back", [cvar] ->
+    Some (Ys_list (Ylist_pop_back { cvar = cvar_of_expr cvar; out_vars = [] }))
+  | "list_pop_front", [cvar] ->
+    Some (Ys_list (Ylist_pop_front { cvar = cvar_of_expr cvar; out_vars = [] }))
   | _ -> None
 
 (* ============================================================
@@ -213,9 +293,22 @@ let p_command toks =
   | Some (name, toks) ->
     let rec collect args kwargs toks =
       match toks with
-      (* ~label:value  or  ~flag *)
+      (* ~public:[items], ~private:[items], ~interface:[items] — kind-scoped lists *)
+      | TILDE :: IDENT kw :: COLON :: LBRACK :: rest
+        when String.equal kw "public" || String.equal kw "private" || String.equal kw "interface" ->
+        let rec items_loop acc = function
+          | RBRACK :: r -> (List.rev acc, r)
+          | COMMA :: r -> items_loop acc r
+          | toks' -> match p_expr toks' with Some (e, r) -> items_loop (e :: acc) r | None -> (List.rev acc, toks') in
+        let _, rest = items_loop [] rest in
+        collect args ((kw, Yexpr_bool true) :: kwargs) rest
+      (* ~label:value — colon separated *)
       | TILDE :: IDENT kw :: COLON :: rest ->
         (match p_expr rest with Some (v, r) -> collect args ((kw, v) :: kwargs) r | None -> (List.rev args, List.rev kwargs, toks))
+      (* ~label:value — lexer combined :val into KEYWORD token *)
+      | TILDE :: IDENT kw :: KEYWORD v :: rest ->
+        collect args ((kw, Yexpr_var (Yvar v)) :: kwargs) rest
+      (* ~flag *)
       | TILDE :: IDENT kw :: rest ->
         collect args ((kw, Yexpr_bool true) :: kwargs) rest
       (* legacy :keyword value *)
@@ -244,7 +337,6 @@ let p_command toks =
    ============================================================ *)
 
 let rec p_stmt toks =
-  match p_assign toks with Some r -> Some r | None ->
   match p_let toks with Some r -> Some r | None ->
   match p_if toks with Some r -> Some r | None ->
   match p_foreach toks with Some r -> Some r | None ->
@@ -253,10 +345,11 @@ let rec p_stmt toks =
   match p_while toks with Some r -> Some r | None ->
   match p_flow toks with Some r -> Some r | None ->
   match p_command toks with Some r -> Some r | None ->
+  match p_assign toks with Some r -> Some r | None ->
   p_block toks
 
 and p_block toks =
-  match lbrace toks with
+  match lparen toks with
   | None -> None
   | Some ((), toks) ->
     let rec collect toks =
@@ -268,7 +361,7 @@ and p_block toks =
          | Some (ss, r) -> Some (s :: ss, r)
          | None -> None) in
     (match collect toks with
-     | Some (stmts, (RBRACE :: rest)) ->
+     | Some (stmts, (RPAREN :: rest)) ->
        Some ((match stmts with [s] -> s | _ -> Ystmt_list stmts), rest)
      | _ -> None)
 
