@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Manifesto — Yelu</title>
+  <link rel="stylesheet" href="../style.css">
+  <link rel="icon" href="../favicon.svg" type="image/svg+xml">
+</head>
+<body>
+
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <a href="../">Yelu</a>
+  </div>
+  <p class="sidebar-tagline">a compositional language for the AI era</p>
+
+  <div class="sidebar-section">Pages</div>
+  <ul class="sidebar-nav">
+    <li><a href="../">Home</a></li>
+    <li><a href="./" class="active">Manifesto</a></li>
+    <li><a href="../cmake/">yelu-cmake</a></li>
+  </ul>
+
+  <div class="sidebar-section">On this page</div>
+  <ul class="sidebar-nav">
+    <li><a href="#specimen">The specimen: cmake</a></li>
+    <li><a href="#architecture">Architecture</a></li>
+    <li><a href="#thesis">The thesis: low entropy</a></li>
+    <li><a href="#pl-a-la-carte">pl &agrave; la carte</a></li>
+    <li><a href="#ai-era">The AI-era argument</a></li>
+    <li><a href="#pl-contribution">The PL contribution</a></li>
+    <li><a href="#trajectory">The trajectory</a></li>
+    <li><a href="#falsifiability">Falsifiability</a></li>
+  </ul>
+
+  <div class="sidebar-section">Project</div>
+  <ul class="sidebar-nav">
+    <li><a href="https://github.com/yelu-lang/yelu-lang">GitHub</a></li>
+  </ul>
+
+  <div class="sidebar-footer">
+    yelu-lang &copy; 2026<br>
+    <a href="https://github.com/yelu-lang/yelu-lang">github.com/yelu-lang/yelu-lang</a>
+  </div>
+</aside>
+
+<main class="content">
+
+<header class="page-header">
+  <h1>Manifesto</h1>
+  <p>Why yelu exists, what it claims, and where it's going</p>
+</header>
+
+<p>
+  Yelu is a research vehicle organized in layers. Each layer answers a
+  question and builds on the one below it.
+</p>
+
+<h2 id="specimen">Layer 1 &mdash; The specimen: cmake</h2>
+
+<p>
+  <strong>What concrete problem does this address?</strong>
+</p>
+
+<p>
+  Configuration languages are the least-studied tier of the programming stack,
+  yet they carry disproportionate operational risk. A single mistyped variable
+  in a Dockerfile, a wrong indentation in a k8s YAML, a misordered
+  <code>set()</code> in cmake &mdash; these fail late, fail silently, or
+  produce subtly wrong artifacts that surface only in production.
+</p>
+
+<p>
+  cmake is the exemplar: three decades of accumulated layers (scripting &rarr;
+  modules &rarr; generator expressions &rarr; presets &rarr; policy stack) with
+  no cleanup between them:
+</p>
+
+<ul>
+  <li><strong>Irregular syntax</strong> &mdash; commands and keywords are both
+      bare strings, indistinguishable to the parser</li>
+  <li><strong>Implicit namespace collisions</strong> &mdash; variables, targets,
+      cache, and properties shadow each other silently</li>
+  <li><strong>Late errors</strong> &mdash; a typo in a variable name silently
+      produces <code>""</code>; the fault surfaces three calls later</li>
+  <li><strong>Accumulated workarounds</strong> &mdash; CMP* policies coexist
+      old and new behavior forever</li>
+</ul>
+
+<p>
+  cmake is not uniquely bad &mdash; it is uniquely <em>honest</em>. The same
+  patchwork pattern recurs across Dockerfile, Terraform HCL, k8s YAML, and
+  Nix. cmake is the specimen; the thesis is general. It is mature and widely
+  adopted (important enough that results transfer) yet maximally hostile to
+  automated reasoning (a stress test for the claims).
+</p>
+
+<h2 id="architecture">Layer 2 &mdash; The architecture: control side + theories</h2>
+
+<p>
+  <strong>How is yelu built?</strong>
+</p>
+
+<p>
+  The language separates a <strong>universal control side</strong> from
+  target-specific <strong>theories</strong>.
+</p>
+
+<figure>
+<pre><code>  control side    &larr; target-agnostic: binding, branching, iteration, macros
+    &mid;
+  theories        &larr; per-domain typed constructors &amp; checkers
+    &mid;
+  target AST      &larr; stringly-typed, mirrors real cmake
+    &mid;
+  target output   &larr; CMakeLists.txt, verified against reference</code></pre>
+<figcaption>Compositional design: a universal control side composes target-specific theories</figcaption>
+</figure>
+
+<p>
+  The <strong>control side</strong> provides binding (<code>let</code>),
+  branching (<code>if</code>/<code>then</code>/<code>else</code>), iteration
+  (<code>foreach</code>), and macro-programming (<code>macro</code>,
+  <code>function</code>) uniformly across all target packs. It is
+  target-agnostic: a future json-pack or nix-pack reuses the same control
+  side.
+</p>
+
+<p>
+  The <strong>theories</strong> are 14 functor pairs, each defining typed
+  constructors and checking rules for one cmake command family (target,
+  variable, string, path, install, test, &hellip;). Theories compose over a
+  shared substrate; the cmake-pack is the integration point.
+</p>
+
+<p>
+  <strong>Compositional checking</strong> decomposes verification into
+  distinct passes, each catching a different class of error without a
+  monolithic type checker:
+</p>
+
+<table>
+  <thead>
+    <tr><th>Stage</th><th>What it checks</th><th>Status</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>typecheck</code></td>
+      <td>Expression-level type constraints &mdash; per-theory, per-statement</td>
+      <td><span class="badge-done">14 theories</span></td>
+    </tr>
+    <tr>
+      <td><code>wellform</code></td>
+      <td>Name binding: all cvar/target references resolve to declarations</td>
+      <td><span class="badge-done">done</span></td>
+    </tr>
+    <tr>
+      <td><code>effect</code></td>
+      <td>Execution-mode constraints: what's valid where</td>
+      <td><span class="badge-todo">next</span></td>
+    </tr>
+    <tr>
+      <td><code>lower</code></td>
+      <td>Structural validity during AST &rarr; cmake emission</td>
+      <td><span class="badge-todo">partial</span></td>
+    </tr>
+    <tr>
+      <td><code>configure</code></td>
+      <td>cmake itself validates the output (RunCMake compat)</td>
+      <td><span class="badge-done">done</span></td>
+    </tr>
+  </tbody>
+</table>
+
+<p>
+  An <strong>equivalence oracle</strong> verifies every yelu program against a
+  reference cmake implementation via structural equivalence. The suite covers
+  108 checks (35 structural + 12 CMakeOnly + 61 RunCMake), 12 end-to-end
+  tutorial steps, and File API codemodel-v2 JSON diff.
+</p>
+
+<h2 id="thesis">Layer 3 &mdash; The thesis: low entropy</h2>
+
+<p>
+  <strong>Languages with low syntactic and semantic entropy plus strong local
+  verification produce better model-driven generation and repair.</strong>
+</p>
+
+<p>
+  &ldquo;Low entropy&rdquo; is the unifying property &mdash; minimize surface
+  diversity so there's one way to say a thing, few hidden defaults, few
+  overloaded names, few stringly-typed dispatch points. It decomposes into six
+  sub-properties:
+</p>
+
+<ol>
+  <li><strong>Closed-world names and typed slots</strong> &mdash; no silent
+      shadowing across namespaces. A name lives in exactly one namespace.</li>
+  <li><strong>Local, structured failure</strong> &mdash; faults surface at
+      their origin with precise diagnostics, not three calls later as
+      <code>""</code>.</li>
+  <li><strong>Canonical surface forms</strong> &mdash; a canonicalizer
+      collapses equivalent programs into one, making equivalence decidable.</li>
+  <li><strong>Explicit phase boundaries</strong> &mdash; compile / configure /
+      build / install are named stages, not implicit conventions.</li>
+  <li><strong>Regular grammar</strong> &mdash; one syntactic form per concept.
+      Unambiguous parse is table stakes.</li>
+  <li><strong>Searchable type surfaces</strong> &mdash; type information is
+      first-class AST data that tools and models can query.</li>
+</ol>
+
+<p>
+  The target workflow is <strong>human-plus-model production with verifier
+  feedback</strong>: a model generates or repairs under verifier guidance,
+  a human reviews and directs. The language is optimized for this loop &mdash;
+  not for unadorned model consumption, and not for unadorned human authoring.
+</p>
+
+<h2 id="pl-a-la-carte">Layer 4 &mdash; pl &agrave; la carte</h2>
+
+<p>
+  <strong>Why is the control/theory separation general?</strong>
+</p>
+
+<p>
+  The control side and theory side are independently variable &mdash;
+  composable ingredients that can be mixed and matched. This is
+  <strong>pl &agrave; la carte</strong>: not one language, but a design space
+  for assembling languages from parts.
+</p>
+
+<p>
+  The <strong>control side</strong> is a set of choices with no single right
+  answer:
+</p>
+
+<ul>
+  <li><strong>Evaluation model</strong>: expression-oriented (functional,
+      <code>let</code>-binding) vs. imperative (statement sequencing, mutable
+      state)</li>
+  <li><strong>State discipline</strong>: stateful (cmake's <code>set()</code>)
+      vs. stateless/pure (Nix's immutable bindings, Dhall's total
+      evaluation)</li>
+  <li><strong>Metaprogramming</strong>: macros (textual substitution),
+      functions (scoped evaluation), or neither (declarative-only)</li>
+  <li><strong>Type granularity</strong>: gradual (TypeScript-style), mandatory
+      (every expression typed), or structural (shape-based)</li>
+</ul>
+
+<p>
+  The <strong>theory side</strong> is domain-specific and self-contained.
+  Any theory pairs with any control side: the string theory works with
+  expression-oriented binding or imperative sequencing. The target theory
+  composes with macros or pure functions.
+</p>
+
+<p>
+  The current cmake-pack is <strong>one point in this space</strong>:
+  expression-oriented (<code>let</code>, <code>in</code>), stateful (cmake
+  variables), with macros and functions, gradual typing, and 14 domain
+  theories.
+</p>
+
+<p>
+  For LLM-based evaluation, the control side itself becomes an experimental
+  variable: does a model generate better cmake with an imperative surface or a
+  functional one? With macros or without? The answer may differ by task, by
+  model, or by training regime. pl &agrave; la carte makes these questions
+  answerable by experiment rather than by debate.
+</p>
+
+<p>
+  Each theory is also a unit of AI tooling: a training unit (fine-tune on
+  per-theory test suites), a prompt context (few-shot examples scoped to one
+  theory), and a tool boundary (each checker is a verifier an agent can call).
+  An agent facing a novel build task doesn't need to know &ldquo;cmake&rdquo;
+  &mdash; it needs the <code>target</code> theory, the <code>find</code>
+  theory, the <code>install</code> theory, and the control side teaches it
+  how to compose them.
+</p>
+
+<h2 id="ai-era">Layer 5 &mdash; The AI-era argument: why now</h2>
+
+<p>
+  AI has crossed a critical threshold: models can generate and repair cmake,
+  bash, YAML, Dockerfile, Terraform &mdash; the existing irregular
+  configuration languages. They handle the quirks, the implicit namespace
+  collisions, the error-at-a-distance. This has two consequences.
+</p>
+
+<p>
+  First, <strong>compatibility with existing syntax is not a constraint</strong>.
+  We don't need yelu to look like cmake for AI's benefit. Models that already
+  navigate cmake's patchwork will adapt to a clean, regular surface
+  immediately. The cost of learning a new syntax is near-zero for a capable
+  model; the cost of generating correct code in a hostile syntax is permanent.
+</p>
+
+<p>
+  Second, <strong>the Rust parallel</strong>. Rust captured market share from
+  C/C++ on the strength of reliability &mdash; memory safety, ownership
+  tracking, exhaustive matching &mdash; despite being famously harder for
+  humans to write. AI changes the calculus on both sides: writing Rust is not
+  hard for a model; writing C is not easy for a model either &mdash; they're
+  both just token streams. The old tradeoff collapses. We don't have to choose
+  between &ldquo;easy to write&rdquo; and &ldquo;safe/correct&rdquo; because
+  AI has commoditized the writing part.
+</p>
+
+<p>
+  Together, these mean <strong>holistic redesign is both feasible and
+  practical</strong>: AI handles any surface syntax, so we optimize for the
+  properties that matter &mdash; local verification, composability, low
+  entropy. The ceiling is the language, not the model. If models produce
+  correct cmake ~X% of the time, the remaining errors are not model capability
+  gaps; they are language design gaps (silent <code>""</code>, implicit
+  shadowing, error propagation). A better language raises the ceiling.
+</p>
+
+<h2 id="pl-contribution">Layer 6 &mdash; The PL contribution</h2>
+
+<p>
+  <strong>What does PL research uniquely provide?</strong>
+</p>
+
+<p>
+  When engineering difficulty is no longer the bottleneck, the question
+  becomes: <strong>what properties should a language have when writing
+  difficulty is no longer the constraint?</strong> PL research provides the
+  design vocabulary for answering that question.
+</p>
+
+<p>
+  Type safety, effect tracking, phase separation, compositional semantics,
+  name binding, canonical forms &mdash; these are not implementation details.
+  They are design properties that determine what errors are catchable, at what
+  stage, with what precision, and whether the error message points to the
+  source or to a consequence three calls later.
+</p>
+
+<p>
+  Yelu sits at the intersection of <strong>pl4ai</strong> (PL concepts as
+  structural foundation for AI problems) and <strong>ai4pl</strong> (AI
+  methods applied to PL problems):
+</p>
+
+<ul>
+  <li><strong>pl4ai</strong>: the checking pipeline is a PL-style verification
+      stack applied to AI-generated artifacts. The verifier doesn't care
+      whether the author was human or model.</li>
+  <li><strong>ai4pl</strong>: the theories-as-units architecture enables AI
+      tooling at multiple scales, from training to prompting to agentic
+      verification.</li>
+</ul>
+
+<p>
+  This connects to the broader <strong>AI bootstrapping</strong> arc: current
+  AI infrastructure (languages, frameworks, toolchains) is human-written
+  &mdash; a bootstrap legacy, not the end state. Yelu is a concrete experiment
+  in what happens when a language is designed from the start for a world where
+  both humans and models produce and verify code.
+</p>
+
+<h2 id="trajectory">Layer 7 &mdash; The trajectory</h2>
+
+<p>
+  <strong>What's beyond cmake?</strong>
+</p>
+
+<p>
+  cmake is the starting point, not the destination. The architecture
+  generalizes along two dimensions:
+</p>
+
+<ol>
+  <li><strong>Target languages</strong>: cmake &rarr; config languages (JSON
+      schema, YAML, TOML) &rarr; shell scripting &rarr; general-purpose
+      programming. Each new target is a pack: a statement type, a set of
+      theories, and a pretty-printer.</li>
+  <li><strong>Control surfaces</strong>: the current expression-oriented
+      surface is one choice. A shell-oriented surface (pipes, job control),
+      a declarative surface (pure bindings, no sequencing), or an imperative
+      surface could target the same theories.</li>
+</ol>
+
+<p>
+  The endpoint is a general PL that drives AI development and AI
+  infrastructure &mdash; config generation, build orchestration, test
+  synthesis, CI/CD scripting, dependency management. A language where
+  configuration, scripting, and systems programming compose naturally because
+  they share a control side and namespace discipline, differing only in which
+  theories are in scope.
+</p>
+
+<h2 id="falsifiability">Falsifiability</h2>
+
+<p>The thesis makes specific, testable claims:</p>
+
+<ol>
+  <li>LLMs using yelu produce fewer type errors, fewer silent semantic errors,
+      and require fewer repair rounds than LLMs given cmake directly, on
+      matched tasks.</li>
+  <li>Error classes caught by yelu's checker are a strict subset of cmake's
+      own errors.</li>
+  <li>Adding a new theory requires no modifications to existing theories'
+      checkers.</li>
+  <li>A second target pack does not require redesigning
+      <code>LANG_TYPES</code> or <code>checking_stage</code>.</li>
+</ol>
+
+<p>
+  The measurement strategy uses paired oracle-backed benchmarks with
+  contamination-aware evaluation. See the
+  <a href="https://github.com/yelu-lang/yelu-lang/blob/main/doc/yelu_research_framing.md">research framing</a>
+  for details.
+</p>
+
+</main>
+</body>
+</html>
