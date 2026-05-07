@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pain Points — Yelu</title>
+  <link rel="stylesheet" href="../style.css">
+  <link rel="icon" href="../favicon.svg" type="image/svg+xml">
+</head>
+<body>
+
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <a href="../">Yelu</a>
+  </div>
+  <p class="sidebar-tagline">a compositional language for the AI era</p>
+
+  <div class="sidebar-section">Pages</div>
+  <ul class="sidebar-nav">
+    <li><a href="../">Home</a></li>
+    <li><a href="../manifesto/">Manifesto</a></li>
+    <li><a href="../cmake/">yelu-cmake</a></li>
+    <li><a href="./" class="active">Pain points</a></li>
+    <li><a href="../equivalence/">Equivalence</a></li>
+  </ul>
+
+  <div class="sidebar-section">On this page</div>
+  <ul class="sidebar-nav">
+    <li><a href="#var-value-same-type">1. Var names and values</a></li>
+    <li><a href="#list-splitting">2. List splitting</a></li>
+    <li><a href="#output-variables">3. Output variables</a></li>
+    <li><a href="#if-boolean">4. if() boolean semantics</a></li>
+    <li><a href="#error-variable">5. ERROR_VARIABLE</a></li>
+    <li><a href="#json-set">6. JSON SET values</a></li>
+    <li><a href="#unnamed-namespaces">7. Unnamed namespaces</a></li>
+    <li><a href="#compute-store-fused">8. Compute/storage fused</a></li>
+  </ul>
+
+  <div class="sidebar-section">Project</div>
+  <ul class="sidebar-nav">
+    <li><a href="https://github.com/yelu-lang/yelu-lang">GitHub</a></li>
+  </ul>
+
+  <div class="sidebar-footer">
+    yelu-lang &copy; 2026<br>
+    <a href="https://github.com/yelu-lang/yelu-lang">github.com/yelu-lang/yelu-lang</a>
+  </div>
+</aside>
+
+<main class="content">
+
+<header class="page-header">
+  <h1>cmake Pain Points</h1>
+  <p>Design decisions that make cmake hostile to static analysis, LLM synthesis,
+     and human reasoning — and what yelu does about each one</p>
+</header>
+
+<p>
+  These are not bugs. cmake is a remarkably capable tool that evolved organically
+  over 20+ years. The goal is to identify the <em>properties</em> that make it
+  hard to work with, and use those as design constraints for yelu.
+</p>
+
+<!-- ============================================================ -->
+<h2 id="var-value-same-type">1. Variable Names and Values Are the Same Type</h2>
+
+<h3>The cmake problem</h3>
+
+<p>
+  A variable name and a variable value are both plain strings. The distinction
+  is purely positional — determined by where in a command the argument appears,
+  not by any syntactic marker on the argument itself.
+</p>
+
+<pre><code><span class="nf">set</span>(<span class="nv">myvar</span> <span class="s2">hello</span>)         <span class="c1"># "myvar" is a variable name (write target)</span>
+<span class="nf">set</span>(<span class="nv">other</span> <span class="s2">${myvar}</span>)      <span class="c1"># "${myvar}" is a value (read expansion)</span>
+<span class="nf">list</span>(APPEND <span class="nv">mylist</span> <span class="s2">${x}</span>) <span class="c1"># "mylist" is an identifier; "${x}" is a value</span>
+<span class="k">foreach</span>(<span class="nv">i</span> IN ZIP_LISTS <span class="nv">a</span> <span class="nv">b</span>) <span class="c1"># "a", "b" are variable names ready by cmake</span></code></pre>
+
+<p>
+  A reader (human or LLM) must know each command's argument schema to distinguish
+  identifiers from values. Mistakes are silent: passing a value where a name is
+  expected does not error — cmake just uses the string as-is.
+</p>
+
+<h3>What yelu does <span class="badge-done">implemented</span></h3>
+
+<p>
+  Yelu introduces a distinct type for variable identifiers. All command arguments
+  that are variable <em>identifiers</em> take <code>yelu_cvar</code>; all
+  arguments that are <em>values</em> take <code>yarg</code>. Passing a value
+  where an identifier is expected is a compile-time type error.
+</p>
+
+<pre><code><span class="c1"># yelu concrete syntax — names and values are syntactically distinct</span>
+( set <span class="s2">'CMAKE_CXX_STANDARD'</span> <span class="s2">"11"</span>;       <span class="c1"># 'quoted' = variable name</span>
+  cache BUILD_SHARED_LIBS := ON;   <span class="c1"># bare ident = cache variable name</span>
+  string_length <span class="s2">'hello'</span> <span class="o">~</span><span class="nv">out</span>:LEN   <span class="c1"># ~out:VAR = output variable name (typed)</span>
+)</code></pre>
+
+<!-- ============================================================ -->
+<h2 id="list-splitting">2. Implicit List Splitting on Semicolons</h2>
+
+<h3>The cmake problem</h3>
+
+<p>
+  cmake's fundamental data type is a string. Lists are strings where elements
+  are separated by semicolons. Forgetting to quote a variable reference when the
+  variable might contain semicolons causes silent argument splitting.
+</p>
+
+<pre><code><span class="nf">set</span>(<span class="nv">myvar</span> <span class="s2">"a;b;c"</span>)
+<span class="nf">message</span>(STATUS <span class="s2">${myvar}</span>)    <span class="c1"># prints three separate args: "a" "b" "c"</span>
+<span class="nf">message</span>(STATUS <span class="s2">"${myvar}"</span>)  <span class="c1"># prints the single string "a;b;c"</span></code></pre>
+
+<p>
+  This is cmake's most notorious footgun. The rule "always quote variable
+  references" is widely repeated but frequently forgotten, and the failures
+  are silent.
+</p>
+
+<h3>What yelu does <span class="badge-done">done</span></h3>
+
+<p>
+  Yelu strings containing whitespace or special characters are automatically
+  emitted as quoted args by the compiler, preventing the most common
+  splitting issue.
+</p>
+
+<div class="comparison-grid">
+  <div class="comparison-col cmake">
+    <h3>cmake</h3>
+<pre><code><span class="nf">set</span>(<span class="nv">FLAGS</span> <span class="s2">"-Wall;-Wextra"</span>)
+<span class="nf">target_compile_options</span>(<span class="s2">tgt</span> <span class="s2">PRIVATE</span> <span class="s2">${FLAGS}</span>)  <span class="c1"># splits into two args &check;</span></code></pre>
+  </div>
+  <div class="comparison-col yelu">
+    <h3>yelu</h3>
+<pre><code><span class="c1"># yelu: explicit lists, no semicolon encoding</span>
+( FLAGS := <span class="s2">"-Wall"</span>, <span class="s2">"-Wextra"</span>;
+  compile_opts Target tgt <span class="o">~</span><span class="nv">private</span>:[FLAGS]
+)</code></pre>
+  </div>
+</div>
+
+<p><span class="badge-todo">future</span> Full typed <code>list</code> vs <code>string</code> distinction at the AST level.</p>
+
+<!-- ============================================================ -->
+<h2 id="output-variables">3. Output Variables Are Named by the Caller</h2>
+
+<h3>The cmake problem</h3>
+
+<p>
+  cmake commands that produce output require the caller to supply the
+  <em>name</em> of the variable to write into. Every call site carries an
+  identifier that is purely a plumbing detail, not part of the computation.
+</p>
+
+<pre><code><span class="nf">string</span>(LENGTH <span class="s2">"${mystr}"</span> <span class="nv">len_var</span>)   <span class="c1"># "len_var" is caller-chosen plumbing</span>
+<span class="nf">math</span>(EXPR <span class="nv">result</span> <span class="s2">"${a} + ${b}"</span>)     <span class="c1"># "result" is caller-chosen plumbing</span></code></pre>
+
+<p>
+  LLMs generating cmake must track variable names across steps. Humans must
+  invent names for intermediate results. The computation and the plumbing are
+  interleaved.
+</p>
+
+<h3>What yelu addresses <span class="badge-todo">future</span></h3>
+
+<p>
+  The <code>let</code> binding separates computation from plumbing: a yelu
+  program binds intermediate results to compile-time names without those names
+  leaking into the cmake output. Full expression composition (where commands
+  return values that can be nested directly) is a future language design goal.
+</p>
+
+<pre><code><span class="c1"># Desired future: commands return values, no plumbing names</span>
+( <span class="k">let</span> len = string_length <span class="s2">'hello'</span> <span class="k">in</span>
+  message <span class="s2">"length: ${len}"</span>   <span class="c1"># len is a yelu binding, not a cmake variable</span>
+)</code></pre>
+
+<!-- ============================================================ -->
+<h2 id="if-boolean">4. <code>if()</code> Boolean Semantics Require Policy CMP0012</h2>
+
+<h3>The cmake problem</h3>
+
+<p>
+  Without <code>cmake_policy(SET CMP0012 NEW)</code>, the strings <code>ON</code>,
+  <code>YES</code>, <code>TRUE</code>, <code>1</code> are <em>not</em> treated as
+  boolean true in <code>if()</code>. They evaluate as false because cmake's old
+  behavior treats unrecognized strings as variable names, and those variables
+  are undefined (empty = false).
+</p>
+
+<pre><code><span class="nf">set</span>(<span class="nv">eq</span> ON)
+<span class="k">if</span>(<span class="s2">${eq}</span>)            <span class="c1"># evaluates FALSE without CMP0012 NEW!</span>
+<span class="k">if</span>(<span class="s2">${eq}</span> STREQUAL <span class="s2">"ON"</span>)  <span class="c1"># works correctly regardless of policy</span></code></pre>
+
+<p>
+  This surprises everyone the first time. LLMs trained on cmake snippets that
+  assume modern policy behavior generate subtly broken code in older contexts.
+</p>
+
+<h3>What yelu does <span class="badge-done">implemented</span></h3>
+
+<p>
+  Yelu never generates bare <code>if(${var})</code> for boolean-valued cmake
+  variables. For cmake commands that return <code>ON</code>/<code>OFF</code>,
+  yelu emits an explicit string comparison that works under any policy.
+</p>
+
+<pre><code><span class="c1"># yelu: explicit comparison, policy-safe</span>
+( <span class="k">if</span> str_eq ${result} <span class="s2">'ON'</span> <span class="k">then</span>
+    ( message <span class="s2">'found'</span> )
+)</code></pre>
+
+<!-- ============================================================ -->
+<h2 id="error-variable">5. ERROR_VARIABLE Convention: NOTFOUND Means Success</h2>
+
+<h3>The cmake problem</h3>
+
+<p>
+  cmake commands that accept <code>ERROR_VARIABLE</code> set the variable to an
+  error message on failure. On <em>success</em>, they set it to
+  <code>NOTFOUND</code> — not to empty string. A check for "no error" must
+  compare against <code>NOTFOUND</code>, not <code>""</code>.
+</p>
+
+<pre><code><span class="nf">string</span>(JSON result ERROR_VARIABLE <span class="nv">err</span> GET <span class="s2">"${json}"</span> key)
+<span class="k">if</span>(NOT <span class="nv">err</span> STREQUAL <span class="s2">"NOTFOUND"</span>)   <span class="c1"># correct success check</span>
+  <span class="nf">message</span>(FATAL_ERROR <span class="s2">"error: ${err}"</span>)
+<span class="k">endif</span>()</code></pre>
+
+<p>
+  Most developers expect <code>""</code> to mean success. The cmake docs do not
+  prominently document this behavior.
+</p>
+
+<h3>What yelu plans <span class="badge-todo">future</span></h3>
+
+<p>
+  Yelu could wrap ERROR_VARIABLE commands with a result type (success/failure),
+  hiding the NOTFOUND/error-message distinction entirely from callers.
+</p>
+
+<!-- ============================================================ -->
+<h2 id="json-set">6. <code>string(JSON SET ...)</code> Value Must Be a JSON Literal</h2>
+
+<h3>The cmake problem</h3>
+
+<p>
+  <code>string(JSON ... SET json path value)</code> requires <code>value</code>
+  to be a valid JSON literal — a number, a JSON-quoted string, a boolean, or
+  <code>null</code>. Passing a plain cmake string fails silently.
+</p>
+
+<pre><code><span class="nf">string</span>(JSON r SET <span class="s2">[=[{"x":1}]=]</span> y hello)       <span class="c1"># fails — not a JSON literal</span>
+<span class="nf">string</span>(JSON r SET <span class="s2">[=[{"x":1}]=]</span> y <span class="s2">[=["hello"]=]</span>) <span class="c1"># works — JSON string literal</span>
+<span class="nf">string</span>(JSON r SET <span class="s2">[=[{"x":1}]=]</span> y 42)           <span class="c1"># works — JSON number</span></code></pre>
+
+<h3>What yelu plans <span class="badge-todo">future</span></h3>
+
+<p>
+  A typed <code>yelu_json_value</code> type (distinct from <code>yarg</code>)
+  for the value argument would prevent passing a plain string. Currently the
+  API accepts <code>yarg</code> and relies on the caller to pass an appropriate
+  JSON literal.
+</p>
+
+<!-- ============================================================ -->
+<h2 id="unnamed-namespaces">7. Unnamed Named-Entity Namespaces</h2>
+
+<h3>The cmake problem</h3>
+
+<p>
+  cmake has at least <strong>nine</strong> independent named-entity namespaces,
+  yet the language provides no syntactic marker to indicate which namespace an
+  identifier belongs to:
+</p>
+
+<table>
+  <thead>
+    <tr><th>Namespace</th><th>cmake syntax</th><th>What the name denotes</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Variable</td><td><code>set(FOO val)</code>, <code>${FOO}</code></td><td>a mutable variable slot</td></tr>
+    <tr><td>Target</td><td><code>add_library(mylib ...)</code></td><td>a build target object</td></tr>
+    <tr><td>Cache</td><td><code>set(FOO val CACHE STRING "")</code></td><td>a persistent cache entry</td></tr>
+    <tr><td>Env</td><td><code>$ENV{PATH}</code></td><td>an environment variable</td></tr>
+    <tr><td>Command/Macro</td><td><code>cmake_language(CALL myproc)</code></td><td>a callable procedure</td></tr>
+    <tr><td>Module</td><td><code>include(FetchContent)</code></td><td>a loadable cmake module</td></tr>
+    <tr><td>Test</td><td><code>add_test(NAME mytest ...)</code></td><td>a registered test case</td></tr>
+    <tr><td>Export set</td><td><code>install(TARGETS ... EXPORT MyTargets)</code></td><td>a named install manifest group</td></tr>
+    <tr><td>Property</td><td><code>get_property(val TARGET t PROPERTY ...)</code></td><td>a target/source attribute key</td></tr>
+  </tbody>
+</table>
+
+<p>
+  Namespace collisions are silent. A Variable and a Target can share a name
+  — <code>set(foo val)</code> and <code>add_library(foo ...)</code> coexist —
+  and cmake silently routes each reference to its namespace based on the calling
+  command's argument schema.
+</p>
+
+<h4>Variable/Cache collision — the most dangerous case</h4>
+
+<p>
+  The Variable and Cache namespaces share the same write command
+  (<code>set()</code>), can hold different values under the same name, and
+  have different read semantics depending on access method:
+</p>
+
+<pre><code><span class="nf">set</span>(<span class="nv">VAR</span> <span class="s2">"normal"</span>)                    <span class="c1"># writes to Variable namespace</span>
+<span class="nf">set</span>(<span class="nv">VAR</span> <span class="s2">"cached"</span> CACHE STRING <span class="s2">""</span>)    <span class="c1"># writes to Cache namespace (same name)</span></code></pre>
+
+<p>
+  On first configure, <code>set(...CACHE...)</code> is a <strong>dual-write</strong>:
+  it sets both the cache entry and the normal variable. On re-configure, the
+  same command becomes a silent no-op for <em>both</em> namespaces.
+</p>
+
+<table>
+  <thead>
+    <tr><th>Scenario</th><th><code>${VAR}</code> reads</th><th>Why</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>First configure</td><td><code>"cached"</code></td><td>Cache set also wrote normal</td></tr>
+    <tr><td>Re-configure</td><td><code>"cached"</code> (from previous run)</td><td>Cache entry sticky, normal untouched</td></tr>
+    <tr><td><code>unset(VAR)</code> then cache set</td><td><code>"cached"</code></td><td>Cache still exists, normal re-set</td></tr>
+    <tr><td><code>unset(VAR)</code> after cache set</td><td><code>"cached"</code></td><td>unset only removes normal; cache persists</td></tr>
+  </tbody>
+</table>
+
+<h3>What yelu does <span class="badge-done">implemented</span></h3>
+
+<p>
+  Yelu records the namespace explicitly in the AST. A name like
+  <code>{ ns = Ns_var; name = "VAR" }</code> is distinct from
+  <code>{ ns = Ns_cache; name = "VAR" }</code>. The wellform pass checks
+  that all references resolve to declarations within their namespace.
+</p>
+
+<!-- ============================================================ -->
+<h2 id="compute-store-fused">8. Computation and Storage Are Fused</h2>
+
+<h3>The cmake problem</h3>
+
+<p>
+  cmake has no return values. Every command that produces a result must write
+  it into a named variable slot. This fuses two concerns that are separate in
+  most languages: "what is the result?" and "where should it be stored?"
+</p>
+
+<pre><code><span class="nf">string</span>(LENGTH <span class="s2">"${mystr}"</span> <span class="nv">len_var</span>)       <span class="c1"># computation + storage in one call</span>
+<span class="nf">math</span>(EXPR <span class="nv">result</span> <span class="s2">"${a} + ${b}"</span>)         <span class="c1"># same pattern, different command</span>
+<span class="nf">find_package</span>(Boost REQUIRED)              <span class="c1"># implicitly writes Boost_FOUND, Boost_INCLUDE_DIRS, ...</span></code></pre>
+
+<p>
+  This is cmake's fundamental design constraint — no return values — but it
+  means:
+</p>
+
+<ul>
+  <li>Every intermediate value needs a named variable slot</li>
+  <li>LLMs must generate unique, non-colliding names for every step</li>
+  <li>The computation graph is implicit in variable names, not explicit in
+      the program structure</li>
+</ul>
+
+<h3>What yelu addresses <span class="badge-done">partial</span></h3>
+
+<p>
+  Yelu's <code>let</code>-binding provides a compile-time name that does not
+  leak into cmake output. The wellform pass tracks every variable definition
+  and use, so typos are caught before cmake runs.
+</p>
+
+<pre><code><span class="c1"># yelu: computation and storage are still fused in generated cmake,</span>
+<span class="c1"># but the yelu-level name (len) is checked and scoped</span>
+( <span class="k">let</span> len = string_length <span class="s2">'hello'</span> <span class="o">~</span><span class="nv">out</span>:LEN <span class="k">in</span>
+  message <span class="s2">"length: ${LEN}"</span>
+)</code></pre>
+
+</main>
+</body>
+</html>

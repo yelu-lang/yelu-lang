@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Translation Equivalence — Yelu</title>
+  <link rel="stylesheet" href="../style.css">
+  <link rel="icon" href="../favicon.svg" type="image/svg+xml">
+</head>
+<body>
+
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <a href="../">Yelu</a>
+  </div>
+  <p class="sidebar-tagline">a compositional language for the AI era</p>
+
+  <div class="sidebar-section">Pages</div>
+  <ul class="sidebar-nav">
+    <li><a href="../">Home</a></li>
+    <li><a href="../manifesto/">Manifesto</a></li>
+    <li><a href="../cmake/">yelu-cmake</a></li>
+    <li><a href="../painpoints/">Pain points</a></li>
+    <li><a href="./" class="active">Equivalence</a></li>
+  </ul>
+
+  <div class="sidebar-section">On this page</div>
+  <ul class="sidebar-nav">
+    <li><a href="#overview">Overview</a></li>
+    <li><a href="#levels">Comparison levels</a></li>
+    <li><a href="#suites">Test suites</a></li>
+    <li><a href="#how-it-works">How it works</a></li>
+    <li><a href="#symbolic">Symbolic equivalence</a></li>
+  </ul>
+
+  <div class="sidebar-section">Project</div>
+  <ul class="sidebar-nav">
+    <li><a href="https://github.com/yelu-lang/yelu-lang">GitHub</a></li>
+  </ul>
+
+  <div class="sidebar-footer">
+    yelu-lang &copy; 2026<br>
+    <a href="https://github.com/yelu-lang/yelu-lang">github.com/yelu-lang/yelu-lang</a>
+  </div>
+</aside>
+
+<main class="content">
+
+<header class="page-header">
+  <h1>Translation Equivalence</h1>
+  <p>How yelu verifies that its output means the same thing as the input</p>
+</header>
+
+<h2 id="overview">Overview</h2>
+
+<p>
+  The yelu compiler translates typed yelu programs into plain cmake text.
+  Translation is <strong>correct</strong> when the generated cmake behaves
+  identically to a reference implementation. Correctness is verified at
+  multiple levels of increasing strength — from text comparison through
+  build artifacts to codemodel inspection. Every level acts as a regression
+  net: a change that passes all levels is unlikely to have altered semantics.
+</p>
+
+<h2 id="levels">Comparison Levels</h2>
+
+<p>
+  Each level subsumes all levels below it: a <code>build</code> test also
+  passes <code>configure</code>, <code>script</code>, and <code>text</code>.
+</p>
+
+<table>
+  <thead>
+    <tr><th>Level</th><th>Mechanism</th><th>What it asserts</th><th>Status</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>text</code></td>
+      <td>OCaml Alcotest, no cmake</td>
+      <td>Emitted cmake source text matches expected (pretty-printer + yelu compile)</td>
+      <td><span class="badge-done">running</span></td>
+    </tr>
+    <tr>
+      <td><code>script</code></td>
+      <td><code>cmake -P script.cmake</code></td>
+      <td>cmake interpreter accepts it; exit 0; stdout patterns match</td>
+      <td><span class="badge-done">61 RunCMake</span></td>
+    </tr>
+    <tr>
+      <td><code>script-pair</code></td>
+      <td><code>cmake -P</code> run twice</td>
+      <td>Reference cmake and yelu-generated cmake produce identical stdout</td>
+      <td><span class="badge-done">37 tests</span></td>
+    </tr>
+    <tr>
+      <td><code>configure</code></td>
+      <td><code>cmake -S . -B _build</code></td>
+      <td>cmake compiles CMakeLists.txt into a build system; exits 0; cache variables correct</td>
+      <td><span class="badge-done">35 structural</span></td>
+    </tr>
+    <tr>
+      <td><code>build</code></td>
+      <td>configure + <code>cmake --build</code></td>
+      <td>Build produces identical artifact names and counts</td>
+      <td><span class="badge-done">12 CMakeOnly</span></td>
+    </tr>
+    <tr>
+      <td><code>file-api</code></td>
+      <td>configure + File API query</td>
+      <td>Full binding environment (target &rarr; flags, includes, deps) identical</td>
+      <td><span class="badge-done">12 steps</span></td>
+    </tr>
+    <tr>
+      <td><code>symbol</code></td>
+      <td><code>nm -D</code> inspection</td>
+      <td>Exported symbol sets identical between ref and yelu builds</td>
+      <td><span class="badge-todo">planned</span></td>
+    </tr>
+  </tbody>
+</table>
+
+<h2 id="suites">Test Suites</h2>
+
+<table>
+  <thead>
+    <tr><th>Suite</th><th>Count</th><th>Level</th><th>Method</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>cmake pretty-printer</td>
+      <td>72</td>
+      <td><code>text</code></td>
+      <td>AST &rarr; cmake text matches expected</td>
+    </tr>
+    <tr>
+      <td>yelu compile</td>
+      <td>194</td>
+      <td><code>text</code></td>
+      <td>yelu AST &rarr; cmake text matches reference</td>
+    </tr>
+    <tr>
+      <td>cmake-check v1</td>
+      <td>24</td>
+      <td><code>configure</code></td>
+      <td>Structural equivalence via gersemi formatting (tutorial v1)</td>
+    </tr>
+    <tr>
+      <td>cmake-check v2</td>
+      <td>11</td>
+      <td><code>configure</code></td>
+      <td>Structural equivalence (tutorial v2)</td>
+    </tr>
+    <tr>
+      <td>CMakeOnly check</td>
+      <td>12</td>
+      <td><code>build</code></td>
+      <td>Configure + build yelu against upstream CMakeOnly tests</td>
+    </tr>
+    <tr>
+      <td>RunCMake compat</td>
+      <td>61</td>
+      <td><code>script</code></td>
+      <td>Script output comparison against cmake reference</td>
+    </tr>
+    <tr>
+      <td>RunCMake yelu</td>
+      <td>37</td>
+      <td><code>script-pair</code></td>
+      <td>yelu-generated script vs reference script — identical stdout</td>
+    </tr>
+    <tr>
+      <td>File API diff</td>
+      <td>12</td>
+      <td><code>file-api</code></td>
+      <td>codemodel-v2 JSON diff (steps 1–12)</td>
+    </tr>
+    <tr>
+      <td>End-to-end steps</td>
+      <td>12</td>
+      <td><code>build</code></td>
+      <td>Generate &rarr; configure &rarr; build &rarr; run</td>
+    </tr>
+    <tr>
+      <td>Unit tests (total)</td>
+      <td>515</td>
+      <td><code>text</code></td>
+      <td>25 lexer + 168 parser + 322 check/compile/wellform</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2 id="how-it-works">How Translation Equivalence Works</h2>
+
+<h3>Level 1 — text equivalence</h3>
+
+<p>
+  The simplest level: compile a yelu program, format the output with gersemi,
+  compare to the reference cmake. This is the first line of defense — any
+  drift in the emitted cmake text is caught immediately. Both the cmake
+  pretty-printer and the yelu compiler have dedicated Alcotest suites.
+</p>
+
+<h3>Level 2 — script equivalence (script-pair)</h3>
+
+<p>
+  Structural equivalence (same text) is necessary but not sufficient. Two
+  cmake programs can be textually different yet semantically identical
+  (different argument order, different quoting). Script-pair tests run
+  <em>both</em> the reference cmake and the yelu-generated cmake through
+  <code>cmake -P</code> and compare stdout:
+</p>
+
+<pre><code><span class="c1"># Reference cmake (upstream RunCMake test)</span>
+<span class="nf">cmake_path</span>(SET path <span class="s2">"/a/b"</span>)
+<span class="nf">cmake_path</span>(APPEND path <span class="s2">"c"</span>)
+<span class="nf">message</span>(<span class="s2">"${path}"</span>)
+
+<span class="c1"># yelu-generated cmake — may differ textually but must produce identical stdout</span>
+<span class="nf">cmake_path</span>(SET path <span class="s2">"/a/b"</span>)
+<span class="nf">cmake_path</span>(APPEND path <span class="s2">"c"</span>)
+<span class="nf">message</span>(<span class="s2">"${path}"</span>)</code></pre>
+
+<p>
+  Both must exit 0 and produce <code>/a/b/c</code>. When a yelu change
+  silently alters semantics (PP quoting, arg ordering), the reference output
+  is ground truth and the test catches the drift immediately.
+</p>
+
+<h3>Level 3 — configure and build</h3>
+
+<p>
+  Some cmake constructs are only meaningful in configure mode (not
+  <code>cmake -P</code>). The cmake-check suites run the full configure
+  pipeline and verify exit codes, cache variable bindings, and generated
+  buildsystem structure.
+</p>
+
+<pre><code><span class="c1"># yelu: generate CMakeLists.txt from yelu program</span>
+<span class="c1"># cmake: configure -S tmpdir -B build</span>
+<span class="c1"># Compare: exit code, cache vars (CMAKE_CXX_STANDARD, etc.)</span></code></pre>
+
+<p>
+  Build-level tests go further: they run <code>cmake --build</code> on both
+  the reference and yelu-generated buildsystems, then compare artifact names
+  and counts. The test harness uses <strong>fate-sharing</strong>: all four
+  outcomes (ref configure, ref build, yelu configure, yelu build) are checked
+  independently, so a test that fails in both ref and yelu is identified as
+  an environmental issue rather than a yelu regression.
+</p>
+
+<h3>Level 4 — codemodel inspection (file-api)</h3>
+
+<p>
+  The strongest current level queries cmake's File API (codemodel-v2) after
+  configure. This exposes the full binding environment: every target's compile
+  flags, include directories, link libraries, and dependencies. The yelu and
+  reference codemodels must produce identical JSON (modulo ordering).
+</p>
+
+<h2 id="symbolic">Symbolic Equivalence <span class="badge-todo">research</span></h2>
+
+<p>
+  All current levels test equivalence at <strong>one concrete input
+  configuration</strong>. With <em>n</em> boolean option variables, there are
+  2<sup>n</sup> configurations; no test-based level can prove equivalence for
+  all of them. Symbolic methods are the only path to closing this gap.
+</p>
+
+<h3>The research gap</h3>
+
+<p>
+  cmake's configure-time language is a restricted imperative language:
+  straight-line code + boolean conditionals, string-typed mutable state,
+  6 independent namespaces, finite iteration, and opaque side-effectful
+  commands. Two approaches are under investigation:
+</p>
+
+<table>
+  <thead>
+    <tr><th>Approach</th><th>Natural fit</th><th>Challenge</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>E-graphs</strong> (egg/egglog)</td>
+      <td>Equality saturation could discover that reordered <code>set()</code>
+          calls commute when variables don't alias</td>
+      <td>Statefulness. cmake is order-sensitive; e-graphs excel over
+          functional expressions. Encoding state transformers as terms is
+          non-trivial.</td>
+    </tr>
+    <tr>
+      <td><strong>SMT / Z3</strong></td>
+      <td>Boolean skeleton + string theory covers <code>if()</code> conditions
+          and variable read/write</td>
+      <td>cmake's string semantics (list splitting, genex expansion,
+          implicit namespace resolution) don't map cleanly to SMT string
+          theories. Encoding the full cmake reduction semantics is
+          substantial.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3>Why this matters</h3>
+
+<p>
+  The equivalence oracle is yelu's key verification mechanism. For the thesis
+  to hold, we need to show that yelu's output is <em>provably</em> equivalent
+  to reference cmake — not just equivalent on a finite test suite. Symbolic
+  methods are the path to that guarantee, and the design of yelu's restricted
+  imperative core (no unbounded loops, explicit namespaces, regular syntax)
+  directly reduces the complexity of that encoding.
+</p>
+
+<p><span class="badge-todo">TODO</span> Full research write-up in
+   <a href="https://github.com/yelu-lang/yelu-lang/blob/main/doc/cmake_equiv_research.md">cmake_equiv_research.md</a>.</p>
+
+</main>
+</body>
+</html>
