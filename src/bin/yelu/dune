@@ -1,5 +1,6 @@
 (executables
  (names
+  debug_kwarg
   target_scope target_scope_sub target_scope_sub_sub target_scope_sib
   link_interface_loop
   find_path

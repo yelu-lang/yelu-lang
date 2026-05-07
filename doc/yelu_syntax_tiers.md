@@ -319,15 +319,29 @@ install ~files [$<TARGET_FILE:tgt>] "bin"
 
 ## Summary
 
-| Tier                              | Done     | Total   |
-| --------------------------------- | -------- | ------- |
-| 0                                 | 35 tests | 35      |
-| 1 target                          | 0        | 12      |
-| 2 string                          | 0        | 25      |
-| 3 list                            | 0        | 17      |
-| 4 file + path                     | 0        | 35      |
-| 5 find + install                  | 0        | 10      |
-| 6 scripting                       | 0        | 11      |
-| 7 dir + property + cmake_op + try | 0        | 23      |
-| 8 genex                           | 0        | 5       |
-| **Total**                         | **35**   | **173** |
+| Tier | Theory | Tests | Status |
+|---|---|---|---|
+| 0 | control, cond, var, cmake_op, target, dir, file, test, find (partial) | 40 | ✅ core done |
+| 1 | target (complete) | 8 | ✅ done |
+| 2 | string | 17 | ✅ primary ops done; 12 ops still stubs |
+| 3 | list | 14 | ✅ primary ops done; 7 ops have empty-field stubs |
+| 4 | file + path | 20 | ✅ primary ops done; 10 path ops stubs |
+| 5 | find + install | 7 | ✅ primary ops done; 3 install ops stubs |
+| 6 | scripting | 4 | ⚠️ foreach_in/zip, block, extern stubs |
+| 7 | dir + property + cmake_op + try | 15 | ✅ primary ops done; many advanced ops stubs |
+| 8 | genex | 5 | ✅ basic genex; nested `$<...>` deferred |
+| **Total** | | **130** | |
+
+### Remaining gaps (mechanical — just more match cases)
+
+| Theory | Missing constructors (~50 total) |
+|---|---|
+| **control** | `foreach_in`, `foreach_zip`, `block`, `extern_cvar`, `extern_target` |
+| **string** | `regex_replace`, `regex_matchall`, `regex_quote`, `append`, `prepend`, `substring`, `repeat`, `genex_strip`, `compare`, `uuid`, `json` (all) |
+| **path** | `remove_filename`, `replace_filename`, `remove_extension`, `replace_extension`, `normal_path`, `relative_path`, `absolute_path`, `native_path`, `convert_to_cmake`, `convert_to_native`, `append_string`, `is_prefix` |
+| **property** | `get_directory`, `set_directory`, `set_tests`, `set_source`, `set_global`, `get_global`, `get_target`, `define` |
+| **list** | `sublist`, `filter`, `insert` (args), `remove_at` (args), `pop_back` (out_vars), `pop_front` (out_vars), `transform` |
+| **var** | `unset_cache`, `set_env`, `unset_env` |
+| **file** | `strings`, `read_symlink`, `relative_path` |
+| **cmake_op** | `language_call`, `language_eval`, `language_get_log_level`, `variable_watch` |
+| **install** | `export_export`, `configure_package_config_file`, `write_basic_package_version_file` |
