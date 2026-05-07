@@ -75,6 +75,32 @@ let lex_tests = ("lex", [
     "~out:OUT"
     ["TILDE"; "(IDENT out)"; "(KEYWORD OUT)"];
 
+  assert_tokens "nested genex $<IF:$<CONFIG:Debug>,release>"
+    "$<IF:$<CONFIG:Debug>,release>"
+    ["(EVAL $<IF:$<CONFIG:Debug>,release>)"];
+
+  assert_tokens "double nested genex"
+    "$<AND:$<CONFIG:Debug>,$<BOOL:${FOO}>>"
+    ["(EVAL $<AND:$<CONFIG:Debug>,$<BOOL:${FOO}>>)"];
+
+  assert_tokens "plain ${VAR} still works"
+    "${CMAKE_SOURCE_DIR}"
+    ["(EVAL ${CMAKE_SOURCE_DIR})"];
+
+  assert_tokens "bare < not a nesting delimiter"
+    "$<IF:a<b,yes,no>"
+    ["(EVAL $<IF:a<b,yes,no>)"];
+])
+
+(* Negative tests — lexer should reject malformed input *)
+let lex_negative = ("lex-negative", [
+  Alcotest.test_case "unterminated nested genex" `Quick (fun () ->
+    match Angstrom.parse_string ~consume:All token_list "$<IF:$<CONFIG:Debug>,debug,release" with
+    | Ok _ -> Alcotest.fail "expected lex error for unterminated genex"
+    | Error _ -> ());
+])
+
+let lex2 = ("lex2", [
   assert_tokens "block with semis"
     "{ stmt1; stmt2 }"
     ["LBRACE"; "(IDENT stmt1)"; "SEMI"; "(IDENT stmt2)"; "RBRACE"];
@@ -98,4 +124,4 @@ let lex_tests = ("lex", [
      "DOTDOT"; "(INT 10)"; "LBRACE"; "RBRACE"];
 ])
 
-let () = Alcotest.run "Yelu Lexer" [ lex_tests ]
+let () = Alcotest.run "Yelu Lexer" [ lex_tests; lex2; lex_negative ]

@@ -253,7 +253,9 @@ let tier_remaining = ("t-remaining", [
 let tier9_genex = ("t9-genex", [
   assert_parses "$<CONFIG> in message" "( message $<CONFIG> )";
   assert_parses "$<TARGET_FILE> in message" "( message $<TARGET_FILE:tgt> )";
-  (* Nested $<...> not supported by simple lexer — known limitation *)
+  assert_parses "nested genex in compile_opts"
+    "( compile_opts Target Tutorial ~private:[$<IF:$<CONFIG:Debug>,debug,release>] )";
+  assert_parses "$<TARGET_FILE> in message" "( message $<TARGET_FILE:tgt> )";
   assert_parses "${VAR} eval" "( message ${CMAKE_VERSION} )";
   assert_parses "$<BUILD_INTERFACE>" "( compile_opts Target Tutorial ~public:[$<BUILD_INTERFACE:-Wall>] )";
 ])
