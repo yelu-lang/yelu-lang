@@ -281,6 +281,120 @@ let build_stmt name args kwargs record_args =
     Some (Ys_list (Ylist_pop_back { cvar = cvar_of_expr cvar; out_vars = [] }))
   | "list_pop_front", [cvar] ->
     Some (Ys_list (Ylist_pop_front { cvar = cvar_of_expr cvar; out_vars = [] }))
+  (* Tier 4: file operations *)
+  | "file_read", [file] ->
+    Some (Ys_file (Yfile_read { out = out_var kwargs; file; offset = None; limit = None; hex = false }))
+  | "file_write", file :: content ->
+    Some (Ys_file (Yfile_write { file; append = false; content }))
+  | "file_glob", patterns ->
+    Some (Ys_file (Yfile_glob { out = out_var kwargs; recurse = false; relative = None; configure_depends = false; patterns }))
+  | "file_copy", [input; output] ->
+    Some (Ys_file (Yfile_copy { input; output; result = None; only_if_different = false }))
+  | "file_rename", [old_; new_] ->
+    Some (Ys_file (Yfile_rename { old_; new_; result = None; no_replace = false }))
+  | "file_remove", files ->
+    Some (Ys_file (Yfile_remove { files; recurse = false }))
+  | "file_real_path", [path] ->
+    Some (Ys_file (Yfile_real_path { out = out_var kwargs; path; base_dir = None; expand_tilde = false }))
+  | "file_size", [file] ->
+    Some (Ys_file (Yfile_size { out = out_var kwargs; file }))
+  | "file_timestamp", [file] ->
+    Some (Ys_file (Yfile_timestamp { out = out_var kwargs; file; format = None; utc = false }))
+  | "file_make_directory", [dir] ->
+    Some (Ys_file (Yfile_make_directory { dirs = [dir] }))
+  | "file_touch", files ->
+    Some (Ys_file (Yfile_touch { files; nocreate = false }))
+  (* Tier 5: path operations *)
+  | "path_get", [path_var] ->
+    Some (Ys_path (Ypath_get { path_var = cvar_of_expr path_var; field = Lang_cmake.Cpf_filename; out = out_var kwargs }))
+  | "path_has", [path_var] ->
+    Some (Ys_path (Ypath_has { path_var = cvar_of_expr path_var; field = Lang_cmake.Cph_filename; out = out_var kwargs }))
+  | "path_is_absolute", [path_var] ->
+    Some (Ys_path (Ypath_is_absolute { path_var = cvar_of_expr path_var; out = out_var kwargs }))
+  | "path_is_relative", [path_var] ->
+    Some (Ys_path (Ypath_is_relative { path_var = cvar_of_expr path_var; out = out_var kwargs }))
+  | "path_set", [path_var; input] ->
+    Some (Ys_path (Ypath_set { path_var = cvar_of_expr path_var; input; normalize = false }))
+  | "path_append", [path_var; input] ->
+    Some (Ys_path (Ypath_append { path_var = cvar_of_expr path_var; inputs = [input]; out = None }))
+  | "path_compare", [input1; input2] ->
+    Some (Ys_path (Ypath_compare { input1; op = Lang_cmake.Cpco_equal; input2; out = out_var kwargs }))
+  | "path_hash", [path_var] ->
+    Some (Ys_path (Ypath_hash { path_var = cvar_of_expr path_var; out = out_var kwargs }))
+  | "get_filename_component", [filename] ->
+    Some (Ys_path (Ypath_get_filename_component { var = out_var kwargs; filename; mode = "PATH" }))
+  (* Tier 6: find & install *)
+  | "find_library", [cvar] ->
+    Some (Ys_find (Yfind_library { cvar = cvar_of_expr cvar; names = []; paths = []; hints = [];
+      no_default_path = false; no_cmake_environment_path = false;
+      no_system_environment_path = false; required = false }))
+  | "find_path", [cvar] ->
+    Some (Ys_find (Yfind_path { cvar = cvar_of_expr cvar; names = []; paths = []; hints = [];
+      no_default_path = false; no_cmake_environment_path = false;
+      no_system_environment_path = false; required = false }))
+  | "find_program", [cvar] ->
+    Some (Ys_find (Yfind_program { cvar = cvar_of_expr cvar; names = []; paths = []; hints = [];
+      no_default_path = false; no_cmake_environment_path = false;
+      no_system_environment_path = false; required = false }))
+  | "find_file", [cvar] ->
+    Some (Ys_find (Yfind_file { cvar = cvar_of_expr cvar; names = []; paths = []; hints = [];
+      no_default_path = false; no_cmake_environment_path = false;
+      no_system_environment_path = false; required = false }))
+  | "install_targets", [destination] ->
+    Some (Ys_install (Yinstall_targets { targets = record_args; destination; export = None }))
+  | "install_files", [destination] ->
+    Some (Ys_install (Yinstall_files { files = record_args; destination }))
+  | "install_export", [export; destination] ->
+    Some (Ys_install (Yinstall_export { file = None; export; destination; namespace = None }))
+  (* Tier 7: scripting & control flow *)
+  | "include", [file] ->
+    let optional = List.Assoc.find kwargs ~equal:String.equal "optional" |> Option.is_some in
+    Some (Yc_include { file; optional })
+  | "macro", _ ->
+    (* macro is handled by p_macro in p_stmt, not via build_stmt *)
+    None
+  | "separate_arguments", [cvar] ->
+    Some (Yc_separate_arguments { cvar = cvar_of_expr cvar; mode = Lang_cmake.Sa_plain; input = None })
+  (* Tier 8: dir, property, cmake_op, try *)
+  | "include_directories", dirs ->
+    Some (Ys_dir (Ydir_include_directories { dirs; before = false; system = false }))
+  | "add_compile_options", opts ->
+    Some (Ys_dir (Ydir_add_compile_options { options = opts }))
+  | "add_link_options", opts ->
+    Some (Ys_dir (Ydir_add_link_options { options = opts }))
+  | "add_definitions", defs ->
+    Some (Ys_dir (Ydir_add_definitions { defs }))
+  | "link_directories", dirs ->
+    Some (Ys_dir (Ydir_link_directories { before = false; dirs }))
+  | "get_target_property", [tgt] ->
+    Some (Ys_property (Yprop_get { var = out_var kwargs; target = tgt; property = "PROP"; set = false }))
+  | "set_target_properties", [tgt] ->
+    Some (Ys_property (Yprop_set_target { target = tgt; properties = [] }))
+  | "set_property", targets ->
+    Some (Ys_property (Yprop_set { targets; append = false; properties = [] }))
+  | "math", [exp] ->
+    Some (Ys_cmake (Ycmake_math { exp = (match exp with Yexpr_string (Ycs_string s) -> s | _ -> ""); out = out_var kwargs; output_format = Lang_cmake.Decical }))
+  | "execute_process", _ ->
+    Some (Ys_cmake (Ycmake_execute_process { commands = []; working_directory = None; timeout = None;
+      result_variable = None; output_variable = None; error_variable = None;
+      input_file = None; output_file = None; error_file = None;
+      output_quiet = false; error_quiet = false; output_strip_trailing_whitespace = false;
+      error_strip_trailing_whitespace = false; command_error_is_fatal = None }))
+  | "include_guard", [] ->
+    Some (Ys_cmake (Ycmake_include_guard { scope = Lang_cmake.Ig_global }))
+  | "policy_set", [id] ->
+    Some (Ys_cmake (Ycmake_policy_set { id = (match id with Yexpr_string (Ycs_string s) -> s | _ -> ""); new_ = true }))
+  | "try_compile", [result] ->
+    Some (Ys_try (Ytry_compile { result_var = cvar_of_expr result; sources = []; compile_definitions = [];
+      link_libraries = []; link_options = []; output_variable = None;
+      no_cache = false; c_standard = None; cxx_standard = None }))
+  | "try_run", [run_result; compile_result] ->
+    Some (Ys_try (Ytry_run { run_result_var = cvar_of_expr run_result;
+      compile_result_var = cvar_of_expr compile_result; sources = [];
+      compile_definitions = []; link_libraries = [];
+      compile_output_variable = None; run_output_variable = None; args = [] }))
+  | "enable_language", _ ->
+    Some (Ys_cmake (Ycmake_enable_language { langs = []; optional = false }))
   | _ -> None
 
 (* ============================================================
@@ -463,6 +577,7 @@ and p_function toks =
         | LPAREN :: r ->
           let rec loop acc = function
             | RPAREN :: r' -> (List.rev acc, r')
+            | COMMA :: r' -> loop acc r'
             | toks' -> match p_ident toks' with Some (a, r') -> loop (a :: acc) r' | None -> (List.rev acc, toks') in
           loop [] r
         | _ -> ([], toks) in
@@ -484,6 +599,7 @@ and p_macro toks =
         | LPAREN :: r ->
           let rec loop acc = function
             | RPAREN :: r' -> (List.rev acc, r')
+            | COMMA :: r' -> loop acc r'
             | toks' -> match p_ident toks' with Some (a, r') -> loop (a :: acc) r' | None -> (List.rev acc, toks') in
           loop [] r
         | _ -> ([], toks) in
