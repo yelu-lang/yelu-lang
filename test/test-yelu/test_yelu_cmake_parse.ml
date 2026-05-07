@@ -187,6 +187,11 @@ let tier7_scripting = ("t7-scripting", [
   assert_parses "separate_arguments" "( separate_arguments VAR )";
   assert_parses "macro simple" "( macro name() ( ) )";
   assert_parses "macro with body" "( macro name(x, y) ( message 'hi' ) )";
+  assert_parses "foreach_in" "( foreach x in a b ~items:[y, z] ( message 'hi' ) )";
+  assert_parses "foreach_zip" "( foreach x, y in ~zip:[a, b] ( message 'hi' ) )";
+  assert_parses "block" "( block ~scope:[x, y] ( message 'hi' ) )";
+  assert_parses "extern cvar" "( extern 'VAR' )";
+  assert_parses "extern target" "( extern Target Foo )";
 ])
 
 (* Tier 8: dir, property, cmake_op, try *)
@@ -208,6 +213,42 @@ let tier8_misc = ("t8-misc", [
   assert_parses "enable_language" "( enable_language )";
 ])
 
+(* Remaining gaps filled *)
+let tier_remaining = ("t-remaining", [
+  assert_parses "string_regex_replace" "( string_regex_replace 'p' 'r' 'in' ~out:OUT )";
+  assert_parses "string_regex_matchall" "( string_regex_matchall 'p' 'in' ~out:OUT )";
+  assert_parses "string_append" "( string_append MYVAR 'suffix' )";
+  assert_parses "string_prepend" "( string_prepend MYVAR 'prefix' )";
+  assert_parses "string_substring" "( string_substring 'hello' '1' '3' ~out:OUT )";
+  assert_parses "string_compare" "( string_compare 'a' 'b' ~out:OUT )";
+  assert_parses "string_uuid" "( string_uuid ~out:OUT )";
+  assert_parses "string_json_get" "( string_json_get '{\"a\":1}' ~out:OUT )";
+  assert_parses "path_remove_filename" "( path_remove_filename PV )";
+  assert_parses "path_replace_filename" "( path_replace_filename PV \"new\" )";
+  assert_parses "path_normal_path" "( path_normal_path PV )";
+  assert_parses "path_absolute_path" "( path_absolute_path PV )";
+  assert_parses "path_native_path" "( path_native_path PV ~out:OUT )";
+  assert_parses "path_convert_to_cmake" "( path_convert_to_cmake \"/tmp\" ~out:OUT )";
+  assert_parses "get_directory_property" "( get_directory_property ~out:OUT )";
+  assert_parses "set_global_property" "( set_global_property )";
+  assert_parses "set_source_property" "( set_source_property \"file.c\" )";
+  assert_parses "list_sublist" "( list_sublist MYLIST '1' '3' ~out:OUT )";
+  assert_parses "list_filter" "( list_filter MYLIST 'pat' )";
+  assert_parses "list_transform" "( list_transform MYLIST ~append )";
+  assert_parses "unset_cache" "( unset_cache MYVAR )";
+  assert_parses "set_env" "( set_env 'HOME' '/tmp' )";
+  assert_parses "unset_env" "( unset_env 'TEMP' )";
+  assert_parses "file_strings" "( file_strings \"f.txt\" ~out:OUT )";
+  assert_parses "file_read_symlink" "( file_read_symlink \"link\" ~out:OUT )";
+  assert_parses "cmake_call" "( cmake_call \"myfn\" )";
+  assert_parses "cmake_get_log_level" "( cmake_get_log_level ~out:OUT )";
+  assert_parses "export" "( export Target ExpName )";
+  assert_parses "configure_package_config_file"
+    "( configure_package_config_file \"dest\" \"in\" \"out\" )";
+  assert_parses "write_basic_package_version_file"
+    "( write_basic_package_version_file \"file\" )";
+])
+
 (* Tier 9: generator expressions *)
 let tier9_genex = ("t9-genex", [
   assert_parses "$<CONFIG> in message" "( message $<CONFIG> )";
@@ -222,5 +263,5 @@ let () =
     tier0_control; tier0_cond; tier0_var; tier0_cmake_op;
     tier0_target; tier0_dir; tier0_file; tier0_scripting; tier0_full;
     tier1_target; tier2_string; tier3_list; tier4_file; tier5_path;
-    tier6_find_install; tier7_scripting; tier8_misc; tier9_genex;
+    tier6_find_install; tier7_scripting; tier8_misc; tier_remaining; tier9_genex;
   ]

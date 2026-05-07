@@ -395,6 +395,117 @@ let build_stmt name args kwargs record_args =
       compile_output_variable = None; run_output_variable = None; args = [] }))
   | "enable_language", _ ->
     Some (Ys_cmake (Ycmake_enable_language { langs = []; optional = false }))
+  (* string ops (remaining) *)
+  | "string_regex_replace", [regex; repl; input] ->
+    let re_s = match regex with Yexpr_string (Ycs_string s) | Yexpr_string (Ycs_path s) -> s | _ -> "" in
+    Some (Ys_string (Ystr_regex_replace { regex = re_s; replace = repl; out = out_var kwargs; inputs = [input] }))
+  | "string_regex_matchall", [regex; input] ->
+    let re_s = match regex with Yexpr_string (Ycs_string s) | Yexpr_string (Ycs_path s) -> s | _ -> "" in
+    Some (Ys_string (Ystr_regex_matchall { regex = re_s; out = out_var kwargs; inputs = [input] }))
+  | "string_regex_quote", inputs ->
+    Some (Ys_string (Ystr_regex_quote { out = out_var kwargs; inputs }))
+  | "string_append", cvar :: inputs ->
+    Some (Ys_string (Ystr_append { cvar = cvar_of_expr cvar; inputs }))
+  | "string_prepend", cvar :: inputs ->
+    Some (Ys_string (Ystr_prepend { cvar = cvar_of_expr cvar; inputs }))
+  | "string_substring", [s; beg; len] ->
+    let beg_i = match beg with Yexpr_string (Ycs_string n) -> Int.of_string n | _ -> 0 in
+    let len_i = match len with Yexpr_string (Ycs_string n) -> Int.of_string n | _ -> 0 in
+    Some (Ys_string (Ystr_substring { string = s; begin_ = beg_i; length = Some len_i; out = out_var kwargs }))
+  | "string_repeat", [s; count] ->
+    let n = match count with Yexpr_string (Ycs_string s') -> Int.of_string s' | _ -> 0 in
+    Some (Ys_string (Ystr_repeat { string = s; count = n; out = out_var kwargs }))
+  | "string_genex_strip", [s] ->
+    Some (Ys_string (Ystr_genex_strip { string = s; out = out_var kwargs }))
+  | "string_compare", [s1; s2] ->
+    Some (Ys_string (Ystr_compare { string1 = s1; op = Lang_cmake.Sco_equal; string2 = s2; out = out_var kwargs }))
+  | "string_uuid", [] ->
+    Some (Ys_string (Ystr_uuid { out = out_var kwargs; namespace = "ns"; name = "n"; type_ = `Md5; upper = false }))
+  | "string_json_get", [json] ->
+    Some (Ys_string (Ystr_json { out = out_var kwargs; error_var = None; op = Yjop_get { json; path = [] } }))
+  | "string_json_set", [json; value] ->
+    Some (Ys_string (Ystr_json { out = out_var kwargs; error_var = None; op = Yjop_set { json; path = []; value } }))
+  | "string_json_equal", [j1; j2] ->
+    Some (Ys_string (Ystr_json { out = out_var kwargs; error_var = None; op = Yjop_equal { json1 = j1; json2 = j2 } }))
+  (* path ops (remaining) *)
+  | "path_remove_filename", [pv] ->
+    Some (Ys_path (Ypath_remove_filename { path_var = cvar_of_expr pv; out = None }))
+  | "path_replace_filename", [pv; input] ->
+    Some (Ys_path (Ypath_replace_filename { path_var = cvar_of_expr pv; input; out = None }))
+  | "path_remove_extension", [pv] ->
+    Some (Ys_path (Ypath_remove_extension { path_var = cvar_of_expr pv; last_only = false; out = None }))
+  | "path_replace_extension", [pv; input] ->
+    Some (Ys_path (Ypath_replace_extension { path_var = cvar_of_expr pv; last_only = false; input; out = None }))
+  | "path_normal_path", [pv] ->
+    Some (Ys_path (Ypath_normal_path { path_var = cvar_of_expr pv; out = None }))
+  | "path_relative_path", [pv] ->
+    Some (Ys_path (Ypath_relative_path { path_var = cvar_of_expr pv; base_dir = None; out = None }))
+  | "path_absolute_path", [pv] ->
+    Some (Ys_path (Ypath_absolute_path { path_var = cvar_of_expr pv; base_dir = None; normalize = false; out = None }))
+  | "path_native_path", [pv] ->
+    Some (Ys_path (Ypath_native_path { path_var = cvar_of_expr pv; normalize = false; out = out_var kwargs }))
+  | "path_convert_to_cmake", [input] ->
+    Some (Ys_path (Ypath_convert_to_cmake { input; normalize = false; out = out_var kwargs }))
+  | "path_convert_to_native", [input] ->
+    Some (Ys_path (Ypath_convert_to_native { input; normalize = false; out = out_var kwargs }))
+  | "path_append_string", [pv; input] ->
+    Some (Ys_path (Ypath_append_string { path_var = cvar_of_expr pv; inputs = [input]; out = None }))
+  | "path_is_prefix", [pv; input] ->
+    Some (Ys_path (Ypath_is_prefix { path_var = cvar_of_expr pv; input; normalize = false; out = out_var kwargs }))
+  (* property ops (remaining) *)
+  | "get_directory_property", [] ->
+    Some (Ys_property (Yprop_get_directory { var = out_var kwargs; property = "PROP" }))
+  | "set_directory_property", [] ->
+    Some (Ys_property (Yprop_set_directory { property = "PROP"; append = false; values = [] }))
+  | "set_test_properties", [test] ->
+    Some (Ys_property (Yprop_set_tests { tests = [test]; properties = [] }))
+  | "set_source_property", [file] ->
+    Some (Ys_property (Yprop_set_source { file; property = "PROP"; values = [] }))
+  | "set_global_property", [] ->
+    Some (Ys_property (Yprop_set_global { properties = [] }))
+  | "get_global_property", [] ->
+    Some (Ys_property (Yprop_get_global { var = out_var kwargs; property = "PROP" }))
+  | "list_sublist", [cvar; beg; len] ->
+    let b = match beg with Yexpr_string (Ycs_string n) -> Int.of_string n | _ -> 0 in
+    let l = match len with Yexpr_string (Ycs_string n) -> Int.of_string n | _ -> 0 in
+    Some (Ys_list (Ylist_sublist { cvar = cvar_of_expr cvar; begin_ = b; length = l; out = out_var kwargs }))
+  | "list_filter", [cvar; regex] ->
+    let re_s = match regex with Yexpr_string (Ycs_string s) | Yexpr_string (Ycs_path s) -> s | _ -> "" in
+    Some (Ys_list (Ylist_filter { cvar = cvar_of_expr cvar; mode = Lang_cmake.Lf_include; regex = re_s }))
+  | "list_transform", [cvar] ->
+    let act = if List.Assoc.find kwargs ~equal:String.equal "append" |> Option.is_some then Lang_cmake.Lta_toupper
+              else if List.Assoc.find kwargs ~equal:String.equal "prepend" |> Option.is_some then Lang_cmake.Lta_prepend (Lang_cmake.Bare "")
+              else Lang_cmake.Lta_toupper in
+    Some (Ys_list (Ylist_transform { cvar = cvar_of_expr cvar; action = act; selector = None; output = None }))
+  (* var ops *)
+  | "unset_cache", [cvar] ->
+    Some (Ys_var (Yvar_unset_cache { cvar = cvar_of_expr cvar }))
+  | "set_env", [var; value] ->
+    let name = match var with Yexpr_string (Ycs_string s) | Yexpr_string (Ycs_path s) -> s | _ -> "" in
+    Some (Ys_var (Yvar_set_env { var = name; value }))
+  | "unset_env", [var] ->
+    let name = match var with Yexpr_string (Ycs_string s) | Yexpr_string (Ycs_path s) -> s | _ -> "" in
+    Some (Ys_var (Yvar_unset_env { var = name }))
+  (* file ops (remaining) *)
+  | "file_strings", [file] ->
+    Some (Ys_file (Yfile_strings { out = out_var kwargs; file; regex = None; encoding = None; limit_count = None }))
+  | "file_read_symlink", [link] ->
+    Some (Ys_file (Yfile_read_symlink { out = out_var kwargs; link }))
+  (* cmake_op (remaining) *)
+  | "cmake_call", [cmd] ->
+    Some (Ys_cmake (Ycmake_language_call { cmd = (match cmd with Yexpr_string (Ycs_string s) -> s | _ -> ""); args = List.drop args 1 }))
+  | "cmake_eval", [code] ->
+    let s = match code with Yexpr_string (Ycs_string s) -> s | _ -> "" in
+    Some (Ys_cmake (Ycmake_language_eval { code = s }))
+  | "cmake_get_log_level", [] ->
+    Some (Ys_cmake (Ycmake_language_get_log_level { out = out_var kwargs }))
+  (* install ops (remaining) *)
+  | "export", [name] ->
+    Some (Ys_install (Yinstall_export_export { name; file = None }))
+  | "configure_package_config_file", [dest; input; output] ->
+    Some (Ys_install (Yinstall_configure_package_config_file { install_dest = dest; input; output; no_set_and_check_macro = false; no_check_required_components_macro = false }))
+  | "write_basic_package_version_file", [file] ->
+    Some (Ys_install (Yinstall_write_basic_package_version_file { file; version = None; compatibility = Lang_cmake.Any_newer_version; arch_independent = false }))
   | _ -> None
 
 (* ============================================================
@@ -457,6 +568,10 @@ let rec p_stmt toks =
   match p_function toks with Some r -> Some r | None ->
   match p_macro toks with Some r -> Some r | None ->
   match p_while toks with Some r -> Some r | None ->
+  match p_foreach_in toks with Some r -> Some r | None ->
+  match p_foreach_zip toks with Some r -> Some r | None ->
+  match p_block_stmt toks with Some r -> Some r | None ->
+  match p_extern toks with Some r -> Some r | None ->
   match p_flow toks with Some r -> Some r | None ->
   match p_command toks with Some r -> Some r | None ->
   match p_assign toks with Some r -> Some r | None ->
@@ -619,6 +734,97 @@ and p_while toks =
       match p_block toks with
       | Some (body, rest) -> Some (Yc_while { cond; commands = body }, rest)
       | None -> None
+
+(* foreach x in :lists [a, b] :items [x, y] ( body ) *)
+and p_foreach_in toks =
+  match kw "foreach" toks with
+  | None -> None
+  | Some ((), toks) ->
+    match p_ident toks with
+    | None -> None
+    | Some (lv, toks) ->
+      match kw "in" toks with
+      | None -> None
+      | Some ((), toks) ->
+        let rec collect_lists acc toks =
+          match toks with
+          | TILDE :: _ | LPAREN :: _ | [] -> (List.rev acc, toks)
+          | _ -> match p_ident toks with Some (n, r) -> collect_lists ({ ns = Ns_var; name = n } :: acc) r | None -> (List.rev acc, toks) in
+        let lists, toks = collect_lists [] toks in
+        let items, toks =
+          match toks with
+          | TILDE :: IDENT kw :: COLON :: LBRACK :: rest when String.equal kw "items" ->
+            let rec loop acc = function
+              | RBRACK :: r -> (List.rev acc, r)
+              | COMMA :: r -> loop acc r
+              | ts -> match p_expr ts with Some (e, r) -> loop (e :: acc) r | None -> (List.rev acc, ts) in
+            loop [] rest
+          | _ -> ([], toks) in
+        match p_block toks with
+        | Some (body, rest) ->
+          Some (Yc_foreach_in { loop_var = { ns = Ns_var; name = lv }; lists; items; commands = body }, rest)
+        | None -> None
+
+(* foreach [x, y] in :zip [a, b] ( body ) *)
+and p_foreach_zip toks =
+  match kw "foreach" toks with
+  | None -> None
+  | Some ((), toks) ->
+    let rec collect_vars acc = function
+      | IDENT v :: COMMA :: r -> collect_vars (v :: acc) r
+      | IDENT v :: r -> (List.rev (v :: acc), r)
+      | r -> (List.rev acc, r) in
+    match collect_vars [] toks with
+    | ([], _) -> None
+    | (lvs, toks) ->
+      match kw "in" toks with
+      | None -> None
+      | Some ((), toks) ->
+        (match toks with
+         | TILDE :: IDENT kw :: COLON :: LBRACK :: rest when String.equal kw "zip" ->
+           let rec loop acc = function
+             | RBRACK :: r -> (List.rev acc, r)
+             | COMMA :: r -> loop acc r
+             | ts -> match p_ident ts with Some (n, r) -> loop ({ ns = Ns_var; name = n } :: acc) r | None -> (List.rev acc, ts) in
+           let lists, toks = loop [] rest in
+           (match p_block toks with
+            | Some (body, rest) ->
+              let loop_vars = List.map lvs ~f:(fun v -> { ns = Ns_var; name = v }) in
+              Some (Yc_foreach_zip { loop_vars; lists; commands = body }, rest)
+            | None -> None)
+         | _ -> None)
+
+(* block ~scope [a, b] ( body ) *)
+and p_block_stmt toks =
+  match kw "block" toks with
+  | None -> None
+  | Some ((), toks) ->
+    let scope_vars, toks =
+      match toks with
+      | TILDE :: IDENT kw :: COLON :: LBRACK :: rest when String.equal kw "scope" ->
+        let rec loop acc = function
+          | RBRACK :: r -> (List.rev acc, r)
+          | COMMA :: r -> loop acc r
+          | ts -> match p_ident ts with Some (n, r) -> loop ({ ns = Ns_var; name = n } :: acc) r | None -> (List.rev acc, ts) in
+        loop [] rest
+      | _ -> ([], toks) in
+    match p_block toks with
+    | Some (body, rest) ->
+      let body_stmts = match body with Ystmt_list ss -> ss | s -> [s] in
+      Some (Yc_block { scope_vars; propagate = ""; body = body_stmts }, rest)
+    | None -> None
+
+(* extern 'VAR' / extern Target Foo *)
+and p_extern toks =
+  match kw "extern" toks with
+  | None -> None
+  | Some ((), toks) ->
+    match toks with
+    | STRING s :: rest | PATH s :: rest ->
+      Some (Yc_extern_cvar { ns = Ns_var; name = s }, rest)
+    | TARGET :: IDENT name :: rest ->
+      Some (Yc_extern_target { ns = Ns_target; name }, rest)
+    | _ -> None
 
 and p_flow toks =
   match toks with
