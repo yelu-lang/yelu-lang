@@ -1,0 +1,903 @@
+open Base
+open Yelu_langs.Yelu_tiny
+open Yelu_langs.Yelu_theory_store
+open Yelu_langs.Yelu_surface_cmake_store
+open Yelu_langs.Yelu_theory_int
+open Yelu_langs.Yelu_theory_list
+open Yelu_langs.Yelu_surface_cmake_list
+open Yelu_langs.Yelu_surface_cmake_path
+open Yelu_langs.Yelu_theory_path
+open Yelu_langs.Yelu_surface_cmake_target
+open Yelu_langs.Yelu_theory_target
+open Yelu_langs.Yelu_surface_cmake_string
+open Yelu_langs.Yelu_theory_string
+open Yelu_langs.Yelu_surface_cmake_if
+open Yelu_langs.Yelu_theory_if
+open Yelu_langs.Yelu_tiny_eval
+
+module Old = Yelu_langs.Lang_yelu_cmake
+
+let target ?(sources = []) ?(link_libraries = []) ?(include_directories = []) name =
+  { name; sources; link_libraries; include_directories }
+
+let env_of_bindings ?(targets = []) bindings =
+  let env =
+    List.fold bindings ~init:empty_env ~f:(fun env (key, data) ->
+      set_var env ~key ~data)
+  in
+  List.fold targets ~init:env ~f:set_target
+
+let old_cvar name : Old.tc_name = { ns = Old.Ns_var; name }
+let old_str s = Old.Yexpr_string (Old.Ycs_string s)
+let old_var name = Old.Yexpr_var (Old.Yvar name)
+
+let check_yelu_cmake_bridge_to_yelu1 name stmt ~expected_value ~expected_env =
+  Alcotest.test_case name `Quick (fun () ->
+    let expr = Yelu_langs.Yelu_cmake_to_yelu1.stmt stmt in
+    let env, value = eval_yelu1_expr empty_env expr in
+    Alcotest.(check bool) "expected value" true
+      (equal_value expected_value value);
+    Alcotest.(check bool) "expected env" true
+      (equal_env expected_env env))
+
+let parse_old_yelu source =
+  match Yelu_langs.Lang_yelu_parse.parse_program source with
+  | Ok stmt -> stmt
+  | Error error -> Alcotest.failf "parse error: %s" error
+
+let check_parsed_yelu_bridge_to_yelu1 name source ~expected_value ~expected_env =
+  Alcotest.test_case name `Quick (fun () ->
+    let expr =
+      source
+      |> parse_old_yelu
+      |> Yelu_langs.Yelu_cmake_to_yelu1.stmt
+    in
+    let env, value = eval_yelu1_expr empty_env expr in
+    Alcotest.(check bool) "expected value" true
+      (equal_value expected_value value);
+    Alcotest.(check bool) "expected env" true
+      (equal_env expected_env env))
+
+let check_yelu1_to_yelu2 name expr ~expected_value ~expected_env =
+  Alcotest.test_case name `Quick (fun () ->
+    let env = empty_env in
+    let left_env, left_value = eval_yelu1_expr env expr in
+    let right_env, right_value = eval_yelu2_expr env (lift_yelu1_to_yelu2 expr) in
+    Alcotest.(check bool) "translation preserves value" true
+      (equal_value left_value right_value);
+    Alcotest.(check bool) "translation preserves env" true
+      (equal_env left_env right_env);
+    Alcotest.(check bool) "expected value" true
+      (equal_value expected_value left_value);
+    Alcotest.(check bool) "expected env" true
+      (equal_env expected_env left_env))
+
+let check_yelu2_to_yelu1 name expr ~expected_value ~expected_env =
+  Alcotest.test_case name `Quick (fun () ->
+    let env = empty_env in
+    let left_env, left_value = eval_yelu2_expr env expr in
+    let right_env, right_value = eval_yelu1_expr env (lower_yelu2_to_yelu1 expr) in
+    Alcotest.(check bool) "translation preserves value" true
+      (equal_value left_value right_value);
+    Alcotest.(check bool) "translation preserves env" true
+      (equal_env left_env right_env);
+    Alcotest.(check bool) "expected value" true
+      (equal_value expected_value left_value);
+    Alcotest.(check bool) "expected env" true
+      (equal_env expected_env left_env))
+
+let check_yelu1_lift_lower_roundtrip name expr =
+  Alcotest.test_case name `Quick (fun () ->
+    let env = empty_env in
+    let left_env, left_value = eval_yelu1_expr env expr in
+    let lifted = lift_yelu1_to_yelu2 expr in
+    let lowered = lower_yelu2_to_yelu1 lifted in
+    let right_env, right_value = eval_yelu1_expr env lowered in
+    Alcotest.(check bool) "roundtrip preserves value" true
+      (equal_value left_value right_value);
+    Alcotest.(check bool) "roundtrip preserves env" true
+      (equal_env left_env right_env))
+
+let yelu1_to_yelu2 =
+  ( "yelu1_to_yelu2",
+    [
+      check_yelu1_to_yelu2 "concat literals"
+        (ESeq [
+          ECmakeStringConcat { inputs = [ EString "a"; EString "b"; EString "c" ]; out = "OUT" };
+          EVar "OUT";
+        ])
+        ~expected_value:(VString "abc")
+        ~expected_env:(env_of_bindings [ "OUT", VString "abc" ]);
+      check_yelu1_to_yelu2 "upper nested in concat"
+        (ESeq [
+          ECmakeStringToupper { input = EString "b"; out = "TMP" };
+          ECmakeStringConcat { inputs = [ EString "a"; EVar "TMP" ]; out = "OUT" };
+          EVar "OUT";
+        ])
+        ~expected_value:(VString "aB")
+        ~expected_env:(env_of_bindings [ "TMP", VString "B"; "OUT", VString "aB" ]);
+      check_yelu1_to_yelu2 "replace all"
+        (ECmakeStringReplace
+           { match_ = EString "ll"; replace = EString "y"; input = EString "hello"; out = "OUT" })
+        ~expected_value:VUnit
+        ~expected_env:(env_of_bindings [ "OUT", VString "heyo" ]);
+      check_yelu1_to_yelu2 "length of upper"
+        (ESeq [
+          ECmakeStringToupper { input = EString "abc"; out = "TMP" };
+          ECmakeStringLength { input = EVar "TMP"; out = "LEN" };
+          EVar "LEN";
+        ])
+        ~expected_value:(VInt 3)
+        ~expected_env:(env_of_bindings [ "TMP", VString "ABC"; "LEN", VInt 3 ]);
+      check_yelu1_to_yelu2 "store defined and unset"
+        (ESeq [
+          ESetVar ("X", EString "value");
+          ESetVar ("BEFORE", ECmakeVarDefined "X");
+          ECmakeUnsetVar "X";
+          ESetVar ("AFTER", ECmakeVarDefined "X");
+          EVar "AFTER";
+        ])
+        ~expected_value:(VBool false)
+        ~expected_env:(env_of_bindings [ "BEFORE", VBool true; "AFTER", VBool false ]);
+      check_yelu1_to_yelu2 "if statement chooses then branch"
+        (ESeq [
+          ECmakeIfStmt
+            {
+              cond = ECmakeStringEqual (EString "a", EString "a");
+              then_ = ECmakeStringToupper { input = EString "ok"; out = "OUT" };
+              else_ = Some (ECmakeStringToupper { input = EString "bad"; out = "OUT" });
+            };
+          EVar "OUT";
+        ])
+        ~expected_value:(VString "OK")
+        ~expected_env:(env_of_bindings [ "OUT", VString "OK" ]);
+      check_yelu1_to_yelu2 "if statement chooses else branch"
+        (ESeq [
+          ECmakeIfStmt
+            {
+              cond = ECmakeStringEqual (EString "a", EString "b");
+              then_ = ECmakeStringToupper { input = EString "bad"; out = "OUT" };
+              else_ = Some (ECmakeStringToupper { input = EString "ok"; out = "OUT" });
+            };
+          EVar "OUT";
+        ])
+        ~expected_value:(VString "OK")
+        ~expected_env:(env_of_bindings [ "OUT", VString "OK" ]);
+      check_yelu1_to_yelu2 "list append length and join"
+        (ESeq [
+          ESetVar ("XS", EList []);
+          ECmakeListAppend { list = "XS"; items = [ EString "a"; EString "b" ] };
+          ECmakeListGet { list = "XS"; index = EInt 1; out = "ITEM" };
+          ECmakeListLength { list = "XS"; out = "LEN" };
+          ECmakeListJoin { list = "XS"; glue = EString "-"; out = "OUT" };
+          EVar "OUT";
+        ])
+        ~expected_value:(VString "a-b")
+        ~expected_env:
+          (env_of_bindings
+             [
+               "XS", VList [ VString "a"; VString "b" ];
+               "ITEM", VString "b";
+               "LEN", VInt 2;
+               "OUT", VString "a-b";
+             ]);
+      check_yelu1_to_yelu2 "path filename and normal path"
+        (ESeq [
+          ECmakePathSet { path = "P"; input = EString "/usr/local/bin/cmake"; normalize = false };
+          ECmakePathGetFilename { path = "P"; out = "FILENAME" };
+          ECmakePathSet { path = "Q"; input = EString "a/./b/../c"; normalize = false };
+          ECmakePathNormalPath { path = "Q"; out = Some "NORMAL" };
+          EVar "NORMAL";
+        ])
+        ~expected_value:(VString "a/c")
+        ~expected_env:
+          (env_of_bindings
+             [
+               "P", VString "/usr/local/bin/cmake";
+               "FILENAME", VString "cmake";
+               "Q", VString "a/./b/../c";
+               "NORMAL", VString "a/c";
+             ]);
+      check_yelu1_to_yelu2 "target declaration and existence"
+        (ESeq [
+          ECmakeAddExecutable { name = "app"; sources = [ EString "main.c" ] };
+          ESetVar ("OUT", ECmakeTargetExists "app");
+          EVar "OUT";
+        ])
+        ~expected_value:(VBool true)
+        ~expected_env:
+          (env_of_bindings ~targets:[ target "app" ] [ "OUT", VBool true ]);
+      check_yelu1_to_yelu2 "target sources mutation"
+        (ESeq [
+          ECmakeAddExecutable { name = "app"; sources = [ EString "main.c" ] };
+          ECmakeTargetSources { target = "app"; visibility = "PUBLIC"; sources = [ EString "extra.c" ] };
+          ETarget "app";
+        ])
+        ~expected_value:(VTarget "app")
+        ~expected_env:
+          (env_of_bindings
+             ~targets:
+               [
+                 target "app"
+                   ~sources:[ { visibility = "PUBLIC"; source = "extra.c" } ];
+               ]
+             []);
+      check_yelu1_to_yelu2 "target link libraries mutation"
+        (ESeq [
+          ECmakeAddExecutable { name = "app"; sources = [ EString "main.c" ] };
+          ECmakeTargetLinkLibraries { target = "app"; visibility = "PRIVATE"; items = [ EString "m" ] };
+          ETarget "app";
+        ])
+        ~expected_value:(VTarget "app")
+        ~expected_env:
+          (env_of_bindings
+             ~targets:
+               [
+                 target "app"
+                   ~link_libraries:[ { visibility = "PRIVATE"; item = "m" } ];
+               ]
+             []);
+      check_yelu1_to_yelu2 "target include directories mutation"
+        (ESeq [
+          ECmakeAddExecutable { name = "app"; sources = [ EString "main.c" ] };
+          ECmakeTargetIncludeDirectories { target = "app"; visibility = "PUBLIC"; dirs = [ EString "include" ] };
+          ETarget "app";
+        ])
+        ~expected_value:(VTarget "app")
+        ~expected_env:
+          (env_of_bindings
+             ~targets:
+               [
+                 target "app"
+                   ~include_directories:[ { visibility = "PUBLIC"; dir = "include" } ];
+               ]
+             []);
+    ] )
+
+let yelu2_to_yelu1 =
+  ( "yelu2_to_yelu1",
+    [
+      check_yelu2_to_yelu1 "concat literals"
+        (ESeq [
+          ESetVar ("OUT", EStringConcat [ EString "x"; EString "y" ]);
+          EVar "OUT";
+        ])
+        ~expected_value:(VString "xy")
+        ~expected_env:(env_of_bindings [ "OUT", VString "xy" ]);
+      check_yelu2_to_yelu1 "upper nested in replace"
+        (ESeq [
+          ESetVar ("TMP", EStringUpper (EString "a-b-a"));
+          ESetVar
+            ( "OUT",
+              EStringReplaceAll
+                {
+                  needle = EString "A";
+                  replacement = EString "z";
+                  haystack = EVar "TMP";
+                } );
+          EVar "OUT";
+        ])
+        ~expected_value:(VString "z-B-z")
+        ~expected_env:(env_of_bindings [ "TMP", VString "A-B-A"; "OUT", VString "z-B-z" ]);
+      check_yelu2_to_yelu1 "length of concat"
+        (ESeq [
+          ESetVar ("TMP", EStringConcat [ EString "ab"; EString "cd" ]);
+          ESetVar ("LEN", EStringLen (EVar "TMP"));
+          EVar "LEN";
+        ])
+        ~expected_value:(VInt 4)
+        ~expected_env:(env_of_bindings [ "TMP", VString "abcd"; "LEN", VInt 4 ]);
+      check_yelu2_to_yelu1 "if expression saved to output"
+        (ESeq [
+          ESetVar
+            ( "OUT",
+              EIfExpr
+                {
+                  cond = EStringEqual (EString "x", EString "x");
+                  then_ = EStringUpper (EString "yes");
+                  else_ = EStringUpper (EString "no");
+                } );
+          EVar "OUT";
+        ])
+        ~expected_value:(VString "YES")
+        ~expected_env:(env_of_bindings [ "OUT", VString "YES" ]);
+      check_yelu2_to_yelu1 "store defined and unset"
+        (ESeq [
+          ESetVar ("X", EString "value");
+          ESetVar ("BEFORE", EVarDefined "X");
+          EUnsetVar "X";
+          ESetVar ("AFTER", EVarDefined "X");
+          EVar "AFTER";
+        ])
+        ~expected_value:(VBool false)
+        ~expected_env:(env_of_bindings [ "BEFORE", VBool true; "AFTER", VBool false ]);
+      check_yelu2_to_yelu1 "int equality from string length"
+        (ESeq [
+          ESetVar ("LEN", EStringLen (EString "abc"));
+          ESetVar
+            ( "OUT",
+              EIfExpr
+                {
+                  cond = EIntEqual (EVar "LEN", EInt 3);
+                  then_ = EStringUpper (EString "yes");
+                  else_ = EStringUpper (EString "no");
+                } );
+          EVar "OUT";
+        ])
+        ~expected_value:(VString "YES")
+        ~expected_env:(env_of_bindings [ "LEN", VInt 3; "OUT", VString "YES" ]);
+      check_yelu2_to_yelu1 "list length feeds if expression"
+        (ESeq [
+          ESetVar ("XS", EList [ EString "a"; EString "b" ]);
+          ESetVar ("LEN", EListLength (EVar "XS"));
+          ESetVar
+            ( "OUT",
+              EIfExpr
+                {
+                  cond = EIntEqual (EVar "LEN", EInt 2);
+                  then_ = EStringUpper (EString "yes");
+                  else_ = EStringUpper (EString "no");
+                } );
+          EVar "OUT";
+        ])
+        ~expected_value:(VString "YES")
+        ~expected_env:
+          (env_of_bindings
+             [
+               "XS", VList [ VString "a"; VString "b" ];
+               "LEN", VInt 2;
+               "OUT", VString "YES";
+             ]);
+      check_yelu2_to_yelu1 "list join lowers to cmake surface"
+        (ESeq [
+          ESetVar ("XS", EList [ EString "a"; EString "b" ]);
+          ESetVar ("OUT", EStringJoin { sep = EString "-"; items = EVar "XS" });
+          EVar "OUT";
+        ])
+        ~expected_value:(VString "a-b")
+        ~expected_env:
+          (env_of_bindings
+             [
+               "XS", VList [ VString "a"; VString "b" ];
+               "OUT", VString "a-b";
+             ]);
+      check_yelu2_to_yelu1 "list get lowers to cmake surface"
+        (ESeq [
+          ESetVar ("XS", EList [ EString "first"; EString "second" ]);
+          ESetVar ("OUT", EListGet (EVar "XS", EInt 1));
+          EVar "OUT";
+        ])
+        ~expected_value:(VString "second")
+        ~expected_env:
+          (env_of_bindings
+             [
+               "XS", VList [ VString "first"; VString "second" ];
+               "OUT", VString "second";
+             ]);
+      check_yelu2_to_yelu1 "path normalize lowers to cmake surface"
+        (ESeq [
+          ESetVar ("P", EString "a/./b/../c");
+          ESetVar ("OUT", EPathNormalize (EVar "P"));
+          EVar "OUT";
+        ])
+        ~expected_value:(VString "a/c")
+        ~expected_env:(env_of_bindings [ "P", VString "a/./b/../c"; "OUT", VString "a/c" ]);
+      check_yelu2_to_yelu1 "path filename lowers to cmake surface"
+        (ESeq [
+          ESetVar ("P", EString "/usr/local/bin/cmake");
+          ESetVar ("OUT", EPathFilename (EVar "P"));
+          EVar "OUT";
+        ])
+        ~expected_value:(VString "cmake")
+        ~expected_env:
+          (env_of_bindings [ "P", VString "/usr/local/bin/cmake"; "OUT", VString "cmake" ]);
+      check_yelu2_to_yelu1 "target declaration lowers to cmake surface"
+        (ESeq [
+          ESetVar
+            ("APP", EExecutable { name = EString "app"; sources = [ EString "main.c" ] });
+          ESetVar ("OUT", ETargetExists (ETarget "app"));
+          EVar "OUT";
+        ])
+        ~expected_value:(VBool true)
+        ~expected_env:
+          (env_of_bindings
+             ~targets:[ target "app" ]
+             [
+               "APP", VTarget "app";
+               "OUT", VBool true;
+             ]);
+      check_yelu2_to_yelu1 "target sources lowers to cmake surface"
+        (ESeq [
+          ESetVar
+            ("APP", EExecutable { name = EString "app"; sources = [ EString "main.c" ] });
+          ETargetAddSources { target = ETarget "app"; visibility = "INTERFACE"; sources = [ EString "extra.c" ] };
+        ])
+        ~expected_value:(VTarget "app")
+        ~expected_env:
+          (env_of_bindings
+             ~targets:
+               [
+                 target "app"
+                   ~sources:[ { visibility = "INTERFACE"; source = "extra.c" } ];
+               ]
+             [
+               "APP", VTarget "app";
+             ]);
+      check_yelu2_to_yelu1 "target link libraries lowers to cmake surface"
+        (ESeq [
+          ESetVar
+            ("APP", EExecutable { name = EString "app"; sources = [ EString "main.c" ] });
+          ETargetLinkLibraries { target = ETarget "app"; visibility = "PRIVATE"; items = [ EString "m" ] };
+        ])
+        ~expected_value:(VTarget "app")
+        ~expected_env:
+          (env_of_bindings
+             ~targets:
+               [
+                 target "app"
+                   ~link_libraries:[ { visibility = "PRIVATE"; item = "m" } ];
+               ]
+             [
+               "APP", VTarget "app";
+             ]);
+      check_yelu2_to_yelu1 "target include directories lowers to cmake surface"
+        (ESeq [
+          ESetVar
+            ("APP", EExecutable { name = EString "app"; sources = [ EString "main.c" ] });
+          ETargetIncludeDirectories { target = ETarget "app"; visibility = "INTERFACE"; dirs = [ EString "iface" ] };
+        ])
+        ~expected_value:(VTarget "app")
+        ~expected_env:
+          (env_of_bindings
+             ~targets:
+               [
+                 target "app"
+                   ~include_directories:[ { visibility = "INTERFACE"; dir = "iface" } ];
+               ]
+             [
+               "APP", VTarget "app";
+             ]);
+    ] )
+
+let yelu1_roundtrip =
+  ( "yelu1_lift_lower_roundtrip",
+    [
+      check_yelu1_lift_lower_roundtrip "string effects"
+        (ESeq [
+          ECmakeStringToupper { input = EString "abc"; out = "TMP" };
+          ECmakeStringConcat { inputs = [ EVar "TMP"; EString "-x" ]; out = "OUT" };
+          EVar "OUT";
+        ]);
+      check_yelu1_lift_lower_roundtrip "if and string effects"
+        (ESeq [
+          ECmakeIfStmt
+            {
+              cond = ECmakeStringEqual (EString "left", EString "right");
+              then_ = ECmakeStringToupper { input = EString "bad"; out = "OUT" };
+              else_ = Some (ECmakeStringToupper { input = EString "good"; out = "OUT" });
+            };
+          EVar "OUT";
+        ]);
+    ] )
+
+let yelu_cmake_bridge =
+  ( "yelu_cmake_to_yelu1",
+    [
+      check_yelu_cmake_bridge_to_yelu1 "old string subset bridges to Yelu1"
+        (Old.Ystmt_list
+           [
+             Old.Ylet { var = Old.Yvar "msg"; value = old_str "hello" };
+             Old.Ys_string
+               (Old.Ystr_toupper { string = old_var "msg"; out = old_cvar "TMP" });
+             Old.Ys_string
+               (Old.Ystr_concat
+                  {
+                    out = old_cvar "OUT";
+                    inputs = [ old_str "value="; Old.Yexpr_name (old_cvar "TMP") ];
+                  });
+             Old.Ys_var
+               (Old.Yvar_set
+                  {
+                    cvar = old_cvar "RESULT";
+                    values = [ Old.Yexpr_name (old_cvar "OUT") ];
+                    parent_scope = false;
+                  });
+             Old.Ys_string
+               (Old.Ystr_length
+                  { string = Old.Yexpr_name (old_cvar "RESULT"); out = old_cvar "LEN" });
+           ])
+        ~expected_value:VUnit
+        ~expected_env:
+          (env_of_bindings
+             [
+               "msg", VString "hello";
+               "TMP", VString "HELLO";
+               "OUT", VString "value=HELLO";
+               "RESULT", VString "value=HELLO";
+               "LEN", VInt 11;
+             ]);
+      check_yelu_cmake_bridge_to_yelu1 "old if and string compare bridge to Yelu1"
+        (Old.Yif
+           {
+             cond = Old.Yexpr_str_equal (old_str "a", old_str "a");
+             then_ =
+               Old.Ys_string
+                 (Old.Ystr_replace
+                    {
+                      match_string = old_str "ll";
+                      replace_string = old_str "y";
+                      inputs = [ old_str "hello" ];
+                      out = old_cvar "OUT";
+                    });
+             else_ =
+               Some
+                 (Old.Ys_string
+                    (Old.Ystr_toupper { string = old_str "bad"; out = old_cvar "OUT" }));
+           })
+        ~expected_value:VUnit
+        ~expected_env:(env_of_bindings [ "OUT", VString "heyo" ]);
+      check_yelu_cmake_bridge_to_yelu1 "old defined condition bridges to Yelu1"
+        (Old.Ystmt_list
+           [
+             Old.Ys_var
+               (Old.Yvar_set
+                  { cvar = old_cvar "X"; values = [ old_str "value" ]; parent_scope = false });
+             Old.Yif
+               {
+                 cond = Old.Yexpr_is_defined { ns = Old.Ns_var; name = "X" };
+                 then_ =
+                   Old.Ys_string
+                     (Old.Ystr_toupper { string = old_str "yes"; out = old_cvar "OUT" });
+                 else_ =
+                   Some
+                     (Old.Ys_string
+                        (Old.Ystr_toupper { string = old_str "no"; out = old_cvar "OUT" }));
+               };
+           ])
+        ~expected_value:VUnit
+        ~expected_env:(env_of_bindings [ "X", VString "value"; "OUT", VString "YES" ]);
+      check_parsed_yelu_bridge_to_yelu1 "parsed old string program bridges to Yelu1"
+        {|
+        (
+          let msg = "hello" in
+          string_toupper msg ~out:TMP;
+          string_concat ~out:OUT "value=" TMP;
+          string_length OUT ~out:LEN
+        )
+        |}
+        ~expected_value:VUnit
+        ~expected_env:
+          (env_of_bindings
+             [
+               "msg", VString "hello";
+               "TMP", VString "HELLO";
+               "OUT", VString "value=HELLO";
+               "LEN", VInt 11;
+             ]);
+      check_parsed_yelu_bridge_to_yelu1 "parsed old if program bridges to Yelu1"
+        {|
+        (
+          if str_eq "a" "b" then
+            ( string_toupper "bad" ~out:OUT )
+          else
+            ( string_replace "ll" "y" "hello" ~out:OUT )
+        )
+        |}
+        ~expected_value:VUnit
+        ~expected_env:(env_of_bindings [ "OUT", VString "heyo" ]);
+      check_parsed_yelu_bridge_to_yelu1 "parsed old defined condition bridges to Yelu1"
+        {|
+        (
+          X := "value";
+          if defined X then
+            ( string_toupper "yes" ~out:OUT )
+          else
+            ( string_toupper "no" ~out:OUT )
+        )
+        |}
+        ~expected_value:VUnit
+        ~expected_env:(env_of_bindings [ "X", VString "value"; "OUT", VString "YES" ]);
+      check_yelu_cmake_bridge_to_yelu1 "old list subset bridges to Yelu1"
+        (Old.Ystmt_list
+           [
+             Old.Ys_list
+               (Old.Ylist_append
+                  { cvar = old_cvar "XS"; values = [ old_str "a"; old_str "b" ] });
+             Old.Ys_list
+               (Old.Ylist_get
+                  { cvar = old_cvar "XS"; indices = [ 1 ]; out = old_cvar "ITEM" });
+             Old.Ys_list
+               (Old.Ylist_length { cvar = old_cvar "XS"; out = old_cvar "LEN" });
+             Old.Ys_list
+               (Old.Ylist_join
+                  { cvar = old_cvar "XS"; glue = old_str "-"; out = old_cvar "OUT" });
+           ])
+        ~expected_value:VUnit
+        ~expected_env:
+          (env_of_bindings
+             [
+               "XS", VList [ VString "a"; VString "b" ];
+               "ITEM", VString "b";
+               "LEN", VInt 2;
+               "OUT", VString "a-b";
+             ]);
+      check_parsed_yelu_bridge_to_yelu1 "parsed old list program bridges to Yelu1"
+        {|
+        (
+          list_append XS "a" "b";
+          list_get XS 1 ~out:ITEM;
+          list_length XS ~out:LEN;
+          list_join XS "-" ~out:OUT
+        )
+        |}
+        ~expected_value:VUnit
+        ~expected_env:
+          (env_of_bindings
+             [
+               "XS", VList [ VString "a"; VString "b" ];
+               "ITEM", VString "b";
+               "LEN", VInt 2;
+               "OUT", VString "a-b";
+             ]);
+      check_yelu_cmake_bridge_to_yelu1 "old path subset bridges to Yelu1"
+        (Old.Ystmt_list
+           [
+             Old.Ys_path
+               (Old.Ypath_set
+                  {
+                    path_var = old_cvar "P";
+                    input = old_str "/usr/local/bin/cmake";
+                    normalize = false;
+                  });
+             Old.Ys_path
+               (Old.Ypath_get
+                  {
+                    path_var = old_cvar "P";
+                    field = Yelu_langs.Lang_cmake.Cpf_filename;
+                    out = old_cvar "FILENAME";
+                  });
+             Old.Ys_path
+               (Old.Ypath_set
+                  {
+                    path_var = old_cvar "Q";
+                    input = old_str "a/./b/../c";
+                    normalize = false;
+                  });
+             Old.Ys_path
+               (Old.Ypath_normal_path
+                  { path_var = old_cvar "Q"; out = Some (old_cvar "NORMAL") });
+           ])
+        ~expected_value:VUnit
+        ~expected_env:
+          (env_of_bindings
+             [
+               "P", VString "/usr/local/bin/cmake";
+               "FILENAME", VString "cmake";
+               "Q", VString "a/./b/../c";
+               "NORMAL", VString "a/c";
+             ]);
+      check_parsed_yelu_bridge_to_yelu1 "parsed old path program bridges to Yelu1"
+        {|
+        (
+          path_set P "/usr/local/bin/cmake";
+          path_get P ~out:FILENAME;
+          path_set Q "a/./b/../c";
+          path_normal_path Q ~out:NORMAL
+        )
+        |}
+        ~expected_value:VUnit
+        ~expected_env:
+          (env_of_bindings
+             [
+               "P", VString "/usr/local/bin/cmake";
+               "FILENAME", VString "cmake";
+               "Q", VString "a/./b/../c";
+               "NORMAL", VString "a/c";
+             ]);
+      check_yelu_cmake_bridge_to_yelu1 "old target layer-a bridges to Yelu1"
+        (Old.Ystmt_list
+           [
+             Old.Ys_target
+               (Old.Ytgt_add_executable
+                  {
+                    name = Old.Yexpr_name { ns = Old.Ns_target; name = "app" };
+                    exclude_from_all = false;
+                    sources = [ old_str "main.c" ];
+                  });
+             Old.Yif
+               {
+                 cond = Old.Yexpr_is_target { ns = Old.Ns_target; name = "app" };
+                 then_ =
+                   Old.Ys_string
+                     (Old.Ystr_toupper { string = old_str "yes"; out = old_cvar "OUT" });
+                 else_ =
+                   Some
+                     (Old.Ys_string
+                        (Old.Ystr_toupper { string = old_str "no"; out = old_cvar "OUT" }));
+               };
+           ])
+        ~expected_value:VUnit
+        ~expected_env:
+          (env_of_bindings ~targets:[ target "app" ] [ "OUT", VString "YES" ]);
+      check_parsed_yelu_bridge_to_yelu1 "parsed old target layer-a bridges to Yelu1"
+        {|
+        (
+          add_exe Target app "main.c";
+          if target Target app then
+            ( string_toupper "yes" ~out:OUT )
+          else
+            ( string_toupper "no" ~out:OUT )
+        )
+        |}
+        ~expected_value:VUnit
+        ~expected_env:
+          (env_of_bindings ~targets:[ target "app" ] [ "OUT", VString "YES" ]);
+      check_yelu_cmake_bridge_to_yelu1 "old target sources bridge to Yelu1"
+        (Old.Ystmt_list
+           [
+             Old.Ys_target
+               (Old.Ytgt_add_executable
+                  {
+                    name = Old.Yexpr_name { ns = Old.Ns_target; name = "app" };
+                    exclude_from_all = false;
+                    sources = [ old_str "main.c" ];
+                  });
+             Old.Ys_target
+               (Old.Ytgt_sources
+                  {
+                    target = Old.Yexpr_name { ns = Old.Ns_target; name = "app" };
+                    items =
+                      [
+                        { kind = Yelu_langs.Lang_cmake.Private; items = [ old_str "extra.c" ] };
+                        { kind = Yelu_langs.Lang_cmake.Public; items = [ old_str "api.c" ] };
+                      ];
+                  });
+           ])
+        ~expected_value:VUnit
+        ~expected_env:
+          (env_of_bindings
+             ~targets:
+               [
+                 target "app"
+                   ~sources:
+                     [
+                       { visibility = "PRIVATE"; source = "extra.c" };
+                       { visibility = "PUBLIC"; source = "api.c" };
+                     ];
+               ]
+             []);
+      check_parsed_yelu_bridge_to_yelu1 "parsed old target sources bridge to Yelu1"
+        {|
+        (
+          add_exe Target app "main.c";
+          target_sources Target app PRIVATE "extra.c" PUBLIC "api.c"
+        )
+        |}
+        ~expected_value:VUnit
+        ~expected_env:
+          (env_of_bindings
+             ~targets:
+               [
+                 target "app"
+                   ~sources:
+                     [
+                       { visibility = "PRIVATE"; source = "extra.c" };
+                       { visibility = "PUBLIC"; source = "api.c" };
+                     ];
+               ]
+             []);
+      check_yelu_cmake_bridge_to_yelu1 "old target link libraries bridge to Yelu1"
+        (Old.Ystmt_list
+           [
+             Old.Ys_target
+               (Old.Ytgt_add_executable
+                  {
+                    name = Old.Yexpr_name { ns = Old.Ns_target; name = "app" };
+                    exclude_from_all = false;
+                    sources = [ old_str "main.c" ];
+                  });
+             Old.Ys_target
+               (Old.Ytgt_link_libraries
+                  {
+                    targets = [ Old.Yexpr_name { ns = Old.Ns_target; name = "app" } ];
+                    items =
+                      [
+                        { kind = Yelu_langs.Lang_cmake.Private; items = [ old_str "m" ] };
+                        { kind = Yelu_langs.Lang_cmake.Public; items = [ old_str "dep" ] };
+                      ];
+                  });
+           ])
+        ~expected_value:VUnit
+        ~expected_env:
+          (env_of_bindings
+             ~targets:
+               [
+                 target "app"
+                   ~link_libraries:
+                     [
+                       { visibility = "PRIVATE"; item = "m" };
+                       { visibility = "PUBLIC"; item = "dep" };
+                     ];
+               ]
+             []);
+      check_parsed_yelu_bridge_to_yelu1 "parsed old target link libraries bridge to Yelu1"
+        {|
+        (
+          add_exe Target app "main.c";
+          link_lib Target app PRIVATE "m" PUBLIC "dep"
+        )
+        |}
+        ~expected_value:VUnit
+        ~expected_env:
+          (env_of_bindings
+             ~targets:
+               [
+                 target "app"
+                   ~link_libraries:
+                     [
+                       { visibility = "PRIVATE"; item = "m" };
+                       { visibility = "PUBLIC"; item = "dep" };
+                     ];
+               ]
+             []);
+      check_yelu_cmake_bridge_to_yelu1 "old target include directories bridge to Yelu1"
+        (Old.Ystmt_list
+           [
+             Old.Ys_target
+               (Old.Ytgt_add_executable
+                  {
+                    name = Old.Yexpr_name { ns = Old.Ns_target; name = "app" };
+                    exclude_from_all = false;
+                    sources = [ old_str "main.c" ];
+                  });
+             Old.Ys_target
+               (Old.Ytgt_include_directories
+                  {
+                    target = Old.Yexpr_name { ns = Old.Ns_target; name = "app" };
+                    before = false;
+                    system = false;
+                    items =
+                      [
+                        { kind = Yelu_langs.Lang_cmake.Private; items = [ old_str "include" ] };
+                        { kind = Yelu_langs.Lang_cmake.Interface; items = [ old_str "iface" ] };
+                      ];
+                  });
+           ])
+        ~expected_value:VUnit
+        ~expected_env:
+          (env_of_bindings
+             ~targets:
+               [
+                 target "app"
+                   ~include_directories:
+                     [
+                       { visibility = "PRIVATE"; dir = "include" };
+                       { visibility = "INTERFACE"; dir = "iface" };
+                     ];
+               ]
+             []);
+      check_parsed_yelu_bridge_to_yelu1 "parsed old target include directories bridge to Yelu1"
+        {|
+        (
+          add_exe Target app "main.c";
+          include_dirs Target app PRIVATE "include" INTERFACE "iface"
+        )
+        |}
+        ~expected_value:VUnit
+        ~expected_env:
+          (env_of_bindings
+             ~targets:
+               [
+                 target "app"
+                   ~include_directories:
+                     [
+                       { visibility = "PRIVATE"; dir = "include" };
+                       { visibility = "INTERFACE"; dir = "iface" };
+                     ];
+               ]
+             []);
+    ] )
+
+let () =
+  Alcotest.run "yelu_tiny_composition"
+    [ yelu1_to_yelu2; yelu2_to_yelu1; yelu1_roundtrip; yelu_cmake_bridge ]

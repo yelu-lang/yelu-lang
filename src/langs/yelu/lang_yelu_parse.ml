@@ -94,6 +94,7 @@ let rec p_cond_atom toks =
   | IDENT s :: rest when String.equal s "defined" ->
     map (fun e -> match e with
       | Yexpr_name t -> Yexpr_is_defined t
+      | Yexpr_var (Yvar s) -> Yexpr_is_defined { ns = Ns_var; name = s }
       | Yexpr_string (Ycs_string s) -> Yexpr_is_defined { ns = Ns_var; name = s }
       | Yexpr_string (Ycs_path s) -> Yexpr_is_defined { ns = Ns_var; name = s }
       | _ -> Yexpr_is_defined { ns = Ns_var; name = "?" }) p_expr rest
@@ -158,11 +159,47 @@ let out_var kwargs =
   | Some (Yexpr_var (Yvar name)) -> { ns = Ns_var; name }
   | _ -> { ns = Ns_var; name = "?" }
 
+let opt_out_var kwargs =
+  match List.Assoc.find kwargs ~equal:String.equal "out" with
+  | Some (Yexpr_name { ns = Ns_var; name }) -> Some { ns = Ns_var; name }
+  | Some (Yexpr_var (Yvar name)) -> Some { ns = Ns_var; name }
+  | _ -> None
+
 (* Helper: extract first positional arg as tc_name *)
 let cvar_of_expr = function
   | Yexpr_name n -> n
   | Yexpr_var (Yvar name) -> { ns = Ns_var; name }
   | _ -> { ns = Ns_var; name = "?" }
+
+let int_of_expr = function
+  | Yexpr_string (Ycs_string s) -> Int.of_string s
+  | Yexpr_string (Ycs_path s) -> Int.of_string s
+  | _ -> 0
+
+let target_sources_items sources =
+  let visibility_of_expr = function
+    | Yexpr_string (Ycs_string "PUBLIC" | Ycs_path "PUBLIC" | Ycs_keyword "PUBLIC") -> Some Lang_cmake.Public
+    | Yexpr_string (Ycs_string "PRIVATE" | Ycs_path "PRIVATE" | Ycs_keyword "PRIVATE") -> Some Lang_cmake.Private
+    | Yexpr_string (Ycs_string "INTERFACE" | Ycs_path "INTERFACE" | Ycs_keyword "INTERFACE") -> Some Lang_cmake.Interface
+    | Yexpr_var (Yvar "PUBLIC") -> Some Lang_cmake.Public
+    | Yexpr_var (Yvar "PRIVATE") -> Some Lang_cmake.Private
+    | Yexpr_var (Yvar "INTERFACE") -> Some Lang_cmake.Interface
+    | _ -> None
+  in
+  let rec loop current_kind current_items groups = function
+    | [] -> List.rev ({ kind = current_kind; items = List.rev current_items } :: groups)
+    | source :: rest ->
+      (match visibility_of_expr source with
+       | Some kind ->
+         let groups =
+           if List.is_empty current_items
+           then groups
+           else { kind = current_kind; items = List.rev current_items } :: groups
+         in
+         loop kind [] groups rest
+       | None -> loop current_kind (source :: current_items) groups rest)
+  in
+  loop Lang_cmake.Private [] [] sources
 
 let build_stmt name args kwargs record_args =
   match name, args with
@@ -186,18 +223,22 @@ let build_stmt name args kwargs record_args =
     Some (Ys_target (Ytgt_add_executable { name; exclude_from_all = false; sources = rest @ record_args }))
   | "add_lib", name :: rest ->
     Some (Ys_target (Ytgt_add_library { name; type_ = None; exclude_from_all = false; sources = rest @ record_args }))
-  | "link_lib", [target] ->
-    Some (Ys_target (Ytgt_link_libraries { targets = [target]; items = [] }))
-  | "link_lib", target :: _ ->
-    Some (Ys_target (Ytgt_link_libraries { targets = [target]; items = [] }))
-  | "include_dirs", [target] ->
-    Some (Ys_target (Ytgt_include_directories { target; before = false; system = false; items = [] }))
+  | "link_lib", target :: items ->
+    Some (Ys_target (Ytgt_link_libraries { targets = [target]; items = target_sources_items items }))
+  | "include_dirs", target :: dirs ->
+    Some
+      (Ys_target
+         (Ytgt_include_directories
+            { target; before = false; system = false; items = target_sources_items dirs }))
   | "compile_defs", [target] ->
     Some (Ys_target (Ytgt_compile_definitions { target; items = [] }))
   | "compile_opts", [target] ->
     Some (Ys_target (Ytgt_compile_options { target; before = false; items = [] }))
-  | "target_sources", [target] ->
-    Some (Ys_target (Ytgt_sources { target; items = [] }))
+  | "target_sources", target :: sources ->
+    Some
+      (Ys_target
+         (Ytgt_sources
+            { target; items = target_sources_items sources }))
   | "add_lib_imported", [name] ->
     let lib_type = List.Assoc.find kwargs ~equal:String.equal "type"
       |> Option.value_map ~default:None ~f:(fun e -> match e with Yexpr_string (Ycs_keyword s) -> Some s | _ -> None) in
@@ -257,8 +298,15 @@ let build_stmt name args kwargs record_args =
     Some (Ys_list (Ylist_append { cvar = n; values }))
   | "list_length", [cvar] ->
     Some (Ys_list (Ylist_length { cvar = cvar_of_expr cvar; out = out_var kwargs }))
-  | "list_get", [cvar] ->
-    Some (Ys_list (Ylist_get { cvar = cvar_of_expr cvar; indices = []; out = out_var kwargs }))
+  | "list_get", cvar :: indices ->
+    Some
+      (Ys_list
+         (Ylist_get
+            {
+              cvar = cvar_of_expr cvar;
+              indices = List.map indices ~f:int_of_expr;
+              out = out_var kwargs;
+            }))
   | "list_remove_item", cvar :: values ->
     Some (Ys_list (Ylist_remove_item { cvar = cvar_of_expr cvar; values }))
   | "list_remove_duplicates", [cvar] ->
@@ -437,7 +485,7 @@ let build_stmt name args kwargs record_args =
   | "path_replace_extension", [pv; input] ->
     Some (Ys_path (Ypath_replace_extension { path_var = cvar_of_expr pv; last_only = false; input; out = None }))
   | "path_normal_path", [pv] ->
-    Some (Ys_path (Ypath_normal_path { path_var = cvar_of_expr pv; out = None }))
+    Some (Ys_path (Ypath_normal_path { path_var = cvar_of_expr pv; out = opt_out_var kwargs }))
   | "path_relative_path", [pv] ->
     Some (Ys_path (Ypath_relative_path { path_var = cvar_of_expr pv; base_dir = None; out = None }))
   | "path_absolute_path", [pv] ->

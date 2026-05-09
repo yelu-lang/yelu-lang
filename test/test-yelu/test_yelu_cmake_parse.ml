@@ -1,4 +1,5 @@
 open Base
+open Yelu_langs.Lang_yelu_cmake
 open Yelu_langs.Lang_yelu_parse
 
 let parse input =
@@ -10,6 +11,91 @@ let assert_parses name input =
   Alcotest.test_case name `Quick (fun () ->
     let _stmt = parse input in
     ())
+
+let assert_list_get_indices name input expected_indices =
+  Alcotest.test_case name `Quick (fun () ->
+    match parse input with
+    | Ys_list (Ylist_get { indices; _ }) ->
+      Alcotest.(check (list int)) "indices" expected_indices indices
+    | _ -> Alcotest.fail "expected list_get statement")
+
+let assert_path_normal_out name input expected_out =
+  Alcotest.test_case name `Quick (fun () ->
+    match parse input with
+    | Ys_path (Ypath_normal_path { out = Some { name; _ }; _ }) ->
+      Alcotest.(check string) "out" expected_out name
+    | Ys_path (Ypath_normal_path { out = None; _ }) ->
+      Alcotest.fail "expected path_normal_path output variable"
+    | _ -> Alcotest.fail "expected path_normal_path statement")
+
+let assert_target_sources name input expected_groups =
+  Alcotest.test_case name `Quick (fun () ->
+    match parse input with
+    | Ys_target (Ytgt_sources { items; _ }) ->
+      let groups =
+        List.map items ~f:(fun { kind; items } ->
+          let kind =
+            match kind with
+            | Private -> "PRIVATE"
+            | Public -> "PUBLIC"
+            | Interface -> "INTERFACE"
+            | Plain -> "PLAIN"
+          in
+          let sources =
+            List.map items ~f:(function
+              | Yexpr_string (Ycs_string source | Ycs_path source) -> source
+              | _ -> "?")
+          in
+          kind, sources)
+      in
+      Alcotest.(check (list (pair string (list string)))) "source groups" expected_groups groups
+    | _ -> Alcotest.fail "expected target_sources statement")
+
+let assert_target_link_libraries name input expected_groups =
+  Alcotest.test_case name `Quick (fun () ->
+    match parse input with
+    | Ys_target (Ytgt_link_libraries { items; _ }) ->
+      let groups =
+        List.map items ~f:(fun { kind; items } ->
+          let kind =
+            match kind with
+            | Private -> "PRIVATE"
+            | Public -> "PUBLIC"
+            | Interface -> "INTERFACE"
+            | Plain -> "PLAIN"
+          in
+          let libraries =
+            List.map items ~f:(function
+              | Yexpr_string (Ycs_string library | Ycs_path library) -> library
+              | _ -> "?")
+          in
+          kind, libraries)
+      in
+      Alcotest.(check (list (pair string (list string)))) "library groups" expected_groups groups
+    | _ -> Alcotest.fail "expected target_link_libraries statement")
+
+let assert_target_include_directories name input expected_groups =
+  Alcotest.test_case name `Quick (fun () ->
+    match parse input with
+    | Ys_target (Ytgt_include_directories { items; _ }) ->
+      let groups =
+        List.map items ~f:(fun { kind; items } ->
+          let kind =
+            match kind with
+            | Private -> "PRIVATE"
+            | Public -> "PUBLIC"
+            | Interface -> "INTERFACE"
+            | Plain -> "PLAIN"
+          in
+          let dirs =
+            List.map items ~f:(function
+              | Yexpr_string (Ycs_string dir | Ycs_path dir) -> dir
+              | _ -> "?")
+          in
+          kind, dirs)
+      in
+      Alcotest.(check (list (pair string (list string)))) "include dir groups" expected_groups groups
+    | _ -> Alcotest.fail "expected target_include_directories statement")
 
 (* ============================================================
    Tier 0 — Core (control side, cond, var, cmake_op, target,
@@ -56,7 +142,13 @@ let tier0_target = ("t0-target", [
   assert_parses "add_exe" "( add_exe Target Foo )";
   assert_parses "add_lib" "( add_lib Target MathFunctions )";
   assert_parses "link_lib" "( link_lib Target Tutorial )";
+  assert_target_link_libraries "link_lib scoped items"
+    "( link_lib Target Tutorial PRIVATE \"m\" PUBLIC \"dep\" )"
+    [ "PRIVATE", [ "m" ]; "PUBLIC", [ "dep" ] ];
   assert_parses "include_dirs" "( include_dirs Target Tutorial )";
+  assert_target_include_directories "include_dirs scoped items"
+    "( include_dirs Target Tutorial PRIVATE \"include\" INTERFACE \"iface\" )"
+    [ "PRIVATE", [ "include" ]; "INTERFACE", [ "iface" ] ];
   assert_parses "compile_defs" "( compile_defs Target Tutorial )";
   assert_parses "compile_opts" "( compile_opts Target Tutorial )";
 ])
@@ -97,6 +189,9 @@ let tier1_target = ("t1-target", [
   assert_parses "add_exe_alias" "( add_exe_alias \"alias\" \"original\" )";
   assert_parses "add_custom_target" "( add_custom_target \"name\" )";
   assert_parses "add_dependencies" "( add_dependencies \"tgt\" \"dep\" )";
+  assert_target_sources "target_sources"
+    "( target_sources Target app PRIVATE \"extra.c\" PUBLIC \"api.c\" INTERFACE \"iface.h\" )"
+    [ "PRIVATE", [ "extra.c" ]; "PUBLIC", [ "api.c" ]; "INTERFACE", [ "iface.h" ] ];
 ])
 
 (* ============================================================
@@ -127,7 +222,7 @@ let tier2_string = ("t2-string", [
 let tier3_list = ("t3-list", [
   assert_parses "append" "( list_append MYLIST 'a' 'b' )";
   assert_parses "length" "( list_length MYLIST ~out:LEN )";
-  assert_parses "get" "( list_get MYLIST ~out:VAL )";
+  assert_list_get_indices "get" "( list_get MYLIST 1 ~out:VAL )" [ 1 ];
   assert_parses "remove_item" "( list_remove_item MYLIST 'a' )";
   assert_parses "remove_duplicates" "( list_remove_duplicates MYLIST )";
   assert_parses "reverse" "( list_reverse MYLIST )";
@@ -225,7 +320,7 @@ let tier_remaining = ("t-remaining", [
   assert_parses "string_json_get" "( string_json_get '{\"a\":1}' ~out:OUT )";
   assert_parses "path_remove_filename" "( path_remove_filename PV )";
   assert_parses "path_replace_filename" "( path_replace_filename PV \"new\" )";
-  assert_parses "path_normal_path" "( path_normal_path PV )";
+  assert_path_normal_out "path_normal_path" "( path_normal_path PV ~out:OUT )" "OUT";
   assert_parses "path_absolute_path" "( path_absolute_path PV )";
   assert_parses "path_native_path" "( path_native_path PV ~out:OUT )";
   assert_parses "path_convert_to_cmake" "( path_convert_to_cmake \"/tmp\" ~out:OUT )";

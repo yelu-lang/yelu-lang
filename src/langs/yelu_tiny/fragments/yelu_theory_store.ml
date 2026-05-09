@@ -1,0 +1,11 @@
+open Base
+open Yelu_tiny
+
+type expr +=
+  | EUnsetVar of string
+  | EVarDefined of string
+
+let eval_case env = function
+  | EUnsetVar name -> Some (remove_var env name, VUnit)
+  | EVarDefined name -> Some (env, VBool (var_defined env name))
+  | _ -> None
