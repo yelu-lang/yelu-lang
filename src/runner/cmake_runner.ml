@@ -12,6 +12,12 @@ type configure_result = {
   cache : (string * string) list;  (* variable name → value, type stripped *)
 }
 
+type configured_project = {
+  source_dir : string;
+  build_dir : string;
+  configure : configure_result;
+}
+
 let rec mkdirp path =
   if Sys.file_exists path then ()
   else begin
@@ -246,6 +252,180 @@ let run_configure ?(cmake_min = "3.20") ?(files = []) ?(languages = ["NONE"]) cm
   | result -> cleanup (); result
   | exception e -> cleanup (); raise e
 
+let configure_project ?(cmake_min = "3.20") ?(files = []) ?(languages = ["NONE"]) cmake_text =
+  let has_project =
+    let re = Re.(compile (seq [str "project"; rep (alt [char ' '; char '\t']); char '('])) in
+    Re.execp re cmake_text in
+  let has_cmake_min =
+    let re = Re.(compile (str "cmake_minimum_required")) in
+    Re.execp re cmake_text in
+  let full_text =
+    if not has_project then
+      let langs = String.concat " " languages in
+      Printf.sprintf "cmake_minimum_required(VERSION %s)\nproject(_yelu_test %s)\n%s" cmake_min langs cmake_text
+    else if not has_cmake_min then
+      Printf.sprintf "cmake_minimum_required(VERSION %s)\n%s" cmake_min cmake_text
+    else cmake_text
+  in
+  let source_dir = Filename.temp_file "yelu_conf_" "" in
+  Sys.remove source_dir;
+  Unix.mkdir source_dir 0o700;
+  let build_dir = Filename.concat source_dir "_build" in
+  let cmake_file = Filename.concat source_dir "CMakeLists.txt" in
+  let oc = open_out cmake_file in
+  output_string oc full_text;
+  close_out oc;
+  List.iter (fun (name, content) ->
+    write_file (Filename.concat source_dir name) content) files;
+  let cmd = Printf.sprintf "cmake -S %s -B %s" (Filename.quote source_dir) (Filename.quote build_dir) in
+  let stdout_ch, stdin_ch, stderr_ch = Unix.open_process_full cmd (cmake_env []) in
+  close_out stdin_ch;
+  let stdout = read_all stdout_ch in
+  let stderr = read_all stderr_ch in
+  let status = Unix.close_process_full (stdout_ch, stdin_ch, stderr_ch) in
+  let exit_code = match status with
+    | Unix.WEXITED n -> n | Unix.WSIGNALED n -> 128 + n | Unix.WSTOPPED n -> 128 + n
+  in
+  let cache_path = Filename.concat build_dir "CMakeCache.txt" in
+  let cache = if Sys.file_exists cache_path then parse_cache cache_path else [] in
+  { source_dir; build_dir; configure = { run = { exit_code; stdout; stderr }; cache } }
+
+let run_build_target project target =
+  let cmd =
+    Printf.sprintf "cmake --build %s --target %s"
+      (Filename.quote project.build_dir)
+      (Filename.quote target)
+  in
+  let stdout_ch, stdin_ch, stderr_ch = Unix.open_process_full cmd (cmake_env []) in
+  close_out stdin_ch;
+  let stdout = read_all stdout_ch in
+  let stderr = read_all stderr_ch in
+  let status = Unix.close_process_full (stdout_ch, stdin_ch, stderr_ch) in
+  let exit_code = match status with
+    | Unix.WEXITED n -> n | Unix.WSIGNALED n -> 128 + n | Unix.WSTOPPED n -> 128 + n
+  in
+  { exit_code; stdout; stderr }
+
+let cleanup_configured_project project =
+  let rec rm path =
+    if Sys.file_exists path then
+      if Sys.is_directory path then begin
+        Array.iter (fun e -> rm (Filename.concat path e)) (Sys.readdir path);
+        Unix.rmdir path
+      end else Sys.remove path
+  in
+  rm project.source_dir
+
+let run_cmd_simple cmd =
+  let stdout_ch, stdin_ch, stderr_ch = Unix.open_process_full cmd (cmake_env []) in
+  close_out stdin_ch;
+  let stdout = read_all stdout_ch in
+  let stderr = read_all stderr_ch in
+  let status = Unix.close_process_full (stdout_ch, stdin_ch, stderr_ch) in
+  let exit_code = match status with
+    | Unix.WEXITED n -> n | Unix.WSIGNALED n -> 128 + n | Unix.WSTOPPED n -> 128 + n
+  in
+  { exit_code; stdout; stderr }
+
+let file_api_compare_script =
+  {|
+import glob, json, os, shutil, subprocess, sys, tempfile
+
+def strip_unstable(obj):
+    if isinstance(obj, dict):
+        return {
+            k: strip_unstable(v)
+            for k, v in obj.items()
+            if k not in ("jsonFile", "backtrace", "backtraceGraph", "id")
+        }
+    if isinstance(obj, list):
+        return [strip_unstable(v) for v in obj]
+    return obj
+
+def run_cmake(source_dir, build_dir):
+    query = os.path.join(build_dir, ".cmake", "api", "v1", "query")
+    os.makedirs(query, exist_ok=True)
+    open(os.path.join(query, "codemodel-v2"), "w").close()
+    result = subprocess.run(
+        ["cmake", "-S", source_dir, "-B", build_dir],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        print(result.stderr, file=sys.stderr)
+        sys.exit(2)
+
+def normalize_paths(obj, source_dir, build_dir):
+    if isinstance(obj, dict):
+        return {k: normalize_paths(v, source_dir, build_dir) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [normalize_paths(v, source_dir, build_dir) for v in obj]
+    if isinstance(obj, str):
+        return obj.replace(source_dir, "<src>").replace(build_dir, "<build>")
+    return obj
+
+def load_replies(source_dir, build_dir):
+    reply_dir = os.path.join(build_dir, ".cmake", "api", "v1", "reply")
+    replies = {}
+    for pattern in ["codemodel-v2", "target-*"]:
+        for path in glob.glob(os.path.join(reply_dir, pattern + "*.json")):
+            key = os.path.basename(path).rsplit("-", 1)[0]
+            with open(path) as handle:
+                replies[key] = normalize_paths(strip_unstable(json.load(handle)), source_dir, build_dir)
+    return replies
+
+def write_project(root, cmake_text, files):
+    os.makedirs(root, exist_ok=True)
+    with open(os.path.join(root, "CMakeLists.txt"), "w") as handle:
+        handle.write(cmake_text)
+    for spec in files:
+        rel, content = spec.split("\x01", 1)
+        path = os.path.join(root, rel)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w") as handle:
+            handle.write(content)
+
+with tempfile.TemporaryDirectory(prefix="yelu_file_api_") as tmp:
+    left_src = os.path.join(tmp, "left")
+    right_src = os.path.join(tmp, "right")
+    left_build = os.path.join(tmp, "left-build")
+    right_build = os.path.join(tmp, "right-build")
+    files = sys.argv[3:]
+    write_project(left_src, sys.argv[1], files)
+    write_project(right_src, sys.argv[2], files)
+    run_cmake(left_src, left_build)
+    run_cmake(right_src, right_build)
+    left = load_replies(left_src, left_build)
+    right = load_replies(right_src, right_build)
+    if left != right:
+        print("File API replies differ", file=sys.stderr)
+        print(json.dumps({"left": left, "right": right}, indent=2, sort_keys=True), file=sys.stderr)
+        sys.exit(1)
+|}
+
+let compare_file_api ?(files = []) left_cmake right_cmake =
+  let script = Filename.temp_file "yelu_file_api_cmp_" ".py" in
+  let cleanup () = (try Sys.remove script with _ -> ()) in
+  match
+    write_file script file_api_compare_script;
+    let file_args =
+      files
+      |> List.map (fun (name, content) -> Filename.quote (name ^ "\001" ^ content))
+      |> String.concat " "
+    in
+    let cmd =
+      Printf.sprintf "python3 %s %s %s%s%s"
+        (Filename.quote script)
+        (Filename.quote left_cmake)
+        (Filename.quote right_cmake)
+        (if file_args = "" then "" else " ")
+        file_args
+    in
+    run_cmd_simple cmd
+  with
+  | result -> cleanup (); result
+  | exception e -> cleanup (); raise e
+
 type artifact = {
   rel_path : string;   (* path relative to build root, using '/' separator *)
   size     : int;      (* file size in bytes *)
@@ -304,17 +484,6 @@ type build_result = {
   build     : run_result;
   artifacts : artifact list;
 }
-
-let run_cmd_simple cmd =
-  let stdout_ch, stdin_ch, stderr_ch = Unix.open_process_full cmd (cmake_env []) in
-  close_out stdin_ch;
-  let stdout = read_all stdout_ch in
-  let stderr = read_all stderr_ch in
-  let status = Unix.close_process_full (stdout_ch, stdin_ch, stderr_ch) in
-  let exit_code = match status with
-    | Unix.WEXITED n -> n | Unix.WSIGNALED n -> 128 + n | Unix.WSTOPPED n -> 128 + n
-  in
-  { exit_code; stdout; stderr }
 
 (* Run cmake -S -B (configure) then cmake --build unconditionally.
    Both steps are always attempted; callers decide what to do with the results. *)

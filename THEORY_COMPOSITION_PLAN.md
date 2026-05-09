@@ -68,13 +68,16 @@ Implemented tiny fragments:
 | Path | First path slice: set, filename, normalize |
 | Target Layer A | `add_executable`, target value, `TARGET` predicate |
 | Target Layer B | `target_sources`, `target_link_libraries`, `target_include_directories` with visibility |
+| Build Layer C | First `add_custom_target` slice with build-backed execution check |
+| File API graph check | Reference CMake vs Yelu-lowered target graph comparison started |
 | Runtime env | Structured `{ vars; targets }` env; target state no longer uses reserved var keys |
 
 Current bridge from production AST to Yelu1 covers representative slices for:
 
 ```text
 string, store-defined, list, path, target add_executable/existence,
-target_sources, target_link_libraries, target_include_directories
+target_sources, target_link_libraries, target_include_directories,
+add_custom_target
 ```
 
 ## Verification Status
@@ -90,7 +93,7 @@ Last verified state:
 
 ```text
 test/test-yelu/ passed
-test_yelu_tiny_cmake passed with 14 tests
+test_yelu_tiny_cmake passed with 16 tests
 ```
 
 Verification tracks:
@@ -115,6 +118,9 @@ env.vars:
 
 env.targets:
   target declarations and target-local metadata
+
+env.custom_targets:
+  named build entrypoints created by the first `add_custom_target` slice
 ```
 
 Target state currently tracks sources, link libraries, and include directories
@@ -125,12 +131,13 @@ without accumulating special `__target:*` keys in the normal variable store.
 
 Recommended order:
 
-1. Add `target_compile_definitions` as the next small Layer B property.
-2. Preserve the existing semantic/parser/CMake-backed target tests.
+1. Add `target_compile_definitions` as the next small Layer B property, or
+   continue Build Layer C with a tiny `add_custom_command(OUTPUT ...)` slice.
+2. Preserve the existing semantic/parser/CMake-backed/build-backed tests.
 3. Consider a small target-state helper abstraction if another property repeats
    the same visibility-aware append pattern.
-4. Only then start build-relevant Layer C with a tiny `add_custom_target` or
-   `add_custom_command` slice.
+4. For `add_custom_command`, start with the common paired pattern:
+   `add_custom_command(OUTPUT file ...)` plus `add_custom_target(name DEPENDS file)`.
 
 ## Deferred Topics
 

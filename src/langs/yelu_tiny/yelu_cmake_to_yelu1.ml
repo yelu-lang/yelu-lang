@@ -109,6 +109,9 @@ let visibility_of_kind = function
   | Old.Interface -> "INTERFACE"
   | Old.Plain -> "PRIVATE"
 
+let build_command ({ command; args } : Lang_cmake.custom_command) =
+  { command; args }
+
 let target_statement : Old.yelu_target_stmt -> Yelu_tiny.expr = function
   | Ytgt_add_executable { name; sources; exclude_from_all = false } ->
     ECmakeAddExecutable { name = target_name name; sources = List.map sources ~f:expr }
@@ -151,6 +154,15 @@ let target_statement : Old.yelu_target_stmt -> Yelu_tiny.expr = function
     fail "target_include_directories(BEFORE) is outside the current Yelu1 bridge slice"
   | Ytgt_include_directories { system = true; _ } ->
     fail "target_include_directories(SYSTEM) is outside the current Yelu1 bridge slice"
+  | Ytgt_add_custom_target { name; all; commands; depends; comment } ->
+    ECmakeAddCustomTarget
+      {
+        name;
+        all;
+        commands = List.map commands ~f:build_command;
+        depends = List.map depends ~f:expr;
+        comment;
+      }
   | _ -> fail "unsupported yelu_cmake target statement for Yelu1 bridge"
 
 let rec stmt : Old.yelu_stmt -> Yelu_tiny.expr = function

@@ -28,6 +28,21 @@ type target = {
 }
 [@@deriving equal, sexp_of]
 
+type build_command = {
+  command : string;
+  args : string list;
+}
+[@@deriving equal, sexp_of]
+
+type custom_target = {
+  name : string;
+  all : bool;
+  commands : build_command list;
+  depends : string list;
+  comment : string option;
+}
+[@@deriving equal, sexp_of]
+
 type value =
   | VString of string
   | VBool of bool
@@ -40,17 +55,20 @@ type value =
 type env = {
   vars : value Map.M(String).t;
   targets : target Map.M(String).t;
+  custom_targets : custom_target Map.M(String).t;
 }
 
 let empty_env : env =
   {
     vars = Map.empty (module String);
     targets = Map.empty (module String);
+    custom_targets = Map.empty (module String);
   }
 
 let equal_env left right =
   Map.equal equal_value left.vars right.vars
   && Map.equal equal_target left.targets right.targets
+  && Map.equal equal_custom_target left.custom_targets right.custom_targets
 
 let empty_target name =
   {
@@ -73,13 +91,22 @@ let var_defined env name =
 
 let find_target env name = Map.find env.targets name
 
-let set_target env target =
+let set_target env (target : target) =
   { env with targets = Map.set env.targets ~key:target.name ~data:target }
 
 let update_target env name ~f =
   match find_target env name with
   | None -> failwith ("unknown target " ^ name)
   | Some target -> set_target env (f target)
+
+let find_custom_target env name = Map.find env.custom_targets name
+
+let set_custom_target env (custom_target : custom_target) =
+  {
+    env with
+    custom_targets =
+      Map.set env.custom_targets ~key:custom_target.name ~data:custom_target;
+  }
 
 exception Eval_error of string
 

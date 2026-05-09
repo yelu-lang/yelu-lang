@@ -20,12 +20,13 @@ module Old = Yelu_langs.Lang_yelu_cmake
 let target ?(sources = []) ?(link_libraries = []) ?(include_directories = []) name =
   { name; sources; link_libraries; include_directories }
 
-let env_of_bindings ?(targets = []) bindings =
+let env_of_bindings ?(targets = []) ?(custom_targets = []) bindings =
   let env =
     List.fold bindings ~init:empty_env ~f:(fun env (key, data) ->
       set_var env ~key ~data)
   in
-  List.fold targets ~init:env ~f:set_target
+  let env = List.fold targets ~init:env ~f:set_target in
+  List.fold custom_targets ~init:env ~f:set_custom_target
 
 let old_cvar name : Old.tc_name = { ns = Old.Ns_var; name }
 let old_str s = Old.Yexpr_string (Old.Ycs_string s)
@@ -252,6 +253,29 @@ let yelu1_to_yelu2 =
                    ~include_directories:[ { visibility = "PUBLIC"; dir = "include" } ];
                ]
              []);
+      check_yelu1_to_yelu2 "custom target declaration"
+        (ECmakeAddCustomTarget
+           {
+             name = "hello";
+             all = false;
+             commands = [ { command = "cmake"; args = [ "-E"; "echo"; "HELLO" ] } ];
+             depends = [ EString "input.txt" ];
+             comment = Some "hello target";
+           })
+        ~expected_value:VUnit
+        ~expected_env:
+          (env_of_bindings
+             ~custom_targets:
+               [
+                 {
+                   name = "hello";
+                   all = false;
+                   commands = [ { command = "cmake"; args = [ "-E"; "echo"; "HELLO" ] } ];
+                   depends = [ "input.txt" ];
+                   comment = Some "hello target";
+                 };
+               ]
+             []);
     ] )
 
 let yelu2_to_yelu1 =
@@ -457,6 +481,29 @@ let yelu2_to_yelu1 =
              [
                "APP", VTarget "app";
              ]);
+      check_yelu2_to_yelu1 "custom target lowers to cmake surface"
+        (ECustomTarget
+           {
+             name = "hello";
+             all = false;
+             commands = [ { command = "cmake"; args = [ "-E"; "echo"; "HELLO" ] } ];
+             depends = [ EString "input.txt" ];
+             comment = None;
+           })
+        ~expected_value:VUnit
+        ~expected_env:
+          (env_of_bindings
+             ~custom_targets:
+               [
+                 {
+                   name = "hello";
+                   all = false;
+                   commands = [ { command = "cmake"; args = [ "-E"; "echo"; "HELLO" ] } ];
+                   depends = [ "input.txt" ];
+                   comment = None;
+                 };
+               ]
+             []);
     ] )
 
 let yelu1_roundtrip =
@@ -893,7 +940,48 @@ let yelu_cmake_bridge =
                      [
                        { visibility = "PRIVATE"; dir = "include" };
                        { visibility = "INTERFACE"; dir = "iface" };
-                     ];
+                 ];
+             ]
+             []);
+      check_yelu_cmake_bridge_to_yelu1 "old custom target bridge to Yelu1"
+        (Old.Ys_target
+           (Old.Ytgt_add_custom_target
+              {
+                name = "hello";
+                all = false;
+                commands =
+                  [ { Yelu_langs.Lang_cmake.command = "cmake"; args = [ "-E"; "echo"; "HELLO" ] } ];
+                depends = [ old_str "input.txt" ];
+                comment = Some "hello target";
+              }))
+        ~expected_value:VUnit
+        ~expected_env:
+          (env_of_bindings
+             ~custom_targets:
+               [
+                 {
+                   name = "hello";
+                   all = false;
+                   commands = [ { command = "cmake"; args = [ "-E"; "echo"; "HELLO" ] } ];
+                   depends = [ "input.txt" ];
+                   comment = Some "hello target";
+                 };
+               ]
+             []);
+      check_parsed_yelu_bridge_to_yelu1 "parsed old custom target bridge to Yelu1"
+        "( add_custom_target \"hello\" )"
+        ~expected_value:VUnit
+        ~expected_env:
+          (env_of_bindings
+             ~custom_targets:
+               [
+                 {
+                   name = "hello";
+                   all = false;
+                   commands = [];
+                   depends = [];
+                   comment = None;
+                 };
                ]
              []);
     ] )

@@ -27,6 +27,11 @@ let arg = function
   | EVar name -> quoted ("${" ^ name ^ "}")
   | _ -> fail "cannot emit expression as CMake argument"
 
+let build_command_arg arg = quoted arg
+
+let build_command { command; args } =
+  String.concat ~sep:" " (List.map (command :: args) ~f:build_command_arg)
+
 let rec cond = function
   | EBool true -> "TRUE"
   | EBool false -> "FALSE"
@@ -92,6 +97,28 @@ let rec emit_expr = function
     [ Fmt.str "target_link_libraries(%s %s %s)" target visibility (String.concat ~sep:" " (List.map items ~f:arg)) ]
   | ECmakeTargetIncludeDirectories { target; visibility; dirs } ->
     [ Fmt.str "target_include_directories(%s %s %s)" target visibility (String.concat ~sep:" " (List.map dirs ~f:arg)) ]
+  | ECmakeAddCustomTarget { name; all; commands; depends; comment } ->
+    let all = if all then " ALL" else "" in
+    let command_lines =
+      List.map commands ~f:(fun command ->
+        Fmt.str "  COMMAND %s" (build_command command))
+    in
+    let depends =
+      match depends with
+      | [] -> []
+      | depends ->
+        [ Fmt.str "  DEPENDS %s" (String.concat ~sep:" " (List.map depends ~f:arg)) ]
+    in
+    let comment =
+      match comment with
+      | None -> []
+      | Some comment -> [ Fmt.str "  COMMENT %s" (quoted comment) ]
+    in
+    [ Fmt.str "add_custom_target(%s%s" name all ]
+    @ command_lines
+    @ depends
+    @ comment
+    @ [ "  VERBATIM"; ")" ]
   | ECmakeIfStmt { cond = c; then_; else_ } ->
     let then_lines = emit_expr then_ in
     let else_lines = Option.value_map else_ ~default:[] ~f:emit_expr in

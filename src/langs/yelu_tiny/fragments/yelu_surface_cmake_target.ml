@@ -11,6 +11,7 @@ let provides =
     "target.sources";
     "target.link_libraries";
     "target.include_directories";
+    "target.custom_target";
   ]
 
 type expr +=
@@ -18,6 +19,13 @@ type expr +=
   | ECmakeTargetSources of { target : string; visibility : string; sources : expr list }
   | ECmakeTargetLinkLibraries of { target : string; visibility : string; items : expr list }
   | ECmakeTargetIncludeDirectories of { target : string; visibility : string; dirs : expr list }
+  | ECmakeAddCustomTarget of {
+      name : string;
+      all : bool;
+      commands : build_command list;
+      depends : expr list;
+      comment : string option;
+    }
   | ECmakeTargetExists of string
 
 let eval_string ~eval env expr =
@@ -53,6 +61,16 @@ let eval_case ~eval env = function
         env, dir :: dirs)
     in
     Some (add_target_include_dirs env target ~visibility (List.rev dirs), VUnit)
+  | ECmakeAddCustomTarget { name; all; commands; depends; comment } ->
+    let env, depends =
+      List.fold depends ~init:(env, []) ~f:(fun (env, depends) depend ->
+        let env, depend = eval_string ~eval env depend in
+        env, depend :: depends)
+    in
+    Some
+      ( set_custom_target env
+          { name; all; commands; depends = List.rev depends; comment },
+        VUnit )
   | ECmakeTargetExists name ->
     Some (env, VBool (target_exists env name))
   | _ -> None

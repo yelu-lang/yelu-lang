@@ -8,6 +8,13 @@ type expr +=
   | ETargetAddSources of { target : expr; visibility : string; sources : expr list }
   | ETargetLinkLibraries of { target : expr; visibility : string; items : expr list }
   | ETargetIncludeDirectories of { target : expr; visibility : string; dirs : expr list }
+  | ECustomTarget of {
+      name : string;
+      all : bool;
+      commands : build_command list;
+      depends : expr list;
+      comment : string option;
+    }
 
 let eval_string ~eval env expr =
   let env, value = eval env expr in
@@ -106,4 +113,14 @@ let eval_case ~eval env = function
         env, dir :: dirs)
     in
     Some (add_target_include_dirs env target ~visibility (List.rev dirs), VTarget target)
+  | ECustomTarget { name; all; commands; depends; comment } ->
+    let env, depends =
+      List.fold depends ~init:(env, []) ~f:(fun (env, depends) depend ->
+        let env, depend = eval_string ~eval env depend in
+        env, depend :: depends)
+    in
+    Some
+      ( set_custom_target env
+          { name; all; commands; depends = List.rev depends; comment },
+        VUnit )
   | _ -> None

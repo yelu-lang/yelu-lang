@@ -183,6 +183,9 @@ let rec lift_yelu1_to_yelu2 = function
         visibility;
         dirs = List.map dirs ~f:lift_yelu1_to_yelu2;
       }
+  | ECustomTarget { name; all; commands; depends; comment } ->
+    ECustomTarget
+      { name; all; commands; depends = List.map depends ~f:lift_yelu1_to_yelu2; comment }
 
   (* CMake list surface -> Yelu list/string theories. *)
   | ECmakeListAppend { list; items } ->
@@ -236,6 +239,13 @@ let rec lift_yelu1_to_yelu2 = function
       [
         ETargetIncludeDirectories
           { target = ETarget target; visibility; dirs = List.map dirs ~f:lift_yelu1_to_yelu2 };
+        EUnit;
+      ]
+  | ECmakeAddCustomTarget { name; all; commands; depends; comment } ->
+    ESeq
+      [
+        ECustomTarget
+          { name; all; commands; depends = List.map depends ~f:lift_yelu1_to_yelu2; comment };
         EUnit;
       ]
   | ECmakeTargetExists name ->
@@ -368,6 +378,9 @@ let rec lower_yelu2_to_yelu1 = function
         visibility;
         dirs = List.map dirs ~f:lower_yelu2_to_yelu1;
       }
+  | ECustomTarget { name; all; commands; depends; comment } ->
+    ECmakeAddCustomTarget
+      { name; all; commands; depends = List.map depends ~f:lower_yelu2_to_yelu1; comment }
 
   (* Yelu list/string theories -> CMake list surface. *)
   | ESetVar (name, EListAppend (EVar list, item)) when String.equal name list ->

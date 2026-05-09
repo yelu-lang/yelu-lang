@@ -270,7 +270,20 @@ let build_stmt name args kwargs record_args =
   | "add_exe_alias", [name; target] ->
     Some (Ys_target (Ytgt_add_executable_alias { name = (match name with Yexpr_string (Ycs_string s) -> s | _ -> "?"); target = (match target with Yexpr_string (Ycs_string s) -> s | _ -> "?") }))
   | "add_custom_target", [name] ->
-    Some (Ys_target (Ytgt_add_custom_target { name = (match name with Yexpr_string (Ycs_string s) -> s | _ -> "?"); all = false; commands = []; depends = []; comment = None }))
+    Some
+      (Ys_target
+         (Ytgt_add_custom_target
+            {
+              name =
+                (match name with
+                 | Yexpr_string (Ycs_string s | Ycs_path s) -> s
+                 | Yexpr_var (Yvar s) -> s
+                 | _ -> "?");
+              all = false;
+              commands = [];
+              depends = [];
+              comment = None;
+            }))
   | "add_dependencies", [target; dep] ->
     Some (Ys_target (Ytgt_add_dependencies { target = (match target with Yexpr_string (Ycs_string s) -> s | _ -> "?"); dep = (match dep with Yexpr_string (Ycs_string s) -> s | _ -> "?") }))
   | "string_toupper", [s] -> Some (Ys_string (Ystr_toupper { string = s; out = out_var kwargs }))

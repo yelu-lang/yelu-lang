@@ -45,6 +45,33 @@ let check_yelu2_lowering_configure ?(files = [ "main.c", "int main(void) { retur
     check_exit 0 result.run;
     check_stderr_matches "RESULT=YES" result.run)
 
+let check_yelu2_custom_target_build name expr ~target ~pattern =
+  Alcotest.test_case name `Quick (fun () ->
+    let cmake_text = emit_script (lower_yelu2_to_yelu1 expr) in
+    let project = configure_project cmake_text in
+    match
+      check_exit 0 project.configure.run;
+      let build = run_build_target project target in
+      check_exit 0 build;
+      let output = build.stdout ^ build.stderr in
+      let re = Re.Posix.compile_pat pattern in
+      if not (Re.execp re output) then
+        Alcotest.failf "build output did not match %S\ngot:\n%s" pattern output
+    with
+    | () -> cleanup_configured_project project
+    | exception exn ->
+      cleanup_configured_project project;
+      raise exn)
+
+let cmake_project text =
+  "cmake_minimum_required(VERSION 3.20)\nproject(_yelu_test C)\n" ^ text
+
+let check_yelu2_file_api_equiv ?(files = [ "main.c", "int main(void) { return 0; }\n" ]) name ~reference expr =
+  Alcotest.test_case name `Quick (fun () ->
+    let yelu_cmake = emit_script (lower_yelu2_to_yelu1 expr) in
+    let result = compare_file_api ~files (cmake_project reference) (cmake_project yelu_cmake) in
+    check_exit 0 result)
+
 let yelu1_roundtrip =
   ( "yelu1_roundtrip_cmake",
     [
@@ -235,6 +262,48 @@ let yelu2_configure_lowering =
         ]);
     ] )
 
+let yelu2_build_lowering =
+  ( "yelu2_lowering_build",
+    [
+      check_yelu2_file_api_equiv "target graph matches reference cmake"
+        ~files:
+          [
+            "main.c", "int main(void) { return 0; }\n";
+            "extra.c", "int extra(void) { return 0; }\n";
+          ]
+        ~reference:
+          {|
+add_executable(app "main.c")
+target_sources(app PRIVATE "extra.c")
+target_link_libraries(app PRIVATE "m")
+target_include_directories(app PRIVATE "include")
+|}
+        (ESeq [
+          ESetVar
+            ("APP", EExecutable { name = EString "app"; sources = [ EString "main.c" ] });
+          ETargetAddSources { target = ETarget "app"; visibility = "PRIVATE"; sources = [ EString "extra.c" ] };
+          ETargetLinkLibraries { target = ETarget "app"; visibility = "PRIVATE"; items = [ EString "m" ] };
+          ETargetIncludeDirectories { target = ETarget "app"; visibility = "PRIVATE"; dirs = [ EString "include" ] };
+        ]);
+      check_yelu2_custom_target_build "custom target command runs"
+        (ECustomTarget
+           {
+             name = "yelu_hello";
+             all = false;
+             commands =
+               [
+                 {
+                   command = "${CMAKE_COMMAND}";
+                   args = [ "-E"; "echo"; "YELU_CUSTOM_TARGET_OK" ];
+                 };
+               ];
+             depends = [];
+             comment = Some "tiny custom target";
+           })
+        ~target:"yelu_hello"
+        ~pattern:"YELU_CUSTOM_TARGET_OK";
+    ] )
+
 let () =
   Alcotest.run "yelu_tiny_cmake"
-    [ yelu1_roundtrip; yelu2_lowering; yelu2_configure_lowering ]
+    [ yelu1_roundtrip; yelu2_lowering; yelu2_configure_lowering; yelu2_build_lowering ]
