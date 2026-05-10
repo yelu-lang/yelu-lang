@@ -185,8 +185,8 @@ eval $(opam env) && dune exec test/test-runcmake/test_yelu_tiny_cmake.exe
 Last verified state:
 
 ```text
-test/test-yelu/ passed (yelu_tiny_composition: 106 tests)
-test_yelu_tiny_cmake passed with 27 tests
+test/test-yelu/ passed (yelu_tiny_composition: 109 tests)
+test_yelu_tiny_cmake passed with 28 tests
 ```
 
 Verification tracks:
@@ -345,14 +345,24 @@ deepening points:
   binding mechanisms coexist (per Y15 design intent: lexical/immutable
   vs global/mutable). The bridge converts production `Ylet` (sequence-shaped)
   into `ELet { body = rest_of_seq }` via `stmts_to_expr`.
-- **Let-binding emit-time resolution remains.** `ELet` evaluates correctly
-  at the IR level (env extends/restores around body), but the bridge
-  collapses `Yexpr_var (Yvar "tut")` to a bare string "tut" via
-  `target_name`. Surface target-name fields are typed `string`, so
-  emit-time substitution can't replace the reference. Phase-2 work:
-  refactor surface target-name fields to `expr` plus add a resolve pass
-  that walks the IR with let context. Until then, step1 emits
-  `add_executable(tut ...)` instead of production's
+- **Phase 2a — let-binding emit-time resolution (done).** `emit_expr`,
+  `arg`, and `cond` now thread a substitution env. `ELet` extends env
+  before recursing into body and is dropped from the output; `EVar`
+  references that the env knows about resolve to the bound value at emit
+  time (transitively, lazily on lookup) instead of emitting `${name}`.
+  The architecture is the "fold into emit" choice — no separate resolve
+  module, `ELet` stays first-class in the IR (eval still uses it; future
+  Stage_wellform can check shadowing; future yelu2→other-target packs
+  inherit the same letful IR and write their own emit-with-substitution).
+  Cmake-backed test verifies real cmake sees the substituted value.
+- **Phase 2b — surface target-name refactor (deferred).** Phase 2a only
+  resolves `EVar` references in *expression-typed* positions. Surface
+  constructors like `ECmakeAddExecutable { name : string }` still take
+  bare strings, so the bridge's `target_name` collapse from
+  `Yexpr_var (Yvar "tut")` → "tut" prevents resolution from reaching
+  target-name positions. Phase 2b refactors those fields from `string`
+  to `expr` so `EVar` can survive into the emit pipeline. Until done,
+  step1 still emits `add_executable(tut ...)` instead of production's
   `add_executable(Tutorial ...)`. Tests sidestep with `ytval "Tutorial"`
   directly.
 
@@ -371,12 +381,19 @@ parity)** roughly in parallel:
 Likely deepening targets surfaced by bars #1 / #3 (in rough dependency
 order):
 
-1. **Let-binding emit-time resolution.** `ELet` is in the IR with correct
-   eval semantics; the remaining work is the resolve pass that substitutes
-   bound names through the body before emit. Requires refactoring surface
-   target-name fields from `string` to `expr` so substitution can reach
-   them. Required so step1's `add_executable(${tut} ...)` emits literally
-   `add_executable(Tutorial ...)` matching production yelu output.
+1. **Phase 2b: surface target-name refactor.** Phase 2a is done — emit
+   resolves `EVar` references in expression-typed positions. The
+   remaining work is the surface refactor: change target-name fields
+   from `string` to `expr` in `ECmakeAddExecutable`, `ECmakeAddLibrary`,
+   `ECmakeTargetSources`, `ECmakeTargetLinkLibraries`,
+   `ECmakeTargetIncludeDirectories`, `ECmakeTargetCompileDefinitions`,
+   `ECmakeTargetCompileOptions`, `ECmakeTargetLinkOptions`,
+   `ECmakeTargetLinkDirectories`, `ECmakeAddCustomTarget`,
+   `ECmakeSetTargetProperty`, `ECmakeGetTargetProperty`,
+   `ECmakeTargetExists`. Bridge: `target_name` returns expr instead of
+   string; `Yexpr_var (Yvar n)` → `EVar n` flows through. Then step1's
+   `add_executable(${tut} ...)` emits literally `add_executable(Tutorial ...)`
+   matching production yelu output.
 2. **`configure_file` substitution.** Tiny copies content as-is; real
    cmake substitutes `${var}` and `@VAR@` tokens. Tutorial steps depend
    on this for `TutorialConfig.h` to receive the project version.

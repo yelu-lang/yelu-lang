@@ -26,13 +26,26 @@ let escape_quoted s =
 
 let quoted s = "\"" ^ escape_quoted s ^ "\""
 
-let arg = function
+(* Substitution env carried through emit so that ELet bindings can be
+   resolved as a side effect of textual rendering. The architecture is the
+   "fold into emit" choice (option #1 in PLAN): no separate resolve module,
+   ELet stays first-class in the IR, emit_script applies the binding map
+   inline. EVar references inside an ELet body get the bound value
+   substituted; ELet header itself is dropped from the output. *)
+type subst = expr Map.M(String).t
+
+let empty_subst : subst = Map.empty (module String)
+
+let rec arg ?(env = empty_subst) = function
+  | EVar name ->
+    (match Map.find env name with
+     | Some replacement -> arg ~env replacement
+     | None -> quoted ("${" ^ name ^ "}"))
   | EString s -> quoted s
   | EInt n -> Int.to_string n
   | EBool true -> "ON"
   | EBool false -> "OFF"
   | ETarget name -> quoted name
-  | EVar name -> quoted ("${" ^ name ^ "}")
   | _ -> fail "cannot emit expression as CMake argument"
 
 let build_command_arg arg = quoted arg
@@ -40,38 +53,51 @@ let build_command_arg arg = quoted arg
 let build_command (cmd : build_command) =
   String.concat ~sep:" " (List.map (cmd.command :: cmd.args) ~f:build_command_arg)
 
-let rec cond = function
+let rec cond ?(env = empty_subst) = function
   | EBool true -> "TRUE"
   | EBool false -> "FALSE"
-  | ENot expr -> "NOT " ^ cond_atom expr
-  | EAnd (left, right) -> cond_atom left ^ " AND " ^ cond_atom right
-  | EOr (left, right) -> cond_atom left ^ " OR " ^ cond_atom right
-  | EIntLess (left, right) -> arg left ^ " LESS " ^ arg right
-  | EIntEqual (left, right) -> arg left ^ " EQUAL " ^ arg right
-  | ECmakeStringEqual (left, right) -> arg left ^ " STREQUAL " ^ arg right
+  | ENot expr -> "NOT " ^ cond_atom ~env expr
+  | EAnd (left, right) -> cond_atom ~env left ^ " AND " ^ cond_atom ~env right
+  | EOr (left, right) -> cond_atom ~env left ^ " OR " ^ cond_atom ~env right
+  | EIntLess (left, right) -> arg ~env left ^ " LESS " ^ arg ~env right
+  | EIntEqual (left, right) -> arg ~env left ^ " EQUAL " ^ arg ~env right
+  | ECmakeStringEqual (left, right) ->
+    arg ~env left ^ " STREQUAL " ^ arg ~env right
   | ECmakeVarDefined name -> "DEFINED " ^ name
   | ECmakeTargetExists name -> "TARGET " ^ name
-  | ECmakeFileExists path -> "EXISTS " ^ arg path
-  | expr -> arg expr
+  | ECmakeFileExists path -> "EXISTS " ^ arg ~env path
+  | expr -> arg ~env expr
 
-and cond_atom expr =
+and cond_atom ?(env = empty_subst) expr =
   match expr with
   | EBool _ | ENot _ | ECmakeStringEqual _ | ECmakeVarDefined _
   | ECmakeTargetExists _ | ECmakeFileExists _ | EIntLess _ | EIntEqual _
-  | EVar _ | EString _ -> cond expr
-  | EAnd _ | EOr _ -> "(" ^ cond expr ^ ")"
-  | _ -> cond expr
+  | EVar _ | EString _ -> cond ~env expr
+  | EAnd _ | EOr _ -> "(" ^ cond ~env expr ^ ")"
+  | _ -> cond ~env expr
 
-let rec emit_expr = function
+(* Emit walks the IR producing cmake lines. ELet extends the substitution
+   env, drops the header. EVar and arg/cond consult the env via lexical
+   rebinding at the top of [emit_expr_impl] so all match arms below see the
+   env-aware versions without changing their bodies. ELet recurses through
+   [emit_expr_impl] directly so it can pass a different env. *)
+let rec emit_expr_impl ~env e =
+  let arg = arg ~env in
+  let cond = cond ~env in
+  let emit_expr = emit_expr_impl ~env in
+  match e with
   | EUnit -> []
   | ESeq exprs -> List.concat_map exprs ~f:emit_expr
-  (* Compile-time let-binding has no direct cmake construct; emit the body
-     and drop the binding. Phase-2 work: add a resolve pass that substitutes
-     EVar references inside [body] with [value] before emit, so let-bound
-     names actually thread through expression positions. For now, EVar
-     references to let-bound names emit as `${name}` (cmake runtime var
-     deref), which works only if the program also `set()`s that name. *)
-  | ELet { body; _ } -> emit_expr body
+  | ELet { var; value; body } ->
+    (* Bind var -> value (the [value] expression is stored as-is; transitive
+       resolution happens lazily on lookup via [arg] / EVar substitution).
+       The let header itself is not emitted. *)
+    let env = Map.set env ~key:var ~data:value in
+    emit_expr_impl ~env body
+  | EVar name when Map.mem env name ->
+    (* Resolved EVar in a top-level (statement) position emits as a message
+       on the substituted value, not as the original ${name}. *)
+    emit_expr (Map.find_exn env name)
   | ESetVar (name, EList exprs) ->
     [ Fmt.str "set(%s %s)" name (String.concat ~sep:" " (List.map exprs ~f:arg)) ]
   | ESetVar (name, expr) -> [ Fmt.str "set(%s %s)" name (arg expr) ]
@@ -254,6 +280,8 @@ let rec emit_expr = function
         result_var
         (String.concat ~sep:" " (List.map sources ~f:arg)) ]
   | _ -> fail "cannot emit Yelu1 expression to CMake"
+
+let emit_expr ?(env = empty_subst) expr = emit_expr_impl ~env expr
 
 let emit_script expr =
   String.concat ~sep:"\n" (emit_expr expr) ^ "\n"

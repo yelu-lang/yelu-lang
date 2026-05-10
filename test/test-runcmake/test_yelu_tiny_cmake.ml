@@ -262,6 +262,22 @@ let yelu2_lowering =
                 } );
           EVar "OUT";
         ]);
+      check_yelu2_lowering_cmake "ELet binding propagates through emit to cmake"
+        (* Without phase-2a substitution this would emit
+           [string(TOUPPER "${msg}" OUT)] with msg unset in cmake; OUT
+           would be empty and stderr would not contain RESULT=YES.
+           Phase-2a's env-threaded emit substitutes EVar "msg" with
+           EString "yes" at emit time so cmake sees
+           [string(TOUPPER "yes" OUT)] and the final message prints
+           RESULT=YES. *)
+        (ELet
+           { var = "msg";
+             value = EString "yes";
+             body =
+               ESeq
+                 [ ESetVar ("OUT", EStringUpper (EVar "msg"));
+                   EVar "OUT";
+                 ] });
     ] )
 
 let yelu2_configure_lowering =
