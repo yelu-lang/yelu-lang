@@ -21,9 +21,10 @@ let check_cmake name prog =
 
 (* IN_LIST: value is a member of a cmake list variable.
    Requires CMP0057 NEW (cmake 3.3+); cmake_minimum_required sets it. *)
+   (* Compatibility with CMake < 3.5 has been removed from CMake. *)
 let in_list =
   check_cmake "in_list" (Ystmt_list [
-    yc_minimum_required_s "3.3";
+    yc_minimum_required_s "3.5";
     yc_list_append (ycvar "fruits") [ ystr "apple"; ystr "banana"; ystr "cherry" ];
     yifthen (ynot (yin_list (ystr "banana") (ycstr "fruits")))
       (yc_message ~mode:Mm_fatal_error ["in_list: banana should be in fruits"]);

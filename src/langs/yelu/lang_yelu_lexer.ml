@@ -129,35 +129,38 @@ let string_lit =
 (* Eval: ${VAR} or $<GENEX>
    ${...} is simple: take everything until the first }.
    $<...> may nest: $<IF:$<CONFIG:Debug>,release>.  Nesting delimiter is
-   "$<" / ">", not bare "<".  Buffer must be cleared via return () >>=
-   (not at module init) to avoid stale data across parses. *)
+   "$<" / ">", not bare "<".  Buffer created per-parse inside >>= . *)
 let eval_lit =
   let not_brace c = not (Char.equal c '}') in
-  let buf = Buffer.create 64 in
-  let rec scan depth =
-    peek_char >>= function
-    | None ->
-        fail "unterminated generator expression"
-    | Some '>' when depth = 0 ->
-        advance 1 *> return (EVAL ("$<" ^ Buffer.contents buf ^ ">"))
-    | Some '>' ->
-        advance 1 *> (Buffer.add_char buf '>'; scan (depth - 1))
-    | Some '$' ->
-        advance 1 *>
-        peek_char >>= (function
-          | Some '<' ->
-              advance 1 *> (Buffer.add_string buf "$<"; scan (depth + 1))
-          | _ ->
-              Buffer.add_char buf '$'; scan depth)
-    | Some c ->
-        advance 1 *> (Buffer.add_char buf c; scan depth)
+  let genex =
+    (char '<' *> return ()) >>= fun () ->
+    let buf = Buffer.create 64 in
+    let rec scan depth =
+      peek_char >>= function
+      | None ->
+          fail "unterminated generator expression"
+      | Some '>' when depth = 0 ->
+          advance 1 *> return (EVAL ("$<" ^ Buffer.contents buf ^ ">"))
+      | Some '>' ->
+          advance 1 *> (Buffer.add_char buf '>'; scan (depth - 1))
+      | Some '$' ->
+          advance 1 *>
+          peek_char >>= (function
+            | Some '<' ->
+                advance 1 *> (Buffer.add_string buf "$<"; scan (depth + 1))
+            | _ ->
+                Buffer.add_char buf '$'; scan depth)
+      | Some c ->
+          advance 1 *> (Buffer.add_char buf c; scan depth)
+    in
+    scan 0
   in
   token (
     char '$' *> (
       (char '{' *> take_while not_brace <* char '}'
        >>| fun s -> EVAL ("${" ^ s ^ "}"))
       <|>
-      (char '<' *> return () >>= fun () -> Buffer.clear buf; scan 0)
+      genex
     ))
 
 (* ============================================================

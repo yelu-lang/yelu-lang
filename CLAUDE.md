@@ -260,6 +260,14 @@ configuration generation with verifier feedback. cmake is the first specimen.
 
 - **`open Base` shadows stdlib**: `result`, `prefix`, `id`, `append` are shadowed — rename
   in pattern matches.
+- **`let`-bindings inside Angstrom combinators run at module init, not parse time.**
+  `p *> (let buf = Buffer.create 64 in ...)` creates `buf` once when the combinator
+  value is defined, not per-parse. Use module-level `let buf = ...` with explicit
+  `return () >>= fun () -> Buffer.clear buf; ...` at parse time.
+- **`Buffer.clear` in Angstrom combinators.** `Buffer.clear buf; parser` runs the clear
+  at module init (when the combinator value is constructed), not at parse time. Must wrap:
+  `return () >>= fun () -> Buffer.clear buf; parser`. Same applies to any impure
+  initialization inside a parser combinator.
 - **NEVER use sed or python on OCaml source.** Use the `Edit` tool exclusively. sed cannot
   distinguish match-case scope, let/in boundaries, or which `| _ -> None` is the intended
   anchor. Append commands match multiple locations, line numbers drift, and one bad deletion
