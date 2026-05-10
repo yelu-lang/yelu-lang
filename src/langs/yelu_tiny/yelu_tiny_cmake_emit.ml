@@ -6,6 +6,7 @@ open Yelu_theory_int
 open Yelu_theory_list
 open Yelu_surface_cmake_list
 open Yelu_surface_cmake_path
+open Yelu_surface_cmake_file
 open Yelu_theory_target
 open Yelu_surface_cmake_target
 open Yelu_surface_cmake_install
@@ -44,12 +45,14 @@ let rec cond = function
   | ECmakeStringEqual (left, right) -> arg left ^ " STREQUAL " ^ arg right
   | ECmakeVarDefined name -> "DEFINED " ^ name
   | ECmakeTargetExists name -> "TARGET " ^ name
+  | ECmakeFileExists path -> "EXISTS " ^ arg path
   | expr -> arg expr
 
 and cond_atom expr =
   match expr with
   | EBool _ | ENot _ | ECmakeStringEqual _ | ECmakeVarDefined _
-  | ECmakeTargetExists _ | EIntLess _ | EIntEqual _ | EVar _ | EString _ -> cond expr
+  | ECmakeTargetExists _ | ECmakeFileExists _ | EIntLess _ | EIntEqual _
+  | EVar _ | EString _ -> cond expr
   | EAnd _ | EOr _ -> "(" ^ cond expr ^ ")"
   | _ -> cond expr
 
@@ -90,8 +93,24 @@ let rec emit_expr = function
         path
         (Option.value_map out ~default:"" ~f:(fun out -> " OUTPUT_VARIABLE " ^ out))
     ]
+  | ECmakeFileWrite { path; content } ->
+    [ Fmt.str "file(WRITE %s %s)"
+        (arg path)
+        (String.concat ~sep:" " (List.map content ~f:arg))
+    ]
+  | ECmakeFileRead { path; out } ->
+    [ Fmt.str "file(READ %s %s)" (arg path) out ]
   | ECmakeAddExecutable { name; sources } ->
     [ Fmt.str "add_executable(%s %s)" name (String.concat ~sep:" " (List.map sources ~f:arg)) ]
+  | ECmakeAddLibrary { name; type_; sources } ->
+    let args =
+      Option.to_list type_ @ List.map sources ~f:arg
+      |> String.concat ~sep:" "
+    in
+    [ Fmt.str "add_library(%s %s)"
+        name
+        args
+    ]
   | ECmakeTargetSources { target; visibility; sources } ->
     [ Fmt.str "target_sources(%s %s %s)" target visibility (String.concat ~sep:" " (List.map sources ~f:arg)) ]
   | ECmakeTargetLinkLibraries { target; visibility; items } ->

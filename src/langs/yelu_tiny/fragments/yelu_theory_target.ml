@@ -4,6 +4,7 @@ open Yelu_tiny
 type expr +=
   | ETarget of string
   | EExecutable of { name : expr; sources : expr list }
+  | ELibrary of { name : expr; type_ : string option; sources : expr list }
   | ETargetExists of expr
   | ETargetAddSources of { target : expr; visibility : string; sources : expr list }
   | ETargetLinkLibraries of { target : expr; visibility : string; items : expr list }
@@ -39,10 +40,10 @@ let eval_string_list ~eval env exprs =
   in
   env, List.rev items
 
-let declare_target env name =
+let declare_target ?(kind = TargetUnknown) env name =
   match find_target env name with
   | Some _ -> env
-  | None -> set_target env (empty_target name)
+  | None -> set_target env (empty_target ~kind name)
 
 let target_exists env name =
   Option.is_some (find_target env name)
@@ -164,7 +165,15 @@ let eval_case ~eval env = function
         let env, source = eval_string ~eval env source in
         env, source :: sources)
     in
-    Some (declare_target env name, VTarget name)
+    Some (declare_target ~kind:TargetExecutable env name, VTarget name)
+  | ELibrary { name; type_; sources } ->
+    let env, name = eval_string ~eval env name in
+    let env, _sources =
+      List.fold sources ~init:(env, []) ~f:(fun (env, sources) source ->
+        let env, source = eval_string ~eval env source in
+        env, source :: sources)
+    in
+    Some (declare_target ~kind:(TargetLibrary type_) env name, VTarget name)
   | ETargetExists target ->
     let env, target = eval env target in
     Some (env, VBool (target_exists env (expect_target target)))

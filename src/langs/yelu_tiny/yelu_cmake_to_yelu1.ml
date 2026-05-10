@@ -6,6 +6,7 @@ open Yelu_theory_target
 open Yelu_surface_cmake_install
 open Yelu_surface_cmake_list
 open Yelu_surface_cmake_path
+open Yelu_surface_cmake_file
 open Yelu_surface_cmake_string
 open Yelu_surface_cmake_target
 
@@ -37,6 +38,7 @@ let rec expr : Old.yelu_expr -> Yelu_tiny.expr = function
   | Yexpr_str_equal (left, right) -> ECmakeStringEqual (expr left, expr right)
   | Yexpr_is_defined { name; _ } -> ECmakeVarDefined name
   | Yexpr_is_target { name; _ } -> ECmakeTargetExists name
+  | Yexpr_exists path -> ECmakeFileExists (expr path)
   | _ -> fail "unsupported yelu_cmake expression for Yelu1 bridge"
 
 let one_input ~op = function
@@ -104,6 +106,21 @@ let path_statement : Old.yelu_path_stmt -> Yelu_tiny.expr = function
       { path = cvar_name path_var; out = Option.map out ~f:cvar_name }
   | _ -> fail "unsupported yelu_cmake path statement for Yelu1 bridge"
 
+let file_statement : Old.yelu_file_io_stmt -> Yelu_tiny.expr = function
+  | Yfile_write { file; append = false; content } ->
+    ECmakeFileWrite { path = expr file; content = List.map content ~f:expr }
+  | Yfile_write { append = true; _ } ->
+    fail "file(APPEND) is outside the current Yelu1 bridge slice"
+  | Yfile_read { out; file; offset = None; limit = None; hex = false } ->
+    ECmakeFileRead { path = expr file; out = cvar_name out }
+  | Yfile_read { offset = Some _; _ } ->
+    fail "file(READ OFFSET) is outside the current Yelu1 bridge slice"
+  | Yfile_read { limit = Some _; _ } ->
+    fail "file(READ LIMIT) is outside the current Yelu1 bridge slice"
+  | Yfile_read { hex = true; _ } ->
+    fail "file(READ HEX) is outside the current Yelu1 bridge slice"
+  | _ -> fail "unsupported yelu_cmake file statement for Yelu1 bridge"
+
 let visibility_of_kind = function
   | Old.Public -> "PUBLIC"
   | Old.Private -> "PRIVATE"
@@ -113,11 +130,29 @@ let visibility_of_kind = function
 let build_command ({ command; args } : Lang_cmake.custom_command) =
   { command; args }
 
+let library_type_name = function
+  | Lang_cmake.Lib_static -> "STATIC"
+  | Lang_cmake.Lib_shared -> "SHARED"
+  | Lang_cmake.Lib_module -> "MODULE"
+  | Lang_cmake.Lib_unknown -> "UNKNOWN"
+  | Lang_cmake.Lib_object -> "OBJECT"
+  | Lang_cmake.Lib_interface -> "INTERFACE"
+  | Lang_cmake.Lib_global -> "GLOBAL"
+
 let target_statement : Old.yelu_target_stmt -> Yelu_tiny.expr = function
   | Ytgt_add_executable { name; sources; exclude_from_all = false } ->
     ECmakeAddExecutable { name = target_name name; sources = List.map sources ~f:expr }
   | Ytgt_add_executable { exclude_from_all = true; _ } ->
     fail "add_executable(EXCLUDE_FROM_ALL) is outside the first Yelu1 bridge slice"
+  | Ytgt_add_library { name; type_; sources; exclude_from_all = false } ->
+    ECmakeAddLibrary
+      {
+        name = target_name name;
+        type_ = Option.map type_ ~f:library_type_name;
+        sources = List.map sources ~f:expr;
+      }
+  | Ytgt_add_library { exclude_from_all = true; _ } ->
+    fail "add_library(EXCLUDE_FROM_ALL) is outside the current Yelu1 bridge slice"
   | Ytgt_sources { target; items } ->
     items
     |> List.map ~f:(fun ({ kind; items } : Old.yelu_items_with_kind) ->
@@ -237,6 +272,7 @@ let rec stmt : Old.yelu_stmt -> Yelu_tiny.expr = function
   | Ys_string string_stmt -> string_statement string_stmt
   | Ys_list list_stmt -> list_statement list_stmt
   | Ys_path path_stmt -> path_statement path_stmt
+  | Ys_file file_stmt -> file_statement file_stmt
   | Ys_target target_stmt -> target_statement target_stmt
   | Ys_install install_stmt -> install_statement install_stmt
   | Ys_var var_stmt -> var_statement var_stmt

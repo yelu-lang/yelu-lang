@@ -7,6 +7,7 @@ let requires = [ "core.string"; "core.path"; "core.bool" ]
 let provides =
   [
     "target.add_executable";
+    "target.add_library";
     "target.exists";
     "target.sources";
     "target.link_libraries";
@@ -21,6 +22,7 @@ let provides =
 
 type expr +=
   | ECmakeAddExecutable of { name : string; sources : expr list }
+  | ECmakeAddLibrary of { name : string; type_ : string option; sources : expr list }
   | ECmakeTargetSources of { target : string; visibility : string; sources : expr list }
   | ECmakeTargetLinkLibraries of { target : string; visibility : string; items : expr list }
   | ECmakeTargetIncludeDirectories of { target : string; visibility : string; dirs : expr list }
@@ -47,7 +49,10 @@ type expr +=
 let eval_case ~eval env = function
   | ECmakeAddExecutable { name; sources } ->
     let env, _sources = eval_string_list ~eval env sources in
-    Some (declare_target env name, VUnit)
+    Some (declare_target ~kind:TargetExecutable env name, VUnit)
+  | ECmakeAddLibrary { name; type_; sources } ->
+    let env, _sources = eval_string_list ~eval env sources in
+    Some (declare_target ~kind:(TargetLibrary type_) env name, VUnit)
   | ECmakeTargetSources { target; visibility; sources } ->
     let env, sources = eval_string_list ~eval env sources in
     Some (add_target_sources env target ~visibility sources, VUnit)

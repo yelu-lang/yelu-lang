@@ -1,8 +1,10 @@
 open Yelu_langs.Yelu_tiny
 open Yelu_langs.Yelu_theory_store
+open Yelu_langs.Yelu_theory_bool
 open Yelu_langs.Yelu_theory_int
 open Yelu_langs.Yelu_theory_list
 open Yelu_langs.Yelu_theory_path
+open Yelu_langs.Yelu_theory_file
 open Yelu_langs.Yelu_theory_target
 open Yelu_langs.Yelu_theory_install
 open Yelu_langs.Yelu_theory_string
@@ -227,6 +229,28 @@ let yelu2_lowering =
                 } );
           EVar "OUT";
         ]);
+      check_yelu2_lowering_cmake "file write read in if expression"
+        (ESeq [
+          EFileWrite
+            {
+              path = EString "${CMAKE_CURRENT_LIST_DIR}/yelu_tiny_file.txt";
+              content = EString "yes";
+            };
+          ESetVar
+            ("READ", EFileRead (EString "${CMAKE_CURRENT_LIST_DIR}/yelu_tiny_file.txt"));
+          ESetVar
+            ( "OUT",
+              EIfExpr
+                {
+                  cond =
+                    EAnd
+                      ( EFileExists (EString "${CMAKE_CURRENT_LIST_DIR}/yelu_tiny_file.txt"),
+                        EStringEqual (EVar "READ", EString "yes") );
+                  then_ = EStringUpper (EString "yes");
+                  else_ = EStringUpper (EString "no");
+                } );
+          EVar "OUT";
+        ]);
     ] )
 
 let yelu2_configure_lowering =
@@ -261,6 +285,23 @@ let yelu2_configure_lowering =
               EIfExpr
                 {
                   cond = ETargetExists (ETarget "app");
+                  then_ = EStringUpper (EString "yes");
+                  else_ = EStringUpper (EString "no");
+                } );
+          EVar "OUT";
+        ]);
+      check_yelu2_lowering_configure "library declaration and existence"
+        ~files:[ "core.c", "int core(void) { return 0; }\n" ]
+        (ESeq [
+          ESetVar
+            ( "CORE",
+              ELibrary
+                { name = EString "core"; type_ = Some "STATIC"; sources = [ EString "core.c" ] } );
+          ESetVar
+            ( "OUT",
+              EIfExpr
+                {
+                  cond = ETargetExists (ETarget "core");
                   then_ = EStringUpper (EString "yes");
                   else_ = EStringUpper (EString "no");
                 } );
@@ -308,12 +349,14 @@ let yelu2_build_lowering =
           [
             "main.c", "int main(void) { return 0; }\n";
             "extra.c", "int extra(void) { return 0; }\n";
+            "core.c", "int core(void) { return 0; }\n";
           ]
         ~reference:
           {|
+add_library(core STATIC "core.c")
 add_executable(app "main.c")
 target_sources(app PRIVATE "extra.c")
-target_link_libraries(app PRIVATE "m")
+target_link_libraries(app PRIVATE "core" "m")
 target_include_directories(app PRIVATE "include")
 target_compile_definitions(app PRIVATE "USE_FEATURE")
 target_compile_options(app PRIVATE "-Wall")
@@ -322,9 +365,14 @@ target_link_directories(app PRIVATE "/opt/lib")
 |}
         (ESeq [
           ESetVar
+            ( "CORE",
+              ELibrary
+                { name = EString "core"; type_ = Some "STATIC"; sources = [ EString "core.c" ] } );
+          ESetVar
             ("APP", EExecutable { name = EString "app"; sources = [ EString "main.c" ] });
           ETargetAddSources { target = ETarget "app"; visibility = "PRIVATE"; sources = [ EString "extra.c" ] };
-          ETargetLinkLibraries { target = ETarget "app"; visibility = "PRIVATE"; items = [ EString "m" ] };
+          ETargetLinkLibraries
+            { target = ETarget "app"; visibility = "PRIVATE"; items = [ EString "core"; EString "m" ] };
           ETargetIncludeDirectories { target = ETarget "app"; visibility = "PRIVATE"; dirs = [ EString "include" ] };
           ETargetCompileDefinitions
             { target = ETarget "app"; visibility = "PRIVATE"; definitions = [ EString "USE_FEATURE" ] };

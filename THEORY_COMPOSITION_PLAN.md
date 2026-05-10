@@ -91,32 +91,70 @@ test/test-runcmake/test_yelu_tiny_cmake.ml
 
 Implemented tiny fragments:
 
-| Area | Status |
-| --- | --- |
-| Core | Open `expr`, literals, `EVar`, `ESetVar`, `EUnsetVar`, `ESeq`, `VUnit` effects |
-| Store | Pure `EUnsetVar`/`EVarDefined`; CMake `ECmakeUnsetVar`/`ECmakeVarDefined` |
-| Bool/if | Shared bool ops; CMake statement-if; Yelu expression-if |
-| Int | Add, less-than, equality |
-| String | CMake output-var string ops and pure string ops |
-| List | Pure list literal/append/get/length and CMake named-list ops |
-| Path | First path slice: set, filename, normalize |
-| Target Layer A | `add_executable`, target value, `TARGET` predicate |
-| Target Layer B | `target_sources`, `target_link_libraries`, `target_include_directories`, `target_compile_definitions`, `target_compile_options`, `target_link_options`, `target_link_directories` with visibility |
-| Build Layer C | `add_custom_target` and `add_custom_command(OUTPUT ...)` with build-backed execution check |
-| Install | First slice: `install(TARGETS ...)` and `install(FILES ...)` with temp-prefix install check |
-| File API graph check | Reference CMake vs Yelu-lowered target graph comparison started |
-| Runtime env | Structured `{ vars; targets }` env; target state no longer uses reserved var keys |
+| Area                 | Status                                                                                                                                                                                            |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Core                 | Open `expr`, literals, `EVar`, `ESetVar`, `EUnsetVar`, `ESeq`, `VUnit` effects                                                                                                                    |
+| Store                | Pure `EUnsetVar`/`EVarDefined`; CMake `ECmakeUnsetVar`/`ECmakeVarDefined`                                                                                                                         |
+| Bool/if              | Shared bool ops; CMake statement-if; Yelu expression-if                                                                                                                                           |
+| Int                  | Add, less-than, equality                                                                                                                                                                          |
+| String               | CMake output-var string ops and pure string ops                                                                                                                                                   |
+| List                 | Pure list literal/append/get/length and CMake named-list ops                                                                                                                                      |
+| Path                 | First path slice: set, filename, normalize                                                                                                                                                        |
+| File                 | First file-effect slice: abstract fs store plus `file(WRITE)`, `file(READ)`, and `EXISTS` predicate                                                                                               |
+| Target Layer A       | `add_executable`, `add_library`, target value, `TARGET` predicate                                                                                                                                 |
+| Target Layer B       | `target_sources`, `target_link_libraries`, `target_include_directories`, `target_compile_definitions`, `target_compile_options`, `target_link_options`, `target_link_directories` with visibility |
+| Build Layer C        | `add_custom_target` and `add_custom_command(OUTPUT ...)` with build-backed execution check                                                                                                        |
+| Install              | First slice: `install(TARGETS ...)` and `install(FILES ...)` with temp-prefix install check                                                                                                       |
+| File API graph check | Reference CMake vs Yelu-lowered target graph comparison started                                                                                                                                   |
+| Runtime env          | Structured `{ vars; targets }` env; target state no longer uses reserved var keys                                                                                                                 |
 
 Current bridge from production AST to Yelu1 covers representative slices for:
 
 ```text
-string, store-defined, list, path, target add_executable/existence,
+string, store-defined, list, path, file write/read/exists,
+target add_executable/add_library/existence,
 target_sources, target_link_libraries, target_include_directories,
 target_compile_definitions, target_compile_options,
 target_link_options, target_link_directories,
 add_custom_target, add_custom_command,
 install_targets, install_files
 ```
+
+## Production Theory Coverage Dashboard
+
+Counts are coarse constructor counts from the old production fragments under
+`src/langs/yelu/fragments`. They are useful for progress tracking, not a formal
+coverage metric. `Conf` means configure-time and should usually have a tiny
+interpreter. `Build` means it declares build graph behavior. `Install` mutates
+only when `cmake --install` runs.
+
+| Production family      |              Old constructors | Phase                     | Tiny status                                     | Theory shape                                                             | Test strategy / notes                                                                                                                                                                           |
+| ---------------------- | ----------------------------: | ------------------------- | ----------------------------------------------- | ------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Core expr/cond/control |   ~29 expr + ~16 stmt/control | Conf                      | Partial                                         | Mostly pure expression + statement sequencing                            | Bool/if/store subset covered. Many CMake condition predicates remain old-only.                                                                                                                  |
+| Var/store              |                             6 | Conf                      | Partial                                         | State theory over variable namespace                                     | Normal set/unset/defined covered. Cache/env/parent-scope deferred.                                                                                                                              |
+| String                 | 23 string stmts + JSON subops | Conf                      | Partial                                         | Good pure theory after lifting; CMake surface is output-var sugar/effect | Concat/upper/replace/len/equal covered. Regex/json/timestamp/uuid/etc. deferred.                                                                                                                |
+| List                   |                            17 | Conf                      | Partial                                         | Good pure list theory after lifting; CMake surface mutates named vars    | Append/get/length/join covered. Transform/filter/sort/removal variants deferred.                                                                                                                |
+| Path                   |                            21 | Conf                      | Partial                                         | Emerging path theory, currently mostly string path normalization         | Set/get-filename/normal-path covered. More path algebra still valuable.                                                                                                                         |
+| Target                 |                            19 | Mixed Conf/Build          | Strong representative                           | Stateful build graph theory, not pure value theory                       | Executable, library, target existence, sources, include dirs, link libs, compile/link opts/dirs/defs, custom target/command covered. Alias/deps/PCH/custom-command-target deferred.             |
+| Install                |                             6 | Install                   | First slice                                     | Declaration theory over install rules                                    | Targets/files covered with temp-prefix install + manifest path checks. Export/package config deferred.                                                                                          |
+| Test / CTest           |                             2 | Build/test                | Not started in tiny                             | Test graph declaration theory                                            | Widely used in CMake projects, but small. Safe test: configure/build then `ctest --test-dir build`; no system mutation. Can postpone until after `add_library` unless tutorial parity needs it. |
+| Property               |                            11 | Mixed                     | Not started in tiny                             | Dynamic string-keyed property store                                      | Harder to make pure because property schemas are dynamic. Good later candidate for typed registry experiments.                                                                                  |
+| File                   |                            15 | Conf filesystem effect    | First slice                                     | Abstract fs-store theory keyed by path values                            | `file(WRITE)`, `file(READ)`, and `EXISTS` covered with semantic bridge tests and a temp-script CMake-backed check. Configure/copy/glob/remove/etc. deferred.                                     |
+| Find                   |                             5 | Conf environment/probe    | Not started in tiny                             | Probe theory over filesystem/search paths                                | Test with fake temp prefixes and `NO_DEFAULT_PATH`/explicit paths. `find_package` via fake `FooConfig.cmake`; assert output vars/messages.                                                      |
+| Try                    |                             2 | Conf + build probe        | Not started in tiny                             | Probe theory that runs compiler/build checks                             | Test with tiny source files in temp dirs. Higher cost than find/file.                                                                                                                           |
+| CMake op               |                            14 | Mixed                     | Not started in tiny except indirect message use | Misc control/effect surface                                              | `cmake_minimum_required`, `project`, `message` are needed for full script emission but currently handled by test harness wrappers.                                                              |
+| Dir                    |                             8 | Build/config scope        | Not started in tiny                             | Directory-scope mutation theory                                          | `add_subdirectory` is important for tutorial parity; directory-scope compile/link commands can wait.                                                                                            |
+| Genex                  |               ~17 genex forms | Build-time delayed values | Lexer/parser fixed, not a tiny theory           | Delayed expression theory, not configure-time pure                       | Should become a delayed-value type later; do not force into normal interpreter now.                                                                                                             |
+
+Useful interpretation:
+
+- **Pure-ish theory wins:** string/list/path once lifted out of CMake's
+  output-variable surface.
+- **State/declaration theories:** target, install, test, property, dir.
+- **Probe theories:** find and try. These are configure-time, but their tests
+  need controlled temp fixtures rather than pure semantic evaluation.
+- **Delayed build-time theory:** generator expressions. They should not be
+  evaluated by the configure-time interpreter.
 
 ## Verification Status
 
@@ -130,21 +168,21 @@ eval $(opam env) && dune exec test/test-runcmake/test_yelu_tiny_cmake.exe
 Last verified state:
 
 ```text
-test/test-yelu/ passed (yelu_tiny_composition: 75 tests)
-test_yelu_tiny_cmake passed with 18 tests
+test/test-yelu/ passed (yelu_tiny_composition: 83 tests)
+test_yelu_tiny_cmake passed with 20 tests
 ```
 
 Verification tracks:
 
-| Track | Current status | Rule |
-| --- | --- | --- |
-| Semantic equivalence | Active | Compare final `env` and final `value` for Yelu1/Yelu2/lift/lower |
-| Parser bridge | Active | Parse production syntax -> old AST -> Yelu1 -> evaluator |
-| CMake-backed checks | Active | Add at least one CMake-backed case for each new CMake surface |
-| Install safety | Active | Run installs only into temp prefixes; assert install manifest paths stay under prefix |
-| Constructor coverage | Manual | Keep adding focused examples as constructors are added |
-| Property/random testing | Later | Add after core/target env settles |
-| Formal/SMT proof | Later | Consider only after tiny core and key theories stabilize |
+| Track                   | Current status | Rule                                                                                  |
+| ----------------------- | -------------- | ------------------------------------------------------------------------------------- |
+| Semantic equivalence    | Active         | Compare final `env` and final `value` for Yelu1/Yelu2/lift/lower                      |
+| Parser bridge           | Active         | Parse production syntax -> old AST -> Yelu1 -> evaluator                              |
+| CMake-backed checks     | Active         | Add at least one CMake-backed case for each new CMake surface                         |
+| Install safety          | Active         | Run installs only into temp prefixes; assert install manifest paths stay under prefix |
+| Constructor coverage    | Manual         | Keep adding focused examples as constructors are added                                |
+| Property/random testing | Later          | Add after core/target env settles                                                     |
+| Formal/SMT proof        | Later          | Consider only after tiny core and key theories stabilize                              |
 
 ## Current Design State
 
@@ -154,6 +192,10 @@ keys:
 ```text
 env.vars:
   normal Yelu/CMake variables
+
+env.files:
+  abstract configure-time filesystem store; normalized later, currently keyed
+  by path strings
 
 env.targets:
   target declarations and target-local metadata
@@ -229,11 +271,11 @@ patch checks into eval; it should accumulate constructor coverage first.
 Three candidate bars, in increasing ambition. We work toward them in order;
 each bar is a meaningful checkpoint.
 
-| Bar | Definition | What it proves |
-| --- | --- | --- |
-| **#1 Tutorial step parity** | `yelu_tiny` lifts/lowers everything used by tutorial v1 steps 1–12 (the existing `make stepN` end-to-end suite). | Tiny is real enough to compile a non-trivial cmake project end-to-end. |
-| **#2 Theory breadth (lite)** | Tiny has a representative slice for each of the 14 production theories: var, target, install, test, property, string, file, path, list, find, try, cmake_op, cond, dir. Slice = at least one constructor with bridge + lift + lower + cmake emit + tests. | The theory-splitting architecture composes across all domains, not just the ones already covered. |
-| **#3 Bridge parity** | Every `yelu_cmake` constructor exercised by `test_yelu_compile.ml` (194 tests) bridges through tiny. | Production test corpus passes through tiny → the rename `yelu_tiny` → `yelu` becomes feasible. |
+| Bar                          | Definition                                                                                                                                                                                                                                                | What it proves                                                                                    |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| **#1 Tutorial step parity**  | `yelu_tiny` lifts/lowers everything used by tutorial v1 steps 1–12 (the existing `make stepN` end-to-end suite).                                                                                                                                          | Tiny is real enough to compile a non-trivial cmake project end-to-end.                            |
+| **#2 Theory breadth (lite)** | Tiny has a representative slice for each of the 14 production theories: var, target, install, test, property, string, file, path, list, find, try, cmake_op, cond, dir. Slice = the smallest observable workflow with bridge + lift + lower + cmake emit + tests. This may be one constructor, or a producer/consumer pair when isolated commands are not meaningfully observable. | The theory-splitting architecture composes across all domains, not just the ones already covered. |
+| **#3 Bridge parity**         | Every `yelu_cmake` constructor exercised by `test_yelu_compile.ml` (194 tests) bridges through tiny.                                                                                                                                                      | Production test corpus passes through tiny → the rename `yelu_tiny` → `yelu` becomes feasible.    |
 
 Recommended arc: **#1 → #2 (lite) → #3**. Once #3 is green, axle 2 work
 (checking passes, refined theory shapes, typed visibility, etc.) becomes
@@ -249,13 +291,15 @@ Open threads, in order of leverage:
    directory, USES_TERMINAL, multiple outputs, MAIN_DEPENDENCY) and add
    `add_custom_command(TARGET ...)` for pre/post-build hooks
    (`Ytgt_add_custom_command_target` already exists in the old AST).
-2. **Deepen install when needed.** `install(EXPORT ...)` and package config
+2. **Add a small CTest slice.** Model `add_test` + one test property or
+   enable-test wrapper, then validate with `ctest --test-dir` in a temp build.
+3. **Deepen file when useful.** `configure_file`, `file(COPY)`, and
+   `file(GLOB)` are the next likely file operations; keep real filesystem
+   checks temp-backed.
+4. **Deepen install when needed.** `install(EXPORT ...)` and package config
    generation remain open. Keep all install tests behind temp prefixes and
    manifest path checks.
-3. **`add_library`.** Counterpart to `add_executable`; touches the same
-   target theory but introduces the library-type discriminator
-   (STATIC/SHARED/MODULE/INTERFACE/OBJECT).
-4. Skip `target_precompile_headers` and other visibility-list replays until
+5. Skip `target_precompile_headers` and other visibility-list replays until
    tutorial steps actually exercise them.
 
 Skip-for-now (axle 2): typecheck/wellform passes on tiny, typed visibility,

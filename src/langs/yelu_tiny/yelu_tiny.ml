@@ -44,8 +44,15 @@ type target_link_directory = {
 }
 [@@deriving equal, sexp_of]
 
+type target_kind =
+  | TargetUnknown
+  | TargetExecutable
+  | TargetLibrary of string option
+[@@deriving equal, sexp_of]
+
 type target = {
   name : string;
+  kind : target_kind;
   sources : target_source list;
   link_libraries : target_link list;
   include_directories : target_include_dir list;
@@ -103,6 +110,7 @@ type value =
 
 type env = {
   vars : value Map.M(String).t;
+  files : string Map.M(String).t;
   targets : target Map.M(String).t;
   custom_targets : custom_target Map.M(String).t;
   custom_commands : custom_command Map.M(String).t;
@@ -112,6 +120,7 @@ type env = {
 let empty_env : env =
   {
     vars = Map.empty (module String);
+    files = Map.empty (module String);
     targets = Map.empty (module String);
     custom_targets = Map.empty (module String);
     custom_commands = Map.empty (module String);
@@ -120,14 +129,16 @@ let empty_env : env =
 
 let equal_env left right =
   Map.equal equal_value left.vars right.vars
+  && Map.equal String.equal left.files right.files
   && Map.equal equal_target left.targets right.targets
   && Map.equal equal_custom_target left.custom_targets right.custom_targets
   && Map.equal equal_custom_command left.custom_commands right.custom_commands
   && List.equal equal_install_rule left.install_rules right.install_rules
 
-let empty_target name =
+let empty_target ?(kind = TargetUnknown) name =
   {
     name;
+    kind;
     sources = [];
     link_libraries = [];
     include_directories = [];
@@ -147,6 +158,14 @@ let remove_var env name =
 
 let var_defined env name =
   Map.mem env.vars name
+
+let find_file env path = Map.find env.files path
+
+let set_file env ~path ~content =
+  { env with files = Map.set env.files ~key:path ~data:content }
+
+let file_exists env path =
+  Map.mem env.files path
 
 let find_target env name = Map.find env.targets name
 

@@ -7,6 +7,8 @@ open Yelu_langs.Yelu_theory_list
 open Yelu_langs.Yelu_surface_cmake_list
 open Yelu_langs.Yelu_surface_cmake_path
 open Yelu_langs.Yelu_theory_path
+open Yelu_langs.Yelu_surface_cmake_file
+open Yelu_langs.Yelu_theory_file
 open Yelu_langs.Yelu_surface_cmake_target
 open Yelu_langs.Yelu_theory_target
 open Yelu_langs.Yelu_surface_cmake_install
@@ -20,6 +22,7 @@ open Yelu_langs.Yelu_tiny_eval
 module Old = Yelu_langs.Lang_yelu_cmake
 
 let target
+      ?(kind = TargetExecutable)
       ?(sources = [])
       ?(link_libraries = [])
       ?(include_directories = [])
@@ -30,6 +33,7 @@ let target
       name =
   {
     name;
+    kind;
     sources;
     link_libraries;
     include_directories;
@@ -40,6 +44,7 @@ let target
   }
 
 let env_of_bindings
+      ?(files = [])
       ?(targets = [])
       ?(custom_targets = [])
       ?(custom_commands = [])
@@ -48,6 +53,10 @@ let env_of_bindings
   let env =
     List.fold bindings ~init:empty_env ~f:(fun env (key, data) ->
       set_var env ~key ~data)
+  in
+  let env =
+    List.fold files ~init:env ~f:(fun env (path, content) ->
+      set_file env ~path ~content)
   in
   let env = List.fold targets ~init:env ~f:set_target in
   let env = List.fold custom_targets ~init:env ~f:set_custom_target in
@@ -225,6 +234,19 @@ let yelu1_to_yelu2 =
                "Q", VString "a/./b/../c";
                "NORMAL", VString "a/c";
              ]);
+      check_yelu1_to_yelu2 "file write read and exists"
+        (ESeq [
+          ECmakeFileWrite
+            { path = EString "build/generated.txt"; content = [ EString "hello"; EString " file" ] };
+          ESetVar ("EXISTS", ECmakeFileExists (EString "build/generated.txt"));
+          ECmakeFileRead { path = EString "build/generated.txt"; out = "OUT" };
+          EVar "OUT";
+        ])
+        ~expected_value:(VString "hello file")
+        ~expected_env:
+          (env_of_bindings
+             ~files:[ "build/generated.txt", "hello file" ]
+             [ "EXISTS", VBool true; "OUT", VString "hello file" ]);
       check_yelu1_to_yelu2 "target declaration and existence"
         (ESeq [
           ECmakeAddExecutable { name = "app"; sources = [ EString "main.c" ] };
@@ -234,6 +256,17 @@ let yelu1_to_yelu2 =
         ~expected_value:(VBool true)
         ~expected_env:
           (env_of_bindings ~targets:[ target "app" ] [ "OUT", VBool true ]);
+      check_yelu1_to_yelu2 "library declaration"
+        (ESeq [
+          ECmakeAddLibrary { name = "core"; type_ = Some "STATIC"; sources = [ EString "core.c" ] };
+          ESetVar ("OUT", ECmakeTargetExists "core");
+          EVar "OUT";
+        ])
+        ~expected_value:(VBool true)
+        ~expected_env:
+          (env_of_bindings
+             ~targets:[ target "core" ~kind:(TargetLibrary (Some "STATIC")) ]
+             [ "OUT", VBool true ]);
       check_yelu1_to_yelu2 "target sources mutation"
         (ESeq [
           ECmakeAddExecutable { name = "app"; sources = [ EString "main.c" ] };
@@ -550,6 +583,19 @@ let yelu2_to_yelu1 =
         ~expected_value:(VString "cmake")
         ~expected_env:
           (env_of_bindings [ "P", VString "/usr/local/bin/cmake"; "OUT", VString "cmake" ]);
+      check_yelu2_to_yelu1 "file write read and exists lower to cmake surface"
+        (ESeq [
+          EFileWrite
+            { path = EString "build/generated.txt"; content = EString "hello file" };
+          ESetVar ("EXISTS", EFileExists (EString "build/generated.txt"));
+          ESetVar ("OUT", EFileRead (EString "build/generated.txt"));
+          EVar "OUT";
+        ])
+        ~expected_value:(VString "hello file")
+        ~expected_env:
+          (env_of_bindings
+             ~files:[ "build/generated.txt", "hello file" ]
+             [ "EXISTS", VBool true; "OUT", VString "hello file" ]);
       check_yelu2_to_yelu1 "target declaration lowers to cmake surface"
         (ESeq [
           ESetVar
@@ -563,6 +609,23 @@ let yelu2_to_yelu1 =
              ~targets:[ target "app" ]
              [
                "APP", VTarget "app";
+               "OUT", VBool true;
+             ]);
+      check_yelu2_to_yelu1 "library declaration lowers to cmake surface"
+        (ESeq [
+          ESetVar
+            ( "CORE",
+              ELibrary
+                { name = EString "core"; type_ = Some "STATIC"; sources = [ EString "core.c" ] } );
+          ESetVar ("OUT", ETargetExists (ETarget "core"));
+          EVar "OUT";
+        ])
+        ~expected_value:(VBool true)
+        ~expected_env:
+          (env_of_bindings
+             ~targets:[ target "core" ~kind:(TargetLibrary (Some "STATIC")) ]
+             [
+               "CORE", VTarget "core";
                "OUT", VBool true;
              ]);
       check_yelu2_to_yelu1 "target sources lowers to cmake surface"
@@ -994,6 +1057,55 @@ let yelu_cmake_bridge =
                "Q", VString "a/./b/../c";
                "NORMAL", VString "a/c";
              ]);
+      check_yelu_cmake_bridge_to_yelu1 "old file write/read bridge to Yelu1"
+        (Old.Ystmt_list
+           [
+             Old.Ys_file
+               (Old.Yfile_write
+                  {
+                    file = old_str "build/generated.txt";
+                    append = false;
+                    content = [ old_str "hello"; old_str " file" ];
+                  });
+             Old.Yif
+               {
+                 cond = Old.Yexpr_exists (old_str "build/generated.txt");
+                 then_ =
+                   Old.Ys_file
+                     (Old.Yfile_read
+                        {
+                          file = old_str "build/generated.txt";
+                          out = old_cvar "OUT";
+                          offset = None;
+                          limit = None;
+                          hex = false;
+                        });
+                 else_ =
+                   Some
+                     (Old.Ys_string
+                        (Old.Ystr_toupper { string = old_str "missing"; out = old_cvar "OUT" }));
+               };
+           ])
+        ~expected_value:VUnit
+        ~expected_env:
+          (env_of_bindings
+             ~files:[ "build/generated.txt", "hello file" ]
+             [ "OUT", VString "hello file" ]);
+      check_parsed_yelu_bridge_to_yelu1 "parsed old file write/read bridge to Yelu1"
+        {|
+        (
+          file_write "build/generated.txt" "hello" " file";
+          if exists "build/generated.txt" then
+            ( file_read "build/generated.txt" ~out:OUT )
+          else
+            ( string_toupper "missing" ~out:OUT )
+        )
+        |}
+        ~expected_value:VUnit
+        ~expected_env:
+          (env_of_bindings
+             ~files:[ "build/generated.txt", "hello file" ]
+             [ "OUT", VString "hello file" ]);
       check_yelu_cmake_bridge_to_yelu1 "old target layer-a bridges to Yelu1"
         (Old.Ystmt_list
            [
@@ -1032,6 +1144,29 @@ let yelu_cmake_bridge =
         ~expected_value:VUnit
         ~expected_env:
           (env_of_bindings ~targets:[ target "app" ] [ "OUT", VString "YES" ]);
+      check_yelu_cmake_bridge_to_yelu1 "old target add_library bridges to Yelu1"
+        (Old.Ys_target
+           (Old.Ytgt_add_library
+              {
+                name = Old.Yexpr_name { ns = Old.Ns_target; name = "core" };
+                type_ = Some Yelu_langs.Lang_cmake.Lib_static;
+                exclude_from_all = false;
+                sources = [ old_str "core.c" ];
+              }))
+        ~expected_value:VUnit
+        ~expected_env:
+          (env_of_bindings
+             ~targets:[ target "core" ~kind:(TargetLibrary (Some "STATIC")) ]
+             []);
+      check_parsed_yelu_bridge_to_yelu1 "parsed old target add_library bridges to Yelu1"
+        {|
+        ( add_lib Target core "core.c" )
+        |}
+        ~expected_value:VUnit
+        ~expected_env:
+          (env_of_bindings
+             ~targets:[ target "core" ~kind:(TargetLibrary None) ]
+             []);
       check_yelu_cmake_bridge_to_yelu1 "old target sources bridge to Yelu1"
         (Old.Ystmt_list
            [

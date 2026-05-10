@@ -8,6 +8,8 @@ open Yelu_theory_list
 open Yelu_surface_cmake_list
 open Yelu_theory_path
 open Yelu_surface_cmake_path
+open Yelu_theory_file
+open Yelu_surface_cmake_file
 open Yelu_theory_target
 open Yelu_surface_cmake_target
 open Yelu_theory_install
@@ -55,6 +57,9 @@ module Yelu1 = struct
        | Some value -> value
        | None ->
       match Yelu_surface_cmake_path.eval_case ~eval:eval_expr env expr with
+       | Some value -> value
+       | None ->
+      match Yelu_surface_cmake_file.eval_case ~eval:eval_expr env expr with
        | Some value -> value
        | None ->
       match Yelu_theory_target.eval_case ~eval:eval_expr env expr with
@@ -105,6 +110,9 @@ module Yelu2 = struct
        | Some value -> value
        | None ->
       match Yelu_theory_path.eval_case ~eval:eval_expr env expr with
+       | Some value -> value
+       | None ->
+      match Yelu_theory_file.eval_case ~eval:eval_expr env expr with
        | Some value -> value
        | None ->
       match Yelu_theory_target.eval_case ~eval:eval_expr env expr with
@@ -164,11 +172,25 @@ let rec lift_yelu1_to_yelu2 = function
   | EPathFilename expr -> EPathFilename (lift_yelu1_to_yelu2 expr)
   | EPathNormalize expr -> EPathNormalize (lift_yelu1_to_yelu2 expr)
 
+  (* Shared file theory. *)
+  | EFileWrite { path; content } ->
+    EFileWrite
+      { path = lift_yelu1_to_yelu2 path; content = lift_yelu1_to_yelu2 content }
+  | EFileRead path -> EFileRead (lift_yelu1_to_yelu2 path)
+  | EFileExists path -> EFileExists (lift_yelu1_to_yelu2 path)
+
   (* Shared target theory. *)
   | ETarget name -> ETarget name
   | EExecutable { name; sources } ->
     EExecutable
       { name = lift_yelu1_to_yelu2 name; sources = List.map sources ~f:lift_yelu1_to_yelu2 }
+  | ELibrary { name; type_; sources } ->
+    ELibrary
+      {
+        name = lift_yelu1_to_yelu2 name;
+        type_;
+        sources = List.map sources ~f:lift_yelu1_to_yelu2;
+      }
   | ETargetExists target -> ETargetExists (lift_yelu1_to_yelu2 target)
   | ETargetAddSources { target; visibility; sources } ->
     ETargetAddSources
@@ -273,11 +295,38 @@ let rec lift_yelu1_to_yelu2 = function
     let out = Option.value out ~default:path in
     ESetVar (out, EPathNormalize (EVar path))
 
+  (* CMake file surface -> Yelu file theory. *)
+  | ECmakeFileWrite { path; content } ->
+    ESeq
+      [
+        EFileWrite
+          {
+            path = lift_yelu1_to_yelu2 path;
+            content = EStringConcat (List.map content ~f:lift_yelu1_to_yelu2);
+          };
+        EUnit;
+      ]
+  | ECmakeFileRead { path; out } ->
+    ESetVar (out, EFileRead (lift_yelu1_to_yelu2 path))
+  | ECmakeFileExists path ->
+    EFileExists (lift_yelu1_to_yelu2 path)
+
   (* CMake target surface -> Yelu target theory. Keep statement result as unit. *)
   | ECmakeAddExecutable { name; sources } ->
     ESeq
       [
         EExecutable { name = EString name; sources = List.map sources ~f:lift_yelu1_to_yelu2 };
+        EUnit;
+      ]
+  | ECmakeAddLibrary { name; type_; sources } ->
+    ESeq
+      [
+        ELibrary
+          {
+            name = EString name;
+            type_;
+            sources = List.map sources ~f:lift_yelu1_to_yelu2;
+          };
         EUnit;
       ]
   | ECmakeTargetSources { target; visibility; sources } ->
@@ -470,6 +519,20 @@ let rec lower_yelu2_to_yelu1 = function
   | EExecutable { name; sources } ->
     EExecutable
       { name = lower_yelu2_to_yelu1 name; sources = List.map sources ~f:lower_yelu2_to_yelu1 }
+  | ELibrary { name = EString target_name; type_; sources } ->
+    ESeq
+      [
+        ECmakeAddLibrary
+          { name = target_name; type_; sources = List.map sources ~f:lower_yelu2_to_yelu1 };
+        ETarget target_name;
+      ]
+  | ELibrary { name; type_; sources } ->
+    ELibrary
+      {
+        name = lower_yelu2_to_yelu1 name;
+        type_;
+        sources = List.map sources ~f:lower_yelu2_to_yelu1;
+      }
   | ETargetExists (ETarget name) ->
     ECmakeTargetExists name
   | ETargetExists target ->
@@ -639,12 +702,28 @@ let rec lower_yelu2_to_yelu1 = function
   | ESetVar (name, EPathNormalize expr) ->
     ECmakePathSet { path = name; input = lower_yelu2_to_yelu1 expr; normalize = true }
 
+  (* Yelu file theory -> CMake file surface. *)
+  | EFileWrite { path; content } ->
+    ECmakeFileWrite
+      { path = lower_yelu2_to_yelu1 path; content = [ lower_yelu2_to_yelu1 content ] }
+  | ESetVar (name, EFileRead path) ->
+    ECmakeFileRead { path = lower_yelu2_to_yelu1 path; out = name }
+  | EFileExists path ->
+    ECmakeFileExists (lower_yelu2_to_yelu1 path)
+
   (* Yelu target theory -> CMake target surface. *)
   | ESetVar (var, EExecutable { name = EString target_name; sources }) ->
     ESeq
       [
         ECmakeAddExecutable
           { name = target_name; sources = List.map sources ~f:lower_yelu2_to_yelu1 };
+        ESetVar (var, ETarget target_name);
+      ]
+  | ESetVar (var, ELibrary { name = EString target_name; type_; sources }) ->
+    ESeq
+      [
+        ECmakeAddLibrary
+          { name = target_name; type_; sources = List.map sources ~f:lower_yelu2_to_yelu1 };
         ESetVar (var, ETarget target_name);
       ]
 
