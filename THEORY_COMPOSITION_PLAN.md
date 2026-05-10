@@ -2,10 +2,11 @@
 
 Status: tiny composition harness in progress. **Bar #2 (theory breadth lite)
 reached** — all 14 production theories have at least a first slice.
-**Bar #1 first milestone:** tutorial v1 step1 program configures through
+**Bar #1 progress:** tutorial v1 step1 and the root step2 program configure through
 tiny end-to-end via real cmake (project + cxx_standard + configure_file +
-add_executable + target_include_directories). Now widening toward more
-tutorial steps and bar #3 (bridge parity).
+add_executable + add_subdirectory + target_link_libraries +
+target_include_directories). Now widening toward full tutorial step parity and
+bar #3 (bridge parity).
 
 This file is the short tracker to update after each step. Durable design context
 lives in:
@@ -194,8 +195,8 @@ eval $(opam env) && dune exec test/test-runcmake/test_yelu_tiny_cmake.exe
 Last verified state:
 
 ```text
-test/test-yelu/ passed (yelu_tiny_composition: 109 tests)
-test_yelu_tiny_cmake passed with 28 tests
+test/test-yelu/ passed (yelu_tiny_composition: 110 tests)
+test_yelu_tiny_cmake passed with 29 tests
 ```
 
 Verification tracks:
@@ -364,7 +365,9 @@ have at least a first slice through tiny. Genex stays deferred (delayed
 build-time values, separate research thread).
 
 **Bar #1 first milestone:** tutorial v1 step1 program now both bridges and
-configures through real cmake end-to-end. The work surfaced these
+configures through real cmake end-to-end. **Step2 root milestone:** tutorial
+v1 step2 root program now bridges and configures through real cmake with a
+minimal `MathFunctions` subdirectory fixture. The work surfaced these
 deepening points:
 
 - `cmake_minimum_required` accepts a max version range (`3.20.0...3.20.0`);
@@ -422,22 +425,24 @@ order):
 
 1. **Step1 output equivalence (done).** With phases 2a + 2b in place,
    step1 emits cmake textually equivalent to the production yelu_compile
-   output. Bar #1's first concrete equivalence point is reached. Next
-   tutorial steps (step2-12) likely surface fresh deepening points —
-   take them one at a time with the same incremental approach.
-2. **`configure_file` substitution.** Tiny copies content as-is; real
+   output. Bar #1's first concrete equivalence point is reached.
+2. **Step2 root configure (done).** The root step2 program now bridges and
+   configures via tiny using a minimal direct-CMake `MathFunctions` subdir
+   fixture. Next useful step is to bridge the real `step2_math.ml` subdir;
+   that should surface option/cache variable and truthy-if semantics.
+3. **`configure_file` substitution.** Tiny copies content as-is; real
    cmake substitutes `${var}` and `@VAR@` tokens. Tutorial steps depend
    on this for `TutorialConfig.h` to receive the project version.
-3. **Cache and option vars** — `set(VAR value CACHE ...)`, `option(...)`.
+4. **Cache and option vars** — `set(VAR value CACHE ...)`, `option(...)`.
    Tutorial steps use these heavily. Probably an extension to var/store
    theory rather than a new theory.
-4. **`if` predicates beyond the basics** — file-existence, version
+5. **`if` predicates beyond the basics** — file-existence, version
    comparison, list-contains. cmake's condition language is large.
-5. **String/list deepening** — regex match/replace, list filter/transform,
+6. **String/list deepening** — regex match/replace, list filter/transform,
    based on what tutorial steps actually use.
-6. **`include(...)`** — adjacent to `add_subdirectory` but file-scoped
+7. **`include(...)`** — adjacent to `add_subdirectory` but file-scoped
    evaluation, no scope boundary. Tutorial steps use it for module loading.
-7. **`add_custom_command(TARGET ...)`** — pre/post-build hooks.
+8. **`add_custom_command(TARGET ...)`** — pre/post-build hooks.
 8. **`install(EXPORT ...)`** and package config — install deepening.
 9. **`target_precompile_headers`** and other visibility-list replays
    if tutorial steps actually exercise them.

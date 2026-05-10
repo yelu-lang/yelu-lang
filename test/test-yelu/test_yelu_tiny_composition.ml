@@ -2042,6 +2042,62 @@ let step1_bridge =
             (String.is_substring cmake_text ~substring:"set(tut"));
     ] )
 
+let step2_bridge =
+  let module Old = Yelu_langs.Lang_yelu_cmake in
+  let open Yelu_langs.Lang_yelu_utils in
+  let cmd : Old.yelu_stmt =
+    ycmd_of_list
+      (Step_common.project_preamble
+       @ Step_common.cxx_standard_11
+       @ [
+           ylet "tut" (ytval "Tutorial");
+           Step_common.configure_tutorial_header;
+           yc_add_subdirectory (ydir "MathFunctions");
+           add_exe ~sources:[ yfile "tutorial.cxx" ] (yvar "tut");
+           link_lib
+             [ yvar "tut" ]
+             [ ytarget_def [ ytval "MathFunctions" ] ];
+           include_dirs (yvar "tut")
+             [
+               ytarget_def
+                 [
+                   dir Yelu_langs.Lang_yelu_utils.output_root;
+                   dir_concat Yelu_langs.Lang_yelu_utils.source_root "MathFunctions";
+                 ];
+             ];
+         ])
+  in
+  ( "step2_bridge",
+    [
+      Alcotest.test_case "v1 step2 root program bridges to Yelu1 and emits cmake"
+        `Quick
+        (fun () ->
+          let yelu1 = Yelu_langs.Yelu_cmake_to_yelu1.stmt cmd in
+          let cmake_text =
+            Yelu_langs.Yelu_tiny_cmake_emit.emit_script yelu1
+          in
+          Alcotest.(check bool) "contains add_subdirectory" true
+            (String.is_substring cmake_text
+               ~substring:"add_subdirectory(\"${PROJECT_BINARY_DIR}/MathFunctions\")"
+             || String.is_substring cmake_text
+                  ~substring:"add_subdirectory(\"${PROJECT_SOURCE_DIR}/MathFunctions\")"
+             || String.is_substring cmake_text
+                  ~substring:"add_subdirectory(\"MathFunctions\")");
+          Alcotest.(check bool) "add_executable uses Tutorial" true
+            (String.is_substring cmake_text
+               ~substring:"add_executable(Tutorial");
+          Alcotest.(check bool) "target_link_libraries uses Tutorial" true
+            (String.is_substring cmake_text
+               ~substring:"target_link_libraries(Tutorial");
+          Alcotest.(check bool) "links MathFunctions" true
+            (String.is_substring cmake_text ~substring:"MathFunctions");
+          Alcotest.(check bool) "contains source MathFunctions include" true
+            (String.is_substring cmake_text
+               ~substring:"${PROJECT_SOURCE_DIR}/MathFunctions");
+          Alcotest.(check bool) "no spurious set(tut ...)" false
+            (String.is_substring cmake_text ~substring:"set(tut"));
+    ] )
+
 (* Phase-2a tests for ELet emit-time resolution. ELet binds a name; EVar
    references in expression positions inside the body get the bound value
    substituted at emit time, instead of emitting `${name}` (which would be
@@ -2118,5 +2174,6 @@ let () =
       yelu1_roundtrip;
       yelu_cmake_bridge;
       step1_bridge;
+      step2_bridge;
       let_emit_resolve;
     ]

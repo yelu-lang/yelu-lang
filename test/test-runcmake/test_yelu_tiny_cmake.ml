@@ -436,6 +436,49 @@ let yelu2_configure_lowering =
                           [ dir Yelu_langs.Lang_yelu_utils.output_root ] ];
                   ])
            in
+          Yelu_langs.Yelu_cmake_to_yelu1.stmt cmd
+          |> lift_yelu1_to_yelu2);
+          ESetVar ("OUT", EStringUpper (EString "yes"));
+          EVar "OUT";
+        ]);
+      check_yelu2_lowering_configure "step2 root program configures via tiny bridge"
+        ~files:
+          [
+            "tutorial.cxx",
+              "int main(int argc, char**) { return argc - 1; }\n";
+            "TutorialConfig.h.in", "#define TUTORIAL_VERSION_MAJOR 1\n";
+            "MathFunctions/CMakeLists.txt",
+              "add_library(MathFunctions MathFunctions.cxx)\n";
+            "MathFunctions/MathFunctions.cxx",
+              "int mathfunctions_dummy(void) { return 0; }\n";
+          ]
+        (ESeq [
+          (let module Old = Yelu_langs.Lang_yelu_cmake in
+           let open Yelu_langs.Lang_yelu_utils in
+           let cmd : Old.yelu_stmt =
+             ycmd_of_list
+               (Step_common.project_preamble
+                @ Step_common.cxx_standard_11
+                @ [
+                    ylet "tut" (ytval "Tutorial");
+                    Step_common.configure_tutorial_header;
+                    yc_add_subdirectory (ydir "MathFunctions");
+                    add_exe ~sources:[ yfile "tutorial.cxx" ] (yvar "tut");
+                    link_lib
+                      [ yvar "tut" ]
+                      [ ytarget_def [ ytval "MathFunctions" ] ];
+                    include_dirs (yvar "tut")
+                      [
+                        ytarget_def
+                          [
+                            dir Yelu_langs.Lang_yelu_utils.output_root;
+                            dir_concat
+                              Yelu_langs.Lang_yelu_utils.source_root
+                              "MathFunctions";
+                          ];
+                      ];
+                  ])
+           in
            Yelu_langs.Yelu_cmake_to_yelu1.stmt cmd
            |> lift_yelu1_to_yelu2);
           ESetVar ("OUT", EStringUpper (EString "yes"));
