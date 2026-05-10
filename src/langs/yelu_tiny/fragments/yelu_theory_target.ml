@@ -11,6 +11,7 @@ type expr +=
   | ETargetIncludeDirectories of { target : expr; visibility : string; dirs : expr list }
   | ETargetCompileDefinitions of { target : expr; visibility : string; definitions : expr list }
   | ETargetCompileOptions of { target : expr; visibility : string; options_ : expr list }
+  | ETargetCompileFeatures of { target : expr; visibility : string; features : expr list }
   | ETargetLinkOptions of { target : expr; visibility : string; options_ : expr list }
   | ETargetLinkDirectories of { target : expr; visibility : string; dirs : expr list }
   | ECustomTarget of {
@@ -122,6 +123,20 @@ let add_target_compile_options env name ~visibility options_ =
         @ List.map options_ ~f:(fun option_ -> { visibility; option_ });
     })
 
+let target_compile_features env name =
+  match find_target env name with
+  | None -> []
+  | Some target -> target.compile_features
+
+let add_target_compile_features env name ~visibility features =
+  update_existing_target env name ~f:(fun target ->
+    {
+      target with
+      compile_features =
+        target.compile_features
+        @ List.map features ~f:(fun feature -> { visibility; feature });
+    })
+
 let target_link_options env name =
   match find_target env name with
   | None -> []
@@ -205,6 +220,12 @@ let eval_case ~eval env = function
     let env, name =
       eval_target_visibility_items ~eval env target ~visibility options_
         ~add:add_target_compile_options
+    in
+    Some (env, VTarget name)
+  | ETargetCompileFeatures { target; visibility; features } ->
+    let env, name =
+      eval_target_visibility_items ~eval env target ~visibility features
+        ~add:add_target_compile_features
     in
     Some (env, VTarget name)
   | ETargetLinkOptions { target; visibility; options_ } ->

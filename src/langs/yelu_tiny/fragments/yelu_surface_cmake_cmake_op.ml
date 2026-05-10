@@ -10,6 +10,8 @@ type expr +=
   | ECmakeProject of { name : string; languages : string list; version : string option }
   | ECmakeMinimumRequired of string
   | ECmakeMessage of { mode : string; texts : expr list }
+  | ECmakeFunction of { name : expr; args : string list; body : expr }
+  | ECmakeApply of { name : expr; args : expr list }
 
 let eval_case ~eval env = function
   | ECmakeProject { name; languages; version } ->
@@ -19,4 +21,6 @@ let eval_case ~eval env = function
   | ECmakeMessage { mode; texts } ->
     let env, texts = eval_string_list ~eval env texts in
     Some (add_message env mode texts, VUnit)
+  | ECmakeFunction _ -> Some (env, VUnit)
+  | ECmakeApply _ -> Some (env, VUnit)
   | _ -> None

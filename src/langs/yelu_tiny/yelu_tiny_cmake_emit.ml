@@ -116,6 +116,8 @@ let rec emit_expr_impl ~env e =
     [ Fmt.str "set(%s %s)" name (String.concat ~sep:" " (List.map exprs ~f:arg)) ]
   | ESetVar (name, expr) -> [ Fmt.str "set(%s %s)" name (arg expr) ]
   | ECmakeUnsetVar name -> [ Fmt.str "unset(%s)" name ]
+  | ECmakeOption { name; message; value } ->
+    [ Fmt.str "option(%s %s %s)" name (quoted message) (arg value) ]
   | ETarget _ -> []
   | EVar name -> [ Fmt.str "message(\"RESULT=${%s}\")" name ]
   | EString s -> [ Fmt.str "message(\"RESULT=%s\")" (escape_quoted s) ]
@@ -176,6 +178,8 @@ let rec emit_expr_impl ~env e =
     [ Fmt.str "target_compile_definitions(%s %s %s)" (target_arg target) visibility (String.concat ~sep:" " (List.map definitions ~f:arg)) ]
   | ECmakeTargetCompileOptions { target; visibility; options_ } ->
     [ Fmt.str "target_compile_options(%s %s %s)" (target_arg target) visibility (String.concat ~sep:" " (List.map options_ ~f:arg)) ]
+  | ECmakeTargetCompileFeatures { target; visibility; features } ->
+    [ Fmt.str "target_compile_features(%s %s %s)" (target_arg target) visibility (String.concat ~sep:" " (List.map features ~f:target_arg)) ]
   | ECmakeTargetLinkOptions { target; visibility; options_ } ->
     [ Fmt.str "target_link_options(%s %s %s)" (target_arg target) visibility (String.concat ~sep:" " (List.map options_ ~f:arg)) ]
   | ECmakeTargetLinkDirectories { target; visibility; dirs } ->
@@ -271,6 +275,20 @@ let rec emit_expr_impl ~env e =
     [ Fmt.str "message(%s%s)"
         mode_part
         (String.concat ~sep:" " (List.map texts ~f:arg)) ]
+  | ECmakeFunction { name; args; body } ->
+    let body_lines = emit_expr body in
+    [ Fmt.str "function(%s%s)"
+        (target_arg name)
+        (match args with
+         | [] -> ""
+         | args -> " " ^ String.concat ~sep:" " args)
+    ]
+    @ List.map body_lines ~f:(fun line -> "  " ^ line)
+    @ [ "endfunction()" ]
+  | ECmakeApply { name; args } ->
+    [ Fmt.str "%s(%s)"
+        (target_arg name)
+        (String.concat ~sep:" " (List.map args ~f:arg)) ]
   | ECmakeAddSubdirectory path ->
     [ Fmt.str "add_subdirectory(%s)" (arg path) ]
   | ECmakeEnableTesting -> [ "enable_testing()" ]
@@ -285,6 +303,15 @@ let rec emit_expr_impl ~env e =
         (target_arg target) property (arg value) ]
   | ECmakeGetTargetProperty { var; target; property } ->
     [ Fmt.str "get_target_property(%s %s %s)" var (target_arg target) property ]
+  | ECmakeSetTestsProperties { tests; properties } ->
+    let property_args =
+      properties
+      |> List.concat_map ~f:(fun (property, value) -> [ property; arg value ])
+      |> String.concat ~sep:" "
+    in
+    [ Fmt.str "set_tests_properties(%s PROPERTIES %s)"
+        (String.concat ~sep:" " (List.map tests ~f:arg))
+        property_args ]
   | ECmakeFindPackage { package_name; required = false } ->
     [ Fmt.str "find_package(%s)" package_name ]
   | ECmakeFindPackage { package_name; required = true } ->

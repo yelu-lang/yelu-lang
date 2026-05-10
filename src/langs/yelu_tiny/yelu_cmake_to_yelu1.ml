@@ -4,6 +4,7 @@ open Yelu_surface_cmake_store
 open Yelu_theory_bool
 open Yelu_theory_target
 open Yelu_surface_cmake_install
+open Yelu_theory_list
 open Yelu_surface_cmake_list
 open Yelu_surface_cmake_path
 open Yelu_surface_cmake_file
@@ -47,6 +48,11 @@ let rec expr : Old.yelu_expr -> Yelu_tiny.expr = function
    documentation at call sites. *)
 let target_name = expr
 
+let command_name : Old.yelu_expr -> Yelu_tiny.expr = function
+  | Yexpr_var (Yvar name) -> EString name
+  | Yexpr_name { name; _ } -> EString name
+  | e -> expr e
+
 let one_input ~op = function
   | [ input ] -> expr input
   | inputs ->
@@ -77,11 +83,12 @@ let var_statement : Old.yelu_var_stmt -> Yelu_tiny.expr = function
     ESetVar (cvar_name cvar, expr value)
   | Yvar_set { cvar; values = []; parent_scope = false } ->
     ESetVar (cvar_name cvar, EString "")
-  | Yvar_set { values; parent_scope = false; _ } ->
-    fail "set() bridge currently requires zero or one value, got %d"
-      (List.length values)
+  | Yvar_set { cvar; values; parent_scope = false } ->
+    ESetVar (cvar_name cvar, EList (List.map values ~f:expr))
   | Yvar_set { parent_scope = true; _ } ->
     fail "set(PARENT_SCOPE) is outside the first Yelu1 bridge slice"
+  | Yvar_option { cvar; msg; value } ->
+    ECmakeOption { name = cvar_name cvar; message = msg; value = expr value }
   | _ -> fail "unsupported yelu_cmake variable statement for Yelu1 bridge"
 
 let list_index ~indices =
@@ -198,6 +205,12 @@ let test_statement : Old.yelu_test_stmt -> Yelu_tiny.expr = function
       { name = expr name; command = expr command; args = List.map args ~f:expr }
 
 let property_statement : Old.yelu_property_stmt -> Yelu_tiny.expr = function
+  | Yprop_set_tests { tests; properties } ->
+    ECmakeSetTestsProperties
+      {
+        tests = List.map tests ~f:expr;
+        properties = List.map properties ~f:(fun (property, value) -> property, expr value);
+      }
   | Yprop_set_target { target; properties } ->
     properties
     |> List.map ~f:(fun (property, value) ->
@@ -325,6 +338,16 @@ let target_statement : Old.yelu_target_stmt -> Yelu_tiny.expr = function
     |> ESeq
   | Ytgt_compile_options { before = true; _ } ->
     fail "target_compile_options(BEFORE) is outside the current Yelu1 bridge slice"
+  | Ytgt_compile_features { target; features } ->
+    features
+    |> List.map ~f:(fun ({ kind; feature } : Old.yelu_target_feature) ->
+      ECmakeTargetCompileFeatures
+        {
+          target = target_name target;
+          visibility = visibility_of_kind kind;
+          features = [ EString feature ];
+        })
+    |> ESeq
   | Ytgt_link_options { target; before = false; items } ->
     items
     |> List.map ~f:(fun ({ kind; items } : Old.yelu_items_with_kind) ->
@@ -395,6 +418,11 @@ let rec stmt : Old.yelu_stmt -> Yelu_tiny.expr = function
   | Ys_property prop_stmt -> property_statement prop_stmt
   | Ys_find find_stmt -> find_statement find_stmt
   | Ys_try try_stmt -> try_statement try_stmt
+  | Yc_extern_cvar _ | Yc_extern_target _ -> EUnit
+  | Yc_function { name; args; body } ->
+    ECmakeFunction { name = command_name name; args; body = stmts_to_expr body }
+  | Yc_apply { name; args } ->
+    ECmakeApply { name = command_name name; args = List.map args ~f:expr }
   (* Production [Ylet] is sequence-shaped (its scope is the rest of the
      enclosing list). Tiny's [ELet] is expression-shaped. The conversion
      happens in [stmts_to_expr] when handling [Ystmt_list]; a standalone

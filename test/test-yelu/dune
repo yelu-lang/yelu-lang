@@ -4,7 +4,10 @@
   test_yelu_check
   test_yelu_lexer
   test_yelu_cmake_parse
-  test_yelu_tiny_composition)
+  test_yelu_tiny_lift_lower
+  test_yelu_tiny_bridge
+  test_yelu_tiny_steps
+  test_yelu_tiny_emit)
  (libraries base alcotest angstrom yelu_langs step_common)
  (preprocess
   (pps ppx_jane)))

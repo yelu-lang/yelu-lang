@@ -45,11 +45,14 @@ let check_yelu2_lowering_cmake name expr =
     Alcotest.(check string) "stdout" "" result.stdout;
     Alcotest.(check string) "stderr" "RESULT=YES\n" result.stderr)
 
-let check_yelu2_lowering_configure ?(files = [ "main.c", "int main(void) { return 0; }\n" ]) name expr =
+let check_yelu2_lowering_configure
+    ?(files = [ "main.c", "int main(void) { return 0; }\n" ])
+    ?(languages = [ "C" ])
+    name expr =
   Alcotest.test_case name `Quick (fun () ->
     let cmake_text = emit_script (lower_yelu2_to_yelu1 expr) in
     let result =
-      run_configure ~languages:[ "C" ] ~files cmake_text
+      run_configure ~languages ~files cmake_text
     in
     check_exit 0 result.run;
     check_stderr_matches "RESULT=YES" result.run)
@@ -478,6 +481,286 @@ let yelu2_configure_lowering =
                           ];
                       ];
                   ])
+           in
+           Yelu_langs.Yelu_cmake_to_yelu1.stmt cmd
+           |> lift_yelu1_to_yelu2);
+	          ESetVar ("OUT", EStringUpper (EString "yes"));
+	          EVar "OUT";
+	        ]);
+      check_yelu2_lowering_configure "step2 math program configures via tiny bridge"
+        ~languages:[ "CXX" ]
+        ~files:
+          [
+            "MathFunctions.cxx",
+              "double mathfunctions_dummy(double x) { return x; }\n";
+            "mysqrt.cxx",
+              "double mysqrt(double x) { return x; }\n";
+          ]
+        (ESeq [
+          (let module Old = Yelu_langs.Lang_yelu_cmake in
+           let open Yelu_langs.Lang_yelu_utils in
+           let cmd : Old.yelu_stmt =
+             ycmd_of_list
+               [
+                 ylet "math" (ytval "MathFunctions");
+                 ylet "sqrt" (ytval "SqrtLibrary");
+                 ylet "use_mymath" (ycstr "USE_MYMATH");
+                 add_lib ~sources:[ yfile "MathFunctions.cxx" ] (yvar "math");
+                 yc_option ~value:(ybool true)
+                   ~msg:"Use tutorial provided math implementation"
+                   (ycvar "USE_MYMATH");
+                 yifthen
+                   (ytruthy (yvar "use_mymath"))
+                   (ycmd_of_list
+                      [
+                        compile_defs (yvar "math")
+                          [ ytarget_def ~kind:Private [ ykeyword "USE_MYMATH" ] ];
+                        add_lib ~type_:Lib_static
+                          ~sources:[ yfile "mysqrt.cxx" ]
+                          (yvar "sqrt");
+                        link_lib
+                          [ yvar "math" ]
+                          [ ytarget_def ~kind:Private [ yvar "sqrt" ] ];
+                      ]);
+               ]
+           in
+           Yelu_langs.Yelu_cmake_to_yelu1.stmt cmd
+           |> lift_yelu1_to_yelu2);
+          ESetVar ("OUT", EStringUpper (EString "yes"));
+          EVar "OUT";
+        ]);
+      check_yelu2_lowering_configure "step3 root program configures via tiny bridge"
+        ~files:
+          [
+            "tutorial.cxx",
+              "int main(int argc, char**) { return argc - 1; }\n";
+            "TutorialConfig.h.in", "#define TUTORIAL_VERSION_MAJOR 1\n";
+            "MathFunctions/CMakeLists.txt",
+              "add_library(MathFunctions MathFunctions.cxx)\n";
+            "MathFunctions/MathFunctions.cxx",
+              "int mathfunctions_dummy(void) { return 0; }\n";
+          ]
+        (ESeq [
+          (let module Old = Yelu_langs.Lang_yelu_cmake in
+           let open Yelu_langs.Lang_yelu_utils in
+           let cmd : Old.yelu_stmt =
+             ycmd_of_list
+               (Step_common.project_preamble
+                @ [
+                    ylet "tut" (ytval "Tutorial");
+                    ylet "flags" (ytval "tutorial_compiler_flags");
+                  ]
+                @ Step_common.compiler_flags_lib
+                @ Step_common.cxx_standard_11
+                @ [
+                    Step_common.configure_tutorial_header;
+                    yc_add_subdirectory (ydir "MathFunctions");
+                    add_exe ~sources:[ yfile "tutorial.cxx" ] (yvar "tut");
+                    link_lib
+                      [ yvar "tut" ]
+                      [ ytarget_def [ ytval "MathFunctions"; yvar "flags" ] ];
+                    include_dirs (yvar "tut")
+                      [ ytarget_def
+                          [ dir Yelu_langs.Lang_yelu_utils.output_root ] ];
+                  ])
+           in
+           Yelu_langs.Yelu_cmake_to_yelu1.stmt cmd
+           |> lift_yelu1_to_yelu2);
+          ESetVar ("OUT", EStringUpper (EString "yes"));
+          EVar "OUT";
+        ]);
+      check_yelu2_lowering_configure "step3 math program configures via tiny bridge"
+        ~languages:[ "CXX" ]
+        ~files:
+          [
+            "MathFunctions.cxx",
+              "double mathfunctions_dummy(double x) { return x; }\n";
+            "mysqrt.cxx",
+              "double mysqrt(double x) { return x; }\n";
+          ]
+        (ESeq [
+          ELibrary
+            {
+              name = EString "tutorial_compiler_flags";
+              type_ = Some "INTERFACE";
+              sources = [];
+            };
+          (let module Old = Yelu_langs.Lang_yelu_cmake in
+           let open Yelu_langs.Lang_yelu_utils in
+           let cmd : Old.yelu_stmt =
+             ycmd_of_list
+               [
+                 ylet "flags" (ytval "tutorial_compiler_flags");
+                 ylet "math" (ytval "MathFunctions");
+                 ylet "sqrt" (ytval "SqrtLibrary");
+                 ylet "use_mymath" (ycstr "USE_MYMATH");
+                 yc_extern_target "tutorial_compiler_flags";
+                 add_lib ~sources:[ yfile "MathFunctions.cxx" ] (yvar "math");
+                 include_dirs (yvar "math")
+                   [
+                     ytarget_def ~kind:Interface
+                       [ ydir "${CMAKE_CURRENT_SOURCE_DIR}" ];
+                   ];
+                 yc_option ~value:(ybool true)
+                   ~msg:"Use tutorial provided math implementation"
+                   (ycvar "USE_MYMATH");
+                 yifthen (ytruthy (yvar "use_mymath"))
+                   (ycmd_of_list
+                      [
+                        compile_defs (yvar "math")
+                          [ ytarget_def ~kind:Private [ ykeyword "USE_MYMATH" ] ];
+                        add_lib ~type_:Lib_static
+                          ~sources:[ yfile "mysqrt.cxx" ]
+                          (yvar "sqrt");
+                        link_lib [ yvar "sqrt" ]
+                          [ ytarget_def ~kind:Public [ yvar "flags" ] ];
+                        link_lib [ yvar "math" ]
+                          [ ytarget_def ~kind:Private [ yvar "sqrt" ] ];
+                      ]);
+                 link_lib [ yvar "math" ]
+                   [ ytarget_def ~kind:Public [ yvar "flags" ] ];
+               ]
+           in
+           Yelu_langs.Yelu_cmake_to_yelu1.stmt cmd
+           |> lift_yelu1_to_yelu2);
+          ESetVar ("OUT", EStringUpper (EString "yes"));
+          EVar "OUT";
+        ]);
+      check_yelu2_lowering_configure "step4 root program configures via tiny bridge"
+        ~files:
+          [
+            "tutorial.cxx",
+              "int main(int argc, char**) { return argc - 1; }\n";
+            "TutorialConfig.h.in", "#define TUTORIAL_VERSION_MAJOR 1\n";
+            "MathFunctions/CMakeLists.txt",
+              "add_library(MathFunctions MathFunctions.cxx)\n";
+            "MathFunctions/MathFunctions.cxx",
+              "int mathfunctions_dummy(void) { return 0; }\n";
+          ]
+        (ESeq [
+          (let module Old = Yelu_langs.Lang_yelu_cmake in
+           let open Yelu_langs.Lang_yelu_utils in
+           let cmd : Old.yelu_stmt =
+             ycmd_of_list
+               (Step_common.project_preamble
+                @ [
+                    ylet "tut" (ytval "Tutorial");
+                    ylet "flags" (ytval "tutorial_compiler_flags");
+                  ]
+                @ Step_common.compiler_flags_lib
+                @ Step_common.compiler_warning_options
+                @ [
+                    Step_common.configure_tutorial_header;
+                    yc_add_subdirectory (ydir "MathFunctions");
+                    add_exe ~sources:[ yfile "tutorial.cxx" ] (yvar "tut");
+                    link_lib [ yvar "tut" ]
+                      [ ytarget_def [ ytval "MathFunctions"; yvar "flags" ] ];
+                    include_dirs (yvar "tut")
+                      [ ytarget_def
+                          [ dir Yelu_langs.Lang_yelu_utils.output_root ] ];
+                  ])
+           in
+           Yelu_langs.Yelu_cmake_to_yelu1.stmt cmd
+           |> lift_yelu1_to_yelu2);
+          ESetVar ("OUT", EStringUpper (EString "yes"));
+          EVar "OUT";
+        ]);
+      check_yelu2_lowering_configure "step5 root program configures via tiny bridge"
+        ~files:
+          [
+            "tutorial.cxx",
+              "int main(int argc, char**) { return argc - 1; }\n";
+            "TutorialConfig.h.in", "#define TUTORIAL_VERSION_MAJOR 1\n";
+            "MathFunctions/CMakeLists.txt",
+              "add_library(MathFunctions MathFunctions.cxx)\n";
+            "MathFunctions/MathFunctions.cxx",
+              "int mathfunctions_dummy(void) { return 0; }\n";
+          ]
+        (ESeq [
+          (let module Old = Yelu_langs.Lang_yelu_cmake in
+           let open Yelu_langs.Lang_yelu_utils in
+           let cmd : Old.yelu_stmt =
+             ycmd_of_list
+               (Step_common.project_preamble
+                @ [
+                    ylet "tut" (ytval "Tutorial");
+                    ylet "flags" (ytval "tutorial_compiler_flags");
+                    ylet "do_test" (ycstr "do_test");
+                  ]
+                @ Step_common.compiler_flags_lib
+                @ Step_common.compiler_warning_options
+                @ [
+                    Step_common.configure_tutorial_header;
+                    yc_add_subdirectory (ydir "MathFunctions");
+                    add_exe ~sources:[ yfile "tutorial.cxx" ] (yvar "tut");
+                    link_lib [ yvar "tut" ]
+                      [ ytarget_def [ ytval "MathFunctions"; yvar "flags" ] ];
+                    include_dirs (yvar "tut")
+                      [ ytarget_def
+                          [ dir Yelu_langs.Lang_yelu_utils.output_root ] ];
+                  ]
+                @ Step_common.install_tutorial
+                @ Step_common.test_suite ~ctest:false)
+           in
+           Yelu_langs.Yelu_cmake_to_yelu1.stmt cmd
+           |> lift_yelu1_to_yelu2);
+          ESetVar ("OUT", EStringUpper (EString "yes"));
+          EVar "OUT";
+        ]);
+      check_yelu2_lowering_configure "step5 math program configures via tiny bridge"
+        ~languages:[ "CXX" ]
+        ~files:
+          [
+            "MathFunctions.cxx",
+              "double mathfunctions_dummy(double x) { return x; }\n";
+            "mysqrt.cxx",
+              "double mysqrt(double x) { return x; }\n";
+            "MathFunctions.h", "#pragma once\n";
+          ]
+        (ESeq [
+          ELibrary
+            {
+              name = EString "tutorial_compiler_flags";
+              type_ = Some "INTERFACE";
+              sources = [];
+            };
+          (let module Old = Yelu_langs.Lang_yelu_cmake in
+           let open Yelu_langs.Lang_yelu_utils in
+           let cmd : Old.yelu_stmt =
+             ycmd_of_list
+               ([
+                  ylet "flags" (ytval "tutorial_compiler_flags");
+                  ylet "math" (ytval "MathFunctions");
+                  ylet "sqrt" (ytval "SqrtLibrary");
+                  ylet "inst_libs" (ycstr "installable_libs");
+                  ylet "use_mymath" (ycstr "USE_MYMATH");
+                  yc_extern_target "tutorial_compiler_flags";
+                  add_lib ~sources:[ yfile "MathFunctions.cxx" ] (yvar "math");
+                  include_dirs (yvar "math")
+                    [
+                      ytarget_def ~kind:Interface
+                        [ ydir "${CMAKE_CURRENT_SOURCE_DIR}" ];
+                    ];
+                  yc_option ~value:(ybool true)
+                    ~msg:"Use tutorial provided math implementation"
+                    (ycvar "USE_MYMATH");
+                  yifthen (ytruthy (yvar "use_mymath"))
+                    (ycmd_of_list
+                       [
+                         compile_defs (yvar "math")
+                           [ ytarget_def ~kind:Private [ ykeyword "USE_MYMATH" ] ];
+                         add_lib ~type_:Lib_static
+                           ~sources:[ yfile "mysqrt.cxx" ]
+                           (yvar "sqrt");
+                         link_lib [ yvar "sqrt" ]
+                           [ ytarget_def ~kind:Public [ yvar "flags" ] ];
+                         link_lib [ yvar "math" ]
+                           [ ytarget_def ~kind:Private [ yvar "sqrt" ] ];
+                       ]);
+                  link_lib [ yvar "math" ]
+                    [ ytarget_def ~kind:Public [ yvar "flags" ] ];
+                ]
+                @ Step_common.math_install_libs ())
            in
            Yelu_langs.Yelu_cmake_to_yelu1.stmt cmd
            |> lift_yelu1_to_yelu2);

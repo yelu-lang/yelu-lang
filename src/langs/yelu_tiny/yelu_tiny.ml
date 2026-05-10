@@ -32,6 +32,12 @@ type target_compile_option = {
 }
 [@@deriving equal, sexp_of]
 
+type target_compile_feature = {
+  visibility : string;
+  feature : string;
+}
+[@@deriving equal, sexp_of]
+
 type target_link_option = {
   visibility : string;
   link_option : string;
@@ -58,6 +64,7 @@ type target = {
   include_directories : target_include_dir list;
   compile_definitions : target_compile_definition list;
   compile_options : target_compile_option list;
+  compile_features : target_compile_feature list;
   link_options : target_link_option list;
   link_directories : target_link_directory list;
 }
@@ -243,6 +250,7 @@ let empty_target ?(kind = TargetUnknown) name =
     include_directories = [];
     compile_definitions = [];
     compile_options = [];
+    compile_features = [];
     link_options = [];
     link_directories = [];
   }

@@ -106,7 +106,11 @@ src/langs/yelu_tiny/
     yelu_surface_cmake_if.ml
 
 test/test-yelu/
-  test_yelu_tiny_composition.ml
+  yelu_tiny_test_helpers.ml
+  test_yelu_tiny_lift_lower.ml
+  test_yelu_tiny_bridge.ml
+  test_yelu_tiny_steps.ml
+  test_yelu_tiny_emit.ml
 ```
 
 ## Tiny Core

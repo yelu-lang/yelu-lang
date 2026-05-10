@@ -33,6 +33,9 @@ let rec eval_expr env = function
     remove_var env name, VUnit
   | ECmakeVarDefined name ->
     env, VBool (var_defined env name)
+  | ECmakeOption { name; value; _ } ->
+    let env, value = eval_expr env value in
+    set_var env ~key:name ~data:value, VUnit
   | ESeq exprs ->
     List.fold exprs ~init:(env, VUnit) ~f:(fun (env, _last) expr ->
       eval_expr env expr)

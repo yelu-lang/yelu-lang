@@ -2,10 +2,12 @@
 
 Status: tiny composition harness in progress. **Bar #2 (theory breadth lite)
 reached** — all 14 production theories have at least a first slice.
-**Bar #1 progress:** tutorial v1 step1 and the root step2 program configure through
+**Bar #1 progress:** tutorial v1 step1 through step3 root/math plus step4 root configure through
 tiny end-to-end via real cmake (project + cxx_standard + configure_file +
 add_executable + add_subdirectory + target_link_libraries +
-target_include_directories). Now widening toward full tutorial step parity and
+target_include_directories + option + statement-if + compile definitions +
+target_compile_features + generator-expression-shaped compile options).
+Now widening toward full tutorial step parity and
 bar #3 (bridge parity).
 
 This file is the short tracker to update after each step. Durable design context
@@ -98,7 +100,11 @@ live in [yelu_tiny_translate.ml] (which depends on both evaluators).
 Tests:
 
 ```text
-test/test-yelu/test_yelu_tiny_composition.ml
+test/test-yelu/yelu_tiny_test_helpers.ml
+test/test-yelu/test_yelu_tiny_lift_lower.ml
+test/test-yelu/test_yelu_tiny_bridge.ml
+test/test-yelu/test_yelu_tiny_steps.ml
+test/test-yelu/test_yelu_tiny_emit.ml
 test/test-yelu/test_yelu_cmake_parse.ml
 test/test-runcmake/test_yelu_tiny_cmake.ml
 ```
@@ -108,7 +114,7 @@ Implemented tiny fragments:
 | Area                 | Status                                                                                                                                                                                            |
 | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Core                 | Open `expr`, literals, `EVar`, `ESetVar`, `EUnsetVar`, `ESeq`, `VUnit` effects, `ELet { var; value; body }` (compile-time, lexically-scoped, immutable; option-A canonical let-expression)        |
-| Store                | Pure `EUnsetVar`/`EVarDefined`; CMake `ECmakeUnsetVar`/`ECmakeVarDefined`                                                                                                                         |
+| Store                | Pure `EUnsetVar`/`EVarDefined`; CMake `ECmakeUnsetVar`/`ECmakeVarDefined`/`ECmakeOption`                                                                                                          |
 | Bool/if              | Shared bool ops; CMake statement-if; Yelu expression-if                                                                                                                                           |
 | Int                  | Add, less-than, equality                                                                                                                                                                          |
 | String               | CMake output-var string ops and pure string ops                                                                                                                                                   |
@@ -116,7 +122,7 @@ Implemented tiny fragments:
 | Path                 | First path slice: set, filename, normalize                                                                                                                                                        |
 | File                 | First file-effect slice: abstract fs store plus `file(WRITE)`, `file(READ)`, `EXISTS` predicate, and `configure_file(input output)` (tiny copies content as-is, no `${var}` substitution)         |
 | Target Layer A       | `add_executable`, `add_library`, target value, `TARGET` predicate                                                                                                                                 |
-| Target Layer B       | `target_sources`, `target_link_libraries`, `target_include_directories`, `target_compile_definitions`, `target_compile_options`, `target_link_options`, `target_link_directories` with visibility |
+| Target Layer B       | `target_sources`, `target_link_libraries`, `target_include_directories`, `target_compile_definitions`, `target_compile_options`, `target_compile_features`, `target_link_options`, `target_link_directories` with visibility |
 | Build Layer C        | `add_custom_target` and `add_custom_command(OUTPUT ...)` with build-backed execution check                                                                                                        |
 | Install              | First slice: `install(TARGETS ...)` and `install(FILES ...)` with temp-prefix install check                                                                                                       |
 | CMake op             | First slice: `cmake_minimum_required(VERSION ...)`, `project(name [VERSION ...] [LANGUAGES ...])`, `message([MODE] "...")` with env state for project / cmake_min_version / messages                            |
@@ -195,8 +201,8 @@ eval $(opam env) && dune exec test/test-runcmake/test_yelu_tiny_cmake.exe
 Last verified state:
 
 ```text
-test/test-yelu/ passed (yelu_tiny_composition: 110 tests)
-test_yelu_tiny_cmake passed with 29 tests
+test/test-yelu/ passed (tiny split suites: 117 tests)
+test_yelu_tiny_cmake passed with 33 tests
 ```
 
 Verification tracks:
@@ -365,10 +371,11 @@ have at least a first slice through tiny. Genex stays deferred (delayed
 build-time values, separate research thread).
 
 **Bar #1 first milestone:** tutorial v1 step1 program now both bridges and
-configures through real cmake end-to-end. **Step2 root milestone:** tutorial
-v1 step2 root program now bridges and configures through real cmake with a
-minimal `MathFunctions` subdirectory fixture. The work surfaced these
-deepening points:
+configures through real cmake end-to-end. **Step2/Step3 milestone:** tutorial
+v1 step2 and step3 root/math programs plus step4 root now bridge and
+configure through real cmake. Root tests still use a minimal direct-CMake
+`MathFunctions` subdirectory fixture; the math subdirs are emitted from tiny.
+The work surfaced these deepening points:
 
 - `cmake_minimum_required` accepts a max version range (`3.20.0...3.20.0`);
   bridge currently drops the max.
@@ -426,21 +433,28 @@ order):
 1. **Step1 output equivalence (done).** With phases 2a + 2b in place,
    step1 emits cmake textually equivalent to the production yelu_compile
    output. Bar #1's first concrete equivalence point is reached.
-2. **Step2 root configure (done).** The root step2 program now bridges and
-   configures via tiny using a minimal direct-CMake `MathFunctions` subdir
-   fixture. Next useful step is to bridge the real `step2_math.ml` subdir;
-   that should surface option/cache variable and truthy-if semantics.
-3. **`configure_file` substitution.** Tiny copies content as-is; real
+2. **Step2 root + math configure (done).** The root step2 program now bridges
+   and configures via tiny using a minimal direct-CMake `MathFunctions`
+   subdir fixture. The real `step2_math.ml` subdir now also bridges and
+   configures via tiny. This added a first `option(...)` slice and validates
+   statement-if lowering through real CMake.
+3. **Step3 root + math configure (done).** This added `target_compile_features`
+   and validates the `tutorial_compiler_flags` interface-library pattern
+   through real CMake.
+4. **Step4 root configure (done).** Existing `target_compile_options` support
+   handled the compiler-warning block, including generator-expression-shaped
+   strings such as `$<${gcc_like_cxx}:...>` and `$<BUILD_INTERFACE:...>`.
+5. **`configure_file` substitution.** Tiny copies content as-is; real
    cmake substitutes `${var}` and `@VAR@` tokens. Tutorial steps depend
    on this for `TutorialConfig.h` to receive the project version.
-4. **Cache and option vars** — `set(VAR value CACHE ...)`, `option(...)`.
-   Tutorial steps use these heavily. Probably an extension to var/store
+6. **Cache and option vars** — `option(...)` first slice is done; `set(VAR
+   value CACHE ...)` is still pending. This remains an extension to var/store
    theory rather than a new theory.
-5. **`if` predicates beyond the basics** — file-existence, version
+7. **`if` predicates beyond the basics** — file-existence, version
    comparison, list-contains. cmake's condition language is large.
-6. **String/list deepening** — regex match/replace, list filter/transform,
+8. **String/list deepening** — regex match/replace, list filter/transform,
    based on what tutorial steps actually use.
-7. **`include(...)`** — adjacent to `add_subdirectory` but file-scoped
+9. **`include(...)`** — adjacent to `add_subdirectory` but file-scoped
    evaluation, no scope boundary. Tutorial steps use it for module loading.
 8. **`add_custom_command(TARGET ...)`** — pre/post-build hooks.
 8. **`install(EXPORT ...)`** and package config — install deepening.

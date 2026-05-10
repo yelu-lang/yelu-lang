@@ -78,6 +78,8 @@ let rec lift_yelu1_to_yelu2 = function
   (* CMake store surface -> Yelu store theory. *)
   | ECmakeUnsetVar name -> EUnsetVar name
   | ECmakeVarDefined name -> EVarDefined name
+  | ECmakeOption { name; value; _ } ->
+    ESetVar (name, lift_yelu1_to_yelu2 value)
 
   (* Shared bool theory. *)
   | ENot expr -> ENot (lift_yelu1_to_yelu2 expr)
@@ -160,6 +162,13 @@ let rec lift_yelu1_to_yelu2 = function
         target = lift_yelu1_to_yelu2 target;
         visibility;
         options_ = List.map options_ ~f:lift_yelu1_to_yelu2;
+      }
+  | ETargetCompileFeatures { target; visibility; features } ->
+    ETargetCompileFeatures
+      {
+        target = lift_yelu1_to_yelu2 target;
+        visibility;
+        features = List.map features ~f:lift_yelu1_to_yelu2;
       }
   | ETargetLinkOptions { target; visibility; options_ } ->
     ETargetLinkOptions
@@ -319,6 +328,17 @@ let rec lift_yelu1_to_yelu2 = function
           };
         EUnit;
       ]
+  | ECmakeTargetCompileFeatures { target; visibility; features } ->
+    ESeq
+      [
+        ETargetCompileFeatures
+          {
+            target = lift_yelu1_to_yelu2 target;
+            visibility;
+            features = List.map features ~f:lift_yelu1_to_yelu2;
+          };
+        EUnit;
+      ]
   | ECmakeTargetLinkOptions { target; visibility; options_ } ->
     ESeq
       [
@@ -426,6 +446,19 @@ let rec lift_yelu1_to_yelu2 = function
   | ECmakeMinimumRequired version -> EMinVersion version
   | ECmakeMessage { mode; texts } ->
     EMessage { mode; texts = List.map texts ~f:lift_yelu1_to_yelu2 }
+  | ECmakeFunction { name; args; body } ->
+    EFunction
+      {
+        name = lift_yelu1_to_yelu2 name;
+        args;
+        body = lift_yelu1_to_yelu2 body;
+      }
+  | ECmakeApply { name; args } ->
+    EApply
+      {
+        name = lift_yelu1_to_yelu2 name;
+        args = List.map args ~f:lift_yelu1_to_yelu2;
+      }
 
   (* CMake dir surface -> Yelu dir theory. *)
   | ECmakeAddSubdirectory path -> EAddSubdirectory (lift_yelu1_to_yelu2 path)
@@ -449,6 +482,14 @@ let rec lift_yelu1_to_yelu2 = function
   | ECmakeGetTargetProperty { var; target; property } ->
     EGetTargetProperty
       { var; target = lift_yelu1_to_yelu2 target; property }
+  | ECmakeSetTestsProperties { tests; properties } ->
+    ESetTestsProperties
+      {
+        tests = List.map tests ~f:lift_yelu1_to_yelu2;
+        properties =
+          List.map properties ~f:(fun (property, value) ->
+            property, lift_yelu1_to_yelu2 value);
+      }
 
   (* CMake find surface -> Yelu find theory. *)
   | ECmakeFindPackage { package_name; required } ->
@@ -613,6 +654,24 @@ let rec lower_yelu2_to_yelu1 = function
         target = lower_yelu2_to_yelu1 target;
         visibility;
         options_ = List.map options_ ~f:lower_yelu2_to_yelu1;
+      }
+  | ETargetCompileFeatures { target = ETarget name; visibility; features } ->
+    ESeq
+      [
+        ECmakeTargetCompileFeatures
+          {
+            target = ETarget name;
+            visibility;
+            features = List.map features ~f:lower_yelu2_to_yelu1;
+          };
+        ETarget name;
+      ]
+  | ETargetCompileFeatures { target; visibility; features } ->
+    ECmakeTargetCompileFeatures
+      {
+        target = lower_yelu2_to_yelu1 target;
+        visibility;
+        features = List.map features ~f:lower_yelu2_to_yelu1;
       }
   | ETargetLinkOptions { target = ETarget name; visibility; options_ } ->
     ESeq
@@ -780,6 +839,19 @@ let rec lower_yelu2_to_yelu1 = function
   | EMinVersion version -> ECmakeMinimumRequired version
   | EMessage { mode; texts } ->
     ECmakeMessage { mode; texts = List.map texts ~f:lower_yelu2_to_yelu1 }
+  | EFunction { name; args; body } ->
+    ECmakeFunction
+      {
+        name = lower_yelu2_to_yelu1 name;
+        args;
+        body = lower_yelu2_to_yelu1 body;
+      }
+  | EApply { name; args } ->
+    ECmakeApply
+      {
+        name = lower_yelu2_to_yelu1 name;
+        args = List.map args ~f:lower_yelu2_to_yelu1;
+      }
 
   (* Yelu dir theory -> CMake dir surface. *)
   | EAddSubdirectory path -> ECmakeAddSubdirectory (lower_yelu2_to_yelu1 path)
@@ -803,6 +875,14 @@ let rec lower_yelu2_to_yelu1 = function
   | EGetTargetProperty { var; target; property } ->
     ECmakeGetTargetProperty
       { var; target = lower_yelu2_to_yelu1 target; property }
+  | ESetTestsProperties { tests; properties } ->
+    ECmakeSetTestsProperties
+      {
+        tests = List.map tests ~f:lower_yelu2_to_yelu1;
+        properties =
+          List.map properties ~f:(fun (property, value) ->
+            property, lower_yelu2_to_yelu1 value);
+      }
 
   (* Yelu find theory -> CMake find surface. *)
   | EFindPackage { package_name; required } ->

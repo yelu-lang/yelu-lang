@@ -14,6 +14,7 @@ let provides =
     "target.include_directories";
     "target.compile_definitions";
     "target.compile_options";
+    "target.compile_features";
     "target.link_options";
     "target.link_directories";
     "target.custom_target";
@@ -32,6 +33,7 @@ type expr +=
   | ECmakeTargetIncludeDirectories of { target : expr; visibility : string; dirs : expr list }
   | ECmakeTargetCompileDefinitions of { target : expr; visibility : string; definitions : expr list }
   | ECmakeTargetCompileOptions of { target : expr; visibility : string; options_ : expr list }
+  | ECmakeTargetCompileFeatures of { target : expr; visibility : string; features : expr list }
   | ECmakeTargetLinkOptions of { target : expr; visibility : string; options_ : expr list }
   | ECmakeTargetLinkDirectories of { target : expr; visibility : string; dirs : expr list }
   | ECmakeAddCustomTarget of {
@@ -79,6 +81,10 @@ let eval_case ~eval env = function
     let env, target = eval_string ~eval env target in
     let env, options_ = eval_string_list ~eval env options_ in
     Some (add_target_compile_options env target ~visibility options_, VUnit)
+  | ECmakeTargetCompileFeatures { target; visibility; features } ->
+    let env, target = eval_string ~eval env target in
+    let env, features = eval_string_list ~eval env features in
+    Some (add_target_compile_features env target ~visibility features, VUnit)
   | ECmakeTargetLinkOptions { target; visibility; options_ } ->
     let env, target = eval_string ~eval env target in
     let env, options_ = eval_string_list ~eval env options_ in
