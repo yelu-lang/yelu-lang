@@ -65,6 +65,13 @@ and cond_atom expr =
 let rec emit_expr = function
   | EUnit -> []
   | ESeq exprs -> List.concat_map exprs ~f:emit_expr
+  (* Compile-time let-binding has no direct cmake construct; emit the body
+     and drop the binding. Phase-2 work: add a resolve pass that substitutes
+     EVar references inside [body] with [value] before emit, so let-bound
+     names actually thread through expression positions. For now, EVar
+     references to let-bound names emit as `${name}` (cmake runtime var
+     deref), which works only if the program also `set()`s that name. *)
+  | ELet { body; _ } -> emit_expr body
   | ESetVar (name, EList exprs) ->
     [ Fmt.str "set(%s %s)" name (String.concat ~sep:" " (List.map exprs ~f:arg)) ]
   | ESetVar (name, expr) -> [ Fmt.str "set(%s %s)" name (arg expr) ]

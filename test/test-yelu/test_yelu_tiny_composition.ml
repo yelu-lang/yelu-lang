@@ -534,6 +534,30 @@ let yelu1_to_yelu2 =
              ~targets:[ target "app" ]
              ~target_properties:[ "app", "OUTPUT_NAME", "myapp" ]
              [ "OUT", VString "myapp" ]);
+      check_yelu1_to_yelu2 "ELet binds inside body and scopes out after"
+        (ESeq [
+          ELet { var = "x"; value = EString "hello"; body = ESetVar ("OUT", EVar "x") };
+        ])
+        ~expected_value:VUnit
+        ~expected_env:
+          (env_of_bindings
+             (* `x` is gone after the let body completes. *)
+             [ "OUT", VString "hello" ]);
+      check_yelu1_to_yelu2 "ELet shadows an outer ESetVar binding inside body"
+        (ESeq [
+          ESetVar ("x", EString "outer");
+          ELet { var = "x";
+                 value = EString "inner";
+                 body = ESetVar ("INNER_VIEW", EVar "x") };
+          ESetVar ("OUTER_VIEW", EVar "x");
+        ])
+        ~expected_value:VUnit
+        ~expected_env:
+          (env_of_bindings
+             [ "x", VString "outer";
+               "INNER_VIEW", VString "inner";
+               "OUTER_VIEW", VString "outer";
+             ]);
       check_yelu1_to_yelu2 "find_package declaration"
         (ECmakeFindPackage { package_name = "Threads"; required = false })
         ~expected_value:VUnit
@@ -962,6 +986,13 @@ let yelu2_to_yelu1 =
              ~testing_enabled:true
              ~tests:[ { name = "smoke"; command = "/bin/true"; args = [] } ]
              []);
+      check_yelu2_to_yelu1 "ELet lower to cmake preserves scope"
+        (ELet
+           { var = "x";
+             value = EString "hello";
+             body = ESetVar ("OUT", EVar "x") })
+        ~expected_value:VUnit
+        ~expected_env:(env_of_bindings [ "OUT", VString "hello" ]);
       check_yelu2_to_yelu1 "find_package lower to cmake"
         (EFindPackage { package_name = "Threads"; required = true })
         ~expected_value:VUnit
@@ -1044,8 +1075,9 @@ let yelu_cmake_bridge =
         ~expected_value:VUnit
         ~expected_env:
           (env_of_bindings
+             (* `msg` is a let-binding, not a cmake set, so it's gone from
+                env.vars after the body completes. *)
              [
-               "msg", VString "hello";
                "TMP", VString "HELLO";
                "OUT", VString "value=HELLO";
                "RESULT", VString "value=HELLO";
@@ -1103,8 +1135,8 @@ let yelu_cmake_bridge =
         ~expected_value:VUnit
         ~expected_env:
           (env_of_bindings
+             (* `msg` scoped out after the body. *)
              [
-               "msg", VString "hello";
                "TMP", VString "HELLO";
                "OUT", VString "value=HELLO";
                "LEN", VInt 11;
@@ -1888,6 +1920,18 @@ let yelu_cmake_bridge =
              ~testing_enabled:true
              ~tests:[ { name = "smoke"; command = "/bin/true"; args = [ "--quiet" ] } ]
              []);
+      check_yelu_cmake_bridge_to_yelu1 "old Ylet bridges to ELet with rest as body"
+        (Old.Ystmt_list
+           [
+             Old.Ylet { var = Old.Yvar "msg"; value = old_str "scoped" };
+             Old.Ys_string
+               (Old.Ystr_toupper { string = old_var "msg"; out = old_cvar "OUT" });
+           ])
+        ~expected_value:VUnit
+        ~expected_env:
+          (* `msg` is gone after the body — proves it's an ELet, not an
+             ESetVar that would persist. *)
+          (env_of_bindings [ "OUT", VString "SCOPED" ]);
       check_yelu_cmake_bridge_to_yelu1 "old find_package bridge to Yelu1"
         (Old.Ys_find
            (Old.Yfind_package

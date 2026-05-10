@@ -55,6 +55,17 @@ module Yelu1 = struct
     | ESeq exprs ->
       List.fold exprs ~init:(env, VUnit) ~f:(fun (env, _last) expr ->
         eval_expr env expr)
+    | ELet { var; value; body } ->
+      let env, value = eval_expr env value in
+      let outer = find_var env var in
+      let env = set_var env ~key:var ~data:value in
+      let env, result = eval_expr env body in
+      let env =
+        match outer with
+        | Some v -> set_var env ~key:var ~data:v
+        | None -> remove_var env var
+      in
+      env, result
     | expr ->
       (match Yelu_theory_bool.eval_case ~eval:eval_expr env expr with
        | Some value -> value
@@ -129,6 +140,17 @@ module Yelu2 = struct
     | ESeq exprs ->
       List.fold exprs ~init:(env, VUnit) ~f:(fun (env, _last) expr ->
         eval_expr env expr)
+    | ELet { var; value; body } ->
+      let env, value = eval_expr env value in
+      let outer = find_var env var in
+      let env = set_var env ~key:var ~data:value in
+      let env, result = eval_expr env body in
+      let env =
+        match outer with
+        | Some v -> set_var env ~key:var ~data:v
+        | None -> remove_var env var
+      in
+      env, result
     | expr ->
       (match Yelu_theory_bool.eval_case ~eval:eval_expr env expr with
        | Some value -> value
@@ -188,6 +210,11 @@ let rec lift_yelu1_to_yelu2 = function
   | EUnsetVar name -> EUnsetVar name
   | EVarDefined name -> EVarDefined name
   | ESeq exprs -> ESeq (List.map exprs ~f:lift_yelu1_to_yelu2)
+  | ELet { var; value; body } ->
+    ELet
+      { var;
+        value = lift_yelu1_to_yelu2 value;
+        body = lift_yelu1_to_yelu2 body }
 
   (* CMake store surface -> Yelu store theory. *)
   | ECmakeUnsetVar name -> EUnsetVar name
@@ -902,6 +929,11 @@ let rec lower_yelu2_to_yelu1 = function
 
   | ESetVar (name, expr) -> ESetVar (name, lower_yelu2_to_yelu1 expr)
   | ESeq exprs -> ESeq (List.map exprs ~f:lower_yelu2_to_yelu1)
+  | ELet { var; value; body } ->
+    ELet
+      { var;
+        value = lower_yelu2_to_yelu1 value;
+        body = lower_yelu2_to_yelu1 body }
   | _ -> fail "cannot translate unknown Yelu2 expression"
 
 let cmake_string_to_better = lift_yelu1_to_yelu2

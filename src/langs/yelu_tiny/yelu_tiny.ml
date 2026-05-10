@@ -337,3 +337,8 @@ type expr +=
   | EUnit
   | ESetVar of string * expr
   | ESeq of expr list
+  (* Compile-time, lexically-scoped, immutable name binding (option A:
+     canonical let-expression). [body] is the binding's scope; once it's
+     evaluated the binding is gone. Distinct from ESetVar, which models
+     cmake's global/mutable [set()] and persists across the program. *)
+  | ELet of { var : string; value : expr; body : expr }

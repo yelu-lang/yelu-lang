@@ -394,7 +394,13 @@ let rec stmt : Old.yelu_stmt -> Yelu_tiny.expr = function
   | Ys_property prop_stmt -> property_statement prop_stmt
   | Ys_find find_stmt -> find_statement find_stmt
   | Ys_try try_stmt -> try_statement try_stmt
-  | Ylet { var = Yvar name; value } -> ESetVar (name, expr value)
+  (* Production [Ylet] is sequence-shaped (its scope is the rest of the
+     enclosing list). Tiny's [ELet] is expression-shaped. The conversion
+     happens in [stmts_to_expr] when handling [Ystmt_list]; a standalone
+     [Ylet] outside a sequence has no observable scope, so we emit an empty
+     [body] for completeness. *)
+  | Ylet { var = Yvar name; value } ->
+    ELet { var = name; value = expr value; body = EUnit }
   | Yif { cond; then_; else_ } ->
     Yelu_surface_cmake_if.ECmakeIfStmt
       {
@@ -402,5 +408,17 @@ let rec stmt : Old.yelu_stmt -> Yelu_tiny.expr = function
         then_ = stmt then_;
         else_ = Option.map else_ ~f:stmt;
       }
-  | Ystmt_list stmts -> ESeq (List.map stmts ~f:stmt)
+  | Ystmt_list stmts -> stmts_to_expr stmts
   | _ -> fail "unsupported yelu_cmake statement for Yelu1 bridge"
+
+(* Walk a statement list, recognising [Ylet] as an expression-let whose body
+   is the remainder of the list. Other statements are sequenced via [ESeq]
+   right-nested. Single-element lists collapse to that element. *)
+and stmts_to_expr = function
+  | [] -> EUnit
+  | [Old.Ylet { var = Yvar name; value }] ->
+    ELet { var = name; value = expr value; body = EUnit }
+  | Old.Ylet { var = Yvar name; value } :: rest ->
+    ELet { var = name; value = expr value; body = stmts_to_expr rest }
+  | [s] -> stmt s
+  | s :: rest -> ESeq [ stmt s; stmts_to_expr rest ]

@@ -97,7 +97,7 @@ Implemented tiny fragments:
 
 | Area                 | Status                                                                                                                                                                                            |
 | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Core                 | Open `expr`, literals, `EVar`, `ESetVar`, `EUnsetVar`, `ESeq`, `VUnit` effects                                                                                                                    |
+| Core                 | Open `expr`, literals, `EVar`, `ESetVar`, `EUnsetVar`, `ESeq`, `VUnit` effects, `ELet { var; value; body }` (compile-time, lexically-scoped, immutable; option-A canonical let-expression)        |
 | Store                | Pure `EUnsetVar`/`EVarDefined`; CMake `ECmakeUnsetVar`/`ECmakeVarDefined`                                                                                                                         |
 | Bool/if              | Shared bool ops; CMake statement-if; Yelu expression-if                                                                                                                                           |
 | Int                  | Add, less-than, equality                                                                                                                                                                          |
@@ -185,7 +185,7 @@ eval $(opam env) && dune exec test/test-runcmake/test_yelu_tiny_cmake.exe
 Last verified state:
 
 ```text
-test/test-yelu/ passed (yelu_tiny_composition: 102 tests)
+test/test-yelu/ passed (yelu_tiny_composition: 106 tests)
 test_yelu_tiny_cmake passed with 27 tests
 ```
 
@@ -338,14 +338,23 @@ deepening points:
   bridge currently drops the max.
 - `project(... VERSION ...)` accepted; version threaded through env state.
 - `configure_file(input output)` — first slice in file theory.
-- **Let-binding resolution gap.** Production yelu resolves
-  `let tut = "Tutorial"` at compile time so `add_executable(${tut} ...)`
-  emits `add_executable(Tutorial ...)`. Tiny's bridge maps
-  `Yexpr_var (Yvar "tut")` to the bare string "tut", producing
-  `add_executable(tut ...)`. Internally consistent (same string used
-  everywhere) but doesn't match production output. Workaround: tests can
-  use `ytval "Tutorial"` directly. Real fix: a Yelu1 let-binding
-  resolution pass before emit, or emit `${tut}` in target-name positions.
+- **`ELet` added as a core control-side feature.** Tiny's IR now has a
+  proper compile-time, lexically-scoped, immutable let-binding
+  (option A: canonical let-expression with an explicit `body`). Distinct
+  from `ESetVar`, which models cmake's mutable global `set()`. The two
+  binding mechanisms coexist (per Y15 design intent: lexical/immutable
+  vs global/mutable). The bridge converts production `Ylet` (sequence-shaped)
+  into `ELet { body = rest_of_seq }` via `stmts_to_expr`.
+- **Let-binding emit-time resolution remains.** `ELet` evaluates correctly
+  at the IR level (env extends/restores around body), but the bridge
+  collapses `Yexpr_var (Yvar "tut")` to a bare string "tut" via
+  `target_name`. Surface target-name fields are typed `string`, so
+  emit-time substitution can't replace the reference. Phase-2 work:
+  refactor surface target-name fields to `expr` plus add a resolve pass
+  that walks the IR with let context. Until then, step1 emits
+  `add_executable(tut ...)` instead of production's
+  `add_executable(Tutorial ...)`. Tests sidestep with `ytval "Tutorial"`
+  directly.
 
 Next we work toward **bar #1 (tutorial step parity)** and **bar #3 (bridge
 parity)** roughly in parallel:
@@ -362,9 +371,12 @@ parity)** roughly in parallel:
 Likely deepening targets surfaced by bars #1 / #3 (in rough dependency
 order):
 
-1. **Let-binding resolution.** Either a Yelu1 pre-emit pass or
-   `${var}` emission in target-name positions; required so step1's
-   `add_executable(${tut} ...)` emits `add_executable(Tutorial ...)`.
+1. **Let-binding emit-time resolution.** `ELet` is in the IR with correct
+   eval semantics; the remaining work is the resolve pass that substitutes
+   bound names through the body before emit. Requires refactoring surface
+   target-name fields from `string` to `expr` so substitution can reach
+   them. Required so step1's `add_executable(${tut} ...)` emits literally
+   `add_executable(Tutorial ...)` matching production yelu output.
 2. **`configure_file` substitution.** Tiny copies content as-is; real
    cmake substitutes `${var}` and `@VAR@` tokens. Tutorial steps depend
    on this for `TutorialConfig.h` to receive the project version.
