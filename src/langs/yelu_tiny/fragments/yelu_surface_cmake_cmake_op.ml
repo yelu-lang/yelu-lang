@@ -7,13 +7,13 @@ let requires = [ "core.string" ]
 let provides = [ "cmake_op.project"; "cmake_op.min_version"; "cmake_op.message" ]
 
 type expr +=
-  | ECmakeProject of { name : string; languages : string list }
+  | ECmakeProject of { name : string; languages : string list; version : string option }
   | ECmakeMinimumRequired of string
   | ECmakeMessage of { mode : string; texts : expr list }
 
 let eval_case ~eval env = function
-  | ECmakeProject { name; languages } ->
-    Some (set_project env { name; languages }, VUnit)
+  | ECmakeProject { name; languages; version } ->
+    Some (set_project env { name; languages; version }, VUnit)
   | ECmakeMinimumRequired version ->
     Some (set_cmake_min_version env version, VUnit)
   | ECmakeMessage { mode; texts } ->

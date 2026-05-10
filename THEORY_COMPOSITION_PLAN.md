@@ -1,8 +1,11 @@
 # Yelu Theory Composition Tracker
 
 Status: tiny composition harness in progress. **Bar #2 (theory breadth lite)
-reached** — all 14 production theories have at least a first slice. Now
-working toward bar #1 (tutorial step parity) and bar #3 (bridge parity).
+reached** — all 14 production theories have at least a first slice.
+**Bar #1 first milestone:** tutorial v1 step1 program configures through
+tiny end-to-end via real cmake (project + cxx_standard + configure_file +
+add_executable + target_include_directories). Now widening toward more
+tutorial steps and bar #3 (bridge parity).
 
 This file is the short tracker to update after each step. Durable design context
 lives in:
@@ -101,12 +104,12 @@ Implemented tiny fragments:
 | String               | CMake output-var string ops and pure string ops                                                                                                                                                   |
 | List                 | Pure list literal/append/get/length and CMake named-list ops                                                                                                                                      |
 | Path                 | First path slice: set, filename, normalize                                                                                                                                                        |
-| File                 | First file-effect slice: abstract fs store plus `file(WRITE)`, `file(READ)`, and `EXISTS` predicate                                                                                               |
+| File                 | First file-effect slice: abstract fs store plus `file(WRITE)`, `file(READ)`, `EXISTS` predicate, and `configure_file(input output)` (tiny copies content as-is, no `${var}` substitution)         |
 | Target Layer A       | `add_executable`, `add_library`, target value, `TARGET` predicate                                                                                                                                 |
 | Target Layer B       | `target_sources`, `target_link_libraries`, `target_include_directories`, `target_compile_definitions`, `target_compile_options`, `target_link_options`, `target_link_directories` with visibility |
 | Build Layer C        | `add_custom_target` and `add_custom_command(OUTPUT ...)` with build-backed execution check                                                                                                        |
 | Install              | First slice: `install(TARGETS ...)` and `install(FILES ...)` with temp-prefix install check                                                                                                       |
-| CMake op             | First slice: `cmake_minimum_required(VERSION ...)`, `project(name [LANGUAGES ...])`, `message([MODE] "...")` with env state for project / cmake_min_version / messages                            |
+| CMake op             | First slice: `cmake_minimum_required(VERSION ...)`, `project(name [VERSION ...] [LANGUAGES ...])`, `message([MODE] "...")` with env state for project / cmake_min_version / messages                            |
 | Dir                  | First slice: `add_subdirectory(path)` recorded in env.subdirectories; cmake-backed configure with a real subdir/CMakeLists.txt fixture                                                            |
 | Test                 | First slice: `enable_testing()` + `add_test(NAME ... COMMAND ...)`; env state for testing_enabled flag and tests list                                                                             |
 | Property             | First slice: `set_target_properties(target PROPERTIES key value)` and `get_target_property(var target property)`; env.target_properties as nested map; round-trip with cmake                      |
@@ -130,7 +133,8 @@ add_subdirectory,
 enable_testing, add_test,
 set_target_properties, get_target_property,
 find_package,
-try_compile
+try_compile,
+configure_file
 ```
 
 ## Production Theory Coverage Dashboard
@@ -181,8 +185,8 @@ eval $(opam env) && dune exec test/test-runcmake/test_yelu_tiny_cmake.exe
 Last verified state:
 
 ```text
-test/test-yelu/ passed (yelu_tiny_composition: 101 tests)
-test_yelu_tiny_cmake passed with 26 tests
+test/test-yelu/ passed (yelu_tiny_composition: 102 tests)
+test_yelu_tiny_cmake passed with 27 tests
 ```
 
 Verification tracks:
@@ -326,6 +330,23 @@ the next chapter.
 have at least a first slice through tiny. Genex stays deferred (delayed
 build-time values, separate research thread).
 
+**Bar #1 first milestone:** tutorial v1 step1 program now both bridges and
+configures through real cmake end-to-end. The work surfaced these
+deepening points:
+
+- `cmake_minimum_required` accepts a max version range (`3.20.0...3.20.0`);
+  bridge currently drops the max.
+- `project(... VERSION ...)` accepted; version threaded through env state.
+- `configure_file(input output)` — first slice in file theory.
+- **Let-binding resolution gap.** Production yelu resolves
+  `let tut = "Tutorial"` at compile time so `add_executable(${tut} ...)`
+  emits `add_executable(Tutorial ...)`. Tiny's bridge maps
+  `Yexpr_var (Yvar "tut")` to the bare string "tut", producing
+  `add_executable(tut ...)`. Internally consistent (same string used
+  everywhere) but doesn't match production output. Workaround: tests can
+  use `ytval "Tutorial"` directly. Real fix: a Yelu1 let-binding
+  resolution pass before emit, or emit `${tut}` in target-name positions.
+
 Next we work toward **bar #1 (tutorial step parity)** and **bar #3 (bridge
 parity)** roughly in parallel:
 
@@ -341,19 +362,24 @@ parity)** roughly in parallel:
 Likely deepening targets surfaced by bars #1 / #3 (in rough dependency
 order):
 
-1. **Cache and option vars** — `set(VAR value CACHE ...)`, `option(...)`.
+1. **Let-binding resolution.** Either a Yelu1 pre-emit pass or
+   `${var}` emission in target-name positions; required so step1's
+   `add_executable(${tut} ...)` emits `add_executable(Tutorial ...)`.
+2. **`configure_file` substitution.** Tiny copies content as-is; real
+   cmake substitutes `${var}` and `@VAR@` tokens. Tutorial steps depend
+   on this for `TutorialConfig.h` to receive the project version.
+3. **Cache and option vars** — `set(VAR value CACHE ...)`, `option(...)`.
    Tutorial steps use these heavily. Probably an extension to var/store
    theory rather than a new theory.
-2. **`if` predicates beyond the basics** — file-existence, version
+4. **`if` predicates beyond the basics** — file-existence, version
    comparison, list-contains. cmake's condition language is large.
-3. **String/list deepening** — regex match/replace, list filter/transform,
+5. **String/list deepening** — regex match/replace, list filter/transform,
    based on what tutorial steps actually use.
-4. **`include(...)`** — adjacent to `add_subdirectory` but file-scoped
+6. **`include(...)`** — adjacent to `add_subdirectory` but file-scoped
    evaluation, no scope boundary. Tutorial steps use it for module loading.
-5. **`configure_file`** — file theory deepening, very common in tutorials.
-6. **`add_custom_command(TARGET ...)`** — pre/post-build hooks.
-7. **`install(EXPORT ...)`** and package config — install deepening.
-8. **`target_precompile_headers`** and other visibility-list replays
+7. **`add_custom_command(TARGET ...)`** — pre/post-build hooks.
+8. **`install(EXPORT ...)`** and package config — install deepening.
+9. **`target_precompile_headers`** and other visibility-list replays
    if tutorial steps actually exercise them.
 
 Skip-for-now (axle 2):

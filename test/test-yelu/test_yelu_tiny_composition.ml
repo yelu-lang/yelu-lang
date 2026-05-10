@@ -486,13 +486,13 @@ let yelu1_to_yelu2 =
       check_yelu1_to_yelu2 "cmake_op project + minimum_required + message"
         (ESeq [
           ECmakeMinimumRequired "3.20";
-          ECmakeProject { name = "demo"; languages = [ "C" ] };
+          ECmakeProject { name = "demo"; languages = [ "C" ]; version = None };
           ECmakeMessage { mode = "STATUS"; texts = [ EString "hello" ] };
         ])
         ~expected_value:VUnit
         ~expected_env:
           (env_of_bindings
-             ~project:{ name = "demo"; languages = [ "C" ] }
+             ~project:{ name = "demo"; languages = [ "C" ]; version = None }
              ~cmake_min_version:"3.20"
              ~messages:[ { mode = "STATUS"; texts = [ "hello" ] } ]
              []);
@@ -928,13 +928,13 @@ let yelu2_to_yelu1 =
       check_yelu2_to_yelu1 "cmake_op project + min + message lower to cmake"
         (ESeq [
           EMinVersion "3.20";
-          EProject { name = "demo"; languages = [ "C" ] };
+          EProject { name = "demo"; languages = [ "C" ]; version = None };
           EMessage { mode = "STATUS"; texts = [ EString "hi" ] };
         ])
         ~expected_value:VUnit
         ~expected_env:
           (env_of_bindings
-             ~project:{ name = "demo"; languages = [ "C" ] }
+             ~project:{ name = "demo"; languages = [ "C" ]; version = None }
              ~cmake_min_version:"3.20"
              ~messages:[ { mode = "STATUS"; texts = [ "hi" ] } ]
              []);
@@ -1853,7 +1853,7 @@ let yelu_cmake_bridge =
         ~expected_value:VUnit
         ~expected_env:
           (env_of_bindings
-             ~project:{ name = "demo"; languages = [ "C" ] }
+             ~project:{ name = "demo"; languages = [ "C" ]; version = None }
              ~cmake_min_version:"3.20"
              ~messages:[ { mode = "STATUS"; texts = [ "hello" ] } ]
              []);
@@ -1949,6 +1949,52 @@ let yelu_cmake_bridge =
              [ "OUT", VString "myapp" ]);
     ] )
 
+(* Step1 bridge: drive a real production yelu_cmake AST (the tutorial v1 step1
+   program) through the tiny bridge and verify it emits CMakeLists.txt without
+   any "unsupported in Yelu1 bridge" failures. Stricter checks (env equality,
+   output equivalence) come later as the bridge matures. *)
+let step1_bridge =
+  let module Old = Yelu_langs.Lang_yelu_cmake in
+  let open Yelu_langs.Lang_yelu_utils in
+  let cmd : Old.yelu_stmt =
+    ycmd_of_list
+      (Step_common.project_preamble
+       @ Step_common.cxx_standard_11
+       @ [
+           ylet "tut" (ytval "Tutorial");
+           Step_common.configure_tutorial_header;
+           add_exe ~sources:[ yfile "tutorial.cxx" ] (yvar "tut");
+           include_dirs (yvar "tut")
+             [ ytarget_def [ dir Yelu_langs.Lang_yelu_utils.output_root ] ];
+         ])
+  in
+  ( "step1_bridge",
+    [
+      Alcotest.test_case "v1 step1 program bridges to Yelu1 and emits cmake"
+        `Quick
+        (fun () ->
+          let yelu1 = Yelu_langs.Yelu_cmake_to_yelu1.stmt cmd in
+          let cmake_text =
+            Yelu_langs.Yelu_tiny_cmake_emit.emit_script yelu1
+          in
+          Alcotest.(check bool) "non-empty cmake output"
+            true (String.length cmake_text > 0);
+          Alcotest.(check bool) "contains project()" true
+            (String.is_substring cmake_text ~substring:"project(Tutorial");
+          Alcotest.(check bool) "contains add_executable" true
+            (String.is_substring cmake_text ~substring:"add_executable(");
+          Alcotest.(check bool) "contains configure_file" true
+            (String.is_substring cmake_text ~substring:"configure_file(");
+          Alcotest.(check bool) "contains target_include_directories" true
+            (String.is_substring cmake_text
+               ~substring:"target_include_directories("));
+    ] )
+
 let () =
   Alcotest.run "yelu_tiny_composition"
-    [ yelu1_to_yelu2; yelu2_to_yelu1; yelu1_roundtrip; yelu_cmake_bridge ]
+    [ yelu1_to_yelu2;
+      yelu2_to_yelu1;
+      yelu1_roundtrip;
+      yelu_cmake_bridge;
+      step1_bridge;
+    ]

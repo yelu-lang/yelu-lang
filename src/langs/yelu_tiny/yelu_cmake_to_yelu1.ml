@@ -125,6 +125,8 @@ let file_statement : Old.yelu_file_io_stmt -> Yelu_tiny.expr = function
     fail "file(READ LIMIT) is outside the current Yelu1 bridge slice"
   | Yfile_read { hex = true; _ } ->
     fail "file(READ HEX) is outside the current Yelu1 bridge slice"
+  | Yfile_configure { input; output } ->
+    ECmakeConfigureFile { input = expr input; output = expr output }
   | _ -> fail "unsupported yelu_cmake file statement for Yelu1 bridge"
 
 let string_of_version (v : Lang_cmake.version) =
@@ -166,15 +168,16 @@ let string_of_message_mode : Lang_cmake.message_mode -> string = function
   | Mm_deprecation -> "DEPRECATION"
 
 let cmake_op_statement : Old.yelu_cmake_stmt -> Yelu_tiny.expr = function
-  | Ycmake_minimum_required { min; max = None } ->
+  | Ycmake_minimum_required { min; max = _ } ->
+    (* The optional max is currently dropped; the tiny env only tracks min. *)
     ECmakeMinimumRequired (string_of_version min)
-  | Ycmake_minimum_required { max = Some _; _ } ->
-    fail "cmake_minimum_required(...VERSION min...max) is outside the current Yelu1 bridge slice"
-  | Ycmake_project { name; version = None; languages } ->
+  | Ycmake_project { name; version; languages } ->
     ECmakeProject
-      { name; languages = List.map languages ~f:string_of_supported_lang }
-  | Ycmake_project { version = Some _; _ } ->
-    fail "project(VERSION ...) is outside the current Yelu1 bridge slice"
+      {
+        name;
+        languages = List.map languages ~f:string_of_supported_lang;
+        version = Option.map version ~f:string_of_version;
+      }
   | Ycmake_message { mode; texts } ->
     ECmakeMessage
       {

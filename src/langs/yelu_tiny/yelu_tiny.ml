@@ -102,6 +102,7 @@ type install_rule =
 type project_info = {
   name : string;
   languages : string list;
+  version : string option;
 }
 [@@deriving equal, sexp_of]
 

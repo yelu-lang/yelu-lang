@@ -7,7 +7,7 @@
 
 (executables
  (names test_list test_list2 test_list3 test_list4 test_string test_string2 test_string3 test_string_hex test_string_uuid test_string_json test_math test_while test_separate_arguments test_return test_message test_message2 test_function test_foreach test_foreach2 test_if test_set test_set_env test_configure test_yelu_tiny_cmake test_runcmake_compat test_runcmake_yelu test_cmake_commands demo_variable_watch)
- (libraries base alcotest yelu_langs yelu_runner))
+ (libraries base alcotest yelu_langs yelu_runner step_common))
 
 (rule
  (alias runcmake-test)

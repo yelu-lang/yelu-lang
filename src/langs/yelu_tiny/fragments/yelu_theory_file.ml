@@ -8,6 +8,7 @@ type expr +=
   | EFileWrite of { path : expr; content : expr }
   | EFileRead of expr
   | EFileExists of expr
+  | EConfigureFile of { input : expr; output : expr }
 
 let eval_string ~eval env expr =
   let env, value = eval env expr in
@@ -26,4 +27,15 @@ let eval_case ~eval env = function
   | EFileExists path ->
     let env, path = eval_string ~eval env path in
     Some (env, VBool (file_exists env path))
+  | EConfigureFile { input; output } ->
+    let env, input = eval_string ~eval env input in
+    let env, output = eval_string ~eval env output in
+    (* Tiny semantics: copy input content to output if available; otherwise
+       record an empty placeholder. Real cmake substitutes ${var} tokens. *)
+    let content =
+      match find_file env input with
+      | Some c -> c
+      | None -> ""
+    in
+    Some (set_file env ~path:output ~content, VUnit)
   | _ -> None

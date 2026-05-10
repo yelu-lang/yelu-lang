@@ -9,6 +9,7 @@ type expr +=
   | ECmakeFileWrite of { path : expr; content : expr list }
   | ECmakeFileRead of { path : expr; out : string }
   | ECmakeFileExists of expr
+  | ECmakeConfigureFile of { input : expr; output : expr }
 
 let eval_string ~eval env expr =
   let env, value = eval env expr in
@@ -33,4 +34,13 @@ let eval_case ~eval env = function
   | ECmakeFileExists path ->
     let env, path = eval_string ~eval env path in
     Some (env, VBool (file_exists env path))
+  | ECmakeConfigureFile { input; output } ->
+    let env, input = eval_string ~eval env input in
+    let env, output = eval_string ~eval env output in
+    let content =
+      match find_file env input with
+      | Some c -> c
+      | None -> ""
+    in
+    Some (set_file env ~path:output ~content, VUnit)
   | _ -> None

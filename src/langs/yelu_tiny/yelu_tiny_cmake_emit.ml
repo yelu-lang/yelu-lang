@@ -106,6 +106,8 @@ let rec emit_expr = function
     ]
   | ECmakeFileRead { path; out } ->
     [ Fmt.str "file(READ %s %s)" (arg path) out ]
+  | ECmakeConfigureFile { input; output } ->
+    [ Fmt.str "configure_file(%s %s)" (arg input) (arg output) ]
   | ECmakeAddExecutable { name; sources } ->
     [ Fmt.str "add_executable(%s %s)" name (String.concat ~sep:" " (List.map sources ~f:arg)) ]
   | ECmakeAddLibrary { name; type_; sources } ->
@@ -204,10 +206,17 @@ let rec emit_expr = function
        | [] -> []
        | lines -> "else()" :: List.map lines ~f:(fun line -> "  " ^ line))
     @ [ "endif()" ]
-  | ECmakeProject { name; languages = [] } ->
-    [ Fmt.str "project(%s)" name ]
-  | ECmakeProject { name; languages } ->
-    [ Fmt.str "project(%s LANGUAGES %s)" name (String.concat ~sep:" " languages) ]
+  | ECmakeProject { name; languages; version } ->
+    let parts =
+      [ name ]
+      @ (match version with
+         | None -> []
+         | Some v -> [ "VERSION"; v ])
+      @ (match languages with
+         | [] -> []
+         | langs -> "LANGUAGES" :: langs)
+    in
+    [ Fmt.str "project(%s)" (String.concat ~sep:" " parts) ]
   | ECmakeMinimumRequired version ->
     [ Fmt.str "cmake_minimum_required(VERSION %s)" version ]
   | ECmakeMessage { mode; texts } ->

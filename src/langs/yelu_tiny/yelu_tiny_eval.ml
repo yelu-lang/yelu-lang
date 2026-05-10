@@ -358,6 +358,9 @@ let rec lift_yelu1_to_yelu2 = function
     ESetVar (out, EFileRead (lift_yelu1_to_yelu2 path))
   | ECmakeFileExists path ->
     EFileExists (lift_yelu1_to_yelu2 path)
+  | ECmakeConfigureFile { input; output } ->
+    EConfigureFile
+      { input = lift_yelu1_to_yelu2 input; output = lift_yelu1_to_yelu2 output }
 
   (* CMake target surface -> Yelu target theory. Keep statement result as unit. *)
   | ECmakeAddExecutable { name; sources } ->
@@ -518,7 +521,8 @@ let rec lift_yelu1_to_yelu2 = function
       }
 
   (* CMake cmake_op surface -> Yelu cmake_op theory. *)
-  | ECmakeProject { name; languages } -> EProject { name; languages }
+  | ECmakeProject { name; languages; version } ->
+    EProject { name; languages; version }
   | ECmakeMinimumRequired version -> EMinVersion version
   | ECmakeMessage { mode; texts } ->
     EMessage { mode; texts = List.map texts ~f:lift_yelu1_to_yelu2 }
@@ -792,6 +796,9 @@ let rec lower_yelu2_to_yelu1 = function
     ECmakeFileRead { path = lower_yelu2_to_yelu1 path; out = name }
   | EFileExists path ->
     ECmakeFileExists (lower_yelu2_to_yelu1 path)
+  | EConfigureFile { input; output } ->
+    ECmakeConfigureFile
+      { input = lower_yelu2_to_yelu1 input; output = lower_yelu2_to_yelu1 output }
 
   (* Yelu target theory -> CMake target surface. *)
   | ESetVar (var, EExecutable { name = EString target_name; sources }) ->
@@ -853,7 +860,8 @@ let rec lower_yelu2_to_yelu1 = function
       }
 
   (* Yelu cmake_op theory -> CMake cmake_op surface. *)
-  | EProject { name; languages } -> ECmakeProject { name; languages }
+  | EProject { name; languages; version } ->
+    ECmakeProject { name; languages; version }
   | EMinVersion version -> ECmakeMinimumRequired version
   | EMessage { mode; texts } ->
     ECmakeMessage { mode; texts = List.map texts ~f:lower_yelu2_to_yelu1 }

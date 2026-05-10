@@ -398,6 +398,33 @@ let yelu2_configure_lowering =
           ESetVar ("OUT", EStringUpper (EString "yes"));
           EVar "OUT";
         ]);
+      check_yelu2_lowering_configure "step1 program configures via tiny bridge"
+        ~files:
+          [
+            "tutorial.cxx",
+              "int main(int argc, char**) { return argc - 1; }\n";
+            "TutorialConfig.h.in", "#define TUTORIAL_VERSION_MAJOR 1\n";
+          ]
+        (ESeq [
+          (let module Old = Yelu_langs.Lang_yelu_cmake in
+           let open Yelu_langs.Lang_yelu_utils in
+           let cmd : Old.yelu_stmt =
+             ycmd_of_list
+               (Step_common.project_preamble
+                @ Step_common.cxx_standard_11
+                @ [
+                    Step_common.configure_tutorial_header;
+                    add_exe ~sources:[ yfile "tutorial.cxx" ] (ytval "Tutorial");
+                    include_dirs (ytval "Tutorial")
+                      [ ytarget_def
+                          [ dir Yelu_langs.Lang_yelu_utils.output_root ] ];
+                  ])
+           in
+           Yelu_langs.Yelu_cmake_to_yelu1.stmt cmd
+           |> lift_yelu1_to_yelu2);
+          ESetVar ("OUT", EStringUpper (EString "yes"));
+          EVar "OUT";
+        ]);
     ] )
 
 let yelu2_build_lowering =
