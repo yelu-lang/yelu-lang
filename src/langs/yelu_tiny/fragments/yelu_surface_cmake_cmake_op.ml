@@ -4,14 +4,43 @@ open Yelu_theory_target
 
 let name = "tiny_cmake_cmake_op"
 let requires = [ "core.string" ]
-let provides = [ "cmake_op.project"; "cmake_op.min_version"; "cmake_op.message" ]
+let provides =
+  [ "cmake_op.project";
+    "cmake_op.min_version";
+    "cmake_op.message";
+    "cmake_op.function";
+    "cmake_op.apply";
+  ]
 
+(* Surface mirror of the cmake_op theory. [ECmakeFunction] / [ECmakeApply]
+   carry the same shape as their theory siblings and use the same
+   save/restore scope; the cmake-flavored prefix exists so that the
+   bridge from production [Yc_function] / [Yc_apply] lands cleanly here
+   without needing to lift before eval. *)
 type expr +=
   | ECmakeProject of { name : string; languages : string list; version : string option }
   | ECmakeMinimumRequired of string
   | ECmakeMessage of { mode : string; texts : expr list }
-  | ECmakeFunction of { name : expr; args : string list; body : expr }
+  | ECmakeFunction of { name : expr; params : string list; body : expr }
   | ECmakeApply of { name : expr; args : expr list }
+
+let bind_params env params arg_values =
+  match List.zip params arg_values with
+  | Ok pairs ->
+    List.fold pairs ~init:env ~f:(fun env (name, value) ->
+      set_var env ~key:name ~data:value)
+  | Unequal_lengths ->
+    fail
+      "apply: arity mismatch — function expects %d params, got %d args"
+      (List.length params) (List.length arg_values)
+
+let eval_args ~eval env args =
+  let env, rev_values =
+    List.fold args ~init:(env, []) ~f:(fun (env, acc) arg ->
+      let env, value = eval env arg in
+      env, value :: acc)
+  in
+  env, List.rev rev_values
 
 let eval_case ~eval env = function
   | ECmakeProject { name; languages; version } ->
@@ -21,6 +50,17 @@ let eval_case ~eval env = function
   | ECmakeMessage { mode; texts } ->
     let env, texts = eval_string_list ~eval env texts in
     Some (add_message env mode texts, VUnit)
-  | ECmakeFunction _ -> Some (env, VUnit)
-  | ECmakeApply _ -> Some (env, VUnit)
+  | ECmakeFunction { name; params; body } ->
+    let env, name = eval_string ~eval env name in
+    Some (set_function env name { params; body }, VUnit)
+  | ECmakeApply { name; args } ->
+    let env, name = eval_string ~eval env name in
+    (match find_function env name with
+     | None -> fail "apply to unknown function %S" name
+     | Some { params; body } ->
+       let env, arg_values = eval_args ~eval env args in
+       let saved_vars = env.vars in
+       let env = bind_params env params arg_values in
+       let env, result = eval env body in
+       Some ({ env with vars = saved_vars }, result))
   | _ -> None

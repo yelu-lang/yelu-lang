@@ -420,7 +420,9 @@ let rec stmt : Old.yelu_stmt -> Yelu_tiny.expr = function
   | Ys_try try_stmt -> try_statement try_stmt
   | Yc_extern_cvar _ | Yc_extern_target _ -> EUnit
   | Yc_function { name; args; body } ->
-    ECmakeFunction { name = command_name name; args; body = stmts_to_expr body }
+    (* In production [Yc_function], [args] is the formal parameter list. *)
+    ECmakeFunction
+      { name = command_name name; params = args; body = stmts_to_expr body }
   | Yc_apply { name; args } ->
     ECmakeApply { name = command_name name; args = List.map args ~f:expr }
   (* Production [Ylet] is sequence-shaped (its scope is the rest of the

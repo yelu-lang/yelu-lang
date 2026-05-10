@@ -1,0 +1,360 @@
+(* Tests for the cmake-style function theory in yelu_tiny.
+
+   These tests are written in "language / theory expansion" mode: instead
+   of feeding production yelu_cmake AST through the bridge, they construct
+   tiny IR directly and assert eval-time behavior. The goal is to pin
+   down the semantics of [EFunction] / [EApply] (and their cmake-flavored
+   surface twins [ECmakeFunction] / [ECmakeApply]) at the IR level,
+   independent of the bridge or emit pipeline.
+
+   F2 design choices being tested:
+
+   - Argument evaluation order: left-to-right, call-by-value (args are
+     fully evaluated before the body runs).
+   - Scope: *function-call scope* (cmake-style). On entry, save the
+     entire current [env.vars]. Bind params as fresh vars. Evaluate
+     body. On return, restore the saved [env.vars]. Side effects on
+     non-variable env state (targets, tests, install_rules, custom_*,
+     target_properties, messages, …) persist across the call.
+   - No closures / lexical capture at definition time. The body is
+     re-evaluated against the env at each call.
+   - Arity mismatch fails. Macros and ARGV/ARGC are deferred.
+
+   Observation strategy: function-call scope means that variables set
+   inside a function body do *not* leak to the caller. To observe what
+   a function actually did, these tests use side effects on non-variable
+   env state, primarily [env.messages] (via [ECmakeMessage]). Each
+   message records the texts passed at call time, which lets us check
+   "the function saw arg value X" without depending on var leakage. *)
+
+open Base
+open Yelu_langs.Yelu_tiny
+open Yelu_langs.Yelu_theory_cmake_op
+open Yelu_langs.Yelu_surface_cmake_target
+open Yelu_langs.Yelu_surface_cmake_cmake_op
+open Yelu_langs.Yelu_tiny_translate
+
+(* Helper: evaluate a Yelu1 program from empty env and return (env, value). *)
+let eval_from_empty expr = eval_yelu1_expr empty_env expr
+
+(* Helper: assert a specific exception substring fires. *)
+let expect_eval_error name expr ~substring =
+  Alcotest.test_case name `Quick (fun () ->
+    match eval_from_empty expr with
+    | exception Eval_error msg ->
+      Alcotest.(check bool)
+        (Printf.sprintf "Eval_error contains %S" substring)
+        true
+        (String.is_substring msg ~substring)
+    | _ ->
+      Alcotest.failf "expected Eval_error containing %S; eval succeeded" substring)
+
+(* Convenience: emit a probe message capturing one or more text values.
+   Uses the existing [ECmakeMessage] surface form. *)
+let probe_message texts = ECmakeMessage { mode = ""; texts }
+
+(* Convenience: extract the recorded message texts from an env in
+   declaration order (oldest first). *)
+let message_texts env =
+  List.map env.messages ~f:(fun m -> m.texts)
+
+(* --- Function definition records into env.functions. --- *)
+
+let function_definition_records_in_env =
+  Alcotest.test_case "function definition registers in env.functions" `Quick
+    (fun () ->
+      let prog =
+        ECmakeFunction
+          { name = EString "noop";
+            params = [];
+            body = EUnit }
+      in
+      let env, value = eval_from_empty prog in
+      Alcotest.(check bool) "result is VUnit" true (equal_value value VUnit);
+      Alcotest.(check bool) "function recorded under its name" true
+        (Option.is_some (find_function env "noop"));
+      Alcotest.(check bool) "no var side effect from definition alone" true
+        (Map.is_empty env.vars))
+
+(* --- Function call binds args; observed via message side effect. --- *)
+
+let function_call_binds_args =
+  Alcotest.test_case "applied function sees param values via probe" `Quick
+    (fun () ->
+      let prog =
+        ESeq
+          [ ECmakeFunction
+              { name = EString "echo";
+                params = [ "x" ];
+                body = probe_message [ EVar "x" ] };
+            ECmakeApply
+              { name = EString "echo"; args = [ EString "hello" ] };
+          ]
+      in
+      let env, _ = eval_from_empty prog in
+      Alcotest.(check (list (list string)))
+        "message captured the arg value at call time"
+        [ [ "hello" ] ] (message_texts env))
+
+(* --- Function-call scope: params don't leak after return. --- *)
+
+let function_params_do_not_leak =
+  Alcotest.test_case "function params are scoped out after call" `Quick
+    (fun () ->
+      let prog =
+        ESeq
+          [ ECmakeFunction
+              { name = EString "echo";
+                params = [ "x" ];
+                body = probe_message [ EVar "x" ] };
+            ECmakeApply
+              { name = EString "echo"; args = [ EString "hello" ] };
+          ]
+      in
+      let env, _ = eval_from_empty prog in
+      Alcotest.(check bool) "x is unbound after return" true
+        (Option.is_none (find_var env "x")))
+
+(* --- Function-call scope: vars set inside body don't leak. --- *)
+
+let function_local_vars_do_not_leak =
+  Alcotest.test_case "vars set inside function body are scoped out" `Quick
+    (fun () ->
+      let prog =
+        ESeq
+          [ ECmakeFunction
+              { name = EString "inner";
+                params = [];
+                body =
+                  ESeq
+                    [ ESetVar ("LOCAL", EString "scratch");
+                      probe_message [ EVar "LOCAL" ];
+                    ] };
+            ECmakeApply { name = EString "inner"; args = [] };
+          ]
+      in
+      let env, _ = eval_from_empty prog in
+      Alcotest.(check bool) "LOCAL is gone after call" true
+        (Option.is_none (find_var env "LOCAL"));
+      Alcotest.(check (list (list string)))
+        "the body did see LOCAL during the call"
+        [ [ "scratch" ] ] (message_texts env))
+
+(* --- Function-call scope: outer var shadowed by param, restored after. --- *)
+
+let function_shadowing_restores_outer =
+  Alcotest.test_case "param shadows outer var; outer restored after" `Quick
+    (fun () ->
+      let prog =
+        ESeq
+          [ ESetVar ("x", EString "outer");
+            ECmakeFunction
+              { name = EString "see_x";
+                params = [ "x" ];
+                body = probe_message [ EVar "x" ] };
+            ECmakeApply
+              { name = EString "see_x"; args = [ EString "inner" ] };
+          ]
+      in
+      let env, _ = eval_from_empty prog in
+      Alcotest.(check (list (list string)))
+        "param value (inner) was visible inside body"
+        [ [ "inner" ] ] (message_texts env);
+      Alcotest.(check bool) "x is restored to outer after return" true
+        (Poly.equal (find_var env "x") (Some (VString "outer"))))
+
+(* --- Function-call scope: non-variable env state leaks. --- *)
+
+let function_target_decls_leak_across_call =
+  Alcotest.test_case "target decls inside function persist after return"
+    `Quick (fun () ->
+      let prog =
+        ESeq
+          [ ECmakeFunction
+              { name = EString "declare_app";
+                params = [];
+                body =
+                  ECmakeAddExecutable
+                    { name = EString "app";
+                      sources = [ EString "main.c" ] };
+              };
+            ECmakeApply { name = EString "declare_app"; args = [] };
+          ]
+      in
+      let env, _ = eval_from_empty prog in
+      Alcotest.(check bool) "app target survives the call" true
+        (Option.is_some (find_target env "app")))
+
+(* --- Function-call scope: body reads caller's vars (cmake-style scope). --- *)
+
+let function_body_sees_callers_var =
+  Alcotest.test_case
+    "body sees variables bound by the caller (cmake-style scope)"
+    `Quick (fun () ->
+      let prog =
+        ESeq
+          [ ESetVar ("greeting", EString "hi");
+            ECmakeFunction
+              { name = EString "echo_greeting";
+                params = [];
+                body = probe_message [ EVar "greeting" ] };
+            ECmakeApply { name = EString "echo_greeting"; args = [] };
+          ]
+      in
+      let env, _ = eval_from_empty prog in
+      Alcotest.(check (list (list string)))
+        "function picked up the caller's `greeting`"
+        [ [ "hi" ] ] (message_texts env);
+      Alcotest.(check bool) "caller's `greeting` still bound after call" true
+        (Poly.equal (find_var env "greeting") (Some (VString "hi"))))
+
+(* --- Left-to-right call-by-value: args are fully evaluated before
+       the function body runs, in declaration order. --- *)
+
+let args_evaluated_left_to_right =
+  Alcotest.test_case "args evaluated left-to-right, call-by-value" `Quick
+    (fun () ->
+      let prog =
+        ESeq
+          [ ECmakeFunction
+              { name = EString "trace3";
+                params = [ "a"; "b"; "c" ];
+                body = probe_message [ EVar "a"; EVar "b"; EVar "c" ] };
+            ECmakeApply
+              { name = EString "trace3";
+                args =
+                  [ EString "first"; EString "second"; EString "third" ] };
+          ]
+      in
+      let env, _ = eval_from_empty prog in
+      Alcotest.(check (list (list string)))
+        "args bound to params in positional order"
+        [ [ "first"; "second"; "third" ] ] (message_texts env))
+
+(* --- Unknown function fails. --- *)
+
+let unknown_function_fails =
+  expect_eval_error "applying an unknown function fails with a useful message"
+    (ECmakeApply { name = EString "nope"; args = [] })
+    ~substring:"unknown function"
+
+(* --- Arity mismatch fails. --- *)
+
+let arity_mismatch_fails =
+  expect_eval_error "wrong number of args fails"
+    (ESeq
+       [ ECmakeFunction
+           { name = EString "needs_two";
+             params = [ "a"; "b" ];
+             body = EUnit };
+         ECmakeApply
+           { name = EString "needs_two"; args = [ EString "only_one" ] };
+       ])
+    ~substring:"arity mismatch"
+
+(* --- Re-definition: later definition wins (cmake redefines on duplicate). --- *)
+
+let redefining_function_overwrites =
+  Alcotest.test_case "redefining a function replaces the prior binding" `Quick
+    (fun () ->
+      let prog =
+        ESeq
+          [ ECmakeFunction
+              { name = EString "tag";
+                params = [];
+                body = probe_message [ EString "first" ] };
+            ECmakeFunction
+              { name = EString "tag";
+                params = [];
+                body = probe_message [ EString "second" ] };
+            ECmakeApply { name = EString "tag"; args = [] };
+          ]
+      in
+      let env, _ = eval_from_empty prog in
+      Alcotest.(check (list (list string)))
+        "second definition is the one that ran"
+        [ [ "second" ] ] (message_texts env))
+
+(* --- Yelu1 / Yelu2 round-trip preserves function semantics. --- *)
+
+let lift_lower_roundtrip_for_function =
+  (* Function definitions are stored in [env.functions] as IR bodies.
+     Lifting a Yelu1 program changes the body's surface form (e.g.
+     [ECmakeMessage] becomes [EMessage]), so the stored function decl
+     diverges structurally between Yelu1 and Yelu2 even when the program
+     is behaviorally equivalent. This test compares *observable*
+     side effects (messages, targets, vars) across the three eval
+     points instead of strict env equality. *)
+  Alcotest.test_case
+    "lift / lower preserves observable effects of a define-and-apply"
+    `Quick (fun () ->
+      let prog =
+        ESeq
+          [ ECmakeFunction
+              { name = EString "echo";
+                params = [ "x" ];
+                body = probe_message [ EVar "x" ] };
+            ECmakeApply
+              { name = EString "echo"; args = [ EString "hi" ] };
+          ]
+      in
+      let env_a, value_a = eval_yelu1_expr empty_env prog in
+      let lifted = lift_yelu1_to_yelu2 prog in
+      let env_b, value_b = eval_yelu2_expr empty_env lifted in
+      let lowered = lower_yelu2_to_yelu1 lifted in
+      let env_c, value_c = eval_yelu1_expr empty_env lowered in
+      Alcotest.(check bool) "lift preserves return value" true
+        (equal_value value_a value_b);
+      Alcotest.(check bool) "lower preserves return value" true
+        (equal_value value_a value_c);
+      Alcotest.(check (list (list string)))
+        "lift preserves observable messages"
+        (message_texts env_a) (message_texts env_b);
+      Alcotest.(check (list (list string)))
+        "lower preserves observable messages"
+        (message_texts env_a) (message_texts env_c))
+
+(* --- Theory-side: pure EFunction / EApply (no cmake prefix) work
+       under the Yelu2 evaluator with identical semantics. --- *)
+
+let theory_form_works =
+  Alcotest.test_case "EFunction / EApply (theory side) under Yelu2" `Quick
+    (fun () ->
+      let prog =
+        ESeq
+          [ EFunction
+              { name = EString "echo";
+                params = [ "x" ];
+                body = EMessage { mode = ""; texts = [ EVar "x" ] } };
+            EApply { name = EString "echo"; args = [ EString "theory" ] };
+          ]
+      in
+      let env, _ = eval_yelu2_expr empty_env prog in
+      Alcotest.(check (list (list string)))
+        "theory-side body captured arg via message"
+        [ [ "theory" ] ] (message_texts env);
+      Alcotest.(check bool) "theory-side params don't leak" true
+        (Option.is_none (find_var env "x")))
+
+let () =
+  Alcotest.run "yelu_tiny_function"
+    [ ( "definition_and_apply",
+        [ function_definition_records_in_env;
+          function_call_binds_args;
+          function_params_do_not_leak;
+          function_local_vars_do_not_leak;
+          function_shadowing_restores_outer;
+          function_target_decls_leak_across_call;
+          function_body_sees_callers_var;
+          args_evaluated_left_to_right;
+          redefining_function_overwrites;
+        ] );
+      ( "errors",
+        [ unknown_function_fails;
+          arity_mismatch_fails;
+        ] );
+      ( "translate_and_theory_side",
+        [ lift_lower_roundtrip_for_function;
+          theory_form_works;
+        ] );
+    ]

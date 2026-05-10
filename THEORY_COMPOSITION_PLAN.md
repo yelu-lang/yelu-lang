@@ -3,15 +3,16 @@
 Status: tiny composition harness in progress. **Bar #2 (theory breadth lite)
 reached** — all 14 production theories have at least a first slice.
 **Bar #1 progress:** tutorial v1 step1 through step5 bridge through tiny
-and (with the caveat that step5 function semantics emit-only) configure
-through real cmake. Constructs covered include project + cxx_standard +
-configure_file + add_executable + add_subdirectory +
+and configure through real cmake. Constructs covered include project +
+cxx_standard + configure_file + add_executable + add_subdirectory +
 target_link_libraries + target_include_directories + option +
 statement-if + compile definitions + target_compile_features +
 generator-expression-shaped compile options + add_test +
-set_tests_properties (emit-only). Function definition + apply are
-emit-only pending the F2 function-theory implementation. Step6–12 plan
-out as the breadth-first tier list under "Next Steps".
+set_tests_properties (emit-only). **Function definition + apply now
+have proper cmake-style function-call scope (F2 done) — tiny eval
+correctly tracks function registration, param binding, scoped variable
+restoration, and persistence of non-var effects.** Step6–12 plan out
+as the breadth-first tier list under "Next Steps".
 
 This file is the short tracker to update after each step. Durable design context
 lives in:
@@ -108,6 +109,7 @@ test/test-yelu/test_yelu_tiny_lift_lower.ml
 test/test-yelu/test_yelu_tiny_bridge.ml
 test/test-yelu/test_yelu_tiny_steps.ml
 test/test-yelu/test_yelu_tiny_emit.ml
+test/test-yelu/test_yelu_tiny_function.ml
 test/test-yelu/test_yelu_cmake_parse.ml
 test/test-runcmake/test_yelu_tiny_cmake.ml
 ```
@@ -204,8 +206,8 @@ eval $(opam env) && dune exec test/test-runcmake/test_yelu_tiny_cmake.exe
 Last verified state:
 
 ```text
-test/test-yelu/ passed (tiny split suites: 119 tests
-  = 43 bridge + 65 lift_lower + 3 emit + 8 steps)
+test/test-yelu/ passed (tiny split suites: 132 tests
+  = 43 bridge + 65 lift_lower + 3 emit + 8 steps + 13 function)
 test_yelu_tiny_cmake passed with 35 tests
 ```
 
@@ -445,11 +447,13 @@ parity)** roughly in parallel:
   including genex-shaped strings such as `$<${gcc_like_cxx}:...>` and
   `$<BUILD_INTERFACE:...>`. Step4 math has bridge but not configure
   (pending compile_definitions in custom-target arguments).
-- **Step5 root + math** — bridge + configure pass. Important caveat:
-  `function()` and apply emit correctly so real cmake handles them,
-  but **tiny eval has no notion of function definition / call**.
-  Step5's `test_suite` calls go through emit but not through tiny's
-  interpreter. The F2 function-theory design below closes that gap.
+- **Step5 root + math** — bridge + configure pass. **F2 function theory
+  is done:** `function()` and `apply` definitions now register in
+  `env.functions`, applications bind params, evaluate the body under
+  function-call scope, and restore vars on return. Step5's `test_suite`
+  function calls are now correctly simulated end-to-end (not just
+  emit-correct). Dedicated theory-expansion tests live in
+  `test/test-yelu/test_yelu_tiny_function.ml`.
 
 ### Breadth-first tier list for steps 6–12
 
@@ -472,14 +476,12 @@ strengthen eval as needed.
 Total: roughly 7–10 incremental slices, each 30–100 lines. None large
 individually.
 
-### The function theory (F2 — decided, on-demand implementation)
+### The function theory (F2 — done)
 
-`ECmakeFunction` / `ECmakeApply` currently exist in the IR but their
-eval is a no-op (defined since the Codex session that landed step5).
-We've decided to give them proper semantics in the tiny core, on-demand
-as more step tests exercise them.
+`EFunction` / `EApply` (theory) and `ECmakeFunction` / `ECmakeApply`
+(surface) are now first-class core constructs with proper semantics.
 
-**Decision (F2):**
+**Decisions, all in place:**
 
 - **First-class control-side feature.** Functions live in the tiny core
   next to `ELet`, available to all packs (not just the cmake-pack).
@@ -488,18 +490,37 @@ as more step tests exercise them.
   function theory whose scope design we haven't yet settled.
 - **Argument evaluation:** left-to-right, call-by-value (args fully
   evaluated before the function body runs).
-- **Scope:** cmake-style — on function entry, save the entire current
-  variable scope; bind params as fresh vars; evaluate body; on return,
-  restore the saved variable scope. *Side effects on non-variable env
-  state (targets, tests, install_rules, custom_targets, …) persist
-  across the call.* This is what cmake's `function()` does in practice.
-  Calling this "dynamic scope" is technically OK but the implementation
-  is closer to **save/restore around the call frame**; PLAN/code uses
-  the more descriptive name *function-call scope*.
+- **Scope (cmake-style "function-call scope"):** on function entry, the
+  entire current variable scope is saved; params are bound as fresh
+  vars; the body is evaluated in the extended env; on return the saved
+  variable scope is restored. *Side effects on non-variable env state
+  (targets, tests, install_rules, custom_targets, target_properties,
+  messages, …) persist across the call.* "Dynamic scope" is a fine
+  one-word label but the implementation is closer to
+  **save/restore around the call frame** and we use the name
+  *function-call scope* in code comments.
 - **Macros and ARGV/ARGC:** deferred. `macro()` is textual substitution
   with no scope frame; `ARGV` / `ARGC` / `ARGN` are positional argument
   reflection. Neither is needed for tutorial step parity in v1 of the
   cmake tutorial; record them and revisit if step tests fail.
+
+**Implementation pointers:**
+
+- `function_decl = { params : string list; body : expr }` lives in
+  [yelu_tiny.ml]; equality is manual (the body is the open expr).
+- `env.functions : function_decl Map.M(String).t` is in the
+  configure-time script-state group, with helpers `set_function`
+  / `find_function`.
+- Eval lives in both [yelu_theory_cmake_op.ml] (EFunction/EApply) and
+  [yelu_surface_cmake_cmake_op.ml] (ECmake*). They share the same
+  scope mechanics via local `bind_params` / `eval_args` helpers.
+- Observability gotcha: at the IR level, the function's body is stored
+  in different surface forms by Yelu1 (ECmake*) and Yelu2 (E*) — that
+  divergence is *behaviorally* irrelevant but breaks strict
+  `equal_env`. The dedicated function tests in
+  [test_yelu_tiny_function.ml] use side effects on `env.messages` to
+  observe function behavior without depending on var leakage or on
+  internal storage.
 
 ### Skip-for-now (axle 2)
 

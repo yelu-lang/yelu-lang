@@ -275,13 +275,13 @@ let rec emit_expr_impl ~env e =
     [ Fmt.str "message(%s%s)"
         mode_part
         (String.concat ~sep:" " (List.map texts ~f:arg)) ]
-  | ECmakeFunction { name; args; body } ->
+  | ECmakeFunction { name; params; body } ->
     let body_lines = emit_expr body in
     [ Fmt.str "function(%s%s)"
         (target_arg name)
-        (match args with
+        (match params with
          | [] -> ""
-         | args -> " " ^ String.concat ~sep:" " args)
+         | params -> " " ^ String.concat ~sep:" " params)
     ]
     @ List.map body_lines ~f:(fun line -> "  " ^ line)
     @ [ "endfunction()" ]

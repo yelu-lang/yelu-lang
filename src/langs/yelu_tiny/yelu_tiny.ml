@@ -138,6 +138,26 @@ type try_compile_decl = {
 }
 [@@deriving equal, sexp_of]
 
+(* A function declaration: formal parameter names plus the body to
+   re-evaluate at each call site. Body is an [expr] and the extensible
+   sum can't derive equality automatically, so [equal_function_decl]
+   and [sexp_of_function_decl] are defined manually below (polymorphic
+   equal on the body is acceptable for test fixture comparison). *)
+type function_decl = {
+  params : string list;
+  body : expr;
+}
+
+let equal_function_decl (a : function_decl) (b : function_decl) =
+  List.equal String.equal a.params b.params
+  && Poly.equal a.body b.body
+
+let sexp_of_function_decl (d : function_decl) =
+  Sexp.List
+    [ Sexp.List (List.map d.params ~f:(fun s -> Sexp.Atom s))
+    ; Sexp.Atom "<body>"
+    ]
+
 type value =
   | VString of string
   | VBool of bool
@@ -173,6 +193,7 @@ type env = {
   (* Configure-time: script state. *)
   vars : value Map.M(String).t;
   files : string Map.M(String).t;
+  functions : function_decl Map.M(String).t;
 
   (* Configure-time: declarations / diagnostics. *)
   project : project_info option;
@@ -199,6 +220,7 @@ let empty_env : env =
     (* Configure-time: script state. *)
     vars = Map.empty (module String);
     files = Map.empty (module String);
+    functions = Map.empty (module String);
 
     (* Configure-time: declarations / diagnostics. *)
     project = None;
@@ -224,6 +246,7 @@ let equal_env left right =
   (* Configure-time: script state. *)
   Map.equal equal_value left.vars right.vars
   && Map.equal String.equal left.files right.files
+  && Map.equal equal_function_decl left.functions right.functions
   (* Configure-time: declarations / diagnostics. *)
   && Option.equal equal_project_info left.project right.project
   && Option.equal String.equal left.cmake_min_version right.cmake_min_version
@@ -273,6 +296,11 @@ let set_file env ~path ~content =
 
 let file_exists env path =
   Map.mem env.files path
+
+let find_function env name = Map.find env.functions name
+
+let set_function env name decl =
+  { env with functions = Map.set env.functions ~key:name ~data:decl }
 
 let find_target env name = Map.find env.targets name
 

@@ -43,6 +43,7 @@ let env_of_bindings
       ?(target_properties = [])
       ?(find_packages = [])
       ?(try_compiles = [])
+      ?(functions = [])
       bindings =
   let env =
     List.fold bindings ~init:empty_env ~f:(fun env (key, data) ->
@@ -73,7 +74,9 @@ let env_of_bindings
       set_target_property env ~target ~property ~value)
   in
   let env = List.fold find_packages ~init:env ~f:add_find_package in
-  List.fold try_compiles ~init:env ~f:add_try_compile
+  let env = List.fold try_compiles ~init:env ~f:add_try_compile in
+  List.fold functions ~init:env ~f:(fun env (name, decl) ->
+    set_function env name decl)
 
 let old_cvar name : Old.tc_name = { ns = Old.Ns_var; name }
 let old_str s = Old.Yexpr_string (Old.Ycs_string s)

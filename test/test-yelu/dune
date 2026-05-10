@@ -7,7 +7,8 @@
   test_yelu_tiny_lift_lower
   test_yelu_tiny_bridge
   test_yelu_tiny_steps
-  test_yelu_tiny_emit)
+  test_yelu_tiny_emit
+  test_yelu_tiny_function)
  (libraries base alcotest angstrom yelu_langs step_common)
  (preprocess
   (pps ppx_jane)))
