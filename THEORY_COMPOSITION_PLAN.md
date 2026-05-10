@@ -2,13 +2,16 @@
 
 Status: tiny composition harness in progress. **Bar #2 (theory breadth lite)
 reached** — all 14 production theories have at least a first slice.
-**Bar #1 progress:** tutorial v1 step1 through step3 root/math plus step4 root configure through
-tiny end-to-end via real cmake (project + cxx_standard + configure_file +
-add_executable + add_subdirectory + target_link_libraries +
-target_include_directories + option + statement-if + compile definitions +
-target_compile_features + generator-expression-shaped compile options).
-Now widening toward full tutorial step parity and
-bar #3 (bridge parity).
+**Bar #1 progress:** tutorial v1 step1 through step5 bridge through tiny
+and (with the caveat that step5 function semantics emit-only) configure
+through real cmake. Constructs covered include project + cxx_standard +
+configure_file + add_executable + add_subdirectory +
+target_link_libraries + target_include_directories + option +
+statement-if + compile definitions + target_compile_features +
+generator-expression-shaped compile options + add_test +
+set_tests_properties (emit-only). Function definition + apply are
+emit-only pending the F2 function-theory implementation. Step6–12 plan
+out as the breadth-first tier list under "Next Steps".
 
 This file is the short tracker to update after each step. Durable design context
 lives in:
@@ -201,8 +204,9 @@ eval $(opam env) && dune exec test/test-runcmake/test_yelu_tiny_cmake.exe
 Last verified state:
 
 ```text
-test/test-yelu/ passed (tiny split suites: 117 tests)
-test_yelu_tiny_cmake passed with 33 tests
+test/test-yelu/ passed (tiny split suites: 119 tests
+  = 43 bridge + 65 lift_lower + 3 emit + 8 steps)
+test_yelu_tiny_cmake passed with 35 tests
 ```
 
 Verification tracks:
@@ -427,49 +431,90 @@ parity)** roughly in parallel:
   one suite at a time. Each failing test names a missing constructor or
   shape. Same pattern — deepen as needed, no speculative coverage.
 
-Likely deepening targets surfaced by bars #1 / #3 (in rough dependency
-order):
+### Steps achieved (Bar #1)
 
-1. **Step1 output equivalence (done).** With phases 2a + 2b in place,
-   step1 emits cmake textually equivalent to the production yelu_compile
-   output. Bar #1's first concrete equivalence point is reached.
-2. **Step2 root + math configure (done).** The root step2 program now bridges
-   and configures via tiny using a minimal direct-CMake `MathFunctions`
-   subdir fixture. The real `step2_math.ml` subdir now also bridges and
-   configures via tiny. This added a first `option(...)` slice and validates
-   statement-if lowering through real CMake.
-3. **Step3 root + math configure (done).** This added `target_compile_features`
-   and validates the `tutorial_compiler_flags` interface-library pattern
-   through real CMake.
-4. **Step4 root configure (done).** Existing `target_compile_options` support
-   handled the compiler-warning block, including generator-expression-shaped
-   strings such as `$<${gcc_like_cxx}:...>` and `$<BUILD_INTERFACE:...>`.
-5. **`configure_file` substitution.** Tiny copies content as-is; real
-   cmake substitutes `${var}` and `@VAR@` tokens. Tutorial steps depend
-   on this for `TutorialConfig.h` to receive the project version.
-6. **Cache and option vars** — `option(...)` first slice is done; `set(VAR
-   value CACHE ...)` is still pending. This remains an extension to var/store
-   theory rather than a new theory.
-7. **`if` predicates beyond the basics** — file-existence, version
-   comparison, list-contains. cmake's condition language is large.
-8. **String/list deepening** — regex match/replace, list filter/transform,
-   based on what tutorial steps actually use.
-9. **`include(...)`** — adjacent to `add_subdirectory` but file-scoped
-   evaluation, no scope boundary. Tutorial steps use it for module loading.
-8. **`add_custom_command(TARGET ...)`** — pre/post-build hooks.
-8. **`install(EXPORT ...)`** and package config — install deepening.
-9. **`target_precompile_headers`** and other visibility-list replays
-   if tutorial steps actually exercise them.
+- **Step1** — bridges and configures equivalently to production
+  `yelu_compile` output.
+- **Step2 root + math** — bridge + cmake-backed configure. Added first
+  `option(...)` slice; validates statement-if lowering through real CMake.
+- **Step3 root + math** — bridge + configure. Added
+  `target_compile_features`; validates the
+  `tutorial_compiler_flags` interface-library pattern.
+- **Step4 root** — bridge + configure. Existing
+  `target_compile_options` handled the compiler-warning block,
+  including genex-shaped strings such as `$<${gcc_like_cxx}:...>` and
+  `$<BUILD_INTERFACE:...>`. Step4 math has bridge but not configure
+  (pending compile_definitions in custom-target arguments).
+- **Step5 root + math** — bridge + configure pass. Important caveat:
+  `function()` and apply emit correctly so real cmake handles them,
+  but **tiny eval has no notion of function definition / call**.
+  Step5's `test_suite` calls go through emit but not through tiny's
+  interpreter. The F2 function-theory design below closes that gap.
 
-Skip-for-now (axle 2):
+### Breadth-first tier list for steps 6–12
+
+Each tier is the smallest representative slice that gets the step to
+bridge + configure through real cmake. We don't simulate runtime
+semantics deeply unless eval-side tests fail. Follow the pattern that
+worked for steps 1–5: bridge first, configure-test second, then
+strengthen eval as needed.
+
+| Tier | Target step(s) | New work |
+| --- | --- | --- |
+| **A** | step6, step6_ctest | `include(FILE_OR_MODULE)` — first slice: record name in env, emit faithfully. Used for `include(CTest)`, `include(CPack)`, local module files. |
+| **B** | step7, step7_math | Already covered by stub `yc_apply` to non-defined names (cmake built-in modules like `check_cxx_source_compiles`). May need eval-side fix when F2 lands. |
+| **C** | step8_table | `add_custom_command(TARGET ...)` — pre/post-build hook variant. Distinct from the existing `OUTPUT` form. |
+| **D** | step9, step10 | `cpack_basic` extras + `shared_libs_output_dirs` — mostly `yc_set` to cache vars (already works) plus the Tier A `include()`. |
+| **E** | step11, step11_config | `yc_at_var "PACKAGE_INIT"` — emit-only literal injection. |
+| **F** | step12, step12_math | The package-config family: `install(EXPORT)`, `export(EXPORT)`, `configure_package_config_file`, `write_basic_package_version_file`. Each is a single keyword-arg command with a dedicated surface constructor; emit faithfully; stub eval initially. |
+| **G** | orthogonal cleanup | `ECmakeOption` eval through `eval` (currently ad-hoc match); `ECmakeSetTestsProperties` eval through a new env namespace; `set_property(TARGET ...)` as older sibling of `set_target_properties`. |
+
+Total: roughly 7–10 incremental slices, each 30–100 lines. None large
+individually.
+
+### The function theory (F2 — decided, on-demand implementation)
+
+`ECmakeFunction` / `ECmakeApply` currently exist in the IR but their
+eval is a no-op (defined since the Codex session that landed step5).
+We've decided to give them proper semantics in the tiny core, on-demand
+as more step tests exercise them.
+
+**Decision (F2):**
+
+- **First-class control-side feature.** Functions live in the tiny core
+  next to `ELet`, available to all packs (not just the cmake-pack).
+  This opens the door later to a cmake `macro()` slice (textual
+  substitution; different lifecycle) and to a separate functional-style
+  function theory whose scope design we haven't yet settled.
+- **Argument evaluation:** left-to-right, call-by-value (args fully
+  evaluated before the function body runs).
+- **Scope:** cmake-style — on function entry, save the entire current
+  variable scope; bind params as fresh vars; evaluate body; on return,
+  restore the saved variable scope. *Side effects on non-variable env
+  state (targets, tests, install_rules, custom_targets, …) persist
+  across the call.* This is what cmake's `function()` does in practice.
+  Calling this "dynamic scope" is technically OK but the implementation
+  is closer to **save/restore around the call frame**; PLAN/code uses
+  the more descriptive name *function-call scope*.
+- **Macros and ARGV/ARGC:** deferred. `macro()` is textual substitution
+  with no scope frame; `ARGV` / `ARGC` / `ARGN` are positional argument
+  reflection. Neither is needed for tutorial step parity in v1 of the
+  cmake tutorial; record them and revisit if step tests fail.
+
+### Skip-for-now (axle 2)
 
 - `Stage_typecheck` / `Stage_wellform` passes on the tiny core.
 - Typed visibility, typed library kind.
-- Generator expressions as delayed values.
+- Generator expressions as delayed values (currently flow as opaque
+  `EString`s via `Ycs_eval`; real cmake handles them at generate time).
 - Fragment-owned parser composition.
-- Subdirectory scope enforcement (currently `add_subdirectory` records but
-  does not isolate var/target scopes).
+- Subdirectory scope enforcement (currently `add_subdirectory` records
+  but does not isolate var/target scopes).
 - Property scope expansion beyond target (global / source / test / cache).
+- `set(VAR value CACHE ...)` cache semantics — `option(...)` first slice
+  records value as a normal var.
+- A purer functional-style function theory parallel to the cmake-style
+  one (Y15 design space; revisit after F2 is in production).
 
 ## Deferred Topics
 
