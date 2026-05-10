@@ -78,12 +78,21 @@ through Yelu1/Yelu2 and the existing production CMake test corpus still passes.
 Main files:
 
 ```text
-src/langs/yelu_tiny/yelu_tiny.ml
-src/langs/yelu_tiny/yelu_tiny_eval.ml
-src/langs/yelu_tiny/yelu_tiny_cmake_emit.ml
-src/langs/yelu_tiny/yelu_cmake_to_yelu1.ml
-src/langs/yelu_tiny/fragments/
+src/langs/yelu_tiny/yelu_tiny.ml            (* IR, env, core constructors *)
+src/langs/yelu_tiny/yelu_tiny_yelu1.ml      (* Yelu1 evaluator *)
+src/langs/yelu_tiny/yelu_tiny_yelu2.ml      (* Yelu2 evaluator *)
+src/langs/yelu_tiny/yelu_tiny_translate.ml  (* lift / lower + public API *)
+src/langs/yelu_tiny/yelu_tiny_cmake_emit.ml (* emit with env-resolve *)
+src/langs/yelu_tiny/yelu_cmake_to_yelu1.ml  (* bridge from old AST *)
+src/langs/yelu_tiny/fragments/              (* per-theory + per-surface modules *)
 ```
+
+The split between Yelu1 / Yelu2 / translate emerged once the original
+[yelu_tiny_eval.ml] grew past 900 lines mixing four responsibilities;
+keeping the evaluators isolated makes it easy to see which fragments
+contribute to which bundle. The public symbols [eval_yelu1_expr],
+[eval_yelu2_expr], [lift_yelu1_to_yelu2], [lower_yelu2_to_yelu1] all
+live in [yelu_tiny_translate.ml] (which depends on both evaluators).
 
 Tests:
 
@@ -203,56 +212,80 @@ Verification tracks:
 
 ## Current Design State
 
-The target theory now uses a structured environment instead of reserved variable
-keys:
+The interpreter env mixes state belonging to different cmake phases.
+Today it is kept flat for evaluation simplicity; the comment groups in
+[yelu_tiny.ml] mark the intended phase so a future refactor can move
+each field next to its own theory module (and possibly into
+phase-distinguished records). The four conceptual groups are:
+
+**Configure-time: script state.** Read/written while the cmake script
+itself executes.
 
 ```text
 env.vars:
-  normal Yelu/CMake variables
+  normal Yelu/CMake variables. Doubles as the home for ELet lexical
+  bindings via save/restore — a known conflation; a future split could
+  give let bindings their own namespace separate from cmake's mutable
+  set() variables.
 
 env.files:
-  abstract configure-time filesystem store; normalized later, currently keyed
-  by path strings
+  abstract configure-time filesystem store, keyed by path strings.
+```
 
-env.targets:
-  target declarations and target-local metadata
+**Configure-time: declarations / diagnostics.** Records of what the
+script said; used as oracle state to verify behavior, not consumed by
+cmake the tool.
 
-env.custom_targets:
-  named build entrypoints created by the first `add_custom_target` slice
-
-env.custom_commands:
-  build-time output rules from `add_custom_command(OUTPUT ...)`,
-  keyed by primary output path
-
-env.install_rules:
-  configure-time install declarations, preserving target/file inputs and
-  relative install destinations
-
+```text
 env.project / env.cmake_min_version:
-  set-once project metadata from `project(...)` and
-  `cmake_minimum_required(VERSION ...)`
+  set-once project metadata from project(...) and
+  cmake_minimum_required(VERSION ...).
 
 env.messages:
-  declaration-order log of `message([MODE] "...")` calls
+  declaration-order log of message([MODE] "...") calls.
 
 env.subdirectories:
-  declaration-order log of `add_subdirectory(path)` calls; subdir scope
-  semantics not yet enforced
-
-env.testing_enabled / env.tests:
-  set-once flag from `enable_testing()` plus declaration-order list of
-  `add_test(NAME ... COMMAND ...)` decls
-
-env.target_properties:
-  nested map (target -> property -> value) for
-  `set_target_properties` / `get_target_property`
+  declaration-order log of add_subdirectory(path) calls. Subdir scope
+  semantics not yet enforced.
 
 env.find_packages:
-  declaration-order log of `find_package(Name [REQUIRED])` calls
+  declaration-order log of find_package(Name [REQUIRED]) calls.
 
 env.try_compiles:
-  declaration-order log of `try_compile` calls; eval stubs result_var to
-  true (the real probe runs only when the lowered cmake script runs)
+  declaration-order log of try_compile calls; eval stubs result_var to
+  true (the real probe runs only when the lowered cmake script runs).
+```
+
+**Build-time: target graph + test graph.** Declared at configure-time
+but materialized when the build runs.
+
+```text
+env.targets:
+  target declarations and target-local metadata (sources, links,
+  include dirs, compile defs / opts, link opts / dirs, etc.).
+
+env.custom_targets:
+  named build entrypoints from add_custom_target.
+
+env.custom_commands:
+  build-time output rules from add_custom_command(OUTPUT ...), keyed
+  by primary output path.
+
+env.target_properties:
+  nested map (target -> property -> value) for set_target_properties /
+  get_target_property.
+
+env.testing_enabled / env.tests:
+  set-once flag from enable_testing() plus declaration-order list of
+  add_test(NAME ... COMMAND ...) decls.
+```
+
+**Install-time: deferred actions.**
+
+```text
+env.install_rules:
+  configure-time install declarations, preserving target/file inputs
+  and relative install destinations. Run only by cmake --install.
 ```
 
 Target state currently tracks sources, link libraries, include directories,

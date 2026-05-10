@@ -29,7 +29,7 @@ open Yelu_langs.Yelu_surface_cmake_find
 open Yelu_langs.Yelu_theory_find
 open Yelu_langs.Yelu_surface_cmake_try
 open Yelu_langs.Yelu_theory_try
-open Yelu_langs.Yelu_tiny_eval
+open Yelu_langs.Yelu_tiny_translate
 
 module Old = Yelu_langs.Lang_yelu_cmake
 

@@ -19,7 +19,7 @@ open Yelu_langs.Yelu_surface_cmake_path
 open Yelu_langs.Yelu_surface_cmake_string
 open Yelu_langs.Yelu_surface_cmake_if
 open Yelu_langs.Yelu_surface_cmake_cmake_op
-open Yelu_langs.Yelu_tiny_eval
+open Yelu_langs.Yelu_tiny_translate
 open Yelu_langs.Yelu_tiny_cmake_emit
 open Yelu_runner.Cmake_runner
 

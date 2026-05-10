@@ -19,6 +19,12 @@
    the original. The roundtrip property is exercised by the
    [yelu1_lift_lower_roundtrip] tests. *)
 
+(* Public surface: short re-export names for the split evaluators so that
+   tests and library users don't have to spell out three module prefixes
+   for what used to be one [Yelu_tiny_eval] interface. *)
+let eval_yelu1_expr env expr = Yelu_tiny_yelu1.eval_expr env expr
+let eval_yelu2_expr env expr = Yelu_tiny_yelu2.eval_expr env expr
+
 open Base
 open Yelu_tiny
 open Yelu_theory_store

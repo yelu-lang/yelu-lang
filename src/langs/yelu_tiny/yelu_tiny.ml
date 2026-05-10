@@ -140,59 +140,99 @@ type value =
   | VUnit
 [@@deriving equal, sexp_of]
 
+(* The interpreter [env] mixes state that conceptually belongs to different
+   cmake phases. Today we keep it flat for evaluation simplicity; the
+   comment groups below mark the intended phase so a future refactor can
+   move each field next to its own theory module (and possibly into
+   phase-distinguished records).
+
+   - **Configure-time script state.** Read/written while the cmake script
+     itself executes. Includes the [vars] store (which doubles as the
+     home for [ELet] lexical bindings via save/restore — a known
+     conflation; a future split could give let bindings their own
+     namespace separate from cmake's mutable [set()] variables).
+   - **Configure-time declarations.** Records of what the script said,
+     used as oracle state to verify behavior, not consumed by cmake the
+     tool. [messages] / [find_packages] / [try_compiles] /
+     [subdirectories] / [project] / [cmake_min_version] sit here.
+   - **Build-time graph.** Declared at configure-time but materialized
+     when the build runs. The [targets] / [custom_targets] /
+     [custom_commands] / [tests] / [target_properties] live here.
+     [testing_enabled] is a configure-time switch that gates whether
+     [tests] become observable.
+   - **Install-time rules.** Recorded at configure-time; executed only
+     when [cmake --install] runs. [install_rules] is the lone field. *)
 type env = {
+  (* Configure-time: script state. *)
   vars : value Map.M(String).t;
   files : string Map.M(String).t;
-  targets : target Map.M(String).t;
-  custom_targets : custom_target Map.M(String).t;
-  custom_commands : custom_command Map.M(String).t;
-  install_rules : install_rule list;
+
+  (* Configure-time: declarations / diagnostics. *)
   project : project_info option;
   cmake_min_version : string option;
   messages : log_entry list;
   subdirectories : string list;
-  testing_enabled : bool;
-  tests : test_decl list;
-  target_properties : string Map.M(String).t Map.M(String).t;
   find_packages : find_package_decl list;
   try_compiles : try_compile_decl list;
+
+  (* Build-time: target graph + test graph. *)
+  targets : target Map.M(String).t;
+  custom_targets : custom_target Map.M(String).t;
+  custom_commands : custom_command Map.M(String).t;
+  target_properties : string Map.M(String).t Map.M(String).t;
+  testing_enabled : bool;
+  tests : test_decl list;
+
+  (* Install-time: deferred actions. *)
+  install_rules : install_rule list;
 }
 
 let empty_env : env =
   {
+    (* Configure-time: script state. *)
     vars = Map.empty (module String);
     files = Map.empty (module String);
-    targets = Map.empty (module String);
-    custom_targets = Map.empty (module String);
-    custom_commands = Map.empty (module String);
-    install_rules = [];
+
+    (* Configure-time: declarations / diagnostics. *)
     project = None;
     cmake_min_version = None;
     messages = [];
     subdirectories = [];
-    testing_enabled = false;
-    tests = [];
-    target_properties = Map.empty (module String);
     find_packages = [];
     try_compiles = [];
+
+    (* Build-time: target graph + test graph. *)
+    targets = Map.empty (module String);
+    custom_targets = Map.empty (module String);
+    custom_commands = Map.empty (module String);
+    target_properties = Map.empty (module String);
+    testing_enabled = false;
+    tests = [];
+
+    (* Install-time: deferred actions. *)
+    install_rules = [];
   }
 
 let equal_env left right =
+  (* Configure-time: script state. *)
   Map.equal equal_value left.vars right.vars
   && Map.equal String.equal left.files right.files
-  && Map.equal equal_target left.targets right.targets
-  && Map.equal equal_custom_target left.custom_targets right.custom_targets
-  && Map.equal equal_custom_command left.custom_commands right.custom_commands
-  && List.equal equal_install_rule left.install_rules right.install_rules
+  (* Configure-time: declarations / diagnostics. *)
   && Option.equal equal_project_info left.project right.project
   && Option.equal String.equal left.cmake_min_version right.cmake_min_version
   && List.equal equal_log_entry left.messages right.messages
   && List.equal String.equal left.subdirectories right.subdirectories
-  && Bool.equal left.testing_enabled right.testing_enabled
-  && List.equal equal_test_decl left.tests right.tests
-  && Map.equal (Map.equal String.equal) left.target_properties right.target_properties
   && List.equal equal_find_package_decl left.find_packages right.find_packages
   && List.equal equal_try_compile_decl left.try_compiles right.try_compiles
+  (* Build-time: target graph + test graph. *)
+  && Map.equal equal_target left.targets right.targets
+  && Map.equal equal_custom_target left.custom_targets right.custom_targets
+  && Map.equal equal_custom_command left.custom_commands right.custom_commands
+  && Map.equal (Map.equal String.equal) left.target_properties right.target_properties
+  && Bool.equal left.testing_enabled right.testing_enabled
+  && List.equal equal_test_decl left.tests right.tests
+  (* Install-time: deferred actions. *)
+  && List.equal equal_install_rule left.install_rules right.install_rules
 
 let empty_target ?(kind = TargetUnknown) name =
   {
