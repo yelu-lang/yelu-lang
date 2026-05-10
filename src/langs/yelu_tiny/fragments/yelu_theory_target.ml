@@ -14,7 +14,7 @@ type expr +=
   | ETargetLinkOptions of { target : expr; visibility : string; options_ : expr list }
   | ETargetLinkDirectories of { target : expr; visibility : string; dirs : expr list }
   | ECustomTarget of {
-      name : string;
+      name : expr;
       all : bool;
       commands : build_command list;
       depends : expr list;
@@ -220,6 +220,7 @@ let eval_case ~eval env = function
     in
     Some (env, VTarget name)
   | ECustomTarget { name; all; commands; depends; comment } ->
+    let env, name = eval_string ~eval env name in
     let env, depends = eval_string_list ~eval env depends in
     Some
       ( set_custom_target env

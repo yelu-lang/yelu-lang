@@ -8,7 +8,7 @@ let provides = [ "install.targets"; "install.files" ]
 
 type expr +=
   | ECmakeInstallTargets of {
-      targets : string list;
+      targets : expr list;
       destination : expr;
       export : expr option;
     }
@@ -19,6 +19,7 @@ type expr +=
 
 let eval_case ~eval env = function
   | ECmakeInstallTargets { targets; destination; export } ->
+    let env, targets = eval_string_list ~eval env targets in
     let env, destination = eval_string ~eval env destination in
     let env, export =
       match export with

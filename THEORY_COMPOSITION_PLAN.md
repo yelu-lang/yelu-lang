@@ -355,16 +355,22 @@ deepening points:
   Stage_wellform can check shadowing; future yelu2→other-target packs
   inherit the same letful IR and write their own emit-with-substitution).
   Cmake-backed test verifies real cmake sees the substituted value.
-- **Phase 2b — surface target-name refactor (deferred).** Phase 2a only
-  resolves `EVar` references in *expression-typed* positions. Surface
-  constructors like `ECmakeAddExecutable { name : string }` still take
-  bare strings, so the bridge's `target_name` collapse from
-  `Yexpr_var (Yvar "tut")` → "tut" prevents resolution from reaching
-  target-name positions. Phase 2b refactors those fields from `string`
-  to `expr` so `EVar` can survive into the emit pipeline. Until done,
-  step1 still emits `add_executable(tut ...)` instead of production's
-  `add_executable(Tutorial ...)`. Tests sidestep with `ytval "Tutorial"`
-  directly.
+- **Phase 2b — surface target-name refactor (done).** All target-name
+  fields in surface constructors (`ECmakeAddExecutable`, `ECmakeAddLibrary`,
+  `ECmakeTarget*`, `ECmakeAddCustomTarget`, `ECmakeTargetExists`,
+  `ECmakeSetTargetProperty`, `ECmakeGetTargetProperty`,
+  `ECmakeInstallTargets.targets`) now take `expr` instead of `string`.
+  Theory side updated to match (`ECustomTarget.name`, `EGetTargetProperty.target`).
+  Bridge `target_name` is now an alias for `expr` — it returns the raw
+  `EVar` / `ETarget` / `EString` form so let-bindings can flow through.
+  Emit gained a `target_arg` helper that consults the substitution env
+  (like `arg`) but renders unquoted (cmake target names are conventionally
+  unquoted). `expect_string` and `expect_target` now coerce between
+  `VString` and `VTarget` so a target name is interchangeable with a
+  string in eval contexts. **Result:** step1 now emits
+  `add_executable(Tutorial "tutorial.cxx")` and
+  `target_include_directories(Tutorial PUBLIC ...)` matching production
+  yelu output; the spurious `set(tut "Tutorial")` is gone.
 
 Next we work toward **bar #1 (tutorial step parity)** and **bar #3 (bridge
 parity)** roughly in parallel:
@@ -381,19 +387,11 @@ parity)** roughly in parallel:
 Likely deepening targets surfaced by bars #1 / #3 (in rough dependency
 order):
 
-1. **Phase 2b: surface target-name refactor.** Phase 2a is done — emit
-   resolves `EVar` references in expression-typed positions. The
-   remaining work is the surface refactor: change target-name fields
-   from `string` to `expr` in `ECmakeAddExecutable`, `ECmakeAddLibrary`,
-   `ECmakeTargetSources`, `ECmakeTargetLinkLibraries`,
-   `ECmakeTargetIncludeDirectories`, `ECmakeTargetCompileDefinitions`,
-   `ECmakeTargetCompileOptions`, `ECmakeTargetLinkOptions`,
-   `ECmakeTargetLinkDirectories`, `ECmakeAddCustomTarget`,
-   `ECmakeSetTargetProperty`, `ECmakeGetTargetProperty`,
-   `ECmakeTargetExists`. Bridge: `target_name` returns expr instead of
-   string; `Yexpr_var (Yvar n)` → `EVar n` flows through. Then step1's
-   `add_executable(${tut} ...)` emits literally `add_executable(Tutorial ...)`
-   matching production yelu output.
+1. **Step1 output equivalence (done).** With phases 2a + 2b in place,
+   step1 emits cmake textually equivalent to the production yelu_compile
+   output. Bar #1's first concrete equivalence point is reached. Next
+   tutorial steps (step2-12) likely surface fresh deepening points —
+   take them one at a time with the same incremental approach.
 2. **`configure_file` substitution.** Tiny copies content as-is; real
    cmake substitutes `${var}` and `@VAR@` tokens. Tutorial steps depend
    on this for `TutorialConfig.h` to receive the project version.

@@ -389,11 +389,15 @@ let rec lift_yelu1_to_yelu2 = function
     EConfigureFile
       { input = lift_yelu1_to_yelu2 input; output = lift_yelu1_to_yelu2 output }
 
-  (* CMake target surface -> Yelu target theory. Keep statement result as unit. *)
+  (* CMake target surface -> Yelu target theory. Keep statement result as unit.
+     Phase 2b: surface target-name fields are now [expr], so [lift] just
+     recurses (no more EString wrapping). *)
   | ECmakeAddExecutable { name; sources } ->
     ESeq
       [
-        EExecutable { name = EString name; sources = List.map sources ~f:lift_yelu1_to_yelu2 };
+        EExecutable
+          { name = lift_yelu1_to_yelu2 name;
+            sources = List.map sources ~f:lift_yelu1_to_yelu2 };
         EUnit;
       ]
   | ECmakeAddLibrary { name; type_; sources } ->
@@ -401,7 +405,7 @@ let rec lift_yelu1_to_yelu2 = function
       [
         ELibrary
           {
-            name = EString name;
+            name = lift_yelu1_to_yelu2 name;
             type_;
             sources = List.map sources ~f:lift_yelu1_to_yelu2;
           };
@@ -411,21 +415,27 @@ let rec lift_yelu1_to_yelu2 = function
     ESeq
       [
         ETargetAddSources
-          { target = ETarget target; visibility; sources = List.map sources ~f:lift_yelu1_to_yelu2 };
+          { target = lift_yelu1_to_yelu2 target;
+            visibility;
+            sources = List.map sources ~f:lift_yelu1_to_yelu2 };
         EUnit;
       ]
   | ECmakeTargetLinkLibraries { target; visibility; items } ->
     ESeq
       [
         ETargetLinkLibraries
-          { target = ETarget target; visibility; items = List.map items ~f:lift_yelu1_to_yelu2 };
+          { target = lift_yelu1_to_yelu2 target;
+            visibility;
+            items = List.map items ~f:lift_yelu1_to_yelu2 };
         EUnit;
       ]
   | ECmakeTargetIncludeDirectories { target; visibility; dirs } ->
     ESeq
       [
         ETargetIncludeDirectories
-          { target = ETarget target; visibility; dirs = List.map dirs ~f:lift_yelu1_to_yelu2 };
+          { target = lift_yelu1_to_yelu2 target;
+            visibility;
+            dirs = List.map dirs ~f:lift_yelu1_to_yelu2 };
         EUnit;
       ]
   | ECmakeTargetCompileDefinitions { target; visibility; definitions } ->
@@ -433,7 +443,7 @@ let rec lift_yelu1_to_yelu2 = function
       [
         ETargetCompileDefinitions
           {
-            target = ETarget target;
+            target = lift_yelu1_to_yelu2 target;
             visibility;
             definitions = List.map definitions ~f:lift_yelu1_to_yelu2;
           };
@@ -444,7 +454,7 @@ let rec lift_yelu1_to_yelu2 = function
       [
         ETargetCompileOptions
           {
-            target = ETarget target;
+            target = lift_yelu1_to_yelu2 target;
             visibility;
             options_ = List.map options_ ~f:lift_yelu1_to_yelu2;
           };
@@ -455,7 +465,7 @@ let rec lift_yelu1_to_yelu2 = function
       [
         ETargetLinkOptions
           {
-            target = ETarget target;
+            target = lift_yelu1_to_yelu2 target;
             visibility;
             options_ = List.map options_ ~f:lift_yelu1_to_yelu2;
           };
@@ -466,7 +476,7 @@ let rec lift_yelu1_to_yelu2 = function
       [
         ETargetLinkDirectories
           {
-            target = ETarget target;
+            target = lift_yelu1_to_yelu2 target;
             visibility;
             dirs = List.map dirs ~f:lift_yelu1_to_yelu2;
           };
@@ -476,7 +486,11 @@ let rec lift_yelu1_to_yelu2 = function
     ESeq
       [
         ECustomTarget
-          { name; all; commands; depends = List.map depends ~f:lift_yelu1_to_yelu2; comment };
+          { name = lift_yelu1_to_yelu2 name;
+            all;
+            commands;
+            depends = List.map depends ~f:lift_yelu1_to_yelu2;
+            comment };
         EUnit;
       ]
   | ECmakeAddCustomCommand { outputs; commands; depends; comment; verbatim } ->
@@ -497,7 +511,7 @@ let rec lift_yelu1_to_yelu2 = function
       [
         EInstallTargets
           {
-            targets = List.map targets ~f:(fun target -> ETarget target);
+            targets = List.map targets ~f:lift_yelu1_to_yelu2;
             destination = lift_yelu1_to_yelu2 destination;
             export = Option.map export ~f:lift_yelu1_to_yelu2;
           };
@@ -513,8 +527,8 @@ let rec lift_yelu1_to_yelu2 = function
           };
         EUnit;
       ]
-  | ECmakeTargetExists name ->
-    ETargetExists (ETarget name)
+  | ECmakeTargetExists target ->
+    ETargetExists (lift_yelu1_to_yelu2 target)
 
   (* CMake string surface -> Yelu string theory. *)
   | ECmakeStringEqual (left, right) ->
@@ -570,9 +584,12 @@ let rec lift_yelu1_to_yelu2 = function
   (* CMake property surface -> Yelu property theory. *)
   | ECmakeSetTargetProperty { target; property; value } ->
     ESetTargetProperty
-      { target = EString target; property; value = lift_yelu1_to_yelu2 value }
+      { target = lift_yelu1_to_yelu2 target;
+        property;
+        value = lift_yelu1_to_yelu2 value }
   | ECmakeGetTargetProperty { var; target; property } ->
-    EGetTargetProperty { var; target; property }
+    EGetTargetProperty
+      { var; target = lift_yelu1_to_yelu2 target; property }
 
   (* CMake find surface -> Yelu find theory. *)
   | ECmakeFindPackage { package_name; required } ->
@@ -620,45 +637,52 @@ let rec lower_yelu2_to_yelu1 = function
   | EPathFilename expr -> EPathFilename (lower_yelu2_to_yelu1 expr)
   | EPathNormalize expr -> EPathNormalize (lower_yelu2_to_yelu1 expr)
 
-  (* Shared target theory. *)
+  (* Shared target theory. Phase 2b: surface target-name fields take [expr]
+     directly; lower preserves the let-resolvable structure. The literal
+     [EString target_name] cases stay so that the surrounding ESetVar
+     pattern can produce a literal [ETarget _] value. *)
   | ETarget name -> ETarget name
   | EExecutable { name = EString target_name; sources } ->
     ESeq
       [
         ECmakeAddExecutable
-          { name = target_name; sources = List.map sources ~f:lower_yelu2_to_yelu1 };
+          { name = EString target_name;
+            sources = List.map sources ~f:lower_yelu2_to_yelu1 };
         ETarget target_name;
       ]
   | EExecutable { name; sources } ->
-    EExecutable
-      { name = lower_yelu2_to_yelu1 name; sources = List.map sources ~f:lower_yelu2_to_yelu1 }
+    ECmakeAddExecutable
+      { name = lower_yelu2_to_yelu1 name;
+        sources = List.map sources ~f:lower_yelu2_to_yelu1 }
   | ELibrary { name = EString target_name; type_; sources } ->
     ESeq
       [
         ECmakeAddLibrary
-          { name = target_name; type_; sources = List.map sources ~f:lower_yelu2_to_yelu1 };
+          { name = EString target_name;
+            type_;
+            sources = List.map sources ~f:lower_yelu2_to_yelu1 };
         ETarget target_name;
       ]
   | ELibrary { name; type_; sources } ->
-    ELibrary
+    ECmakeAddLibrary
       {
         name = lower_yelu2_to_yelu1 name;
         type_;
         sources = List.map sources ~f:lower_yelu2_to_yelu1;
       }
-  | ETargetExists (ETarget name) ->
-    ECmakeTargetExists name
   | ETargetExists target ->
-    ETargetExists (lower_yelu2_to_yelu1 target)
+    ECmakeTargetExists (lower_yelu2_to_yelu1 target)
   | ETargetAddSources { target = ETarget name; visibility; sources } ->
     ESeq
       [
         ECmakeTargetSources
-          { target = name; visibility; sources = List.map sources ~f:lower_yelu2_to_yelu1 };
+          { target = ETarget name;
+            visibility;
+            sources = List.map sources ~f:lower_yelu2_to_yelu1 };
         ETarget name;
       ]
   | ETargetAddSources { target; visibility; sources } ->
-    ETargetAddSources
+    ECmakeTargetSources
       {
         target = lower_yelu2_to_yelu1 target;
         visibility;
@@ -668,11 +692,13 @@ let rec lower_yelu2_to_yelu1 = function
     ESeq
       [
         ECmakeTargetLinkLibraries
-          { target = name; visibility; items = List.map items ~f:lower_yelu2_to_yelu1 };
+          { target = ETarget name;
+            visibility;
+            items = List.map items ~f:lower_yelu2_to_yelu1 };
         ETarget name;
       ]
   | ETargetLinkLibraries { target; visibility; items } ->
-    ETargetLinkLibraries
+    ECmakeTargetLinkLibraries
       {
         target = lower_yelu2_to_yelu1 target;
         visibility;
@@ -682,11 +708,13 @@ let rec lower_yelu2_to_yelu1 = function
     ESeq
       [
         ECmakeTargetIncludeDirectories
-          { target = name; visibility; dirs = List.map dirs ~f:lower_yelu2_to_yelu1 };
+          { target = ETarget name;
+            visibility;
+            dirs = List.map dirs ~f:lower_yelu2_to_yelu1 };
         ETarget name;
       ]
   | ETargetIncludeDirectories { target; visibility; dirs } ->
-    ETargetIncludeDirectories
+    ECmakeTargetIncludeDirectories
       {
         target = lower_yelu2_to_yelu1 target;
         visibility;
@@ -697,14 +725,14 @@ let rec lower_yelu2_to_yelu1 = function
       [
         ECmakeTargetCompileDefinitions
           {
-            target = name;
+            target = ETarget name;
             visibility;
             definitions = List.map definitions ~f:lower_yelu2_to_yelu1;
           };
         ETarget name;
       ]
   | ETargetCompileDefinitions { target; visibility; definitions } ->
-    ETargetCompileDefinitions
+    ECmakeTargetCompileDefinitions
       {
         target = lower_yelu2_to_yelu1 target;
         visibility;
@@ -715,14 +743,14 @@ let rec lower_yelu2_to_yelu1 = function
       [
         ECmakeTargetCompileOptions
           {
-            target = name;
+            target = ETarget name;
             visibility;
             options_ = List.map options_ ~f:lower_yelu2_to_yelu1;
           };
         ETarget name;
       ]
   | ETargetCompileOptions { target; visibility; options_ } ->
-    ETargetCompileOptions
+    ECmakeTargetCompileOptions
       {
         target = lower_yelu2_to_yelu1 target;
         visibility;
@@ -733,14 +761,14 @@ let rec lower_yelu2_to_yelu1 = function
       [
         ECmakeTargetLinkOptions
           {
-            target = name;
+            target = ETarget name;
             visibility;
             options_ = List.map options_ ~f:lower_yelu2_to_yelu1;
           };
         ETarget name;
       ]
   | ETargetLinkOptions { target; visibility; options_ } ->
-    ETargetLinkOptions
+    ECmakeTargetLinkOptions
       {
         target = lower_yelu2_to_yelu1 target;
         visibility;
@@ -751,14 +779,14 @@ let rec lower_yelu2_to_yelu1 = function
       [
         ECmakeTargetLinkDirectories
           {
-            target = name;
+            target = ETarget name;
             visibility;
             dirs = List.map dirs ~f:lower_yelu2_to_yelu1;
           };
         ETarget name;
       ]
   | ETargetLinkDirectories { target; visibility; dirs } ->
-    ETargetLinkDirectories
+    ECmakeTargetLinkDirectories
       {
         target = lower_yelu2_to_yelu1 target;
         visibility;
@@ -766,7 +794,11 @@ let rec lower_yelu2_to_yelu1 = function
       }
   | ECustomTarget { name; all; commands; depends; comment } ->
     ECmakeAddCustomTarget
-      { name; all; commands; depends = List.map depends ~f:lower_yelu2_to_yelu1; comment }
+      { name = lower_yelu2_to_yelu1 name;
+        all;
+        commands;
+        depends = List.map depends ~f:lower_yelu2_to_yelu1;
+        comment }
   | ECustomCommand { outputs; commands; depends; comment; verbatim } ->
     ECmakeAddCustomCommand
       {
@@ -777,14 +809,9 @@ let rec lower_yelu2_to_yelu1 = function
         verbatim;
       }
   | EInstallTargets { targets; destination; export } ->
-    let targets =
-      List.map targets ~f:(function
-        | ETarget name -> name
-        | _ -> fail "install target lowering currently requires literal target values")
-    in
     ECmakeInstallTargets
       {
-        targets;
+        targets = List.map targets ~f:lower_yelu2_to_yelu1;
         destination = lower_yelu2_to_yelu1 destination;
         export = Option.map export ~f:lower_yelu2_to_yelu1;
       }
@@ -832,14 +859,17 @@ let rec lower_yelu2_to_yelu1 = function
     ESeq
       [
         ECmakeAddExecutable
-          { name = target_name; sources = List.map sources ~f:lower_yelu2_to_yelu1 };
+          { name = EString target_name;
+            sources = List.map sources ~f:lower_yelu2_to_yelu1 };
         ESetVar (var, ETarget target_name);
       ]
   | ESetVar (var, ELibrary { name = EString target_name; type_; sources }) ->
     ESeq
       [
         ECmakeAddLibrary
-          { name = target_name; type_; sources = List.map sources ~f:lower_yelu2_to_yelu1 };
+          { name = EString target_name;
+            type_;
+            sources = List.map sources ~f:lower_yelu2_to_yelu1 };
         ESetVar (var, ETarget target_name);
       ]
 
@@ -907,16 +937,14 @@ let rec lower_yelu2_to_yelu1 = function
       }
 
   (* Yelu property theory -> CMake property surface. *)
-  | ESetTargetProperty { target = EString target; property; value } ->
-    ECmakeSetTargetProperty
-      { target; property; value = lower_yelu2_to_yelu1 value }
   | ESetTargetProperty { target; property; value } ->
-    ESetTargetProperty
+    ECmakeSetTargetProperty
       { target = lower_yelu2_to_yelu1 target;
         property;
         value = lower_yelu2_to_yelu1 value }
   | EGetTargetProperty { var; target; property } ->
-    ECmakeGetTargetProperty { var; target; property }
+    ECmakeGetTargetProperty
+      { var; target = lower_yelu2_to_yelu1 target; property }
 
   (* Yelu find theory -> CMake find surface. *)
   | EFindPackage { package_name; required } ->

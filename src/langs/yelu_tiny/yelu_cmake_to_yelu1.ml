@@ -24,12 +24,6 @@ let fail fmt = Fmt.kstr (fun msg -> raise (Bridge_error msg)) fmt
 
 let cvar_name ({ name; _ } : Old.tc_name) = name
 
-let target_name = function
-  | Old.Yexpr_name { ns = Old.Ns_target; name }
-  | Old.Yexpr_string (Old.Ycs_path name | Old.Ycs_keyword name | Old.Ycs_string name | Old.Ycs_eval name)
-  | Old.Yexpr_var (Old.Yvar name) -> name
-  | _ -> fail "unsupported target name expression for Yelu1 bridge"
-
 let rec expr : Old.yelu_expr -> Yelu_tiny.expr = function
   | Yexpr_string (Ycs_path s | Ycs_keyword s | Ycs_string s | Ycs_eval s) ->
     EString s
@@ -43,9 +37,15 @@ let rec expr : Old.yelu_expr -> Yelu_tiny.expr = function
   | Yexpr_or (left, right) -> EOr (expr left, expr right)
   | Yexpr_str_equal (left, right) -> ECmakeStringEqual (expr left, expr right)
   | Yexpr_is_defined { name; _ } -> ECmakeVarDefined name
-  | Yexpr_is_target { name; _ } -> ECmakeTargetExists name
+  | Yexpr_is_target { ns = _; name } -> ECmakeTargetExists (ETarget name)
   | Yexpr_exists path -> ECmakeFileExists (expr path)
   | _ -> fail "unsupported yelu_cmake expression for Yelu1 bridge"
+
+(* After phase 2b, target-name positions in tiny surface are typed [expr]
+   (so that [EVar] / [ETarget] survive into emit and can be substituted by
+   ELet bindings). [target_name] is now an alias for [expr] kept as
+   documentation at call sites. *)
+let target_name = expr
 
 let one_input ~op = function
   | [ input ] -> expr input
@@ -205,7 +205,8 @@ let property_statement : Old.yelu_property_stmt -> Yelu_tiny.expr = function
         { target = target_name target; property; value = expr value })
     |> ESeq
   | Yprop_get_target { var; target; property } ->
-    ECmakeGetTargetProperty { var = cvar_name var; target; property }
+    ECmakeGetTargetProperty
+      { var = cvar_name var; target = ETarget target; property }
   | _ -> fail "unsupported yelu_cmake property statement for Yelu1 bridge"
 
 let find_statement : Old.yelu_find_stmt -> Yelu_tiny.expr = function
@@ -351,7 +352,7 @@ let target_statement : Old.yelu_target_stmt -> Yelu_tiny.expr = function
   | Ytgt_add_custom_target { name; all; commands; depends; comment } ->
     ECmakeAddCustomTarget
       {
-        name;
+        name = EString name;
         all;
         commands = List.map commands ~f:build_command;
         depends = List.map depends ~f:expr;

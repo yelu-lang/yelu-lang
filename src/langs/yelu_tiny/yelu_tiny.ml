@@ -313,8 +313,12 @@ let rec string_of_value = function
   | VTarget name -> name
   | VUnit -> "()"
 
+(* A target name [VTarget _] coerces to its underlying string when a string
+   is expected — they are textually interchangeable in target-name contexts
+   (cmake itself sees only a string). *)
 let expect_string = function
   | VString s -> s
+  | VTarget s -> s
   | v -> fail "expected string, got %s" (Sexp.to_string ([%sexp_of: value] v))
 
 let expect_int = function
@@ -325,8 +329,14 @@ let expect_list = function
   | VList values -> values
   | v -> fail "expected list, got %s" (Sexp.to_string ([%sexp_of: value] v))
 
+(* Accept both [VTarget _] (an explicit target value) and [VString _] (a
+   target name as a plain string). Phase 2b makes target-name positions
+   carry [expr], which means an [EString "app"] reaches eval as
+   [VString "app"]; conceptually a target name and a string-of-target-name
+   are interchangeable so [expect_target] accepts either. *)
 let expect_target = function
   | VTarget name -> name
+  | VString name -> name
   | v -> fail "expected target, got %s" (Sexp.to_string ([%sexp_of: value] v))
 
 type expr +=

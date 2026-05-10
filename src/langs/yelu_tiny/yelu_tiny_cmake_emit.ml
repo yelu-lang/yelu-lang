@@ -48,6 +48,19 @@ let rec arg ?(env = empty_subst) = function
   | ETarget name -> quoted name
   | _ -> fail "cannot emit expression as CMake argument"
 
+(* Target-name position: cmake conventionally accepts an unquoted identifier
+   for target/file names. After resolving via the substitution env, render
+   bare strings as bare tokens (no quoting), and unresolved EVar as the
+   cmake runtime deref form `${name}`. *)
+let rec target_arg ?(env = empty_subst) = function
+  | EVar name ->
+    (match Map.find env name with
+     | Some replacement -> target_arg ~env replacement
+     | None -> "${" ^ name ^ "}")
+  | EString s -> s
+  | ETarget name -> name
+  | _ -> fail "cannot emit expression as cmake target name"
+
 let build_command_arg arg = quoted arg
 
 let build_command (cmd : build_command) =
@@ -64,7 +77,7 @@ let rec cond ?(env = empty_subst) = function
   | ECmakeStringEqual (left, right) ->
     arg ~env left ^ " STREQUAL " ^ arg ~env right
   | ECmakeVarDefined name -> "DEFINED " ^ name
-  | ECmakeTargetExists name -> "TARGET " ^ name
+  | ECmakeTargetExists target -> "TARGET " ^ target_arg ~env target
   | ECmakeFileExists path -> "EXISTS " ^ arg ~env path
   | expr -> arg ~env expr
 
@@ -84,6 +97,7 @@ and cond_atom ?(env = empty_subst) expr =
 let rec emit_expr_impl ~env e =
   let arg = arg ~env in
   let cond = cond ~env in
+  let target_arg = target_arg ~env in
   let emit_expr = emit_expr_impl ~env in
   match e with
   | EUnit -> []
@@ -142,30 +156,30 @@ let rec emit_expr_impl ~env e =
   | ECmakeConfigureFile { input; output } ->
     [ Fmt.str "configure_file(%s %s)" (arg input) (arg output) ]
   | ECmakeAddExecutable { name; sources } ->
-    [ Fmt.str "add_executable(%s %s)" name (String.concat ~sep:" " (List.map sources ~f:arg)) ]
+    [ Fmt.str "add_executable(%s %s)" (target_arg name) (String.concat ~sep:" " (List.map sources ~f:arg)) ]
   | ECmakeAddLibrary { name; type_; sources } ->
     let args =
       Option.to_list type_ @ List.map sources ~f:arg
       |> String.concat ~sep:" "
     in
     [ Fmt.str "add_library(%s %s)"
-        name
+        (target_arg name)
         args
     ]
   | ECmakeTargetSources { target; visibility; sources } ->
-    [ Fmt.str "target_sources(%s %s %s)" target visibility (String.concat ~sep:" " (List.map sources ~f:arg)) ]
+    [ Fmt.str "target_sources(%s %s %s)" (target_arg target) visibility (String.concat ~sep:" " (List.map sources ~f:arg)) ]
   | ECmakeTargetLinkLibraries { target; visibility; items } ->
-    [ Fmt.str "target_link_libraries(%s %s %s)" target visibility (String.concat ~sep:" " (List.map items ~f:arg)) ]
+    [ Fmt.str "target_link_libraries(%s %s %s)" (target_arg target) visibility (String.concat ~sep:" " (List.map items ~f:arg)) ]
   | ECmakeTargetIncludeDirectories { target; visibility; dirs } ->
-    [ Fmt.str "target_include_directories(%s %s %s)" target visibility (String.concat ~sep:" " (List.map dirs ~f:arg)) ]
+    [ Fmt.str "target_include_directories(%s %s %s)" (target_arg target) visibility (String.concat ~sep:" " (List.map dirs ~f:arg)) ]
   | ECmakeTargetCompileDefinitions { target; visibility; definitions } ->
-    [ Fmt.str "target_compile_definitions(%s %s %s)" target visibility (String.concat ~sep:" " (List.map definitions ~f:arg)) ]
+    [ Fmt.str "target_compile_definitions(%s %s %s)" (target_arg target) visibility (String.concat ~sep:" " (List.map definitions ~f:arg)) ]
   | ECmakeTargetCompileOptions { target; visibility; options_ } ->
-    [ Fmt.str "target_compile_options(%s %s %s)" target visibility (String.concat ~sep:" " (List.map options_ ~f:arg)) ]
+    [ Fmt.str "target_compile_options(%s %s %s)" (target_arg target) visibility (String.concat ~sep:" " (List.map options_ ~f:arg)) ]
   | ECmakeTargetLinkOptions { target; visibility; options_ } ->
-    [ Fmt.str "target_link_options(%s %s %s)" target visibility (String.concat ~sep:" " (List.map options_ ~f:arg)) ]
+    [ Fmt.str "target_link_options(%s %s %s)" (target_arg target) visibility (String.concat ~sep:" " (List.map options_ ~f:arg)) ]
   | ECmakeTargetLinkDirectories { target; visibility; dirs } ->
-    [ Fmt.str "target_link_directories(%s %s %s)" target visibility (String.concat ~sep:" " (List.map dirs ~f:arg)) ]
+    [ Fmt.str "target_link_directories(%s %s %s)" (target_arg target) visibility (String.concat ~sep:" " (List.map dirs ~f:arg)) ]
   | ECmakeAddCustomTarget { name; all; commands; depends; comment } ->
     let all = if all then " ALL" else "" in
     let command_lines =
@@ -183,7 +197,7 @@ let rec emit_expr_impl ~env e =
       | None -> []
       | Some comment -> [ Fmt.str "  COMMENT %s" (quoted comment) ]
     in
-    [ Fmt.str "add_custom_target(%s%s" name all ]
+    [ Fmt.str "add_custom_target(%s%s" (target_arg name) all ]
     @ command_lines
     @ depends
     @ comment
@@ -221,7 +235,7 @@ let rec emit_expr_impl ~env e =
         " EXPORT " ^ arg export)
     in
     [ Fmt.str "install(TARGETS %s%s DESTINATION %s)"
-        (String.concat ~sep:" " targets)
+        (String.concat ~sep:" " (List.map targets ~f:target_arg))
         export
         (arg destination)
     ]
@@ -268,9 +282,9 @@ let rec emit_expr_impl ~env e =
         (String.concat ~sep:" " (List.map args ~f:arg)) ]
   | ECmakeSetTargetProperty { target; property; value } ->
     [ Fmt.str "set_target_properties(%s PROPERTIES %s %s)"
-        target property (arg value) ]
+        (target_arg target) property (arg value) ]
   | ECmakeGetTargetProperty { var; target; property } ->
-    [ Fmt.str "get_target_property(%s %s %s)" var target property ]
+    [ Fmt.str "get_target_property(%s %s %s)" var (target_arg target) property ]
   | ECmakeFindPackage { package_name; required = false } ->
     [ Fmt.str "find_package(%s)" package_name ]
   | ECmakeFindPackage { package_name; required = true } ->

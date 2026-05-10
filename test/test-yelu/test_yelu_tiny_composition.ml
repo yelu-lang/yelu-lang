@@ -288,8 +288,8 @@ let yelu1_to_yelu2 =
              [ "EXISTS", VBool true; "OUT", VString "hello file" ]);
       check_yelu1_to_yelu2 "target declaration and existence"
         (ESeq [
-          ECmakeAddExecutable { name = "app"; sources = [ EString "main.c" ] };
-          ESetVar ("OUT", ECmakeTargetExists "app");
+          ECmakeAddExecutable { name = EString "app"; sources = [ EString "main.c" ] };
+          ESetVar ("OUT", ECmakeTargetExists (EString "app"));
           EVar "OUT";
         ])
         ~expected_value:(VBool true)
@@ -297,8 +297,8 @@ let yelu1_to_yelu2 =
           (env_of_bindings ~targets:[ target "app" ] [ "OUT", VBool true ]);
       check_yelu1_to_yelu2 "library declaration"
         (ESeq [
-          ECmakeAddLibrary { name = "core"; type_ = Some "STATIC"; sources = [ EString "core.c" ] };
-          ESetVar ("OUT", ECmakeTargetExists "core");
+          ECmakeAddLibrary { name = EString "core"; type_ = Some "STATIC"; sources = [ EString "core.c" ] };
+          ESetVar ("OUT", ECmakeTargetExists (EString "core"));
           EVar "OUT";
         ])
         ~expected_value:(VBool true)
@@ -308,8 +308,8 @@ let yelu1_to_yelu2 =
              [ "OUT", VBool true ]);
       check_yelu1_to_yelu2 "target sources mutation"
         (ESeq [
-          ECmakeAddExecutable { name = "app"; sources = [ EString "main.c" ] };
-          ECmakeTargetSources { target = "app"; visibility = "PUBLIC"; sources = [ EString "extra.c" ] };
+          ECmakeAddExecutable { name = EString "app"; sources = [ EString "main.c" ] };
+          ECmakeTargetSources { target = EString "app"; visibility = "PUBLIC"; sources = [ EString "extra.c" ] };
           ETarget "app";
         ])
         ~expected_value:(VTarget "app")
@@ -323,8 +323,8 @@ let yelu1_to_yelu2 =
              []);
       check_yelu1_to_yelu2 "target link libraries mutation"
         (ESeq [
-          ECmakeAddExecutable { name = "app"; sources = [ EString "main.c" ] };
-          ECmakeTargetLinkLibraries { target = "app"; visibility = "PRIVATE"; items = [ EString "m" ] };
+          ECmakeAddExecutable { name = EString "app"; sources = [ EString "main.c" ] };
+          ECmakeTargetLinkLibraries { target = EString "app"; visibility = "PRIVATE"; items = [ EString "m" ] };
           ETarget "app";
         ])
         ~expected_value:(VTarget "app")
@@ -338,8 +338,8 @@ let yelu1_to_yelu2 =
              []);
       check_yelu1_to_yelu2 "target include directories mutation"
         (ESeq [
-          ECmakeAddExecutable { name = "app"; sources = [ EString "main.c" ] };
-          ECmakeTargetIncludeDirectories { target = "app"; visibility = "PUBLIC"; dirs = [ EString "include" ] };
+          ECmakeAddExecutable { name = EString "app"; sources = [ EString "main.c" ] };
+          ECmakeTargetIncludeDirectories { target = EString "app"; visibility = "PUBLIC"; dirs = [ EString "include" ] };
           ETarget "app";
         ])
         ~expected_value:(VTarget "app")
@@ -353,9 +353,9 @@ let yelu1_to_yelu2 =
              []);
       check_yelu1_to_yelu2 "target compile definitions mutation"
         (ESeq [
-          ECmakeAddExecutable { name = "app"; sources = [ EString "main.c" ] };
+          ECmakeAddExecutable { name = EString "app"; sources = [ EString "main.c" ] };
           ECmakeTargetCompileDefinitions
-            { target = "app"; visibility = "PRIVATE"; definitions = [ EString "USE_FEATURE" ] };
+            { target = EString "app"; visibility = "PRIVATE"; definitions = [ EString "USE_FEATURE" ] };
           ETarget "app";
         ])
         ~expected_value:(VTarget "app")
@@ -370,9 +370,9 @@ let yelu1_to_yelu2 =
              []);
       check_yelu1_to_yelu2 "target compile options mutation"
         (ESeq [
-          ECmakeAddExecutable { name = "app"; sources = [ EString "main.c" ] };
+          ECmakeAddExecutable { name = EString "app"; sources = [ EString "main.c" ] };
           ECmakeTargetCompileOptions
-            { target = "app"; visibility = "PRIVATE"; options_ = [ EString "-Wall" ] };
+            { target = EString "app"; visibility = "PRIVATE"; options_ = [ EString "-Wall" ] };
           ETarget "app";
         ])
         ~expected_value:(VTarget "app")
@@ -387,9 +387,9 @@ let yelu1_to_yelu2 =
              []);
       check_yelu1_to_yelu2 "target link options mutation"
         (ESeq [
-          ECmakeAddExecutable { name = "app"; sources = [ EString "main.c" ] };
+          ECmakeAddExecutable { name = EString "app"; sources = [ EString "main.c" ] };
           ECmakeTargetLinkOptions
-            { target = "app"; visibility = "PRIVATE"; options_ = [ EString "-Wl,--as-needed" ] };
+            { target = EString "app"; visibility = "PRIVATE"; options_ = [ EString "-Wl,--as-needed" ] };
           ETarget "app";
         ])
         ~expected_value:(VTarget "app")
@@ -404,9 +404,9 @@ let yelu1_to_yelu2 =
              []);
       check_yelu1_to_yelu2 "target link directories mutation"
         (ESeq [
-          ECmakeAddExecutable { name = "app"; sources = [ EString "main.c" ] };
+          ECmakeAddExecutable { name = EString "app"; sources = [ EString "main.c" ] };
           ECmakeTargetLinkDirectories
-            { target = "app"; visibility = "PUBLIC"; dirs = [ EString "/opt/lib" ] };
+            { target = EString "app"; visibility = "PUBLIC"; dirs = [ EString "/opt/lib" ] };
           ETarget "app";
         ])
         ~expected_value:(VTarget "app")
@@ -422,7 +422,7 @@ let yelu1_to_yelu2 =
       check_yelu1_to_yelu2 "custom target declaration"
         (ECmakeAddCustomTarget
            {
-             name = "hello";
+             name = EString "hello";
              all = false;
              commands = [ { command = "cmake"; args = [ "-E"; "echo"; "HELLO" ] } ];
              depends = [ EString "input.txt" ];
@@ -467,9 +467,9 @@ let yelu1_to_yelu2 =
              []);
       check_yelu1_to_yelu2 "install targets and files declarations"
         (ESeq [
-          ECmakeAddExecutable { name = "app"; sources = [ EString "main.c" ] };
+          ECmakeAddExecutable { name = EString "app"; sources = [ EString "main.c" ] };
           ECmakeInstallTargets
-            { targets = [ "app" ]; destination = EString "bin"; export = None };
+            { targets = [ EString "app" ]; destination = EString "bin"; export = None };
           ECmakeInstallFiles
             { files = [ EString "include/app.h" ]; destination = EString "include" };
         ])
@@ -522,11 +522,11 @@ let yelu1_to_yelu2 =
              []);
       check_yelu1_to_yelu2 "property set/get round trip"
         (ESeq [
-          ECmakeAddExecutable { name = "app"; sources = [ EString "main.c" ] };
+          ECmakeAddExecutable { name = EString "app"; sources = [ EString "main.c" ] };
           ECmakeSetTargetProperty
-            { target = "app"; property = "OUTPUT_NAME"; value = EString "myapp" };
+            { target = EString "app"; property = "OUTPUT_NAME"; value = EString "myapp" };
           ECmakeGetTargetProperty
-            { var = "OUT"; target = "app"; property = "OUTPUT_NAME" };
+            { var = "OUT"; target = EString "app"; property = "OUTPUT_NAME" };
         ])
         ~expected_value:VUnit
         ~expected_env:
@@ -887,7 +887,7 @@ let yelu2_to_yelu1 =
       check_yelu2_to_yelu1 "custom target lowers to cmake surface"
         (ECustomTarget
            {
-             name = "hello";
+             name = EString "hello";
              all = false;
              commands = [ { command = "cmake"; args = [ "-E"; "echo"; "HELLO" ] } ];
              depends = [ EString "input.txt" ];
@@ -1015,7 +1015,7 @@ let yelu2_to_yelu1 =
           ESetTargetProperty
             { target = EString "app"; property = "OUTPUT_NAME"; value = EString "myapp" };
           EGetTargetProperty
-            { var = "OUT"; target = "app"; property = "OUTPUT_NAME" };
+            { var = "OUT"; target = EString "app"; property = "OUTPUT_NAME" };
         ])
         ~expected_value:VUnit
         ~expected_env:
@@ -2025,13 +2025,21 @@ let step1_bridge =
             true (String.length cmake_text > 0);
           Alcotest.(check bool) "contains project()" true
             (String.is_substring cmake_text ~substring:"project(Tutorial");
-          Alcotest.(check bool) "contains add_executable" true
-            (String.is_substring cmake_text ~substring:"add_executable(");
           Alcotest.(check bool) "contains configure_file" true
             (String.is_substring cmake_text ~substring:"configure_file(");
-          Alcotest.(check bool) "contains target_include_directories" true
+          (* Phase 2b — the let-binding `tut = "Tutorial"` substitutes
+             through emit, so add_executable and target_include_directories
+             see the literal target name "Tutorial" rather than the var
+             name "tut". *)
+          Alcotest.(check bool) "add_executable uses Tutorial (not tut)" true
             (String.is_substring cmake_text
-               ~substring:"target_include_directories("));
+               ~substring:"add_executable(Tutorial");
+          Alcotest.(check bool) "target_include_directories uses Tutorial" true
+            (String.is_substring cmake_text
+               ~substring:"target_include_directories(Tutorial");
+          (* And the let header is dropped — no spurious set(tut ...). *)
+          Alcotest.(check bool) "no spurious set(tut ...)" false
+            (String.is_substring cmake_text ~substring:"set(tut"));
     ] )
 
 (* Phase-2a tests for ELet emit-time resolution. ELet binds a name; EVar

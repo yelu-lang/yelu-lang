@@ -392,7 +392,7 @@ let yelu2_configure_lowering =
               property = "OUTPUT_NAME";
               value = EString "YES" };
           EGetTargetProperty
-            { var = "OUT"; target = "app"; property = "OUTPUT_NAME" };
+            { var = "OUT"; target = EString "app"; property = "OUTPUT_NAME" };
           EVar "OUT";
         ]);
       check_yelu2_lowering_configure "find_package non-required configures clean"
@@ -488,7 +488,7 @@ target_link_directories(app PRIVATE "/opt/lib")
       check_yelu2_custom_target_build "custom target command runs"
         (ECustomTarget
            {
-             name = "yelu_hello";
+             name = EString "yelu_hello";
              all = false;
              commands =
                [
@@ -524,7 +524,7 @@ target_link_directories(app PRIVATE "/opt/lib")
             };
           ECustomTarget
             {
-              name = "yelu_consume";
+              name = EString "yelu_consume";
               all = false;
               commands = [];
               depends = [ EString "yelu_generated.txt" ];
