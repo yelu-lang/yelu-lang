@@ -3,6 +3,7 @@ open Yelu_tiny
 open Yelu_surface_cmake_store
 open Yelu_theory_bool
 open Yelu_theory_target
+open Yelu_surface_cmake_install
 open Yelu_surface_cmake_list
 open Yelu_surface_cmake_path
 open Yelu_surface_cmake_string
@@ -154,6 +155,52 @@ let target_statement : Old.yelu_target_stmt -> Yelu_tiny.expr = function
     fail "target_include_directories(BEFORE) is outside the current Yelu1 bridge slice"
   | Ytgt_include_directories { system = true; _ } ->
     fail "target_include_directories(SYSTEM) is outside the current Yelu1 bridge slice"
+  | Ytgt_compile_definitions { target; items } ->
+    items
+    |> List.map ~f:(fun ({ kind; items } : Old.yelu_items_with_kind) ->
+      ECmakeTargetCompileDefinitions
+        {
+          target = target_name target;
+          visibility = visibility_of_kind kind;
+          definitions = List.map items ~f:expr;
+        })
+    |> ESeq
+  | Ytgt_compile_options { target; before = false; items } ->
+    items
+    |> List.map ~f:(fun ({ kind; items } : Old.yelu_items_with_kind) ->
+      ECmakeTargetCompileOptions
+        {
+          target = target_name target;
+          visibility = visibility_of_kind kind;
+          options_ = List.map items ~f:expr;
+        })
+    |> ESeq
+  | Ytgt_compile_options { before = true; _ } ->
+    fail "target_compile_options(BEFORE) is outside the current Yelu1 bridge slice"
+  | Ytgt_link_options { target; before = false; items } ->
+    items
+    |> List.map ~f:(fun ({ kind; items } : Old.yelu_items_with_kind) ->
+      ECmakeTargetLinkOptions
+        {
+          target = target_name target;
+          visibility = visibility_of_kind kind;
+          options_ = List.map items ~f:expr;
+        })
+    |> ESeq
+  | Ytgt_link_options { before = true; _ } ->
+    fail "target_link_options(BEFORE) is outside the current Yelu1 bridge slice"
+  | Ytgt_link_directories { target; before = false; items } ->
+    items
+    |> List.map ~f:(fun ({ kind; items } : Old.yelu_items_with_kind) ->
+      ECmakeTargetLinkDirectories
+        {
+          target = target_name target;
+          visibility = visibility_of_kind kind;
+          dirs = List.map items ~f:expr;
+        })
+    |> ESeq
+  | Ytgt_link_directories { before = true; _ } ->
+    fail "target_link_directories(BEFORE) is outside the current Yelu1 bridge slice"
   | Ytgt_add_custom_target { name; all; commands; depends; comment } ->
     ECmakeAddCustomTarget
       {
@@ -163,13 +210,35 @@ let target_statement : Old.yelu_target_stmt -> Yelu_tiny.expr = function
         depends = List.map depends ~f:expr;
         comment;
       }
+  | Ytgt_add_custom_command { outputs; commands; depends; verbatim; comment } ->
+    ECmakeAddCustomCommand
+      {
+        outputs = List.map outputs ~f:expr;
+        commands = List.map commands ~f:build_command;
+        depends = List.map depends ~f:expr;
+        comment;
+        verbatim;
+      }
   | _ -> fail "unsupported yelu_cmake target statement for Yelu1 bridge"
+
+let install_statement : Old.yelu_install_stmt -> Yelu_tiny.expr = function
+  | Yinstall_targets { targets; destination; export } ->
+    ECmakeInstallTargets
+      {
+        targets = List.map targets ~f:target_name;
+        destination = expr destination;
+        export = Option.map export ~f:expr;
+      }
+  | Yinstall_files { files; destination } ->
+    ECmakeInstallFiles { files = List.map files ~f:expr; destination = expr destination }
+  | _ -> fail "unsupported yelu_cmake install statement for Yelu1 bridge"
 
 let rec stmt : Old.yelu_stmt -> Yelu_tiny.expr = function
   | Ys_string string_stmt -> string_statement string_stmt
   | Ys_list list_stmt -> list_statement list_stmt
   | Ys_path path_stmt -> path_statement path_stmt
   | Ys_target target_stmt -> target_statement target_stmt
+  | Ys_install install_stmt -> install_statement install_stmt
   | Ys_var var_stmt -> var_statement var_stmt
   | Ylet { var = Yvar name; value } -> ESetVar (name, expr value)
   | Yif { cond; then_; else_ } ->

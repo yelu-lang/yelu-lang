@@ -10,6 +10,8 @@ open Yelu_theory_path
 open Yelu_surface_cmake_path
 open Yelu_theory_target
 open Yelu_surface_cmake_target
+open Yelu_theory_install
+open Yelu_surface_cmake_install
 open Yelu_surface_cmake_string
 open Yelu_theory_string
 open Yelu_surface_cmake_if
@@ -61,6 +63,9 @@ module Yelu1 = struct
       match Yelu_surface_cmake_target.eval_case ~eval:eval_expr env expr with
        | Some value -> value
        | None ->
+      match Yelu_surface_cmake_install.eval_case ~eval:eval_expr env expr with
+       | Some value -> value
+       | None ->
       match Yelu_surface_cmake_if.eval_case ~eval:eval_expr env expr with
        | Some value -> value
        | None ->
@@ -103,6 +108,9 @@ module Yelu2 = struct
        | Some value -> value
        | None ->
       match Yelu_theory_target.eval_case ~eval:eval_expr env expr with
+       | Some value -> value
+       | None ->
+      match Yelu_theory_install.eval_case ~eval:eval_expr env expr with
        | Some value -> value
        | None ->
       match Yelu_theory_if.eval_case ~eval:eval_expr env expr with
@@ -183,9 +191,61 @@ let rec lift_yelu1_to_yelu2 = function
         visibility;
         dirs = List.map dirs ~f:lift_yelu1_to_yelu2;
       }
+  | ETargetCompileDefinitions { target; visibility; definitions } ->
+    ETargetCompileDefinitions
+      {
+        target = lift_yelu1_to_yelu2 target;
+        visibility;
+        definitions = List.map definitions ~f:lift_yelu1_to_yelu2;
+      }
+  | ETargetCompileOptions { target; visibility; options_ } ->
+    ETargetCompileOptions
+      {
+        target = lift_yelu1_to_yelu2 target;
+        visibility;
+        options_ = List.map options_ ~f:lift_yelu1_to_yelu2;
+      }
+  | ETargetLinkOptions { target; visibility; options_ } ->
+    ETargetLinkOptions
+      {
+        target = lift_yelu1_to_yelu2 target;
+        visibility;
+        options_ = List.map options_ ~f:lift_yelu1_to_yelu2;
+      }
+  | ETargetLinkDirectories { target; visibility; dirs } ->
+    ETargetLinkDirectories
+      {
+        target = lift_yelu1_to_yelu2 target;
+        visibility;
+        dirs = List.map dirs ~f:lift_yelu1_to_yelu2;
+      }
   | ECustomTarget { name; all; commands; depends; comment } ->
     ECustomTarget
       { name; all; commands; depends = List.map depends ~f:lift_yelu1_to_yelu2; comment }
+  | ECustomCommand { outputs; commands; depends; comment; verbatim } ->
+    ECustomCommand
+      {
+        outputs = List.map outputs ~f:lift_yelu1_to_yelu2;
+        commands;
+        depends = List.map depends ~f:lift_yelu1_to_yelu2;
+        comment;
+        verbatim;
+      }
+
+  (* Shared install theory. *)
+  | EInstallTargets { targets; destination; export } ->
+    EInstallTargets
+      {
+        targets = List.map targets ~f:lift_yelu1_to_yelu2;
+        destination = lift_yelu1_to_yelu2 destination;
+        export = Option.map export ~f:lift_yelu1_to_yelu2;
+      }
+  | EInstallFiles { files; destination } ->
+    EInstallFiles
+      {
+        files = List.map files ~f:lift_yelu1_to_yelu2;
+        destination = lift_yelu1_to_yelu2 destination;
+      }
 
   (* CMake list surface -> Yelu list/string theories. *)
   | ECmakeListAppend { list; items } ->
@@ -241,11 +301,89 @@ let rec lift_yelu1_to_yelu2 = function
           { target = ETarget target; visibility; dirs = List.map dirs ~f:lift_yelu1_to_yelu2 };
         EUnit;
       ]
+  | ECmakeTargetCompileDefinitions { target; visibility; definitions } ->
+    ESeq
+      [
+        ETargetCompileDefinitions
+          {
+            target = ETarget target;
+            visibility;
+            definitions = List.map definitions ~f:lift_yelu1_to_yelu2;
+          };
+        EUnit;
+      ]
+  | ECmakeTargetCompileOptions { target; visibility; options_ } ->
+    ESeq
+      [
+        ETargetCompileOptions
+          {
+            target = ETarget target;
+            visibility;
+            options_ = List.map options_ ~f:lift_yelu1_to_yelu2;
+          };
+        EUnit;
+      ]
+  | ECmakeTargetLinkOptions { target; visibility; options_ } ->
+    ESeq
+      [
+        ETargetLinkOptions
+          {
+            target = ETarget target;
+            visibility;
+            options_ = List.map options_ ~f:lift_yelu1_to_yelu2;
+          };
+        EUnit;
+      ]
+  | ECmakeTargetLinkDirectories { target; visibility; dirs } ->
+    ESeq
+      [
+        ETargetLinkDirectories
+          {
+            target = ETarget target;
+            visibility;
+            dirs = List.map dirs ~f:lift_yelu1_to_yelu2;
+          };
+        EUnit;
+      ]
   | ECmakeAddCustomTarget { name; all; commands; depends; comment } ->
     ESeq
       [
         ECustomTarget
           { name; all; commands; depends = List.map depends ~f:lift_yelu1_to_yelu2; comment };
+        EUnit;
+      ]
+  | ECmakeAddCustomCommand { outputs; commands; depends; comment; verbatim } ->
+    ESeq
+      [
+        ECustomCommand
+          {
+            outputs = List.map outputs ~f:lift_yelu1_to_yelu2;
+            commands;
+            depends = List.map depends ~f:lift_yelu1_to_yelu2;
+            comment;
+            verbatim;
+          };
+        EUnit;
+      ]
+  | ECmakeInstallTargets { targets; destination; export } ->
+    ESeq
+      [
+        EInstallTargets
+          {
+            targets = List.map targets ~f:(fun target -> ETarget target);
+            destination = lift_yelu1_to_yelu2 destination;
+            export = Option.map export ~f:lift_yelu1_to_yelu2;
+          };
+        EUnit;
+      ]
+  | ECmakeInstallFiles { files; destination } ->
+    ESeq
+      [
+        EInstallFiles
+          {
+            files = List.map files ~f:lift_yelu1_to_yelu2;
+            destination = lift_yelu1_to_yelu2 destination;
+          };
         EUnit;
       ]
   | ECmakeTargetExists name ->
@@ -378,9 +516,108 @@ let rec lower_yelu2_to_yelu1 = function
         visibility;
         dirs = List.map dirs ~f:lower_yelu2_to_yelu1;
       }
+  | ETargetCompileDefinitions { target = ETarget name; visibility; definitions } ->
+    ESeq
+      [
+        ECmakeTargetCompileDefinitions
+          {
+            target = name;
+            visibility;
+            definitions = List.map definitions ~f:lower_yelu2_to_yelu1;
+          };
+        ETarget name;
+      ]
+  | ETargetCompileDefinitions { target; visibility; definitions } ->
+    ETargetCompileDefinitions
+      {
+        target = lower_yelu2_to_yelu1 target;
+        visibility;
+        definitions = List.map definitions ~f:lower_yelu2_to_yelu1;
+      }
+  | ETargetCompileOptions { target = ETarget name; visibility; options_ } ->
+    ESeq
+      [
+        ECmakeTargetCompileOptions
+          {
+            target = name;
+            visibility;
+            options_ = List.map options_ ~f:lower_yelu2_to_yelu1;
+          };
+        ETarget name;
+      ]
+  | ETargetCompileOptions { target; visibility; options_ } ->
+    ETargetCompileOptions
+      {
+        target = lower_yelu2_to_yelu1 target;
+        visibility;
+        options_ = List.map options_ ~f:lower_yelu2_to_yelu1;
+      }
+  | ETargetLinkOptions { target = ETarget name; visibility; options_ } ->
+    ESeq
+      [
+        ECmakeTargetLinkOptions
+          {
+            target = name;
+            visibility;
+            options_ = List.map options_ ~f:lower_yelu2_to_yelu1;
+          };
+        ETarget name;
+      ]
+  | ETargetLinkOptions { target; visibility; options_ } ->
+    ETargetLinkOptions
+      {
+        target = lower_yelu2_to_yelu1 target;
+        visibility;
+        options_ = List.map options_ ~f:lower_yelu2_to_yelu1;
+      }
+  | ETargetLinkDirectories { target = ETarget name; visibility; dirs } ->
+    ESeq
+      [
+        ECmakeTargetLinkDirectories
+          {
+            target = name;
+            visibility;
+            dirs = List.map dirs ~f:lower_yelu2_to_yelu1;
+          };
+        ETarget name;
+      ]
+  | ETargetLinkDirectories { target; visibility; dirs } ->
+    ETargetLinkDirectories
+      {
+        target = lower_yelu2_to_yelu1 target;
+        visibility;
+        dirs = List.map dirs ~f:lower_yelu2_to_yelu1;
+      }
   | ECustomTarget { name; all; commands; depends; comment } ->
     ECmakeAddCustomTarget
       { name; all; commands; depends = List.map depends ~f:lower_yelu2_to_yelu1; comment }
+  | ECustomCommand { outputs; commands; depends; comment; verbatim } ->
+    ECmakeAddCustomCommand
+      {
+        outputs = List.map outputs ~f:lower_yelu2_to_yelu1;
+        commands;
+        depends = List.map depends ~f:lower_yelu2_to_yelu1;
+        comment;
+        verbatim;
+      }
+  | EInstallTargets { targets; destination; export } ->
+    let targets =
+      List.map targets ~f:(function
+        | ETarget name -> name
+        | _ -> fail "install target lowering currently requires literal target values")
+    in
+    ECmakeInstallTargets
+      {
+        targets;
+        destination = lower_yelu2_to_yelu1 destination;
+        export = Option.map export ~f:lower_yelu2_to_yelu1;
+      }
+  | EInstallFiles { files; destination } ->
+    ECmakeInstallFiles
+      {
+        files = List.map files ~f:lower_yelu2_to_yelu1;
+        destination = lower_yelu2_to_yelu1 destination;
+      }
 
   (* Yelu list/string theories -> CMake list surface. *)
   | ESetVar (name, EListAppend (EVar list, item)) when String.equal name list ->

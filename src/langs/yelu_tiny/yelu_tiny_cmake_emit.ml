@@ -8,6 +8,7 @@ open Yelu_surface_cmake_list
 open Yelu_surface_cmake_path
 open Yelu_theory_target
 open Yelu_surface_cmake_target
+open Yelu_surface_cmake_install
 open Yelu_surface_cmake_string
 open Yelu_surface_cmake_if
 
@@ -97,6 +98,14 @@ let rec emit_expr = function
     [ Fmt.str "target_link_libraries(%s %s %s)" target visibility (String.concat ~sep:" " (List.map items ~f:arg)) ]
   | ECmakeTargetIncludeDirectories { target; visibility; dirs } ->
     [ Fmt.str "target_include_directories(%s %s %s)" target visibility (String.concat ~sep:" " (List.map dirs ~f:arg)) ]
+  | ECmakeTargetCompileDefinitions { target; visibility; definitions } ->
+    [ Fmt.str "target_compile_definitions(%s %s %s)" target visibility (String.concat ~sep:" " (List.map definitions ~f:arg)) ]
+  | ECmakeTargetCompileOptions { target; visibility; options_ } ->
+    [ Fmt.str "target_compile_options(%s %s %s)" target visibility (String.concat ~sep:" " (List.map options_ ~f:arg)) ]
+  | ECmakeTargetLinkOptions { target; visibility; options_ } ->
+    [ Fmt.str "target_link_options(%s %s %s)" target visibility (String.concat ~sep:" " (List.map options_ ~f:arg)) ]
+  | ECmakeTargetLinkDirectories { target; visibility; dirs } ->
+    [ Fmt.str "target_link_directories(%s %s %s)" target visibility (String.concat ~sep:" " (List.map dirs ~f:arg)) ]
   | ECmakeAddCustomTarget { name; all; commands; depends; comment } ->
     let all = if all then " ALL" else "" in
     let command_lines =
@@ -119,6 +128,48 @@ let rec emit_expr = function
     @ depends
     @ comment
     @ [ "  VERBATIM"; ")" ]
+  | ECmakeAddCustomCommand { outputs; commands; depends; comment; verbatim } ->
+    let outputs_line =
+      Fmt.str "  OUTPUT %s" (String.concat ~sep:" " (List.map outputs ~f:arg))
+    in
+    let command_lines =
+      List.map commands ~f:(fun command ->
+        Fmt.str "  COMMAND %s" (build_command command))
+    in
+    let depends_lines =
+      match depends with
+      | [] -> []
+      | depends ->
+        [ Fmt.str "  DEPENDS %s" (String.concat ~sep:" " (List.map depends ~f:arg)) ]
+    in
+    let comment_lines =
+      match comment with
+      | None -> []
+      | Some comment -> [ Fmt.str "  COMMENT %s" (quoted comment) ]
+    in
+    let verbatim_lines = if verbatim then [ "  VERBATIM" ] else [] in
+    [ "add_custom_command(" ]
+    @ [ outputs_line ]
+    @ command_lines
+    @ depends_lines
+    @ comment_lines
+    @ verbatim_lines
+    @ [ ")" ]
+  | ECmakeInstallTargets { targets; destination; export } ->
+    let export =
+      Option.value_map export ~default:"" ~f:(fun export ->
+        " EXPORT " ^ arg export)
+    in
+    [ Fmt.str "install(TARGETS %s%s DESTINATION %s)"
+        (String.concat ~sep:" " targets)
+        export
+        (arg destination)
+    ]
+  | ECmakeInstallFiles { files; destination } ->
+    [ Fmt.str "install(FILES %s DESTINATION %s)"
+        (String.concat ~sep:" " (List.map files ~f:arg))
+        (arg destination)
+    ]
   | ECmakeIfStmt { cond = c; then_; else_ } ->
     let then_lines = emit_expr then_ in
     let else_lines = Option.value_map else_ ~default:[] ~f:emit_expr in

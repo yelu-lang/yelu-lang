@@ -8,6 +8,10 @@ type expr +=
   | ETargetAddSources of { target : expr; visibility : string; sources : expr list }
   | ETargetLinkLibraries of { target : expr; visibility : string; items : expr list }
   | ETargetIncludeDirectories of { target : expr; visibility : string; dirs : expr list }
+  | ETargetCompileDefinitions of { target : expr; visibility : string; definitions : expr list }
+  | ETargetCompileOptions of { target : expr; visibility : string; options_ : expr list }
+  | ETargetLinkOptions of { target : expr; visibility : string; options_ : expr list }
+  | ETargetLinkDirectories of { target : expr; visibility : string; dirs : expr list }
   | ECustomTarget of {
       name : string;
       all : bool;
@@ -15,10 +19,25 @@ type expr +=
       depends : expr list;
       comment : string option;
     }
+  | ECustomCommand of {
+      outputs : expr list;
+      commands : build_command list;
+      depends : expr list;
+      comment : string option;
+      verbatim : bool;
+    }
 
 let eval_string ~eval env expr =
   let env, value = eval env expr in
   env, expect_string value
+
+let eval_string_list ~eval env exprs =
+  let env, items =
+    List.fold exprs ~init:(env, []) ~f:(fun (env, acc) expr ->
+      let env, item = eval_string ~eval env expr in
+      env, item :: acc)
+  in
+  env, List.rev items
 
 let declare_target env name =
   match find_target env name with
@@ -28,14 +47,17 @@ let declare_target env name =
 let target_exists env name =
   Option.is_some (find_target env name)
 
+let update_existing_target env name ~f =
+  if not (target_exists env name) then fail "unknown target %S" name;
+  update_target env name ~f
+
 let target_sources env name =
   match find_target env name with
   | None -> []
   | Some target -> target.sources
 
 let add_target_sources env name ~visibility sources =
-  if not (target_exists env name) then fail "unknown target %S" name;
-  update_target env name ~f:(fun target ->
+  update_existing_target env name ~f:(fun target ->
     {
       target with
       sources =
@@ -49,8 +71,7 @@ let target_links env name =
   | Some target -> target.link_libraries
 
 let add_target_links env name ~visibility items =
-  if not (target_exists env name) then fail "unknown target %S" name;
-  update_target env name ~f:(fun target ->
+  update_existing_target env name ~f:(fun target ->
     {
       target with
       link_libraries =
@@ -64,14 +85,75 @@ let target_include_dirs env name =
   | Some target -> target.include_directories
 
 let add_target_include_dirs env name ~visibility dirs =
-  if not (target_exists env name) then fail "unknown target %S" name;
-  update_target env name ~f:(fun target ->
+  update_existing_target env name ~f:(fun target ->
     {
       target with
       include_directories =
         target.include_directories
         @ List.map dirs ~f:(fun dir -> { visibility; dir });
     })
+
+let target_compile_definitions env name =
+  match find_target env name with
+  | None -> []
+  | Some target -> target.compile_definitions
+
+let add_target_compile_definitions env name ~visibility definitions =
+  update_existing_target env name ~f:(fun target ->
+    {
+      target with
+      compile_definitions =
+        target.compile_definitions
+        @ List.map definitions ~f:(fun definition -> { visibility; definition });
+    })
+
+let target_compile_options env name =
+  match find_target env name with
+  | None -> []
+  | Some target -> target.compile_options
+
+let add_target_compile_options env name ~visibility options_ =
+  update_existing_target env name ~f:(fun target ->
+    {
+      target with
+      compile_options =
+        target.compile_options
+        @ List.map options_ ~f:(fun option_ -> { visibility; option_ });
+    })
+
+let target_link_options env name =
+  match find_target env name with
+  | None -> []
+  | Some target -> target.link_options
+
+let add_target_link_options env name ~visibility options_ =
+  update_existing_target env name ~f:(fun target ->
+    {
+      target with
+      link_options =
+        target.link_options
+        @ List.map options_ ~f:(fun link_option -> { visibility; link_option });
+    })
+
+let target_link_directories env name =
+  match find_target env name with
+  | None -> []
+  | Some target -> target.link_directories
+
+let add_target_link_directories env name ~visibility dirs =
+  update_existing_target env name ~f:(fun target ->
+    {
+      target with
+      link_directories =
+        target.link_directories
+        @ List.map dirs ~f:(fun link_directory -> { visibility; link_directory });
+    })
+
+let eval_target_visibility_items ~eval env target ~visibility items ~add =
+  let env, target = eval env target in
+  let target = expect_target target in
+  let env, items = eval_string_list ~eval env items in
+  add env target ~visibility items, target
 
 let eval_case ~eval env = function
   | ETarget name -> Some (env, VTarget name)
@@ -87,40 +169,58 @@ let eval_case ~eval env = function
     let env, target = eval env target in
     Some (env, VBool (target_exists env (expect_target target)))
   | ETargetAddSources { target; visibility; sources } ->
-    let env, target = eval env target in
-    let target = expect_target target in
-    let env, sources =
-      List.fold sources ~init:(env, []) ~f:(fun (env, sources) source ->
-        let env, source = eval_string ~eval env source in
-        env, source :: sources)
+    let env, name =
+      eval_target_visibility_items ~eval env target ~visibility sources
+        ~add:add_target_sources
     in
-    Some (add_target_sources env target ~visibility (List.rev sources), VTarget target)
+    Some (env, VTarget name)
   | ETargetLinkLibraries { target; visibility; items } ->
-    let env, target = eval env target in
-    let target = expect_target target in
-    let env, items =
-      List.fold items ~init:(env, []) ~f:(fun (env, items) item ->
-        let env, item = eval_string ~eval env item in
-        env, item :: items)
+    let env, name =
+      eval_target_visibility_items ~eval env target ~visibility items
+        ~add:add_target_links
     in
-    Some (add_target_links env target ~visibility (List.rev items), VTarget target)
+    Some (env, VTarget name)
   | ETargetIncludeDirectories { target; visibility; dirs } ->
-    let env, target = eval env target in
-    let target = expect_target target in
-    let env, dirs =
-      List.fold dirs ~init:(env, []) ~f:(fun (env, dirs) dir ->
-        let env, dir = eval_string ~eval env dir in
-        env, dir :: dirs)
+    let env, name =
+      eval_target_visibility_items ~eval env target ~visibility dirs
+        ~add:add_target_include_dirs
     in
-    Some (add_target_include_dirs env target ~visibility (List.rev dirs), VTarget target)
+    Some (env, VTarget name)
+  | ETargetCompileDefinitions { target; visibility; definitions } ->
+    let env, name =
+      eval_target_visibility_items ~eval env target ~visibility definitions
+        ~add:add_target_compile_definitions
+    in
+    Some (env, VTarget name)
+  | ETargetCompileOptions { target; visibility; options_ } ->
+    let env, name =
+      eval_target_visibility_items ~eval env target ~visibility options_
+        ~add:add_target_compile_options
+    in
+    Some (env, VTarget name)
+  | ETargetLinkOptions { target; visibility; options_ } ->
+    let env, name =
+      eval_target_visibility_items ~eval env target ~visibility options_
+        ~add:add_target_link_options
+    in
+    Some (env, VTarget name)
+  | ETargetLinkDirectories { target; visibility; dirs } ->
+    let env, name =
+      eval_target_visibility_items ~eval env target ~visibility dirs
+        ~add:add_target_link_directories
+    in
+    Some (env, VTarget name)
   | ECustomTarget { name; all; commands; depends; comment } ->
-    let env, depends =
-      List.fold depends ~init:(env, []) ~f:(fun (env, depends) depend ->
-        let env, depend = eval_string ~eval env depend in
-        env, depend :: depends)
-    in
+    let env, depends = eval_string_list ~eval env depends in
     Some
       ( set_custom_target env
-          { name; all; commands; depends = List.rev depends; comment },
+          { name; all; commands; depends; comment },
+        VUnit )
+  | ECustomCommand { outputs; commands; depends; comment; verbatim } ->
+    let env, outputs = eval_string_list ~eval env outputs in
+    let env, depends = eval_string_list ~eval env depends in
+    Some
+      ( set_custom_command env
+          { outputs; commands; depends; comment; verbatim },
         VUnit )
   | _ -> None

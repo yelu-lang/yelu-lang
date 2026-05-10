@@ -4,6 +4,7 @@ open Yelu_langs.Yelu_theory_int
 open Yelu_langs.Yelu_theory_list
 open Yelu_langs.Yelu_theory_path
 open Yelu_langs.Yelu_theory_target
+open Yelu_langs.Yelu_theory_install
 open Yelu_langs.Yelu_theory_string
 open Yelu_langs.Yelu_theory_if
 open Yelu_langs.Yelu_surface_cmake_list
@@ -61,6 +62,43 @@ let check_yelu2_custom_target_build name expr ~target ~pattern =
     | () -> cleanup_configured_project project
     | exception exn ->
       cleanup_configured_project project;
+      raise exn)
+
+let check_yelu2_install name expr ~expected =
+  Alcotest.test_case name `Quick (fun () ->
+    let cmake_text = emit_script (lower_yelu2_to_yelu1 expr) in
+    let project =
+      configure_project
+        ~languages:[ "C" ]
+        ~files:
+          [
+            "main.c", "int main(void) { return 0; }\n";
+            "include/app.h", "#pragma once\n";
+          ]
+        cmake_text
+    in
+    let prefix = Filename.temp_file "yelu_install_" "" in
+    Sys.remove prefix;
+    Unix.mkdir prefix 0o700;
+    match
+      check_exit 0 project.configure.run;
+      check_exit 0 (run_build_target project "app");
+      check_exit 0 (run_install ~prefix project);
+      let manifest = install_manifest project in
+      check_install_manifest_under_prefix ~prefix manifest;
+      List.iter
+        (fun rel ->
+          let path = Filename.concat prefix rel in
+          if not (Sys.file_exists path) then
+            Alcotest.failf "expected installed file %S to exist" path)
+        expected
+    with
+    | () ->
+      cleanup_configured_project project;
+      remove_tree prefix
+    | exception exn ->
+      cleanup_configured_project project;
+      remove_tree prefix;
       raise exn)
 
 let cmake_project text =
@@ -277,6 +315,10 @@ add_executable(app "main.c")
 target_sources(app PRIVATE "extra.c")
 target_link_libraries(app PRIVATE "m")
 target_include_directories(app PRIVATE "include")
+target_compile_definitions(app PRIVATE "USE_FEATURE")
+target_compile_options(app PRIVATE "-Wall")
+target_link_options(app PRIVATE "-Wl,--as-needed")
+target_link_directories(app PRIVATE "/opt/lib")
 |}
         (ESeq [
           ESetVar
@@ -284,6 +326,14 @@ target_include_directories(app PRIVATE "include")
           ETargetAddSources { target = ETarget "app"; visibility = "PRIVATE"; sources = [ EString "extra.c" ] };
           ETargetLinkLibraries { target = ETarget "app"; visibility = "PRIVATE"; items = [ EString "m" ] };
           ETargetIncludeDirectories { target = ETarget "app"; visibility = "PRIVATE"; dirs = [ EString "include" ] };
+          ETargetCompileDefinitions
+            { target = ETarget "app"; visibility = "PRIVATE"; definitions = [ EString "USE_FEATURE" ] };
+          ETargetCompileOptions
+            { target = ETarget "app"; visibility = "PRIVATE"; options_ = [ EString "-Wall" ] };
+          ETargetLinkOptions
+            { target = ETarget "app"; visibility = "PRIVATE"; options_ = [ EString "-Wl,--as-needed" ] };
+          ETargetLinkDirectories
+            { target = ETarget "app"; visibility = "PRIVATE"; dirs = [ EString "/opt/lib" ] };
         ]);
       check_yelu2_custom_target_build "custom target command runs"
         (ECustomTarget
@@ -302,6 +352,47 @@ target_include_directories(app PRIVATE "include")
            })
         ~target:"yelu_hello"
         ~pattern:"YELU_CUSTOM_TARGET_OK";
+      check_yelu2_custom_target_build "custom command produces output for custom target"
+        (ESeq [
+          ECustomCommand
+            {
+              outputs = [ EString "yelu_generated.txt" ];
+              commands =
+                [
+                  {
+                    command = "${CMAKE_COMMAND}";
+                    args = [ "-E"; "echo"; "YELU_CUSTOM_COMMAND_OK" ];
+                  };
+                  {
+                    command = "${CMAKE_COMMAND}";
+                    args = [ "-E"; "touch"; "yelu_generated.txt" ];
+                  };
+                ];
+              depends = [];
+              comment = Some "tiny custom command";
+              verbatim = true;
+            };
+          ECustomTarget
+            {
+              name = "yelu_consume";
+              all = false;
+              commands = [];
+              depends = [ EString "yelu_generated.txt" ];
+              comment = None;
+            };
+        ])
+        ~target:"yelu_consume"
+        ~pattern:"YELU_CUSTOM_COMMAND_OK";
+      check_yelu2_install "install target and header under temp prefix"
+        (ESeq [
+          ESetVar
+            ("APP", EExecutable { name = EString "app"; sources = [ EString "main.c" ] });
+          EInstallTargets
+            { targets = [ ETarget "app" ]; destination = EString "bin"; export = None };
+          EInstallFiles
+            { files = [ EString "include/app.h" ]; destination = EString "include" };
+        ])
+        ~expected:[ "bin/app"; "include/app.h" ];
     ] )
 
 let () =

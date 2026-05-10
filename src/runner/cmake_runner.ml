@@ -306,7 +306,61 @@ let run_build_target project target =
   in
   { exit_code; stdout; stderr }
 
-let cleanup_configured_project project =
+let run_install ?prefix project =
+  let prefix_arg =
+    match prefix with
+    | None -> ""
+    | Some prefix -> Printf.sprintf " --prefix %s" (Filename.quote prefix)
+  in
+  let cmd =
+    Printf.sprintf "cmake --install %s%s"
+      (Filename.quote project.build_dir)
+      prefix_arg
+  in
+  let stdout_ch, stdin_ch, stderr_ch = Unix.open_process_full cmd (cmake_env []) in
+  close_out stdin_ch;
+  let stdout = read_all stdout_ch in
+  let stderr = read_all stderr_ch in
+  let status = Unix.close_process_full (stdout_ch, stdin_ch, stderr_ch) in
+  let exit_code = match status with
+    | Unix.WEXITED n -> n | Unix.WSIGNALED n -> 128 + n | Unix.WSTOPPED n -> 128 + n
+  in
+  { exit_code; stdout; stderr }
+
+let install_manifest project =
+  let path = Filename.concat project.build_dir "install_manifest.txt" in
+  if not (Sys.file_exists path) then []
+  else
+    let ic = open_in path in
+    let lines = ref [] in
+    (try
+       while true do
+         let line = String.trim (input_line ic) in
+         if line <> "" then lines := line :: !lines
+       done
+     with End_of_file -> ());
+    close_in ic;
+    List.rev !lines
+
+let path_is_under ~prefix path =
+  let prefix =
+    if Filename.is_relative prefix then Filename.concat (Sys.getcwd ()) prefix else prefix
+  in
+  let path =
+    if Filename.is_relative path then Filename.concat (Sys.getcwd ()) path else path
+  in
+  let prefix = Filename.concat prefix "" in
+  String.length path >= String.length prefix
+  && String.sub path 0 (String.length prefix) = prefix
+
+let check_install_manifest_under_prefix ~prefix paths =
+  List.iter
+    (fun path ->
+      if not (path_is_under ~prefix path) then
+        Alcotest.failf "installed path escaped prefix\nprefix: %s\npath: %s" prefix path)
+    paths
+
+let remove_tree path =
   let rec rm path =
     if Sys.file_exists path then
       if Sys.is_directory path then begin
@@ -314,7 +368,10 @@ let cleanup_configured_project project =
         Unix.rmdir path
       end else Sys.remove path
   in
-  rm project.source_dir
+  rm path
+
+let cleanup_configured_project project =
+  remove_tree project.source_dir
 
 let run_cmd_simple cmd =
   let stdout_ch, stdin_ch, stderr_ch = Unix.open_process_full cmd (cmake_env []) in

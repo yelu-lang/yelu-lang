@@ -230,10 +230,10 @@ let build_stmt name args kwargs record_args =
       (Ys_target
          (Ytgt_include_directories
             { target; before = false; system = false; items = target_sources_items dirs }))
-  | "compile_defs", [target] ->
-    Some (Ys_target (Ytgt_compile_definitions { target; items = [] }))
-  | "compile_opts", [target] ->
-    Some (Ys_target (Ytgt_compile_options { target; before = false; items = [] }))
+  | "compile_defs", target :: defs ->
+    Some (Ys_target (Ytgt_compile_definitions { target; items = target_sources_items defs }))
+  | "compile_opts", target :: opts ->
+    Some (Ys_target (Ytgt_compile_options { target; before = false; items = target_sources_items opts }))
   | "target_sources", target :: sources ->
     Some
       (Ys_target
@@ -259,10 +259,10 @@ let build_stmt name args kwargs record_args =
   (* Tier 1: remaining target commands *)
   | "compile_feats", [target] ->
     Some (Ys_target (Ytgt_compile_features { target; features = [] }))
-  | "link_opts", [target] ->
-    Some (Ys_target (Ytgt_link_options { target; before = false; items = [] }))
-  | "link_dirs", [target] ->
-    Some (Ys_target (Ytgt_link_directories { target; before = false; items = [] }))
+  | "link_opts", target :: opts ->
+    Some (Ys_target (Ytgt_link_options { target; before = false; items = target_sources_items opts }))
+  | "link_dirs", target :: dirs ->
+    Some (Ys_target (Ytgt_link_directories { target; before = false; items = target_sources_items dirs }))
   | "precompile_headers", [target] ->
     Some (Ys_target (Ytgt_precompile_headers { target; items = [] }))
   | "add_lib_alias", [name; target] ->

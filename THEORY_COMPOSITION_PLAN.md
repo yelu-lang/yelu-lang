@@ -1,13 +1,32 @@
 # Yelu Theory Composition Tracker
 
-Status: tiny composition experiment in progress.
+Status: tiny composition harness in progress; theory architecture working,
+broadening bridge coverage toward "complete role" (see below).
 
 This file is the short tracker to update after each step. Durable design context
 lives in:
 
+- `doc/yelu_manifesto.md` — project thesis and layered argument
+- `doc/yelu_project_overview.md` — full project audit
 - `doc/yelu_theory_composition_design.md`
 - `doc/cmake_cache_semantics.md`
 - `doc/yelu_lang_coverage.md`
+
+## Two-axle model
+
+Work on `yelu_tiny` advances along two independent axles:
+
+1. **Working pipeline coverage** — extend the bridge from the production
+   `yelu_cmake` AST through `Yelu1` (cmake-shaped surfaces) so more existing
+   programs flow through the tiny core. This is what makes `yelu_tiny`
+   eventually replaceable as the production yelu core.
+2. **Per-theory refinement** — develop each `yelu_theory_*` (the Yelu2 ideal
+   shape) and lift/lower between it and the matching `yelu_surface_cmake_*`
+   (Yelu1 cmake-shaped). This is where each theory's invariants and checks
+   eventually live.
+
+Most concrete steps advance axle 1. Refinement work (axle 2) is mostly
+deferred until tiny is in a "complete role" (see "Complete role" below).
 
 ## Direction
 
@@ -34,6 +53,21 @@ src/langs/yelu/lang_yelu_parse.ml
 src/langs/yelu/lang_yelu_compile.ml
 test/test-runcmake/test_runcmake_yelu.ml
 ```
+
+Retirement target:
+
+```text
+before broad bridge coverage:
+  src/langs/yelu_tiny = new theory-composition harness
+  src/langs/yelu      = production/legacy CMake-oriented language
+
+after broad bridge coverage and test parity:
+  src/langs/yelu      = promoted theory-composition language
+  src/langs/yelu_legacy = old production CMake-oriented language
+```
+
+Do the rename only after the bridge can route enough old `yelu_cmake` programs
+through Yelu1/Yelu2 and the existing production CMake test corpus still passes.
 
 ## Current Implementation
 
@@ -67,8 +101,9 @@ Implemented tiny fragments:
 | List | Pure list literal/append/get/length and CMake named-list ops |
 | Path | First path slice: set, filename, normalize |
 | Target Layer A | `add_executable`, target value, `TARGET` predicate |
-| Target Layer B | `target_sources`, `target_link_libraries`, `target_include_directories` with visibility |
-| Build Layer C | First `add_custom_target` slice with build-backed execution check |
+| Target Layer B | `target_sources`, `target_link_libraries`, `target_include_directories`, `target_compile_definitions`, `target_compile_options`, `target_link_options`, `target_link_directories` with visibility |
+| Build Layer C | `add_custom_target` and `add_custom_command(OUTPUT ...)` with build-backed execution check |
+| Install | First slice: `install(TARGETS ...)` and `install(FILES ...)` with temp-prefix install check |
 | File API graph check | Reference CMake vs Yelu-lowered target graph comparison started |
 | Runtime env | Structured `{ vars; targets }` env; target state no longer uses reserved var keys |
 
@@ -77,7 +112,10 @@ Current bridge from production AST to Yelu1 covers representative slices for:
 ```text
 string, store-defined, list, path, target add_executable/existence,
 target_sources, target_link_libraries, target_include_directories,
-add_custom_target
+target_compile_definitions, target_compile_options,
+target_link_options, target_link_directories,
+add_custom_target, add_custom_command,
+install_targets, install_files
 ```
 
 ## Verification Status
@@ -92,8 +130,8 @@ eval $(opam env) && dune exec test/test-runcmake/test_yelu_tiny_cmake.exe
 Last verified state:
 
 ```text
-test/test-yelu/ passed
-test_yelu_tiny_cmake passed with 16 tests
+test/test-yelu/ passed (yelu_tiny_composition: 75 tests)
+test_yelu_tiny_cmake passed with 18 tests
 ```
 
 Verification tracks:
@@ -103,6 +141,7 @@ Verification tracks:
 | Semantic equivalence | Active | Compare final `env` and final `value` for Yelu1/Yelu2/lift/lower |
 | Parser bridge | Active | Parse production syntax -> old AST -> Yelu1 -> evaluator |
 | CMake-backed checks | Active | Add at least one CMake-backed case for each new CMake surface |
+| Install safety | Active | Run installs only into temp prefixes; assert install manifest paths stay under prefix |
 | Constructor coverage | Manual | Keep adding focused examples as constructors are added |
 | Property/random testing | Later | Add after core/target env settles |
 | Formal/SMT proof | Later | Consider only after tiny core and key theories stabilize |
@@ -121,39 +160,126 @@ env.targets:
 
 env.custom_targets:
   named build entrypoints created by the first `add_custom_target` slice
+
+env.custom_commands:
+  build-time output rules from `add_custom_command(OUTPUT ...)`,
+  keyed by primary output path
+
+env.install_rules:
+  configure-time install declarations, preserving target/file inputs and
+  relative install destinations
 ```
 
-Target state currently tracks sources, link libraries, and include directories
-as visibility-aware records. This is the base for adding more Layer B properties
-without accumulating special `__target:*` keys in the normal variable store.
+Target state currently tracks sources, link libraries, include directories,
+compile definitions, compile options, link options, and link directories as
+visibility-aware records. The visibility-list helpers
+(`update_existing_target ~f`, `eval_string_list`,
+`eval_target_visibility_items`) collapse the per-property add helpers and
+eval cases so that adding a new Layer B property is roughly five lines per
+mutation point. Custom commands live in their own env namespace so the
+build-rule shape (outputs as paths, deferred command execution) does not
+mix with target-mutation state.
+
+## Theory invariants — the point of the split
+
+The payoff of splitting `yelu_cmake` into `yelu_theory_*` + `yelu_surface_cmake_*`
+modules is not code organization. It is that each theory becomes the home for
+its own semantic invariants. Today most invariants live as English in commits
+and design notes; the long-run target is to have them *in the module*. Concrete
+examples already encountered:
+
+- A **target** has a logical name in target-namespace; its state is mutated
+  across many statements (`target_sources`, `target_link_libraries`, …).
+- A **custom_target** has a name in custom-target-namespace and is
+  set-once at declaration.
+- A **custom_command** is keyed by **filesystem output path**, not name; its
+  state is set-once; multiple commands cannot legally claim the same output.
+
+Each of these is a distinct sub-theory with distinct namespace, mutability,
+and identity rules. The `env` already encodes the namespace separation
+(distinct `Map.M(String).t` per kind). The mutability and identity rules
+are still informal. When we eventually bring `Stage_typecheck` and
+`Stage_wellform` over to tiny, those invariants are what the checks operate
+on. Avoid encoding them in `eval` — eval is the wrong layer.
+
+Corollary for adding new constructors: ask first which sub-theory the
+constructor belongs to, what its namespace is, and whether it is set-once or
+mutable. Decide that before writing the eval case.
+
+## Checking passes are deferred
+
+The production `yelu_cmake` has `Stage_typecheck` (per-theory) and
+`Stage_wellform` (whole-program name binding). Both are deferred for the
+tiny core. Reasoning: the right time to add them is *after* the tiny core
+covers a "complete role" (see below), because the choice of constructors,
+env shape, and lift/lower compositions is harder to undo than a missing
+check is to add later. Until then, expect:
+
+- Eval-time exceptions (`Eval_error _`) instead of structured diagnostics.
+- Visibility values are raw strings (`"PUBLIC"`/`"PRIVATE"`/`"INTERFACE"`),
+  not a typed sum.
+- Some collisions silently overwrite (e.g. two `add_custom_command` calls
+  with the same OUTPUT) — a future wellform pass catches them.
+
+This is documented gap, not technical debt. New work should *not* try to
+patch checks into eval; it should accumulate constructor coverage first.
+
+## Complete role — the milestone framing
+
+Three candidate bars, in increasing ambition. We work toward them in order;
+each bar is a meaningful checkpoint.
+
+| Bar | Definition | What it proves |
+| --- | --- | --- |
+| **#1 Tutorial step parity** | `yelu_tiny` lifts/lowers everything used by tutorial v1 steps 1–12 (the existing `make stepN` end-to-end suite). | Tiny is real enough to compile a non-trivial cmake project end-to-end. |
+| **#2 Theory breadth (lite)** | Tiny has a representative slice for each of the 14 production theories: var, target, install, test, property, string, file, path, list, find, try, cmake_op, cond, dir. Slice = at least one constructor with bridge + lift + lower + cmake emit + tests. | The theory-splitting architecture composes across all domains, not just the ones already covered. |
+| **#3 Bridge parity** | Every `yelu_cmake` constructor exercised by `test_yelu_compile.ml` (194 tests) bridges through tiny. | Production test corpus passes through tiny → the rename `yelu_tiny` → `yelu` becomes feasible. |
+
+Recommended arc: **#1 → #2 (lite) → #3**. Once #3 is green, axle 2 work
+(checking passes, refined theory shapes, typed visibility, etc.) becomes
+the next chapter.
 
 ## Next Steps
 
-Recommended order:
+Working toward bar #1 (tutorial step parity).
 
-1. Add `target_compile_definitions` as the next small Layer B property, or
-   continue Build Layer C with a tiny `add_custom_command(OUTPUT ...)` slice.
-2. Preserve the existing semantic/parser/CMake-backed/build-backed tests.
-3. Consider a small target-state helper abstraction if another property repeats
-   the same visibility-aware append pattern.
-4. For `add_custom_command`, start with the common paired pattern:
-   `add_custom_command(OUTPUT file ...)` plus `add_custom_target(name DEPENDS file)`.
+Open threads, in order of leverage:
+
+1. **Continue the build-rule thread.** Extend `add_custom_command` (working
+   directory, USES_TERMINAL, multiple outputs, MAIN_DEPENDENCY) and add
+   `add_custom_command(TARGET ...)` for pre/post-build hooks
+   (`Ytgt_add_custom_command_target` already exists in the old AST).
+2. **Deepen install when needed.** `install(EXPORT ...)` and package config
+   generation remain open. Keep all install tests behind temp prefixes and
+   manifest path checks.
+3. **`add_library`.** Counterpart to `add_executable`; touches the same
+   target theory but introduces the library-type discriminator
+   (STATIC/SHARED/MODULE/INTERFACE/OBJECT).
+4. Skip `target_precompile_headers` and other visibility-list replays until
+   tutorial steps actually exercise them.
+
+Skip-for-now (axle 2): typecheck/wellform passes on tiny, typed visibility,
+generator expressions as delayed values, fragment-owned parser composition.
 
 ## Deferred Topics
 
 - Cache/env namespaces beyond the current normal-variable store slice.
 - `PARENT_SCOPE`.
 - Generator expressions as delayed values.
-- Build-time artifacts and custom command bodies.
+- Build-time artifacts and custom command bodies (beyond the
+  `add_custom_command(OUTPUT ...)` slice already implemented).
 - Fragment-owned parser composition.
 - Type annotations and a later `yelu_tiny_typed`.
 - Property/generated testing and formal proof.
+- `Stage_typecheck` and `Stage_wellform` passes on the tiny core
+  (intentionally deferred — see "Checking passes are deferred").
 
 ## Notes
 
 - Old production AST has no dedicated normal-variable `unset(NAME)` constructor.
   Normal unset-like behavior is encoded as `Yvar_set` with an empty value list.
   Dedicated unset constructors exist for cache/env only.
-- `target_link_libraries` and `target_include_directories` currently preserve
-  `PRIVATE`/`PUBLIC`/`INTERFACE`, but do not model generator expressions or full
-  transitive usage requirements yet.
+- `target_link_libraries`, `target_include_directories`, and
+  `target_compile_definitions` currently preserve `PRIVATE`/`PUBLIC`/`INTERFACE`,
+  but do not model generator expressions or full transitive usage requirements
+  yet.
