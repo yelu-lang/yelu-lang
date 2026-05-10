@@ -17,6 +17,18 @@ open Yelu_langs.Yelu_surface_cmake_string
 open Yelu_langs.Yelu_theory_string
 open Yelu_langs.Yelu_surface_cmake_if
 open Yelu_langs.Yelu_theory_if
+open Yelu_langs.Yelu_surface_cmake_cmake_op
+open Yelu_langs.Yelu_theory_cmake_op
+open Yelu_langs.Yelu_surface_cmake_dir
+open Yelu_langs.Yelu_theory_dir
+open Yelu_langs.Yelu_surface_cmake_test
+open Yelu_langs.Yelu_theory_test
+open Yelu_langs.Yelu_surface_cmake_property
+open Yelu_langs.Yelu_theory_property
+open Yelu_langs.Yelu_surface_cmake_find
+open Yelu_langs.Yelu_theory_find
+open Yelu_langs.Yelu_surface_cmake_try
+open Yelu_langs.Yelu_theory_try
 open Yelu_langs.Yelu_tiny_eval
 
 module Old = Yelu_langs.Lang_yelu_cmake
@@ -49,6 +61,15 @@ let env_of_bindings
       ?(custom_targets = [])
       ?(custom_commands = [])
       ?(install_rules = [])
+      ?project
+      ?cmake_min_version
+      ?(messages = [])
+      ?(subdirectories = [])
+      ?(testing_enabled = false)
+      ?(tests = [])
+      ?(target_properties = [])
+      ?(find_packages = [])
+      ?(try_compiles = [])
       bindings =
   let env =
     List.fold bindings ~init:empty_env ~f:(fun env (key, data) ->
@@ -61,7 +82,25 @@ let env_of_bindings
   let env = List.fold targets ~init:env ~f:set_target in
   let env = List.fold custom_targets ~init:env ~f:set_custom_target in
   let env = List.fold custom_commands ~init:env ~f:set_custom_command in
-  List.fold install_rules ~init:env ~f:add_install_rule
+  let env = List.fold install_rules ~init:env ~f:add_install_rule in
+  let env =
+    Option.value_map project ~default:env ~f:(fun info -> set_project env info)
+  in
+  let env =
+    Option.value_map cmake_min_version ~default:env ~f:(fun v -> set_cmake_min_version env v)
+  in
+  let env =
+    List.fold messages ~init:env ~f:(fun env { mode; texts } -> add_message env mode texts)
+  in
+  let env = List.fold subdirectories ~init:env ~f:add_subdirectory in
+  let env = if testing_enabled then enable_testing env else env in
+  let env = List.fold tests ~init:env ~f:add_test in
+  let env =
+    List.fold target_properties ~init:env ~f:(fun env (target, property, value) ->
+      set_target_property env ~target ~property ~value)
+  in
+  let env = List.fold find_packages ~init:env ~f:add_find_package in
+  List.fold try_compiles ~init:env ~f:add_try_compile
 
 let old_cvar name : Old.tc_name = { ns = Old.Ns_var; name }
 let old_str s = Old.Yexpr_string (Old.Ycs_string s)
@@ -444,6 +483,72 @@ let yelu1_to_yelu2 =
                  InstallFiles { files = [ "include/app.h" ]; destination = "include" };
                ]
              []);
+      check_yelu1_to_yelu2 "cmake_op project + minimum_required + message"
+        (ESeq [
+          ECmakeMinimumRequired "3.20";
+          ECmakeProject { name = "demo"; languages = [ "C" ] };
+          ECmakeMessage { mode = "STATUS"; texts = [ EString "hello" ] };
+        ])
+        ~expected_value:VUnit
+        ~expected_env:
+          (env_of_bindings
+             ~project:{ name = "demo"; languages = [ "C" ] }
+             ~cmake_min_version:"3.20"
+             ~messages:[ { mode = "STATUS"; texts = [ "hello" ] } ]
+             []);
+      check_yelu1_to_yelu2 "dir add_subdirectory"
+        (ESeq [
+          ECmakeAddSubdirectory (EString "subdir_a");
+          ECmakeAddSubdirectory (EString "subdir_b");
+        ])
+        ~expected_value:VUnit
+        ~expected_env:
+          (env_of_bindings
+             ~subdirectories:[ "subdir_a"; "subdir_b" ]
+             []);
+      check_yelu1_to_yelu2 "test enable + add_test"
+        (ESeq [
+          ECmakeEnableTesting;
+          ECmakeAddTest
+            { name = EString "smoke";
+              command = EString "/bin/true";
+              args = [ EString "--quiet" ] };
+        ])
+        ~expected_value:VUnit
+        ~expected_env:
+          (env_of_bindings
+             ~testing_enabled:true
+             ~tests:[ { name = "smoke"; command = "/bin/true"; args = [ "--quiet" ] } ]
+             []);
+      check_yelu1_to_yelu2 "property set/get round trip"
+        (ESeq [
+          ECmakeAddExecutable { name = "app"; sources = [ EString "main.c" ] };
+          ECmakeSetTargetProperty
+            { target = "app"; property = "OUTPUT_NAME"; value = EString "myapp" };
+          ECmakeGetTargetProperty
+            { var = "OUT"; target = "app"; property = "OUTPUT_NAME" };
+        ])
+        ~expected_value:VUnit
+        ~expected_env:
+          (env_of_bindings
+             ~targets:[ target "app" ]
+             ~target_properties:[ "app", "OUTPUT_NAME", "myapp" ]
+             [ "OUT", VString "myapp" ]);
+      check_yelu1_to_yelu2 "find_package declaration"
+        (ECmakeFindPackage { package_name = "Threads"; required = false })
+        ~expected_value:VUnit
+        ~expected_env:
+          (env_of_bindings
+             ~find_packages:[ { package_name = "Threads"; required = false } ]
+             []);
+      check_yelu1_to_yelu2 "try_compile records and stubs result_var"
+        (ECmakeTryCompile
+           { result_var = "HAS_C"; sources = [ EString "src/probe.c" ] })
+        ~expected_value:VUnit
+        ~expected_env:
+          (env_of_bindings
+             ~try_compiles:[ { result_var = "HAS_C"; sources = [ "src/probe.c" ] } ]
+             [ "HAS_C", VBool true ]);
     ] )
 
 let yelu2_to_yelu1 =
@@ -820,6 +925,73 @@ let yelu2_to_yelu1 =
                  InstallFiles { files = [ "include/app.h" ]; destination = "include" };
                ]
              [ "APP", VTarget "app" ]);
+      check_yelu2_to_yelu1 "cmake_op project + min + message lower to cmake"
+        (ESeq [
+          EMinVersion "3.20";
+          EProject { name = "demo"; languages = [ "C" ] };
+          EMessage { mode = "STATUS"; texts = [ EString "hi" ] };
+        ])
+        ~expected_value:VUnit
+        ~expected_env:
+          (env_of_bindings
+             ~project:{ name = "demo"; languages = [ "C" ] }
+             ~cmake_min_version:"3.20"
+             ~messages:[ { mode = "STATUS"; texts = [ "hi" ] } ]
+             []);
+      check_yelu2_to_yelu1 "dir add_subdirectory lower to cmake"
+        (ESeq [
+          EAddSubdirectory (EString "subdir_x");
+          EAddSubdirectory (EString "subdir_y");
+        ])
+        ~expected_value:VUnit
+        ~expected_env:
+          (env_of_bindings
+             ~subdirectories:[ "subdir_x"; "subdir_y" ]
+             []);
+      check_yelu2_to_yelu1 "test enable + add_test lower to cmake"
+        (ESeq [
+          EEnableTesting;
+          EAddTest
+            { name = EString "smoke";
+              command = EString "/bin/true";
+              args = [] };
+        ])
+        ~expected_value:VUnit
+        ~expected_env:
+          (env_of_bindings
+             ~testing_enabled:true
+             ~tests:[ { name = "smoke"; command = "/bin/true"; args = [] } ]
+             []);
+      check_yelu2_to_yelu1 "find_package lower to cmake"
+        (EFindPackage { package_name = "Threads"; required = true })
+        ~expected_value:VUnit
+        ~expected_env:
+          (env_of_bindings
+             ~find_packages:[ { package_name = "Threads"; required = true } ]
+             []);
+      check_yelu2_to_yelu1 "try_compile lower to cmake"
+        (ETryCompile
+           { result_var = "HAS_C"; sources = [ EString "src/probe.c" ] })
+        ~expected_value:VUnit
+        ~expected_env:
+          (env_of_bindings
+             ~try_compiles:[ { result_var = "HAS_C"; sources = [ "src/probe.c" ] } ]
+             [ "HAS_C", VBool true ]);
+      check_yelu2_to_yelu1 "property set/get lower to cmake"
+        (ESeq [
+          ESetVar
+            ("APP", EExecutable { name = EString "app"; sources = [ EString "main.c" ] });
+          ESetTargetProperty
+            { target = EString "app"; property = "OUTPUT_NAME"; value = EString "myapp" };
+          EGetTargetProperty
+            { var = "OUT"; target = "app"; property = "OUTPUT_NAME" };
+        ])
+        ~expected_value:VUnit
+        ~expected_env:
+          (env_of_bindings
+             ~targets:[ target "app" ]
+             ~target_properties:[ "app", "OUTPUT_NAME", "myapp" ]
+             [ "APP", VTarget "app"; "OUT", VString "myapp" ]);
     ] )
 
 let yelu1_roundtrip =
@@ -1666,6 +1838,115 @@ let yelu_cmake_bridge =
                  InstallFiles { files = [ "include/app.h" ]; destination = "include" };
                ]
              []);
+      check_yelu_cmake_bridge_to_yelu1 "old cmake_op project + min_required + message bridge to Yelu1"
+        (Old.Ystmt_list
+           [
+             Old.Ys_cmake
+               (Old.Ycmake_minimum_required
+                  { min = { major = 3; minor = 20; patch = "" }; max = None });
+             Old.Ys_cmake
+               (Old.Ycmake_project
+                  { name = "demo"; version = None; languages = [ Lang_c ] });
+             Old.Ys_cmake
+               (Old.Ycmake_message { mode = Mm_status; texts = [ "hello" ] });
+           ])
+        ~expected_value:VUnit
+        ~expected_env:
+          (env_of_bindings
+             ~project:{ name = "demo"; languages = [ "C" ] }
+             ~cmake_min_version:"3.20"
+             ~messages:[ { mode = "STATUS"; texts = [ "hello" ] } ]
+             []);
+      check_yelu_cmake_bridge_to_yelu1 "old dir add_subdirectory bridge to Yelu1"
+        (Old.Ystmt_list
+           [
+             Old.Ys_dir
+               (Old.Ydir_add_subdirectory
+                  { source_dir = old_str "subdir_a" });
+             Old.Ys_dir
+               (Old.Ydir_add_subdirectory
+                  { source_dir = old_str "subdir_b" });
+           ])
+        ~expected_value:VUnit
+        ~expected_env:
+          (env_of_bindings
+             ~subdirectories:[ "subdir_a"; "subdir_b" ]
+             []);
+      check_yelu_cmake_bridge_to_yelu1 "old test enable + add_test bridge to Yelu1"
+        (Old.Ystmt_list
+           [
+             Old.Ys_test Old.Ytest_enable_testing;
+             Old.Ys_test
+               (Old.Ytest_add_test
+                  { name = old_str "smoke";
+                    command = old_str "/bin/true";
+                    args = [ old_str "--quiet" ] });
+           ])
+        ~expected_value:VUnit
+        ~expected_env:
+          (env_of_bindings
+             ~testing_enabled:true
+             ~tests:[ { name = "smoke"; command = "/bin/true"; args = [ "--quiet" ] } ]
+             []);
+      check_yelu_cmake_bridge_to_yelu1 "old find_package bridge to Yelu1"
+        (Old.Ys_find
+           (Old.Yfind_package
+              { name = "Threads";
+                version = None;
+                exact = false;
+                quiet = false;
+                config_mode = false;
+                required = false;
+                components = [];
+                optional_components = [] }))
+        ~expected_value:VUnit
+        ~expected_env:
+          (env_of_bindings
+             ~find_packages:[ { package_name = "Threads"; required = false } ]
+             []);
+      check_yelu_cmake_bridge_to_yelu1 "old try_compile bridge to Yelu1"
+        (Old.Ys_try
+           (Old.Ytry_compile
+              { result_var = old_cvar "HAS_C";
+                sources = [ old_str "src/probe.c" ];
+                compile_definitions = [];
+                link_libraries = [];
+                link_options = [];
+                output_variable = None;
+                no_cache = false;
+                c_standard = None;
+                cxx_standard = None }))
+        ~expected_value:VUnit
+        ~expected_env:
+          (env_of_bindings
+             ~try_compiles:[ { result_var = "HAS_C"; sources = [ "src/probe.c" ] } ]
+             [ "HAS_C", VBool true ]);
+      check_yelu_cmake_bridge_to_yelu1 "old property set/get target bridge to Yelu1"
+        (Old.Ystmt_list
+           [
+             Old.Ys_target
+               (Old.Ytgt_add_executable
+                  {
+                    name = Old.Yexpr_name { ns = Old.Ns_target; name = "app" };
+                    exclude_from_all = false;
+                    sources = [ old_str "main.c" ];
+                  });
+             Old.Ys_property
+               (Old.Yprop_set_target
+                  {
+                    target = Old.Yexpr_name { ns = Old.Ns_target; name = "app" };
+                    properties = [ "OUTPUT_NAME", old_str "myapp" ];
+                  });
+             Old.Ys_property
+               (Old.Yprop_get_target
+                  { var = old_cvar "OUT"; target = "app"; property = "OUTPUT_NAME" });
+           ])
+        ~expected_value:VUnit
+        ~expected_env:
+          (env_of_bindings
+             ~targets:[ target "app" ]
+             ~target_properties:[ "app", "OUTPUT_NAME", "myapp" ]
+             [ "OUT", VString "myapp" ]);
     ] )
 
 let () =

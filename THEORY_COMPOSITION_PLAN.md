@@ -1,7 +1,8 @@
 # Yelu Theory Composition Tracker
 
-Status: tiny composition harness in progress; theory architecture working,
-broadening bridge coverage toward "complete role" (see below).
+Status: tiny composition harness in progress. **Bar #2 (theory breadth lite)
+reached** — all 14 production theories have at least a first slice. Now
+working toward bar #1 (tutorial step parity) and bar #3 (bridge parity).
 
 This file is the short tracker to update after each step. Durable design context
 lives in:
@@ -105,6 +106,12 @@ Implemented tiny fragments:
 | Target Layer B       | `target_sources`, `target_link_libraries`, `target_include_directories`, `target_compile_definitions`, `target_compile_options`, `target_link_options`, `target_link_directories` with visibility |
 | Build Layer C        | `add_custom_target` and `add_custom_command(OUTPUT ...)` with build-backed execution check                                                                                                        |
 | Install              | First slice: `install(TARGETS ...)` and `install(FILES ...)` with temp-prefix install check                                                                                                       |
+| CMake op             | First slice: `cmake_minimum_required(VERSION ...)`, `project(name [LANGUAGES ...])`, `message([MODE] "...")` with env state for project / cmake_min_version / messages                            |
+| Dir                  | First slice: `add_subdirectory(path)` recorded in env.subdirectories; cmake-backed configure with a real subdir/CMakeLists.txt fixture                                                            |
+| Test                 | First slice: `enable_testing()` + `add_test(NAME ... COMMAND ...)`; env state for testing_enabled flag and tests list                                                                             |
+| Property             | First slice: `set_target_properties(target PROPERTIES key value)` and `get_target_property(var target property)`; env.target_properties as nested map; round-trip with cmake                      |
+| Find                 | First slice: `find_package(Name [REQUIRED])` recorded in env.find_packages; cmake-backed non-required configure                                                                                   |
+| Try                  | First slice: `try_compile(result_var SOURCES path)`; eval stubs result_var to true; cmake-backed test runs real probe with a tiny C source                                                        |
 | File API graph check | Reference CMake vs Yelu-lowered target graph comparison started                                                                                                                                   |
 | Runtime env          | Structured `{ vars; targets }` env; target state no longer uses reserved var keys                                                                                                                 |
 
@@ -117,7 +124,13 @@ target_sources, target_link_libraries, target_include_directories,
 target_compile_definitions, target_compile_options,
 target_link_options, target_link_directories,
 add_custom_target, add_custom_command,
-install_targets, install_files
+install_targets, install_files,
+cmake_minimum_required, project, message,
+add_subdirectory,
+enable_testing, add_test,
+set_target_properties, get_target_property,
+find_package,
+try_compile
 ```
 
 ## Production Theory Coverage Dashboard
@@ -137,13 +150,13 @@ only when `cmake --install` runs.
 | Path                   |                            21 | Conf                      | Partial                                         | Emerging path theory, currently mostly string path normalization         | Set/get-filename/normal-path covered. More path algebra still valuable.                                                                                                                         |
 | Target                 |                            19 | Mixed Conf/Build          | Strong representative                           | Stateful build graph theory, not pure value theory                       | Executable, library, target existence, sources, include dirs, link libs, compile/link opts/dirs/defs, custom target/command covered. Alias/deps/PCH/custom-command-target deferred.             |
 | Install                |                             6 | Install                   | First slice                                     | Declaration theory over install rules                                    | Targets/files covered with temp-prefix install + manifest path checks. Export/package config deferred.                                                                                          |
-| Test / CTest           |                             2 | Build/test                | Not started in tiny                             | Test graph declaration theory                                            | Widely used in CMake projects, but small. Safe test: configure/build then `ctest --test-dir build`; no system mutation. Can postpone until after `add_library` unless tutorial parity needs it. |
-| Property               |                            11 | Mixed                     | Not started in tiny                             | Dynamic string-keyed property store                                      | Harder to make pure because property schemas are dynamic. Good later candidate for typed registry experiments.                                                                                  |
+| Test / CTest           |                             2 | Build/test                | First slice                                     | Test graph declaration theory                                            | `enable_testing()` + `add_test` covered with env state and configure-mode test. Real `ctest` invocation deferred until bar #1 needs it.                                                          |
+| Property               |                            11 | Mixed                     | First slice                                     | Dynamic string-keyed property store                                      | `set_target_properties` and `get_target_property` covered with nested-map env. Real cmake set/get round trip verified. Define-property and global/source/test scopes deferred.                  |
 | File                   |                            15 | Conf filesystem effect    | First slice                                     | Abstract fs-store theory keyed by path values                            | `file(WRITE)`, `file(READ)`, and `EXISTS` covered with semantic bridge tests and a temp-script CMake-backed check. Configure/copy/glob/remove/etc. deferred.                                     |
-| Find                   |                             5 | Conf environment/probe    | Not started in tiny                             | Probe theory over filesystem/search paths                                | Test with fake temp prefixes and `NO_DEFAULT_PATH`/explicit paths. `find_package` via fake `FooConfig.cmake`; assert output vars/messages.                                                      |
-| Try                    |                             2 | Conf + build probe        | Not started in tiny                             | Probe theory that runs compiler/build checks                             | Test with tiny source files in temp dirs. Higher cost than find/file.                                                                                                                           |
-| CMake op               |                            14 | Mixed                     | Not started in tiny except indirect message use | Misc control/effect surface                                              | `cmake_minimum_required`, `project`, `message` are needed for full script emission but currently handled by test harness wrappers.                                                              |
-| Dir                    |                             8 | Build/config scope        | Not started in tiny                             | Directory-scope mutation theory                                          | `add_subdirectory` is important for tutorial parity; directory-scope compile/link commands can wait.                                                                                            |
+| Find                   |                             5 | Conf environment/probe    | First slice                                     | Probe theory over filesystem/search paths                                | `find_package(Name)` declaration covered. Cmake-backed configure with non-REQUIRED package verified. CONFIG mode, version, components, find_program/library/path/file deferred.                |
+| Try                    |                             2 | Conf + build probe        | First slice                                     | Probe theory that runs compiler/build checks                             | `try_compile(result_var SOURCES path)` covered. Eval stubs result_var to true; real `try_compile` runs in cmake-backed test with a tiny C source. `try_run` and extras deferred.                |
+| CMake op               |                            14 | Mixed                     | First slice                                     | Misc control/effect surface                                              | `cmake_minimum_required`, `project`, `message` covered with env state (project / cmake_min_version / messages list). `execute_process`, `math`, `cmake_language`, `policy_set`, `include_guard` deferred. |
+| Dir                    |                             8 | Build/config scope        | First slice                                     | Directory-scope mutation theory                                          | `add_subdirectory(path)` covered with env state and a real subdir/CMakeLists.txt fixture. Directory-scoped compile/link/include commands deferred. Subdir scope semantics not yet enforced.    |
 | Genex                  |               ~17 genex forms | Build-time delayed values | Lexer/parser fixed, not a tiny theory           | Delayed expression theory, not configure-time pure                       | Should become a delayed-value type later; do not force into normal interpreter now.                                                                                                             |
 
 Useful interpretation:
@@ -168,8 +181,8 @@ eval $(opam env) && dune exec test/test-runcmake/test_yelu_tiny_cmake.exe
 Last verified state:
 
 ```text
-test/test-yelu/ passed (yelu_tiny_composition: 83 tests)
-test_yelu_tiny_cmake passed with 20 tests
+test/test-yelu/ passed (yelu_tiny_composition: 101 tests)
+test_yelu_tiny_cmake passed with 26 tests
 ```
 
 Verification tracks:
@@ -210,6 +223,32 @@ env.custom_commands:
 env.install_rules:
   configure-time install declarations, preserving target/file inputs and
   relative install destinations
+
+env.project / env.cmake_min_version:
+  set-once project metadata from `project(...)` and
+  `cmake_minimum_required(VERSION ...)`
+
+env.messages:
+  declaration-order log of `message([MODE] "...")` calls
+
+env.subdirectories:
+  declaration-order log of `add_subdirectory(path)` calls; subdir scope
+  semantics not yet enforced
+
+env.testing_enabled / env.tests:
+  set-once flag from `enable_testing()` plus declaration-order list of
+  `add_test(NAME ... COMMAND ...)` decls
+
+env.target_properties:
+  nested map (target -> property -> value) for
+  `set_target_properties` / `get_target_property`
+
+env.find_packages:
+  declaration-order log of `find_package(Name [REQUIRED])` calls
+
+env.try_compiles:
+  declaration-order log of `try_compile` calls; eval stubs result_var to
+  true (the real probe runs only when the lowered cmake script runs)
 ```
 
 Target state currently tracks sources, link libraries, include directories,
@@ -283,27 +322,49 @@ the next chapter.
 
 ## Next Steps
 
-Working toward bar #1 (tutorial step parity).
+**Bar #2 (theory breadth lite) reached.** All 14 production theories now
+have at least a first slice through tiny. Genex stays deferred (delayed
+build-time values, separate research thread).
 
-Open threads, in order of leverage:
+Next we work toward **bar #1 (tutorial step parity)** and **bar #3 (bridge
+parity)** roughly in parallel:
 
-1. **Continue the build-rule thread.** Extend `add_custom_command` (working
-   directory, USES_TERMINAL, multiple outputs, MAIN_DEPENDENCY) and add
-   `add_custom_command(TARGET ...)` for pre/post-build hooks
-   (`Ytgt_add_custom_command_target` already exists in the old AST).
-2. **Add a small CTest slice.** Model `add_test` + one test property or
-   enable-test wrapper, then validate with `ctest --test-dir` in a temp build.
-3. **Deepen file when useful.** `configure_file`, `file(COPY)`, and
-   `file(GLOB)` are the next likely file operations; keep real filesystem
-   checks temp-backed.
-4. **Deepen install when needed.** `install(EXPORT ...)` and package config
-   generation remain open. Keep all install tests behind temp prefixes and
-   manifest path checks.
-5. Skip `target_precompile_headers` and other visibility-list replays until
-   tutorial steps actually exercise them.
+- **Bar #1 path:** drive yelu_tiny through tutorial v1 steps 1–12 via the
+  bridge from existing `src/bin/yelu/v1/stepN.ml` programs. Each step that
+  fails to bridge identifies a missing constructor; deepen the relevant
+  theory just enough to unblock. This is the most direct way to surface
+  what's actually used vs. what's nice-to-have.
+- **Bar #3 path:** drive `test_yelu_compile.ml` (194 tests) through tiny
+  one suite at a time. Each failing test names a missing constructor or
+  shape. Same pattern — deepen as needed, no speculative coverage.
 
-Skip-for-now (axle 2): typecheck/wellform passes on tiny, typed visibility,
-generator expressions as delayed values, fragment-owned parser composition.
+Likely deepening targets surfaced by bars #1 / #3 (in rough dependency
+order):
+
+1. **Cache and option vars** — `set(VAR value CACHE ...)`, `option(...)`.
+   Tutorial steps use these heavily. Probably an extension to var/store
+   theory rather than a new theory.
+2. **`if` predicates beyond the basics** — file-existence, version
+   comparison, list-contains. cmake's condition language is large.
+3. **String/list deepening** — regex match/replace, list filter/transform,
+   based on what tutorial steps actually use.
+4. **`include(...)`** — adjacent to `add_subdirectory` but file-scoped
+   evaluation, no scope boundary. Tutorial steps use it for module loading.
+5. **`configure_file`** — file theory deepening, very common in tutorials.
+6. **`add_custom_command(TARGET ...)`** — pre/post-build hooks.
+7. **`install(EXPORT ...)`** and package config — install deepening.
+8. **`target_precompile_headers`** and other visibility-list replays
+   if tutorial steps actually exercise them.
+
+Skip-for-now (axle 2):
+
+- `Stage_typecheck` / `Stage_wellform` passes on the tiny core.
+- Typed visibility, typed library kind.
+- Generator expressions as delayed values.
+- Fragment-owned parser composition.
+- Subdirectory scope enforcement (currently `add_subdirectory` records but
+  does not isolate var/target scopes).
+- Property scope expansion beyond target (global / source / test / cache).
 
 ## Deferred Topics
 

@@ -9,6 +9,12 @@ open Yelu_surface_cmake_path
 open Yelu_surface_cmake_file
 open Yelu_surface_cmake_string
 open Yelu_surface_cmake_target
+open Yelu_surface_cmake_cmake_op
+open Yelu_surface_cmake_dir
+open Yelu_surface_cmake_test
+open Yelu_surface_cmake_property
+open Yelu_surface_cmake_find
+open Yelu_surface_cmake_try
 
 module Old = Lang_yelu_cmake
 
@@ -120,6 +126,109 @@ let file_statement : Old.yelu_file_io_stmt -> Yelu_tiny.expr = function
   | Yfile_read { hex = true; _ } ->
     fail "file(READ HEX) is outside the current Yelu1 bridge slice"
   | _ -> fail "unsupported yelu_cmake file statement for Yelu1 bridge"
+
+let string_of_version (v : Lang_cmake.version) =
+  let patch = if String.length v.patch = 0 then "" else "." ^ v.patch in
+  Fmt.str "%d.%d%s" v.major v.minor patch
+
+let string_of_supported_lang : Lang_cmake.supported_lang -> string = function
+  | Lang_none -> "NONE"
+  | Lang_c -> "C"
+  | Lang_cxx -> "CXX"
+  | Lang_csharp -> "CSharp"
+  | Lang_cuda -> "CUDA"
+  | Lang_objc -> "OBJC"
+  | Lang_objcxx -> "OBJCXX"
+  | Lang_fortran -> "Fortran"
+  | Lang_hipy -> "HIP"
+  | Lang_ispc -> "ISPC"
+  | Lang_swift -> "Swift"
+  | Lang_asm -> "ASM"
+  | Lang_asm_nasm -> "ASM_NASM"
+  | Lang_asm_marmasm -> "ASM_MARMASM"
+  | Lang_asm_masm -> "ASM_MASM"
+  | Lang_asm_att -> "ASM_ATT"
+
+let string_of_message_mode : Lang_cmake.message_mode -> string = function
+  | Mm_none -> ""
+  | Mm_status -> "STATUS"
+  | Mm_notice -> "NOTICE"
+  | Mm_verbose -> "VERBOSE"
+  | Mm_debug -> "DEBUG"
+  | Mm_trace -> "TRACE"
+  | Mm_warning -> "WARNING"
+  | Mm_author_warning -> "AUTHOR_WARNING"
+  | Mm_check_start -> "CHECK_START"
+  | Mm_check_pass -> "CHECK_PASS"
+  | Mm_check_fail -> "CHECK_FAIL"
+  | Mm_send_error -> "SEND_ERROR"
+  | Mm_fatal_error -> "FATAL_ERROR"
+  | Mm_deprecation -> "DEPRECATION"
+
+let cmake_op_statement : Old.yelu_cmake_stmt -> Yelu_tiny.expr = function
+  | Ycmake_minimum_required { min; max = None } ->
+    ECmakeMinimumRequired (string_of_version min)
+  | Ycmake_minimum_required { max = Some _; _ } ->
+    fail "cmake_minimum_required(...VERSION min...max) is outside the current Yelu1 bridge slice"
+  | Ycmake_project { name; version = None; languages } ->
+    ECmakeProject
+      { name; languages = List.map languages ~f:string_of_supported_lang }
+  | Ycmake_project { version = Some _; _ } ->
+    fail "project(VERSION ...) is outside the current Yelu1 bridge slice"
+  | Ycmake_message { mode; texts } ->
+    ECmakeMessage
+      {
+        mode = string_of_message_mode mode;
+        texts = List.map texts ~f:(fun s -> EString s);
+      }
+  | _ -> fail "unsupported yelu_cmake cmake_op statement for Yelu1 bridge"
+
+let dir_statement : Old.yelu_dir_stmt -> Yelu_tiny.expr = function
+  | Ydir_add_subdirectory { source_dir } ->
+    ECmakeAddSubdirectory (expr source_dir)
+  | _ -> fail "unsupported yelu_cmake dir statement for Yelu1 bridge"
+
+let test_statement : Old.yelu_test_stmt -> Yelu_tiny.expr = function
+  | Ytest_enable_testing -> ECmakeEnableTesting
+  | Ytest_add_test { name; command; args } ->
+    ECmakeAddTest
+      { name = expr name; command = expr command; args = List.map args ~f:expr }
+
+let property_statement : Old.yelu_property_stmt -> Yelu_tiny.expr = function
+  | Yprop_set_target { target; properties } ->
+    properties
+    |> List.map ~f:(fun (property, value) ->
+      ECmakeSetTargetProperty
+        { target = target_name target; property; value = expr value })
+    |> ESeq
+  | Yprop_get_target { var; target; property } ->
+    ECmakeGetTargetProperty { var = cvar_name var; target; property }
+  | _ -> fail "unsupported yelu_cmake property statement for Yelu1 bridge"
+
+let find_statement : Old.yelu_find_stmt -> Yelu_tiny.expr = function
+  | Yfind_package { name; version = None; exact = false; quiet = false;
+                    config_mode = false; required;
+                    components = []; optional_components = [] } ->
+    ECmakeFindPackage { package_name = name; required }
+  | Yfind_package _ ->
+    fail "find_package(VERSION/EXACT/COMPONENTS/CONFIG) is outside the current Yelu1 bridge slice"
+  | _ -> fail "unsupported yelu_cmake find statement for Yelu1 bridge"
+
+let try_statement : Old.yelu_try_stmt -> Yelu_tiny.expr = function
+  | Ytry_compile { result_var; sources;
+                   compile_definitions = [];
+                   link_libraries = [];
+                   link_options = [];
+                   output_variable = None;
+                   no_cache = false;
+                   c_standard = None;
+                   cxx_standard = None } ->
+    ECmakeTryCompile
+      { result_var = cvar_name result_var;
+        sources = List.map sources ~f:expr }
+  | Ytry_compile _ ->
+    fail "try_compile(extras) is outside the current Yelu1 bridge slice"
+  | _ -> fail "unsupported yelu_cmake try statement for Yelu1 bridge"
 
 let visibility_of_kind = function
   | Old.Public -> "PUBLIC"
@@ -276,6 +385,12 @@ let rec stmt : Old.yelu_stmt -> Yelu_tiny.expr = function
   | Ys_target target_stmt -> target_statement target_stmt
   | Ys_install install_stmt -> install_statement install_stmt
   | Ys_var var_stmt -> var_statement var_stmt
+  | Ys_cmake cmake_stmt -> cmake_op_statement cmake_stmt
+  | Ys_dir dir_stmt -> dir_statement dir_stmt
+  | Ys_test test_stmt -> test_statement test_stmt
+  | Ys_property prop_stmt -> property_statement prop_stmt
+  | Ys_find find_stmt -> find_statement find_stmt
+  | Ys_try try_stmt -> try_statement try_stmt
   | Ylet { var = Yvar name; value } -> ESetVar (name, expr value)
   | Yif { cond; then_; else_ } ->
     Yelu_surface_cmake_if.ECmakeIfStmt

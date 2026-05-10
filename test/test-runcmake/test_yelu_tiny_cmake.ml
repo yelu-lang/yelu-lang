@@ -9,10 +9,16 @@ open Yelu_langs.Yelu_theory_target
 open Yelu_langs.Yelu_theory_install
 open Yelu_langs.Yelu_theory_string
 open Yelu_langs.Yelu_theory_if
+open Yelu_langs.Yelu_theory_dir
+open Yelu_langs.Yelu_theory_test
+open Yelu_langs.Yelu_theory_property
+open Yelu_langs.Yelu_theory_find
+open Yelu_langs.Yelu_theory_try
 open Yelu_langs.Yelu_surface_cmake_list
 open Yelu_langs.Yelu_surface_cmake_path
 open Yelu_langs.Yelu_surface_cmake_string
 open Yelu_langs.Yelu_surface_cmake_if
+open Yelu_langs.Yelu_surface_cmake_cmake_op
 open Yelu_langs.Yelu_tiny_eval
 open Yelu_langs.Yelu_tiny_cmake_emit
 open Yelu_runner.Cmake_runner
@@ -142,6 +148,11 @@ let yelu1_roundtrip =
           ECmakePathSet { path = "P"; input = EString "a/./b/../c"; normalize = false };
           ECmakePathNormalPath { path = "P"; out = None };
           EVar "P";
+        ]);
+      check_yelu1_roundtrip_cmake "cmake_op min_required and message"
+        (ESeq [
+          ECmakeMinimumRequired "3.20";
+          ECmakeMessage { mode = "STATUS"; texts = [ EString "tiny cmake_op slice" ] };
         ]);
     ] )
 
@@ -337,6 +348,54 @@ let yelu2_configure_lowering =
                   then_ = EStringUpper (EString "yes");
                   else_ = EStringUpper (EString "no");
                 } );
+          EVar "OUT";
+        ]);
+      check_yelu2_lowering_configure "dir add_subdirectory enters child"
+        ~files:
+          [
+            "main.c", "int main(void) { return 0; }\n";
+            "subdir/CMakeLists.txt", "message(\"RESULT=YES\")\n";
+          ]
+        (EAddSubdirectory (EString "subdir"));
+      check_yelu2_lowering_configure "test enable + add_test configures clean"
+        (ESeq [
+          EEnableTesting;
+          EAddTest
+            { name = EString "smoke";
+              command = EString "/bin/true";
+              args = [] };
+          ESetVar ("OUT", EStringUpper (EString "yes"));
+          EVar "OUT";
+        ]);
+      check_yelu2_lowering_configure "property set + get round trip"
+        (ESeq [
+          ESetVar
+            ("APP", EExecutable { name = EString "app"; sources = [ EString "main.c" ] });
+          ESetTargetProperty
+            { target = EString "app";
+              property = "OUTPUT_NAME";
+              value = EString "YES" };
+          EGetTargetProperty
+            { var = "OUT"; target = "app"; property = "OUTPUT_NAME" };
+          EVar "OUT";
+        ]);
+      check_yelu2_lowering_configure "find_package non-required configures clean"
+        (ESeq [
+          EFindPackage { package_name = "YeluTinyNoSuchPackage"; required = false };
+          ESetVar ("OUT", EStringUpper (EString "yes"));
+          EVar "OUT";
+        ]);
+      check_yelu2_lowering_configure "try_compile probes a tiny C source"
+        ~files:
+          [
+            "main.c", "int main(void) { return 0; }\n";
+            "src/probe.c", "int main(void) { return 0; }\n";
+          ]
+        (ESeq [
+          ETryCompile
+            { result_var = "HAS_C";
+              sources = [ EString "${CMAKE_SOURCE_DIR}/src/probe.c" ] };
+          ESetVar ("OUT", EStringUpper (EString "yes"));
           EVar "OUT";
         ]);
     ] )

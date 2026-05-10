@@ -18,6 +18,18 @@ open Yelu_surface_cmake_string
 open Yelu_theory_string
 open Yelu_surface_cmake_if
 open Yelu_theory_if
+open Yelu_theory_cmake_op
+open Yelu_surface_cmake_cmake_op
+open Yelu_theory_dir
+open Yelu_surface_cmake_dir
+open Yelu_theory_test
+open Yelu_surface_cmake_test
+open Yelu_theory_property
+open Yelu_surface_cmake_property
+open Yelu_theory_find
+open Yelu_surface_cmake_find
+open Yelu_theory_try
+open Yelu_surface_cmake_try
 
 module Yelu1 = struct
   let rec eval_expr env = function
@@ -76,6 +88,24 @@ module Yelu1 = struct
        | None ->
       match Yelu_surface_cmake_string.eval_case ~eval:eval_expr env expr with
        | Some value -> value
+       | None ->
+      match Yelu_surface_cmake_cmake_op.eval_case ~eval:eval_expr env expr with
+       | Some value -> value
+       | None ->
+      match Yelu_surface_cmake_dir.eval_case ~eval:eval_expr env expr with
+       | Some value -> value
+       | None ->
+      match Yelu_surface_cmake_test.eval_case ~eval:eval_expr env expr with
+       | Some value -> value
+       | None ->
+      match Yelu_surface_cmake_property.eval_case ~eval:eval_expr env expr with
+       | Some value -> value
+       | None ->
+      match Yelu_surface_cmake_find.eval_case ~eval:eval_expr env expr with
+       | Some value -> value
+       | None ->
+      match Yelu_surface_cmake_try.eval_case ~eval:eval_expr env expr with
+       | Some value -> value
        | None -> fail "unknown expression in Yelu1")
 end
 
@@ -125,6 +155,24 @@ module Yelu2 = struct
        | Some value -> value
        | None ->
       match Yelu_theory_string.eval_case ~eval:eval_expr env expr with
+       | Some value -> value
+       | None ->
+      match Yelu_theory_cmake_op.eval_case ~eval:eval_expr env expr with
+       | Some value -> value
+       | None ->
+      match Yelu_theory_dir.eval_case ~eval:eval_expr env expr with
+       | Some value -> value
+       | None ->
+      match Yelu_theory_test.eval_case ~eval:eval_expr env expr with
+       | Some value -> value
+       | None ->
+      match Yelu_theory_property.eval_case ~eval:eval_expr env expr with
+       | Some value -> value
+       | None ->
+      match Yelu_theory_find.eval_case ~eval:eval_expr env expr with
+       | Some value -> value
+       | None ->
+      match Yelu_theory_try.eval_case ~eval:eval_expr env expr with
        | Some value -> value
        | None -> fail "unknown expression in Yelu2")
 end
@@ -468,6 +516,40 @@ let rec lift_yelu1_to_yelu2 = function
            | Some else_ -> lift_yelu1_to_yelu2 else_
            | None -> EUnit);
       }
+
+  (* CMake cmake_op surface -> Yelu cmake_op theory. *)
+  | ECmakeProject { name; languages } -> EProject { name; languages }
+  | ECmakeMinimumRequired version -> EMinVersion version
+  | ECmakeMessage { mode; texts } ->
+    EMessage { mode; texts = List.map texts ~f:lift_yelu1_to_yelu2 }
+
+  (* CMake dir surface -> Yelu dir theory. *)
+  | ECmakeAddSubdirectory path -> EAddSubdirectory (lift_yelu1_to_yelu2 path)
+
+  (* CMake test surface -> Yelu test theory. *)
+  | ECmakeEnableTesting -> EEnableTesting
+  | ECmakeAddTest { name; command; args } ->
+    EAddTest
+      {
+        name = lift_yelu1_to_yelu2 name;
+        command = lift_yelu1_to_yelu2 command;
+        args = List.map args ~f:lift_yelu1_to_yelu2;
+      }
+
+  (* CMake property surface -> Yelu property theory. *)
+  | ECmakeSetTargetProperty { target; property; value } ->
+    ESetTargetProperty
+      { target = EString target; property; value = lift_yelu1_to_yelu2 value }
+  | ECmakeGetTargetProperty { var; target; property } ->
+    EGetTargetProperty { var; target; property }
+
+  (* CMake find surface -> Yelu find theory. *)
+  | ECmakeFindPackage { package_name; required } ->
+    EFindPackage { package_name; required }
+
+  (* CMake try surface -> Yelu try theory. *)
+  | ECmakeTryCompile { result_var; sources } ->
+    ETryCompile { result_var; sources = List.map sources ~f:lift_yelu1_to_yelu2 }
   | _ -> fail "cannot translate unknown Yelu1 expression"
 
 let rec lower_yelu2_to_yelu1 = function
@@ -769,6 +851,46 @@ let rec lower_yelu2_to_yelu1 = function
         then_ = lower_yelu2_to_yelu1 then_;
         else_ = Some (lower_yelu2_to_yelu1 else_);
       }
+
+  (* Yelu cmake_op theory -> CMake cmake_op surface. *)
+  | EProject { name; languages } -> ECmakeProject { name; languages }
+  | EMinVersion version -> ECmakeMinimumRequired version
+  | EMessage { mode; texts } ->
+    ECmakeMessage { mode; texts = List.map texts ~f:lower_yelu2_to_yelu1 }
+
+  (* Yelu dir theory -> CMake dir surface. *)
+  | EAddSubdirectory path -> ECmakeAddSubdirectory (lower_yelu2_to_yelu1 path)
+
+  (* Yelu test theory -> CMake test surface. *)
+  | EEnableTesting -> ECmakeEnableTesting
+  | EAddTest { name; command; args } ->
+    ECmakeAddTest
+      {
+        name = lower_yelu2_to_yelu1 name;
+        command = lower_yelu2_to_yelu1 command;
+        args = List.map args ~f:lower_yelu2_to_yelu1;
+      }
+
+  (* Yelu property theory -> CMake property surface. *)
+  | ESetTargetProperty { target = EString target; property; value } ->
+    ECmakeSetTargetProperty
+      { target; property; value = lower_yelu2_to_yelu1 value }
+  | ESetTargetProperty { target; property; value } ->
+    ESetTargetProperty
+      { target = lower_yelu2_to_yelu1 target;
+        property;
+        value = lower_yelu2_to_yelu1 value }
+  | EGetTargetProperty { var; target; property } ->
+    ECmakeGetTargetProperty { var; target; property }
+
+  (* Yelu find theory -> CMake find surface. *)
+  | EFindPackage { package_name; required } ->
+    ECmakeFindPackage { package_name; required }
+
+  (* Yelu try theory -> CMake try surface. *)
+  | ETryCompile { result_var; sources } ->
+    ECmakeTryCompile
+      { result_var; sources = List.map sources ~f:lower_yelu2_to_yelu1 }
 
   | ESetVar (name, expr) -> ESetVar (name, lower_yelu2_to_yelu1 expr)
   | ESeq exprs -> ESeq (List.map exprs ~f:lower_yelu2_to_yelu1)

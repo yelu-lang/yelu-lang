@@ -12,6 +12,12 @@ open Yelu_surface_cmake_target
 open Yelu_surface_cmake_install
 open Yelu_surface_cmake_string
 open Yelu_surface_cmake_if
+open Yelu_surface_cmake_cmake_op
+open Yelu_surface_cmake_dir
+open Yelu_surface_cmake_test
+open Yelu_surface_cmake_property
+open Yelu_surface_cmake_find
+open Yelu_surface_cmake_try
 
 let escape_quoted s =
   s
@@ -31,8 +37,8 @@ let arg = function
 
 let build_command_arg arg = quoted arg
 
-let build_command { command; args } =
-  String.concat ~sep:" " (List.map (command :: args) ~f:build_command_arg)
+let build_command (cmd : build_command) =
+  String.concat ~sep:" " (List.map (cmd.command :: cmd.args) ~f:build_command_arg)
 
 let rec cond = function
   | EBool true -> "TRUE"
@@ -198,6 +204,39 @@ let rec emit_expr = function
        | [] -> []
        | lines -> "else()" :: List.map lines ~f:(fun line -> "  " ^ line))
     @ [ "endif()" ]
+  | ECmakeProject { name; languages = [] } ->
+    [ Fmt.str "project(%s)" name ]
+  | ECmakeProject { name; languages } ->
+    [ Fmt.str "project(%s LANGUAGES %s)" name (String.concat ~sep:" " languages) ]
+  | ECmakeMinimumRequired version ->
+    [ Fmt.str "cmake_minimum_required(VERSION %s)" version ]
+  | ECmakeMessage { mode; texts } ->
+    let mode_part = if String.is_empty mode then "" else mode ^ " " in
+    [ Fmt.str "message(%s%s)"
+        mode_part
+        (String.concat ~sep:" " (List.map texts ~f:arg)) ]
+  | ECmakeAddSubdirectory path ->
+    [ Fmt.str "add_subdirectory(%s)" (arg path) ]
+  | ECmakeEnableTesting -> [ "enable_testing()" ]
+  | ECmakeAddTest { name; command; args = [] } ->
+    [ Fmt.str "add_test(NAME %s COMMAND %s)" (arg name) (arg command) ]
+  | ECmakeAddTest { name; command; args } ->
+    [ Fmt.str "add_test(NAME %s COMMAND %s %s)"
+        (arg name) (arg command)
+        (String.concat ~sep:" " (List.map args ~f:arg)) ]
+  | ECmakeSetTargetProperty { target; property; value } ->
+    [ Fmt.str "set_target_properties(%s PROPERTIES %s %s)"
+        target property (arg value) ]
+  | ECmakeGetTargetProperty { var; target; property } ->
+    [ Fmt.str "get_target_property(%s %s %s)" var target property ]
+  | ECmakeFindPackage { package_name; required = false } ->
+    [ Fmt.str "find_package(%s)" package_name ]
+  | ECmakeFindPackage { package_name; required = true } ->
+    [ Fmt.str "find_package(%s REQUIRED)" package_name ]
+  | ECmakeTryCompile { result_var; sources } ->
+    [ Fmt.str "try_compile(%s SOURCES %s)"
+        result_var
+        (String.concat ~sep:" " (List.map sources ~f:arg)) ]
   | _ -> fail "cannot emit Yelu1 expression to CMake"
 
 let emit_script expr =
