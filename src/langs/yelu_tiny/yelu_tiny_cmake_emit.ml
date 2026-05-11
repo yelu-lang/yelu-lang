@@ -40,7 +40,14 @@ let rec arg ?(env = empty_subst) = function
   | EVar name ->
     (match Map.find env name with
      | Some replacement -> arg ~env replacement
-     | None -> quoted ("${" ^ name ^ "}"))
+     (* Unquoted ${name} so cmake's list-deref splitting applies in
+        list contexts (foreach, list APPEND items, target_link_libs).
+        Users who want quoted-with-substitution should write an
+        EString containing the literal "${name}" text — that case
+        renders as a quoted string and preserves the user's intent.
+        EString containing exactly "${name}" stays quoted (correct):
+        the user wrote a string literal. *)
+     | None -> "${" ^ name ^ "}")
   | EString s -> quoted s
   | EInt n -> Int.to_string n
   | EBool true -> "ON"
@@ -74,6 +81,11 @@ let rec cond ?(env = empty_subst) = function
   | EOr (left, right) -> cond_atom ~env left ^ " OR " ^ cond_atom ~env right
   | EIntLess (left, right) -> arg ~env left ^ " LESS " ^ arg ~env right
   | EIntEqual (left, right) -> arg ~env left ^ " EQUAL " ^ arg ~env right
+  | EIntGreater (left, right) -> arg ~env left ^ " GREATER " ^ arg ~env right
+  | EIntLessEqual (left, right) ->
+    arg ~env left ^ " LESS_EQUAL " ^ arg ~env right
+  | EIntGreaterEqual (left, right) ->
+    arg ~env left ^ " GREATER_EQUAL " ^ arg ~env right
   | ECmakeStringEqual (left, right) ->
     arg ~env left ^ " STREQUAL " ^ arg ~env right
   | ECmakeVersionLess (a, b) ->
@@ -94,7 +106,9 @@ let rec cond ?(env = empty_subst) = function
 and cond_atom ?(env = empty_subst) expr =
   match expr with
   | EBool _ | ENot _ | ECmakeStringEqual _ | ECmakeVarDefined _
-  | ECmakeTargetExists _ | ECmakeFileExists _ | EIntLess _ | EIntEqual _
+  | ECmakeTargetExists _ | ECmakeFileExists _
+  | EIntLess _ | EIntEqual _ | EIntGreater _
+  | EIntLessEqual _ | EIntGreaterEqual _
   | EVar _ | EString _ -> cond ~env expr
   | EAnd _ | EOr _ -> "(" ^ cond ~env expr ^ ")"
   | _ -> cond ~env expr
@@ -132,6 +146,10 @@ let rec emit_expr_impl ~env e =
         (String.concat ~sep:" " (List.map exprs ~f:arg)) ]
   | ECmakeSetParentScope { name; value } ->
     [ Fmt.str "set(%s %s PARENT_SCOPE)" name (arg value) ]
+  | ECmakeSetEnvVar { name; value } ->
+    [ Fmt.str "set(ENV{%s} %s)" name (arg value) ]
+  | ECmakeUnsetEnvVar name ->
+    [ Fmt.str "unset(ENV{%s})" name ]
   | ECmakeOption { name; message; value } ->
     [ Fmt.str "option(%s %s %s)" name (quoted message) (arg value) ]
   | ETarget _ -> []

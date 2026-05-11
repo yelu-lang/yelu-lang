@@ -9,6 +9,9 @@ type expr +=
   | EIntAdd of expr * expr
   | EIntLess of expr * expr
   | EIntEqual of expr * expr
+  | EIntGreater of expr * expr
+  | EIntLessEqual of expr * expr
+  | EIntGreaterEqual of expr * expr
 
 let eval_int ~eval env expr =
   let env, value = eval env expr in
@@ -27,4 +30,16 @@ let eval_case ~eval env = function
     let env, left = eval_int ~eval env left in
     let env, right = eval_int ~eval env right in
     Some (env, VBool (left = right))
+  | EIntGreater (left, right) ->
+    let env, left = eval_int ~eval env left in
+    let env, right = eval_int ~eval env right in
+    Some (env, VBool (left > right))
+  | EIntLessEqual (left, right) ->
+    let env, left = eval_int ~eval env left in
+    let env, right = eval_int ~eval env right in
+    Some (env, VBool (left <= right))
+  | EIntGreaterEqual (left, right) ->
+    let env, left = eval_int ~eval env left in
+    let env, right = eval_int ~eval env right in
+    Some (env, VBool (left >= right))
   | _ -> None

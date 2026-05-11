@@ -11,6 +11,12 @@ type expr +=
      dedicated [Eval_error] at the root frame (cmake silently no-ops).
      See doc/cmake_scope_and_control_flow.md "Resolved decisions #1". *)
   | ECmakeSetParentScope of { name : string; value : expr }
+  (* Environment-variable namespace: [set(ENV{VAR} value)] /
+     [unset(ENV{VAR})]. Tiny eval treats env vars as a no-op (we don't
+     simulate the OS env); emit renders the cmake form faithfully so
+     real cmake handles them. *)
+  | ECmakeSetEnvVar of { name : string; value : expr }
+  | ECmakeUnsetEnvVar of string
 
 let eval_case env = function
   | ECmakeUnsetVar name -> Some (remove_var env name, VUnit)
@@ -30,6 +36,10 @@ let eval_case env = function
       | _ -> VString ""  (* fallback for richer expressions *)
     in
     Some (set_var_parent_scope env ~key:name ~data, VUnit)
+  | ECmakeSetEnvVar _ | ECmakeUnsetEnvVar _ ->
+    (* Env-namespace ops are emit-only at this slice; cmake handles
+       the OS env at configure time. *)
+    Some (env, VUnit)
   | ECmakeOption { name; value; _ } ->
     (match value with
      | EBool _ | EString _ | EVar _ ->

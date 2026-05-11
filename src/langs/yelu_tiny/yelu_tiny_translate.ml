@@ -82,6 +82,9 @@ let rec lift_yelu1_to_yelu2 = function
   | ECmakeSetParentScope { name; value } ->
     ECmakeSetParentScope
       { name; value = lift_yelu1_to_yelu2 value }
+  | ECmakeSetEnvVar { name; value } ->
+    ECmakeSetEnvVar { name; value = lift_yelu1_to_yelu2 value }
+  | ECmakeUnsetEnvVar name -> ECmakeUnsetEnvVar name
   | ECmakeOption { name; value; _ } ->
     ESetVar (name, lift_yelu1_to_yelu2 value)
 
@@ -875,6 +878,9 @@ let rec lower_yelu2_to_yelu1 = function
   | ECmakeSetParentScope { name; value } ->
     ECmakeSetParentScope
       { name; value = lower_yelu2_to_yelu1 value }
+  | ECmakeSetEnvVar { name; value } ->
+    ECmakeSetEnvVar { name; value = lower_yelu2_to_yelu1 value }
+  | ECmakeUnsetEnvVar name -> ECmakeUnsetEnvVar name
   | EVarDefined name -> ECmakeVarDefined name
 
   (* Shared bool theory. *)

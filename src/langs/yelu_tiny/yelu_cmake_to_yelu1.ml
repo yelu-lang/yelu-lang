@@ -1,5 +1,6 @@
 open Base
 open Yelu_tiny
+open Yelu_theory_int
 open Yelu_surface_cmake_store
 open Yelu_theory_bool
 open Yelu_theory_target
@@ -37,6 +38,11 @@ let rec expr : Old.yelu_expr -> Yelu_tiny.expr = function
   | Yexpr_and (left, right) -> EAnd (expr left, expr right)
   | Yexpr_or (left, right) -> EOr (expr left, expr right)
   | Yexpr_str_equal (left, right) -> ECmakeStringEqual (expr left, expr right)
+  | Yexpr_less (a, b) -> EIntLess (expr a, expr b)
+  | Yexpr_equal (a, b) -> EIntEqual (expr a, expr b)
+  | Yexpr_greater (a, b) -> EIntGreater (expr a, expr b)
+  | Yexpr_less_eq (a, b) -> EIntLessEqual (expr a, expr b)
+  | Yexpr_greater_eq (a, b) -> EIntGreaterEqual (expr a, expr b)
   | Yexpr_ver_less (a, b) -> ECmakeVersionLess (expr a, expr b)
   | Yexpr_ver_greater (a, b) -> ECmakeVersionGreater (expr a, expr b)
   | Yexpr_ver_equal (a, b) -> ECmakeVersionEqual (expr a, expr b)
@@ -182,6 +188,10 @@ let var_statement : Old.yelu_var_stmt -> Yelu_tiny.expr = function
     ECmakeOption { name = cvar_name cvar; message = msg; value = expr value }
   | Yvar_unset_cache { cvar } ->
     ECmakeUnsetVarCache (cvar_name cvar)
+  | Yvar_set_env { var; value } ->
+    ECmakeSetEnvVar { name = var; value = expr value }
+  | Yvar_unset_env { var } ->
+    ECmakeUnsetEnvVar var
   | _ -> fail "unsupported yelu_cmake variable statement for Yelu1 bridge"
 
 let list_index ~indices =
@@ -936,12 +946,12 @@ let rec stmt : Old.yelu_stmt -> Yelu_tiny.expr = function
         input = Option.map input ~f:expr }
   | Yc_foreach_in { loop_var; lists; items; commands } ->
     (* foreach(<loop_var> IN LISTS <list-vars>... ITEMS <items>...). At the
-       tiny slice we flatten: dereference each list-var (carry through
-       as ${name}) and append the literal items. cmake itself splits the
-       result back into list elements at configure time. *)
+       tiny slice we flatten: produce an [EVar] for each list-var so emit
+       renders the list-deref unquoted (`${name}`), which lets cmake split
+       on semicolons at configure time. Quoted `"${name}"` would be one
+       opaque string instead. *)
     let list_refs =
-      List.map lists ~f:(fun lv ->
-        Yelu_tiny.EString (Fmt.str "${%s}" (cvar_name lv)))
+      List.map lists ~f:(fun lv -> Yelu_tiny.EVar (cvar_name lv))
     in
     ECmakeForeach
       { loop_var = cvar_name loop_var;

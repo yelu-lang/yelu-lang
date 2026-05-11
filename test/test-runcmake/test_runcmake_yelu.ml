@@ -43,9 +43,47 @@ let compile_to_cmake prog =
   Format.pp_print_flush ff ();
   Buffer.contents buf
 
+(* R5 — same prog through the tiny bridge instead of production compile.
+   Used by the [check_pair_*] helpers to assert tiny's emit produces
+   cmake that runs identically to the reference. *)
+let bridge_to_cmake_via_tiny prog =
+  let yelu1 = Yelu_langs.Yelu_cmake_to_yelu1.stmt prog in
+  Yelu_langs.Yelu_tiny_cmake_emit.emit_script yelu1
+
 let fail_mismatch ref_result yelu_result cmake_text =
   Alcotest.failf "stdout mismatch\nref :\n%s\nyelu:\n%s\nyelu cmake:\n%s"
     ref_result.stdout yelu_result.stdout cmake_text
+
+(* R5 — drive [prog] through the tiny bridge and assert that the
+   resulting cmake (a) runs successfully and (b) produces the same
+   stdout as the reference. The bridge / emit code is intentionally
+   different from the production compile path; matching stdouts is the
+   semantic-equivalence check. *)
+let check_tiny_matches_ref name ref_result prog =
+  match bridge_to_cmake_via_tiny prog with
+  | exception Yelu_langs.Yelu_cmake_to_yelu1.Bridge_error msg ->
+    Alcotest.failf "%s: tiny bridge raised: %s" name msg
+  | tiny_cmake ->
+    let tiny_result = run_script tiny_cmake in
+    if tiny_result.exit_code <> 0 then
+      Alcotest.failf
+        "%s: tiny-emitted cmake failed at configure (exit %d)\nstderr:\n%s\ntiny cmake:\n%s"
+        name tiny_result.exit_code tiny_result.stderr tiny_cmake;
+    if ref_result.stdout <> tiny_result.stdout then
+      Alcotest.failf
+        "%s: tiny stdout differs from reference\nref:\n%s\ntiny:\n%s\ntiny cmake:\n%s"
+        name ref_result.stdout tiny_result.stdout tiny_cmake
+
+(* R5 skip-list. Names of tests where the tiny bridge can't produce
+   equivalent cmake yet — typically because tiny's emit handles a
+   construct differently than the production compile, or because the
+   bridge raises. Each entry needs a follow-up R2-style attrition fix
+   before it can come off the list. Empty means R5 is fully closed. *)
+let tiny_bridge_skip : string list = [
+]
+
+let do_tiny_check name =
+  not (Base.List.mem tiny_bridge_skip name ~equal:Base.String.equal)
 
 (** Reference is the upstream RunCMake .cmake file. *)
 let check_pair name dir ?(cmake_flags = []) yelu_prog =
@@ -57,7 +95,8 @@ let check_pair name dir ?(cmake_flags = []) yelu_prog =
     let yelu_result = run_script cmake_text in
     check_exit 0 yelu_result;
     if ref_result.stdout <> yelu_result.stdout then
-      fail_mismatch ref_result yelu_result cmake_text)
+      fail_mismatch ref_result yelu_result cmake_text;
+    if do_tiny_check name then check_tiny_matches_ref name ref_result yelu_prog)
 
 (** Reference is an inline cmake string. Use when the upstream RunCMake script
     produces no stdout (only FATAL_ERROR on failure) — write a minimal cmake
@@ -70,7 +109,8 @@ let check_pair_text name ref_cmake yelu_prog =
     let yelu_result = run_script cmake_text in
     check_exit 0 yelu_result;
     if ref_result.stdout <> yelu_result.stdout then
-      fail_mismatch ref_result yelu_result cmake_text)
+      fail_mismatch ref_result yelu_result cmake_text;
+    if do_tiny_check name then check_tiny_matches_ref name ref_result yelu_prog)
 
 (** Like check_pair_text but also compares stderr (with cmake filepath normalized).
     Use for negative-path tests that produce warnings/errors on stderr with no stdout. *)
@@ -83,7 +123,8 @@ let check_pair_text_stderr name ref_cmake yelu_prog =
     check_exit 0 yelu_result;
     if ref_result.stdout <> yelu_result.stdout then
       fail_mismatch ref_result yelu_result cmake_text;
-    check_stderr_normalized ref_result yelu_result cmake_text)
+    check_stderr_normalized ref_result yelu_result cmake_text;
+    if do_tiny_check name then check_tiny_matches_ref name ref_result yelu_prog)
 
 (* ==================================================================== *)
 (* variable_watch                                                        *)
