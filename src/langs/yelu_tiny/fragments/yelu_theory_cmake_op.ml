@@ -82,18 +82,16 @@ let eval_case ~eval env = function
     Some (add_message env mode texts, VUnit)
   | EDynFunction { name; params; body } ->
     let env, name = eval_string ~eval env name in
-    Some (set_function env name { params; body }, VUnit)
+    Some (set_function env name { params; body; is_macro = false }, VUnit)
   | EApply { name; args } ->
     let env, name = eval_string ~eval env name in
     (match find_function env name with
      | None -> fail "apply to unknown function %S" name
-     | Some { params; body } ->
+     | Some { params; body; is_macro = _ } ->
+       (* Theory-side [EApply] models the dynamic-scope function
+          (F2). Macros' textual-substitution semantics is handled at
+          the surface ([ECmakeApply]) — see R4-b.4. *)
        let env, arg_values = eval_args ~eval env args in
-       (* F2 function call: push a new frame so the body sees a
-          fresh local scope; bind params into [locals]; evaluate;
-          pop frame on return. Per [doc/cmake_block_return_semantics.md],
-          the snapshot of the parent's vars is taken at push-time and
-          never updated mid-call by PARENT_SCOPE / PROPAGATE writes. *)
        let env = push_frame env in
        let env = bind_params env params arg_values in
        let env, result = eval env body in

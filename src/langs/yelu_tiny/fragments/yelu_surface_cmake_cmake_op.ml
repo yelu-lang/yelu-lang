@@ -156,12 +156,10 @@ let eval_case ~eval env = function
     Some (add_message env mode texts, VUnit)
   | ECmakeFunction { name; params; body } ->
     let env, name = eval_string ~eval env name in
-    Some (set_function env name { params; body }, VUnit)
+    Some (set_function env name { params; body; is_macro = false }, VUnit)
   | ECmakeMacro { name; params; body } ->
     let env, name = eval_string ~eval env name in
-    (* At eval time we treat macro as function (function-call scope);
-       cmake's textual-substitution semantics is a refinement. *)
-    Some (set_function env name { params; body }, VUnit)
+    Some (set_function env name { params; body; is_macro = true }, VUnit)
   | ECmakeApply { name; args } ->
     let env, name = eval_string ~eval env name in
     (match find_function env name with
@@ -172,24 +170,16 @@ let eval_case ~eval env = function
           return [VUnit] so the surrounding sequence keeps going. *)
        let env, _ = eval_args ~eval env args in
        Some (env, VUnit)
-     | Some { params; body } ->
+     | Some { params; body; is_macro = false } ->
        let env, arg_values = eval_args ~eval env args in
-       (* Frame-based call mechanic. See
-          [doc/cmake_block_return_semantics.md] for the model.
-          [Return_function] from inside the body is caught here and
-          its propagate list merged into the caller's frame. *)
+       (* Function: push a frame, bind params, evaluate body, catch
+          Return_function for PROPAGATE. See R4-b.3 docs. *)
        let caller_depth = List.length env.frames in
        let env = push_frame env in
        let env = bind_params env params arg_values in
        (match eval env body with
         | env, result -> Some (pop_frame env, result)
         | exception Return_function { env_at_return; propagated } ->
-          (* Unwind any frames the return jumped over (blocks, etc.) by
-             popping without propagation until we reach the function
-             frame, then pop the function frame and write the captured
-             propagate values into the caller's locals. Side effects
-             performed inside the body before [return()] survive via
-             env_at_return. *)
           let rec unwind env =
             if List.length env.frames > caller_depth + 1 then
               unwind (pop_frame env)
@@ -204,7 +194,54 @@ let eval_case ~eval env = function
                 | Some v -> set_var env ~key:name ~data:v
                 | None -> remove_var env name)
           in
-          Some (env_after_pop, VUnit)))
+          Some (env_after_pop, VUnit))
+     | Some { params; body; is_macro = true } ->
+       (* Macro: textual substitution. cmake binds params + ARGN /
+          ARGV / ARGC / ARGVn as variables in the *caller's* frame for
+          the duration of the body (P25/P26). No frame is pushed; free
+          writes inside the body leak to the caller (P24). On exit we
+          restore the caller's prior bindings for these specific
+          names. Free var writes are NOT undone — they persist. *)
+       let env, arg_values = eval_args ~eval env args in
+       let arg_strings = List.map arg_values ~f:expect_string in
+       let n_params = List.length params in
+       let n_args = List.length arg_strings in
+       let extras = List.drop arg_strings n_params in
+       let macro_bindings : (string * value) list =
+         List.mapi params ~f:(fun i p ->
+           let v =
+             match List.nth arg_strings i with
+             | Some s -> s
+             | None -> ""
+           in
+           (p, VString v))
+         @ [ "ARGN", VString (String.concat ~sep:";" extras);
+             "ARGV", VString (String.concat ~sep:";" arg_strings);
+             "ARGC", VString (Int.to_string n_args);
+           ]
+         @ List.mapi arg_strings ~f:(fun i s ->
+             (Printf.sprintf "ARGV%d" i, VString s))
+       in
+       (* Save caller's prior values (or absence) for each bound name. *)
+       let saved =
+         List.map macro_bindings ~f:(fun (name, _) ->
+           (name, find_var env name))
+       in
+       (* Bind the macro params + ARG* in the caller's frame. *)
+       let env =
+         List.fold macro_bindings ~init:env ~f:(fun env (k, v) ->
+           set_var env ~key:k ~data:v)
+       in
+       let env, result = eval env body in
+       (* Restore the caller's prior bindings. Free writes inside the
+          body are unaffected (they targeted other names). *)
+       let env =
+         List.fold saved ~init:env ~f:(fun env (name, prev) ->
+           match prev with
+           | Some v -> set_var env ~key:name ~data:v
+           | None -> remove_var env name)
+       in
+       Some (env, result))
   | ECmakeInclude { file; optional = _ } ->
     let env, file = eval_string ~eval env file in
     Some (add_include env file, VUnit)
@@ -283,7 +320,7 @@ let eval_case ~eval env = function
     in
     raise (Return_function { env_at_return = env; propagated })
   | ECmakeBlock { propagate; body; scope_vars = _ } ->
-    (* Per doc/cmake_block_return_semantics.md: push a frame; evaluate
+    (* Per doc/cmake_scope_and_control_flow.md: push a frame; evaluate
        body; on normal exit, [pop_frame ~propagate] merges the named
        var into the parent's locals (also handles the unset case via
        absence in the popped frame's locals). On unwinding via

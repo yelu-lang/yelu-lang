@@ -196,16 +196,23 @@ type try_compile_decl = {
 type function_decl = {
   params : string list;
   body : expr;
+  (* True for [macro()], false for [function()]. Macros are textual:
+     they execute in the caller's frame, with param + ARGN / ARGV /
+     ARGC / ARGVn temporarily bound in the caller's locals and
+     restored on exit. Functions push their own frame. See R4-b.4 and
+     doc/cmake_scope_and_control_flow.md macro section. *)
+  is_macro : bool;
 }
 
 let equal_function_decl (a : function_decl) (b : function_decl) =
   List.equal String.equal a.params b.params
   && Poly.equal a.body b.body
+  && Bool.equal a.is_macro b.is_macro
 
 let sexp_of_function_decl (d : function_decl) =
   Sexp.List
     [ Sexp.List (List.map d.params ~f:(fun s -> Sexp.Atom s))
-    ; Sexp.Atom "<body>"
+    ; Sexp.Atom (if d.is_macro then "<macro-body>" else "<body>")
     ]
 
 type value =
@@ -256,7 +263,7 @@ let fail fmt = Fmt.kstr (fun msg -> raise (Eval_error msg)) fmt
    selected [locals] entries into the parent on frame exit. The
    snapshot is taken once at push-time and never updated mid-frame —
    this is the cmake quirk that probes P15/P20/P21 verified. See
-   doc/cmake_block_return_semantics.md for the full model. *)
+   doc/cmake_scope_and_control_flow.md for the full model. *)
 type frame = {
   locals : value Map.M(String).t;
   parent_snapshot : value Map.M(String).t;

@@ -1,6 +1,6 @@
 (* Tests for cmake's block() / return() / set(PARENT_SCOPE) / macro
    semantics in yelu_tiny. Ports of the 24 probes documented in
-   doc/cmake_block_return_semantics.md.
+   doc/cmake_scope_and_control_flow.md.
 
    Each test constructs tiny IR directly (no bridge) and asserts the
    observable env state matches the verified cmake output. The tests
@@ -438,6 +438,79 @@ let p22_return_overrides_block_propagate =
       check_some "P22.A" "outer-A" env "A";        (* block PROPAGATE skipped *)
       check_some "P22.B" "from-block-B" env "B")  (* return PROPAGATE wins *)
 
+(* === Probe P25 — macro params shadow caller's vars; free writes leak === *)
+let p25_macro_params_shadow_and_restore =
+  Alcotest.test_case
+    "P25: macro params shadow caller's vars and are restored on exit; free vars leak"
+    `Quick
+    (fun () ->
+      let body =
+        ESeq
+          [ set_var_e "Y" "inside-macro";  (* free var write — leaks *)
+            ECmakeMessage { mode = ""; texts = [ EVar "X"; EVar "Y" ] };
+          ]
+      in
+      let prog =
+        ESeq
+          [ set_var_e "X" "before-call";
+            set_var_e "Y" "before-call-y";
+            ECmakeMacro { name = EString "my_macro"; params = [ "X" ]; body };
+            ECmakeApply { name = EString "my_macro"; args = [ EString "hello" ] };
+          ]
+      in
+      let env, _ = eval_from_empty prog in
+      (* Inside-macro message captures X=hello (param), Y=inside-macro. *)
+      let captured = List.last_exn env.messages in
+      Alcotest.(check (list string))
+        "inside: X=hello, Y=inside-macro"
+        [ "hello"; "inside-macro" ]
+        captured.texts;
+      (* After macro: X restored (param), Y leaked. *)
+      check_some "P25" "before-call" env "X";
+      check_some "P25" "inside-macro" env "Y")
+
+(* === Probe P26 — ARGN / ARGV / ARGC / ARGVn === *)
+let p26_macro_argn =
+  Alcotest.test_case
+    "P26: macro binds ARGN / ARGV / ARGC / ARGVn in caller's frame" `Quick
+    (fun () ->
+      let body =
+        ESeq
+          [ ECmakeMessage { mode = ""; texts = [ EVar "X" ] };
+            ECmakeMessage { mode = ""; texts = [ EVar "ARGN" ] };
+            ECmakeMessage { mode = ""; texts = [ EVar "ARGV" ] };
+            ECmakeMessage { mode = ""; texts = [ EVar "ARGC" ] };
+            ECmakeMessage { mode = ""; texts = [ EVar "ARGV0" ] };
+            ECmakeMessage { mode = ""; texts = [ EVar "ARGV1" ] };
+          ]
+      in
+      let prog =
+        ESeq
+          [ ECmakeMacro { name = EString "my_macro"; params = [ "X" ]; body };
+            ECmakeApply
+              { name = EString "my_macro";
+                args = [ EString "hello"; EString "extra1"; EString "extra2" ] };
+          ]
+      in
+      let env, _ = eval_from_empty prog in
+      let msg_texts = List.map env.messages ~f:(fun m -> m.texts) in
+      Alcotest.(check (list (list string)))
+        "X / ARGN / ARGV / ARGC / ARGV0 / ARGV1 captured in order"
+        [ [ "hello" ];
+          [ "extra1;extra2" ];
+          [ "hello;extra1;extra2" ];
+          [ "3" ];
+          [ "hello" ];
+          [ "extra1" ];
+        ]
+        msg_texts;
+      (* After macro: ARG* are unset (no prior binding to restore). *)
+      check_none "P26" env "X";
+      check_none "P26" env "ARGN";
+      check_none "P26" env "ARGV";
+      check_none "P26" env "ARGC";
+      check_none "P26" env "ARGV0")
+
 (* === Tiny-only diagnostic: PARENT_SCOPE at root frame === *)
 let parent_scope_at_root_fails =
   Alcotest.test_case
@@ -484,5 +557,9 @@ let () =
           p10_return_through_foreach;
           p11_return_through_block;
           p22_return_overrides_block_propagate;
+        ] );
+      ( "macro",
+        [ p25_macro_params_shadow_and_restore;
+          p26_macro_argn;
         ] );
     ]

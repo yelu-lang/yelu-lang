@@ -8,6 +8,9 @@
 ## Language Design (settled)
 - [Core design decisions](yelu_lang_decisions.md) — FP flavor, monomorphic typed lists, zip not ZIP_LISTS
 
+## Project / open design directions
+- [Macro elimination as a yelu design direction](project_macro_elimination.md) — defer decision to after R5/Bar #3; R4-b.4 paused (current ECmakeMacro is wrong-but-unused dead code)
+
 ## Feedback
 - [No eval $(opam env)](feedback_shell_env.md) — dune/opam already on PATH in CC env
 - [dune sandbox + promote](feedback_dune_sandbox.md) — alias deps force build order but don't expose files in sandbox; use glob_files + promote instead

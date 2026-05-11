@@ -9,7 +9,7 @@ type expr +=
   (* [set(<var> <value>... PARENT_SCOPE)] — writes the value to the
      parent frame's locals, not the current frame. Tiny raises a
      dedicated [Eval_error] at the root frame (cmake silently no-ops).
-     See doc/cmake_block_return_semantics.md "Resolved decisions #1". *)
+     See doc/cmake_scope_and_control_flow.md "Resolved decisions #1". *)
   | ECmakeSetParentScope of { name : string; value : expr }
 
 let eval_case env = function

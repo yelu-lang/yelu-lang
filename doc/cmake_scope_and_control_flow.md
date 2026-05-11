@@ -1,13 +1,17 @@
-# cmake `block()` / `return()` / `PARENT_SCOPE` / `macro()` Semantics
+# cmake Scope & Control Flow Semantics
 
-> Verified against cmake 4.3.1 with 24 probe scripts run via `cmake -P`.
-> Probes preserved at `/tmp/block_return_probes/p1_*.cmake` … `p24_*.cmake`.
+> Verified against cmake 4.3.1 with **26 probe scripts** run via `cmake -P`.
+> Probes preserved at `/tmp/block_return_probes/p1_*.cmake` … `p26_*.cmake`.
 >
-> Purpose: pin the exact semantic model for tiny's `ECmakeBlock`,
-> `ECmakeReturn`, and `set(PARENT_SCOPE)` *before* writing the eval. The
-> 2026-05-10 foreach incident motivated this style: when a construct
-> touches scope or control flow, surface the design (with probe-verified
-> reference behavior) before coding.
+> Covers: `block()` / `function()` / `macro()` (variable scope), `return()`
+> with `PROPAGATE`, `set(PARENT_SCOPE)`, `break()` / `continue()` (control
+> flow), and the cmake-specific hybrid binding model.
+>
+> Purpose: pin the exact semantic model for tiny's eval *before* writing
+> the implementation. The 2026-05-10 foreach incident motivated this
+> style: when a construct touches scope, binding, or control flow,
+> surface the design (with probe-verified reference behavior) before
+> coding. See `.claude/memory/feedback_ask_on_semantic_design.md`.
 
 ## TL;DR — the shallow-binding model
 
@@ -145,6 +149,8 @@ below.
 | P22 | return(PROPAGATE B) inside block(PROPAGATE A) inside function | Does block's PROPAGATE list run when the block is unwound by return? | No — A stays as parent's outer; only return's PROPAGATE for B reaches the caller |
 | P23 | `set(X PARENT_SCOPE)` inside macro, macro called from function | Where does X land? | The function's caller (one frame above the macro's textual call site) — confirms macro = textual substitution |
 | P24 | `set(Y)` (no PARENT_SCOPE) inside macro, macro called from function | Does Y leak past the function? | No — Y is written to the function frame and dropped on function exit; macro is frame-less so the function frame is the relevant target |
+| P25 | macro params shadow caller's vars; restore behavior on exit | Are params bound as caller-frame vars? Restored after? | Yes to both — param `X` shadows the caller's `X`; restored on exit. Free writes inside the body leak (no frame). |
+| P26 | macro `ARGN` / `ARGV` / `ARGC` / `ARGVn` | What are these bound to? | `ARGN` = semicolon-joined extras (args beyond declared params); `ARGV` = all args joined; `ARGC` = arg count; `ARGVn` = the n-th arg. All bound in the caller's frame for the macro's duration and restored on exit. |
 
 ### P15 (the snapshot probe)
 
@@ -304,29 +310,31 @@ fail P10/P11).
    a function with save/bind/eval/restore) is incorrect; see next
    section.
 
-### Implications for current `ECmakeMacro`
+### Implementation of `ECmakeMacro` (R4-b.4 — done)
 
-In commit abb501f, `ECmakeMacro` was added with the same eval as
-`ECmakeFunction` (save vars, bind params, eval body, restore vars). The
-verified probes show that's wrong: macros should be inlined textually,
-which in our model is equivalent to substituting params into the body
-and evaluating in the *caller's* current frame — no frame push, no
-restore.
+Implemented as save-and-restore for params + ARG vars only, with no
+frame push. On apply:
 
-Concrete fix proposed alongside R4-b.3:
+1. Save the caller's prior bindings (if any) for: each param name,
+   plus `ARGN`, `ARGV`, `ARGC`, `ARGV0`, `ARGV1`, …
+2. Set those names in the caller's frame:
+   - param[i] → arg_strings[i] (or `""` if fewer args than params)
+   - `ARGN` → semicolon-joined args beyond the declared params
+   - `ARGV` → semicolon-joined all args
+   - `ARGC` → arg count as a string
+   - `ARGVn` → the n-th arg
+3. Evaluate the body in the caller's frame (no `push_frame`).
+4. Restore the saved bindings (write back, or `remove_var` for names
+   that had no prior binding).
 
-- Rename current `ECmakeMacro` → `ECmakeMacroFunctionScoped` (a label
-  preserving its current wrong-but-useful behavior) or just delete it.
-- New `ECmakeMacro` evaluator: on apply, substitute `${ARGN}` /
-  `${ARG0}` / `${ARG<n>}` / parameter names through the body; evaluate
-  the substituted body in the caller's frame.
-- Param substitution is value-level: at call time we have the arg
-  values; we walk the body replacing matching `EVar name` or
-  `EString` content containing `${name}` with the argument expression.
+Tests live in `test_yelu_tiny_block_return.ml` (P25, P26). Function
+bodies remain frame-pushed (`is_macro = false` on `function_decl`);
+the macro vs function branching is the only divergence at apply time.
 
-This is **R4-b.4** — separate from R4-b.3's frame stack work. The
-current tests for `ECmakeMacro` would need updating (they test
-function-like behavior).
+A later cleanup is to consider eliminating macros entirely from the
+yelu surface (see `.claude/memory/project_macro_elimination.md`); the
+current implementation is faithful, so we have a safe baseline either
+way.
 
 ## Implementation phasing
 
@@ -360,3 +368,130 @@ that compose cleanly.
   separate question.
 - Sets up a non-cmake-specific frame primitive (`Make_frame` functor?)
   that future packs can reuse for lexical-scope languages.
+
+## Design observations — cmake's binding model from a PL angle
+
+> Working notes captured 2026-05-11 while finishing R4-b. Not yet
+> integrated into `doc/yelu_lang_design.md`; revisit when discussing
+> the binding-feature library (Y15).
+
+### The shape of the frame stack
+
+Each frame holds:
+
+- `locals : value Map.M(String).t` — names this frame has written
+- `parent_snapshot : value Map.M(String).t` — copy of the caller's
+  visible variables, taken at push time
+- `touched : Set.M(String).t` — names this frame has set OR unset
+  (needed to distinguish `block(PROPAGATE x)` with x untouched from x
+  explicitly unset — see probes P3 / P4)
+
+Read resolution is two-level: `locals` then `parent_snapshot`. **No
+chain walking.** This is what makes the frame "shallow" in the EOPL
+sense: each frame is a complete, free-standing variable environment.
+
+### Lexical vs dynamic — the curious hybrid
+
+| Mechanism | Lexical scope (Scheme, ML) | Dynamic scope (Tcl, Emacs Lisp pre-25) | cmake (this model) |
+|---|---|---|---|
+| Parent link points to | **Definition** site's scope | **Call** site's scope | Call site's scope |
+| Storage relationship | Shared with parent (closures via captured ref) | Shared with parent (writes visible) | **Copied** at frame push |
+| Mid-call mutation of caller visible in callee? | Possible via closure cell | Yes, automatically | **No** — callee reads snapshot |
+| Cross-scope writes | Returns + assignments to captured cells | Just `set`; visible up the chain | `PARENT_SCOPE` (special), `PROPAGATE` (at exit) |
+
+cmake picked *call-site parent* (the dynamic-scope choice) but
+*copy-at-push* (the lexical-scope choice for stability). Reads inside
+a frame are thus lexically stable: the callee can't see the caller's
+mid-call mutations. But it cuts the data-sharing channel that
+dynamic-scope languages otherwise provide, which is why `PARENT_SCOPE`
+and `PROPAGATE` exist as explicit back-doors.
+
+The net effect: cmake gives users a function model that *feels*
+lexical (predictable, scoped) but with two ergonomic concessions to
+the underlying dynamic shape:
+
+- The "parent" is the caller, not the definition site. So a function
+  defined deep inside another function still gets the *current
+  caller's* snapshot, not a closure over its definition context.
+- `PARENT_SCOPE` writes punch through the cut. Without them, callees
+  could only communicate via return values — which cmake doesn't
+  have at the language level.
+
+### Why `PARENT_SCOPE` reads "low-level"
+
+In a true dynamic-scope language, you'd write `set X v` and the
+caller sees it because the chain shares storage. No special syntax
+needed — that's just how variables work. cmake severs the chain via
+the snapshot, and then introduces `PARENT_SCOPE` as a labeled
+write-through. Compared to dynamic scope's implicit chaining, this is
+a verbose, mechanism-revealing primitive. Compared to lexical scope's
+return-value channel, it's a side-effect back-door.
+
+That's the source of the "low-level" feel: `PARENT_SCOPE` is a
+storage-level instruction (write to *this specific frame*) rather
+than a semantic primitive (return a value).
+
+### `block()` as scope without function-call
+
+`block()` is interesting because it's a *non-function* frame: a way
+to introduce a fresh scope without packaging it as a callable. C and
+its descendants do this with `{ ... }` blocks. cmake's `block()` is
+the same idea retrofitted onto a language whose only previous scoping
+mechanism was `function()`.
+
+Once you have the frame primitive, having both `function()` (which
+binds params and supports `return(PROPAGATE)`) and `block()` (which
+binds nothing and supports `block(PROPAGATE …)`) is cheap. They share
+the frame mechanic; they differ in what they wrap around it. In our
+implementation, `ECmakeBlock` is literally the same `push_frame` /
+`pop_frame` shape as the function-call branch of `ECmakeApply`, just
+without the param-binding step and with the propagate list given by
+the `block(PROPAGATE …)` syntax instead of the `return(PROPAGATE …)`
+exception payload.
+
+### `macro()` as the anti-frame
+
+After all the frame mechanic, macros stand out by *not* having a
+frame. They reach into the caller's locals directly, override param
+names temporarily, and rely on the caller's free variables for
+everything else. This is the "textual substitution" feel: as if the
+body were copy-pasted at the call site.
+
+In implementation, our macros and functions share the body shape
+(`function_decl { params; body; is_macro }`) but differ in apply
+strategy: functions push and pop a frame; macros save-and-restore the
+param + `ARG*` bindings in the caller's frame. That's a clean
+expression of the difference. The macro's "no frame" is just the
+absence of the `push_frame` / `pop_frame` calls.
+
+### Design takeaway for yelu
+
+Yelu's `lang_yelu` already has `set` (cmake-style global mutable) and
+`let` (lexical immutable). Adding `function()` and `block()` to yelu
+*at the surface level* would mean importing all four cmake bindings:
+snapshot-on-push, no-chain reads, `PARENT_SCOPE` writes, `PROPAGATE`
+exits. That's a lot of accreted-language ergonomics to inherit.
+
+The yelu design space leaves room for simpler choices:
+
+- **Pure lexical functions with return values** — closer to ML.
+  Eliminates `PARENT_SCOPE` and `PROPAGATE` entirely. Lower yelu →
+  cmake via temp vars at the call site.
+- **`let`-rec-friendly local definitions** — replaces both
+  `function()` for inner helpers and `block()` for scoped temps.
+  Lower to inlined cmake with mangled names.
+- **First-class records / tuples for multi-value return** — covers
+  the `return(PROPAGATE x y z)` use case without needing a separate
+  mechanism.
+
+The tiny `frame` primitive is general enough to support either the
+cmake-faithful model (what we have now) or a cleaner yelu-side model
+(future). Documenting this here so the choice surfaces explicitly
+when binding-feature library work (Y15) starts.
+
+The macro-elimination question (memory:
+`project_macro_elimination.md`) sits in the same design conversation:
+if yelu offers first-class records, lexical functions, and a
+mechanism for "inline this body at the call site if you want
+caller-frame side effects," then macros lose their last unique use
+case.
