@@ -2,10 +2,10 @@
 
 Status: tiny composition harness in progress. **Bar #2 (theory breadth lite)
 reached** — all 14 production theories have at least a first slice.
-**Bar #1 progress:** tutorial v1 step1 through step7 (root) plus step8_table
-bridge through tiny and configure through real cmake; step6_ctest, step7_math,
-step8_math bridge (no configure tests — covered as part of root or omitted as
-trivial `set()`s). Constructs covered include project +
+**Bar #1 progress:** tutorial v1 step1 through step10 (root) plus step8_table
+bridge through tiny; step1, 2, 3, 4, 5, 6, 7, 8_table, 10 configure through
+real cmake. step6_ctest, step7_math, step8_math, step9, step10 also bridge
+(no separate configure tests — covered cumulatively or trivial). Constructs covered include project +
 cxx_standard + configure_file + add_executable + add_subdirectory +
 target_link_libraries + target_include_directories + option +
 statement-if + compile definitions + target_compile_features +
@@ -475,7 +475,7 @@ strengthen eval as needed.
 | **A** ✓ | step6, step6_ctest | `include(FILE_OR_MODULE)` — first slice: records name in `env.includes`, emits `include("FILE")` (with `OPTIONAL` suffix when set). Step6 root + step6_ctest now bridge; step6 root also configures through real cmake. |
 | **B** ✓ | step7, step7_math | Two pieces: (a) bridge keeps `EVar` / `Yexpr_name` in `yc_function` / `yc_apply` name position so ELet substitution at emit can resolve let-bound function names (was `command_name` short-circuit; now `expr`); (b) surface `ECmakeApply` evaluates lenient — unknown functions return `VUnit` after evaluating args, since cmake routinely calls bodies loaded via `include(SomeModule)` that tiny does not simulate. Theory `EApply` stays strict. New `let_value` bridge rule maps `ycstr name` (= `Yexpr_name {ns=Ns_var; name}`) to `EString` in let-value position so `ylet "x" (ycstr "x")` and `ylet "x" (ycstr "literal")` don't create self-cycles or unintended derefs. step7 root + step7_math now bridge; step7 root configures through real cmake. |
 | **C** ✓ | step8_table, step8_math | step8_table uses the OUTPUT form of `add_custom_command` (already bridged via `Ytgt_add_custom_command`); the TARGET-form sibling `Ytgt_add_custom_command_target` remains deferred (no v1 step uses it). step8_math composes Tier A's `include()` with a generated source path. Both bridge with no new fragment work; step8_table also configures through real cmake. |
-| **D** | step9, step10 | `cpack_basic` extras + `shared_libs_output_dirs` — mostly `yc_set` to cache vars (already works) plus the Tier A `include()`. |
+| **D** ✓ | step9, step10 | `cpack_basic` (sequence of `yc_set` + `include(CPack)` + `include(InstallRequiredSystemLibraries)`) and `shared_libs_output_dirs` (three `CMAKE_*_OUTPUT_DIRECTORY` sets + `BUILD_SHARED_LIBS` option) compose from already-bridged pieces. No new fragment work; step10 configures through real cmake. |
 | **E** | step11, step11_config | `yc_at_var "PACKAGE_INIT"` — emit-only literal injection. |
 | **F** | step12, step12_math | The package-config family: `install(EXPORT)`, `export(EXPORT)`, `configure_package_config_file`, `write_basic_package_version_file`. Each is a single keyword-arg command with a dedicated surface constructor; emit faithfully; stub eval initially. |
 | **G** | orthogonal cleanup | `ECmakeOption` eval through `eval` (currently ad-hoc match); `ECmakeSetTestsProperties` eval through a new env namespace; `set_property(TARGET ...)` as older sibling of `set_target_properties`. |

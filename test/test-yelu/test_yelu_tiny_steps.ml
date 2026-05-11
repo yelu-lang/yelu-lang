@@ -707,6 +707,108 @@ let step8_math_bridge =
                ~substring:"add_library(MathFunctions"))
     ] )
 
+(* step9 layers [cpack_basic] (a sequence of [yc_set] + [include(CPack)] +
+   [include(InstallRequiredSystemLibraries)]) on top of step6/step7. All
+   pieces — Tier A include(), set-to-cache, ystr_eval — are already
+   bridged; this test pins composition. *)
+let step9_bridge =
+  let module Old = Yelu_langs.Lang_yelu_cmake in
+  let open Yelu_langs.Lang_yelu_utils in
+  let cmd : Old.yelu_stmt =
+    ycmd_of_list
+      (Step_common.project_preamble
+       @ [
+           ylet "tut" (ytval "Tutorial");
+           ylet "flags" (ytval "tutorial_compiler_flags");
+           ylet "do_test" (ycstr "do_test");
+         ]
+       @ Step_common.compiler_flags_lib
+       @ Step_common.compiler_warning_options
+       @ [
+           Step_common.configure_tutorial_header;
+           yc_add_subdirectory (ydir "MathFunctions");
+           add_exe ~sources:[ yfile "tutorial.cxx" ] (yvar "tut");
+           link_lib [ yvar "tut" ]
+             [ ytarget_def [ ytval "MathFunctions"; yvar "flags" ] ];
+           include_dirs (yvar "tut")
+             [ ytarget_def [ dir Yelu_langs.Lang_yelu_utils.output_root ] ];
+         ]
+       @ Step_common.install_tutorial
+       @ Step_common.test_suite ~ctest:true
+       @ Step_common.cpack_basic)
+  in
+  ( "step9_bridge",
+    [
+      Alcotest.test_case "v1 step9 root program bridges to Yelu1 (adds cpack_basic)"
+        `Quick
+        (fun () ->
+          let yelu1 = Yelu_langs.Yelu_cmake_to_yelu1.stmt cmd in
+          let cmake_text =
+            Yelu_langs.Yelu_tiny_cmake_emit.emit_script yelu1
+          in
+          Alcotest.(check bool) "emits include(CPack)" true
+            (String.is_substring cmake_text ~substring:"include(\"CPack\")");
+          Alcotest.(check bool) "emits include(InstallRequiredSystemLibraries)" true
+            (String.is_substring cmake_text
+               ~substring:"include(\"InstallRequiredSystemLibraries\")");
+          Alcotest.(check bool) "emits CPACK_GENERATOR set" true
+            (String.is_substring cmake_text ~substring:"set(CPACK_GENERATOR");
+          Alcotest.(check bool) "still keeps step6 include(CTest)" true
+            (String.is_substring cmake_text ~substring:"include(\"CTest\")"))
+    ] )
+
+(* step10 adds [shared_libs_output_dirs] (three more yc_set to standard
+   cmake cache vars + BUILD_SHARED_LIBS option) on top of step9. *)
+let step10_bridge =
+  let module Old = Yelu_langs.Lang_yelu_cmake in
+  let open Yelu_langs.Lang_yelu_utils in
+  let cmd : Old.yelu_stmt =
+    ycmd_of_list
+      (Step_common.project_preamble
+       @ [
+           ylet "tut" (ytval "Tutorial");
+           ylet "flags" (ytval "tutorial_compiler_flags");
+           ylet "do_test" (ycstr "do_test");
+         ]
+       @ Step_common.shared_libs_output_dirs
+       @ Step_common.compiler_flags_lib
+       @ Step_common.compiler_warning_options
+       @ [
+           Step_common.configure_tutorial_header;
+           yc_add_subdirectory (ydir "MathFunctions");
+           add_exe ~sources:[ yfile "tutorial.cxx" ] (yvar "tut");
+           link_lib [ yvar "tut" ]
+             [ ytarget_def [ ytval "MathFunctions"; yvar "flags" ] ];
+           include_dirs (yvar "tut")
+             [ ytarget_def [ dir Yelu_langs.Lang_yelu_utils.output_root ] ];
+         ]
+       @ Step_common.install_tutorial
+       @ Step_common.test_suite ~ctest:true
+       @ Step_common.cpack_basic)
+  in
+  ( "step10_bridge",
+    [
+      Alcotest.test_case "v1 step10 root program bridges (adds shared_libs_output_dirs)"
+        `Quick
+        (fun () ->
+          let yelu1 = Yelu_langs.Yelu_cmake_to_yelu1.stmt cmd in
+          let cmake_text =
+            Yelu_langs.Yelu_tiny_cmake_emit.emit_script yelu1
+          in
+          Alcotest.(check bool) "emits CMAKE_RUNTIME_OUTPUT_DIRECTORY" true
+            (String.is_substring cmake_text
+               ~substring:"set(CMAKE_RUNTIME_OUTPUT_DIRECTORY");
+          Alcotest.(check bool) "emits CMAKE_LIBRARY_OUTPUT_DIRECTORY" true
+            (String.is_substring cmake_text
+               ~substring:"set(CMAKE_LIBRARY_OUTPUT_DIRECTORY");
+          Alcotest.(check bool) "emits CMAKE_ARCHIVE_OUTPUT_DIRECTORY" true
+            (String.is_substring cmake_text
+               ~substring:"set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY");
+          Alcotest.(check bool) "emits BUILD_SHARED_LIBS option" true
+            (String.is_substring cmake_text
+               ~substring:"option(BUILD_SHARED_LIBS"))
+    ] )
+
 let () =
   Alcotest.run "yelu_tiny_steps"
     [
@@ -724,4 +826,6 @@ let () =
       step7_math_bridge;
       step8_table_bridge;
       step8_math_bridge;
+      step9_bridge;
+      step10_bridge;
     ]
