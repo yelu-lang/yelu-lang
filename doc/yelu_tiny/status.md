@@ -19,7 +19,13 @@ as the still-production entry. Module names unchanged (dune
 needed. **Item A (direct-parser gap list) closed:** try_compile /
 try_run added; 27 tier_remaining cases promoted into the pair-wise
 oracle; four bridge shape gaps explicitly deferred (no production
-caller hits them today). Four legacy-parser bugs surfaced (same
+caller hits them today). **Item B (genex) closed (reframed):**
+opaque-string round-trip is byte-identical for all covered genex
+shapes; typed Yge_* theory deferred to Y17. **Item C (binary
+callers repointed):** `Step_common.print_cmake` — the sole call
+site of `Lang_yelu_compile.compile` in `src/bin/yelu/` — now
+routes through bridge + emit_ast (`make cmake-only-check` 12/12,
+`make runcmake-yelu` 50/50). Four legacy-parser bugs surfaced (same
 shape: handler only matches narrow Yexpr_string variant and falls
 through to "" / "?" for the rest):
 - `( set NAME val )` form

@@ -7,8 +7,8 @@ The plan for moving production lowering off the legacy
 
 ## Status (2026-05-11)
 
-**Phase 1 done; Phase 2a + 2c structural move done; items A and B
-(reframed) done; items C–E open.**
+**Phase 1 done; Phase 2a + 2c structural move done; items A, B
+(reframed), and C done; items D and E open.**
 
 - Production text generation routes through
   `Yelu1 → emit_ast → Lang_cmake.exp → cmake_pp`.
@@ -229,21 +229,23 @@ Consolidated history; commit refs in parens.
   parser now also handles `~public:[items]` / `~private:[...]` /
   `~interface:[...]` kwarg-lists by consuming-and-discarding items
   (matches legacy semantics). Typed genex theory deferred to Y17.
+- **Item C — binary callers repointed.** Step files in
+  `src/bin/yelu/v1/`, `src/bin/yelu/v2/`, and `src/bin/yelu/`
+  (CMakeOnly suite) all funnel through one helper —
+  `Step_common.print_cmake` — which was the sole call site of
+  `Lang_yelu_compile.compile` in the binary tree. Repointed it onto
+  `Yelu_cmake_to_yelu1.stmt |> Yelu_tiny_cmake_emit_ast.emit_ast`,
+  preserving the same `Lang_cmake_pp` rendering. Verified via
+  `make cmake-only-check` (12/12 OK) and `make runcmake-yelu`
+  (50/50). The legacy compile stays callable for the byte-equality
+  oracle in `test_yelu_compile.ml`. (`make cmake-commands` has a
+  pre-existing failure since the initial commit unrelated to the
+  retirement work: `yis_target` expects `Yexpr_name` but
+  `test_cmake_commands.ml:1560` passes `ystr "Another::Alias"`.)
 
 ## Open
 
 Letter scheme so future additions don't disturb existing numbering.
-
-### C — Repoint binary callers
-
-Step files in `src/bin/yelu/v1/`, `src/bin/yelu/v2/`, and
-`src/bin/yelu/` (CMakeOnly suite) currently build production AST via
-`Lang_yelu_utils` and route through `Lang_yelu_compile.compile`. Move
-them onto the direct path: either build Yelu1 directly with tiny
-constructors, or keep producing `Lang_yelu_cmake` AST but route through
-`Yelu_cmake_to_yelu1.stmt |> emit_ast`. C must land before E (deleting
-the bridge) and before D's rename (so the rename doesn't touch step
-files mid-migration).
 
 ### D — Naming honesty rename
 
@@ -331,8 +333,7 @@ equivalence claim stays byte-level.
 ## Sequencing summary
 
 ```
-done:       warm-up trio  →  Phase 1 (emit_ast)  →  Phase 2a (Yelu_parse_y1, 12 families)  →  Phase 2c (legacy move)  →  A (direct-parser gap list closed)  →  B (genex opaque-string handling sufficient; typed theory deferred to Y17)
-open C:     repoint binary callers in src/bin/yelu/* off Lang_yelu_compile
+done:       warm-up trio  →  Phase 1 (emit_ast)  →  Phase 2a (Yelu_parse_y1, 12 families)  →  Phase 2c (legacy move)  →  A (direct-parser gap list closed)  →  B (genex opaque-string handling sufficient; typed theory deferred to Y17)  →  C (binary callers repointed onto bridge + emit_ast)
 open D:     naming honesty rename — yelu_tiny → yelu, naming aligned with surface vs cmake vs legacy
 open E:     bridge retirement — delete yelu_cmake_to_yelu1.ml; oracle shifts to source-fed shape
 y17:        post-retirement typing pass on tiny (incl. typed genex)

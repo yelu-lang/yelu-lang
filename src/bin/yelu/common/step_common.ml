@@ -187,8 +187,13 @@ let math_install_libs ?export () =
     yc_install_files [ yfile "MathFunctions.h" ] (ydir "include");
   ]
 
-(** Compile and print a yelu command to stdout as cmake. *)
+(** Compile and print a yelu command to stdout as cmake.
+
+    Routes through the production path: bridge into Yelu1 IR, then
+    [emit_ast] into [Lang_cmake.exp], then [Lang_cmake_pp]. The legacy
+    [Lang_yelu_compile.compile] stays callable for the byte-equality
+    oracle in [test_yelu_compile.ml]. *)
 let print_cmake cmd =
+  let yelu1 = Yelu_langs.Yelu_cmake_to_yelu1.stmt cmd in
   Fmt.pr "%a" (Fmt.vbox Yelu_langs.Lang_cmake_pp.pp)
-    (Yelu_langs.Lang_yelu_compile.compile Yelu_langs.Lang_yelu_compile.empty_env cmd
-    |> snd)
+    (Yelu_langs.Yelu_tiny_cmake_emit_ast.emit_ast yelu1)
