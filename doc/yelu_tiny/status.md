@@ -5,13 +5,16 @@ code-anchored module guide in `structure.md`, history in
 `../worklog_2026_04.md` / `../worklog_2026_05.md`.
 
 **Last verified 2026-05-11:** `dune build && dune test` green
-(738 unit tests); byte-equality oracle covers 194/194 production
-programs with 0 uncovered, 0 skipped. Parser tests (170) all flow
-through emit_ast without falling back to direct emit.
-`make runcmake-yelu` green (50/50 pairs). Retirement Phase 1 done.
-Phase 2 warm-up trio landed: `Yexpr_is_absolute` real bridge,
-`list(GET)` multi-index, `ECmakeGenex` structural hook (no semantics
-yet — full R3 theory deferred). See below.
+(741 unit tests); byte-equality oracle covers 194/194 production
+programs with 0 uncovered, 0 skipped. Parser tests (173 incl. 3 new
+Phase 2a pair-wise) all flow through emit_ast without falling back
+to direct emit. `make runcmake-yelu` green (50/50 pairs).
+Retirement Phase 1 done. Phase 2 warm-up trio landed.
+Phase 2a pilot landed: var-family parser-direct-to-Yelu1
+(`Yelu_parse_y1.parse_program_y1`); the pair-wise oracle uncovered
+a longstanding legacy-parser bug for the `( set NAME val )` form
+(legacy renders the var name as `?`; the new parser handles it
+correctly). See below.
 
 ## What's done
 

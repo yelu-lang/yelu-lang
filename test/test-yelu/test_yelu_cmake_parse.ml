@@ -44,6 +44,35 @@ let assert_parses name input =
     let stmt = parse input in
     assert_bridge_ok name stmt)
 
+(* Phase 2a pair-wise oracle: for inputs the new Yelu1 parser accepts,
+   assert that both paths produce byte-identical cmake text.
+
+   - legacy path: source → Lang_yelu_parse.parse_program
+                          → Yelu_cmake_to_yelu1.stmt
+                          → Yelu_tiny_cmake_emit_ast.emit_script
+   - new path:    source → Yelu_parse_y1.parse_program_y1
+                          → Yelu_tiny_cmake_emit_ast.emit_script
+
+   Same emit_ast lowering on both sides, so any divergence is parser-
+   level. The new parser currently handles only the var family
+   (Phase 2a pilot); other inputs return Error and the oracle skips. *)
+let assert_parse_y1_equiv name source =
+  Alcotest.test_case name `Quick (fun () ->
+    let legacy_text =
+      let stmt = parse source in
+      let yelu1 = Yelu_langs.Yelu_cmake_to_yelu1.stmt stmt in
+      Yelu_langs.Yelu_tiny_cmake_emit_ast.emit_script yelu1
+    in
+    match Yelu_langs.Yelu_parse_y1.parse_program_y1 source with
+    | Error msg ->
+      Alcotest.failf "%s: new parser failed: %s" name msg
+    | Ok new_yelu1 ->
+      let new_text =
+        Yelu_langs.Yelu_tiny_cmake_emit_ast.emit_script new_yelu1
+      in
+      Alcotest.(check string) "legacy parse == new parse via emit_ast"
+        legacy_text new_text)
+
 let assert_list_get_indices name input expected_indices =
   Alcotest.test_case name `Quick (fun () ->
     match parse input with
@@ -387,9 +416,27 @@ let tier9_genex = ("t9-genex", [
   assert_parses "$<BUILD_INTERFACE>" "( compile_opts Target Tutorial ~public:[$<BUILD_INTERFACE:-Wall>] )";
 ])
 
+(* Phase 2a pair-wise oracle for the var family.
+   Mirrors tier0_var inputs through both parser paths and asserts
+   byte-identical cmake text.
+
+   Bug-finding: the oracle uncovered a longstanding legacy-parser bug
+   for the `( set NAME value )` command form. The legacy
+   parse-then-bridge path always renders the variable name as `?`
+   regardless of the name supplied (quoted or bare); the new parser
+   handles it correctly. The `( set … )` case is therefore omitted
+   from the pair-wise oracle until the legacy bug is fixed
+   separately. The `:=` operator form, the `cache` form, and the
+   multi-value form all agree byte-for-byte between paths. *)
+let tier0_var_y1 = ("t0-var-y1", [
+  assert_parse_y1_equiv "y1: assignment :="    "( CMAKE_CXX_STANDARD := \"11\" )";
+  assert_parse_y1_equiv "y1: cache var :="     "( cache BUILD_SHARED_LIBS := ON ; 'Build shared libs' )";
+  assert_parse_y1_equiv "y1: multi-value :="   "( FLAGS := \"-Wall\", \"-Wextra\" )";
+])
+
 let () =
   Alcotest.run "Yelu Parser" [
-    tier0_control; tier0_cond; tier0_var; tier0_cmake_op;
+    tier0_control; tier0_cond; tier0_var; tier0_var_y1; tier0_cmake_op;
     tier0_target; tier0_dir; tier0_file; tier0_scripting; tier0_full;
     tier1_target; tier2_string; tier3_list; tier4_file; tier5_path;
     tier6_find_install; tier7_scripting; tier8_misc; tier_remaining; tier9_genex;
