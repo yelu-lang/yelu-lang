@@ -163,17 +163,21 @@ let string_statement : Old.yelu_string_stmt -> Yelu_tiny.expr = function
         args = [] }
 
 let var_statement : Old.yelu_var_stmt -> Yelu_tiny.expr = function
-  | Yvar_set { cvar; values = [ value ]; parent_scope = _ } ->
-    (* PARENT_SCOPE is dropped at this slice: real cmake writes to the
-       calling function/directory's scope, which would need a scope
-       chain in env. The bridge survey treats it as a local set; emit
-       loses the PARENT_SCOPE keyword. Recorded as a semantic-fidelity
-       gap, batched with R4-b. *)
+  | Yvar_set { cvar; values = [ value ]; parent_scope = false } ->
     ESetVar (cvar_name cvar, expr value)
-  | Yvar_set { cvar; values = []; parent_scope = _ } ->
+  | Yvar_set { cvar; values = []; parent_scope = false } ->
     ESetVar (cvar_name cvar, EString "")
-  | Yvar_set { cvar; values; parent_scope = _ } ->
+  | Yvar_set { cvar; values; parent_scope = false } ->
     ESetVar (cvar_name cvar, EList (List.map values ~f:expr))
+  (* PARENT_SCOPE bridges to a distinct surface constructor; the
+     env-frame stack handles the actual write (see R4-b.3a). *)
+  | Yvar_set { cvar; values = [ value ]; parent_scope = true } ->
+    ECmakeSetParentScope { name = cvar_name cvar; value = expr value }
+  | Yvar_set { cvar; values = []; parent_scope = true } ->
+    ECmakeSetParentScope { name = cvar_name cvar; value = EString "" }
+  | Yvar_set { cvar; values; parent_scope = true } ->
+    ECmakeSetParentScope
+      { name = cvar_name cvar; value = EList (List.map values ~f:expr) }
   | Yvar_option { cvar; msg; value } ->
     ECmakeOption { name = cvar_name cvar; message = msg; value = expr value }
   | Yvar_unset_cache { cvar } ->
@@ -907,6 +911,13 @@ let rec stmt : Old.yelu_stmt -> Yelu_tiny.expr = function
     ECmakeWhile { cond = expr cond; body = stmt commands }
   | Yc_break -> ECmakeBreak
   | Yc_continue -> ECmakeContinue
+  | Yc_block { scope_vars; propagate; body } ->
+    ECmakeBlock
+      { scope_vars = List.map scope_vars ~f:cvar_name;
+        propagate;
+        body = stmts_to_expr body }
+  | Yc_return { propogate_vars } ->
+    ECmakeReturn { propagate_vars = propogate_vars }
   | Yc_foreach_range { loop_var; start; stop; step; commands } ->
     ECmakeForeachRange
       { loop_var = cvar_name loop_var; start; stop; step;

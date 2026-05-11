@@ -239,9 +239,45 @@ type value =
      [tests] become observable.
    - **Install-time rules.** Recorded at configure-time; executed only
      when [cmake --install] runs. [install_rules] is the lone field. *)
+(* Exceptions are defined here so that env-frame helpers below can raise
+   them. [Eval_error] is for hard failures; [Break_loop] / [Continue_loop]
+   / [Return_function] carry control flow that the surrounding construct
+   catches. *)
+exception Eval_error of string
+
+exception Break_loop
+exception Continue_loop
+
+let fail fmt = Fmt.kstr (fun msg -> raise (Eval_error msg)) fmt
+
+(* Variable scope frame. cmake's block() and function() both push a
+   frame; reads consult [locals] then [parent_snapshot]; PARENT_SCOPE
+   writes land in the next frame down's [locals]; PROPAGATE merges
+   selected [locals] entries into the parent on frame exit. The
+   snapshot is taken once at push-time and never updated mid-frame —
+   this is the cmake quirk that probes P15/P20/P21 verified. See
+   doc/cmake_block_return_semantics.md for the full model. *)
+type frame = {
+  locals : value Map.M(String).t;
+  parent_snapshot : value Map.M(String).t;
+  (* Names touched (set or unset) inside this frame, distinguishing
+     "never touched" from "explicitly unset". block(PROPAGATE x) uses
+     this to decide:
+       touched + present in locals → write value to parent
+       touched + absent from locals → unset x in parent (P4)
+       not touched                 → leave parent alone (P3) *)
+  touched : Set.M(String).t;
+}
+
+let empty_frame = {
+  locals = Map.empty (module String);
+  parent_snapshot = Map.empty (module String);
+  touched = Set.empty (module String);
+}
+
 type env = {
   (* Configure-time: script state. *)
-  vars : value Map.M(String).t;
+  frames : frame list;  (* head is current frame; root frame at tail *)
   files : string Map.M(String).t;
   functions : function_decl Map.M(String).t;
 
@@ -269,7 +305,7 @@ type env = {
 let empty_env : env =
   {
     (* Configure-time: script state. *)
-    vars = Map.empty (module String);
+    frames = [ empty_frame ];   (* root frame always present *)
     files = Map.empty (module String);
     functions = Map.empty (module String);
 
@@ -294,9 +330,17 @@ let empty_env : env =
     install_rules = [];
   }
 
+let equal_frame a b =
+  (* [touched] is intentionally excluded: it's implementation state for
+     PROPAGATE bookkeeping, not part of the observable env. Comparing it
+     would make tests brittle (e.g. a set-then-unset would not match a
+     never-set, even though the resulting variable view is identical). *)
+  Map.equal equal_value a.locals b.locals
+  && Map.equal equal_value a.parent_snapshot b.parent_snapshot
+
 let equal_env left right =
   (* Configure-time: script state. *)
-  Map.equal equal_value left.vars right.vars
+  List.equal equal_frame left.frames right.frames
   && Map.equal String.equal left.files right.files
   && Map.equal equal_function_decl left.functions right.functions
   (* Configure-time: declarations / diagnostics. *)
@@ -331,16 +375,128 @@ let empty_target ?(kind = TargetUnknown) name =
     link_directories = [];
   }
 
-let find_var env name = Map.find env.vars name
+(* Frame helpers. The frames list is non-empty (the root frame is always
+   present, created by empty_env). [top_frame], [with_top_frame], and
+   [update_top_frame] capture the common pattern of operating on the
+   current frame. *)
+
+let top_frame env =
+  match env.frames with
+  | f :: _ -> f
+  | [] ->
+    failwith "yelu_tiny: env.frames is empty (invariant violation)"
+
+let with_top_frame env f =
+  match env.frames with
+  | top :: rest -> { env with frames = f top :: rest }
+  | [] -> failwith "yelu_tiny: env.frames is empty (invariant violation)"
+
+(* Read: consult [locals] first, fall through to [parent_snapshot].
+   Per the verified cmake semantics (P15 / P20 / P21), the snapshot is
+   fixed at frame-push time and never updated by PARENT_SCOPE / PROPAGATE
+   writes from inside this frame or its children. *)
+let find_var env name =
+  let f = top_frame env in
+  match Map.find f.locals name with
+  | Some _ as v -> v
+  | None -> Map.find f.parent_snapshot name
 
 let set_var env ~key ~data =
-  { env with vars = Map.set env.vars ~key ~data }
+  with_top_frame env (fun f ->
+    { f with
+      locals = Map.set f.locals ~key ~data;
+      touched = Set.add f.touched key })
 
 let remove_var env name =
-  { env with vars = Map.remove env.vars name }
+  with_top_frame env (fun f ->
+    { f with
+      locals = Map.remove f.locals name;
+      touched = Set.add f.touched name })
 
 let var_defined env name =
-  Map.mem env.vars name
+  let f = top_frame env in
+  Map.mem f.locals name || Map.mem f.parent_snapshot name
+
+(* PARENT_SCOPE write: lands in the next frame down's locals. Tiny
+   raises a dedicated [Eval_error] at the root frame (cmake silently
+   no-ops; tiny choses strictness to surface accidental top-level use,
+   with a message that flags the divergence). *)
+let set_var_parent_scope env ~key ~data =
+  match env.frames with
+  | _ :: parent :: rest ->
+    let parent =
+      { parent with
+        locals = Map.set parent.locals ~key ~data;
+        touched = Set.add parent.touched key }
+    in
+    { env with frames = List.hd_exn env.frames :: parent :: rest }
+  | _ ->
+    fail "tiny: PARENT_SCOPE at root frame (has no parent); this is a \
+          tiny-only diagnostic (cmake silently no-ops)"
+
+(* Push a new frame for block() / function(). The new frame's
+   [parent_snapshot] is a merged copy of the parent's locals + its own
+   snapshot — equivalent to flattening the inherited view at push time.
+   Reads inside the child won't chain-walk; they consult their own
+   snapshot only. *)
+let push_frame env =
+  let parent = top_frame env in
+  let merged =
+    Map.merge parent.locals parent.parent_snapshot ~f:(fun ~key:_ v ->
+      match v with
+      | `Left x | `Both (x, _) -> Some x
+      | `Right x -> Some x)
+  in
+  let child =
+    { locals = Map.empty (module String);
+      parent_snapshot = merged;
+      touched = Set.empty (module String) }
+  in
+  { env with frames = child :: env.frames }
+
+(* Pop the current frame, optionally propagating named locals to the
+   parent. For each name in [propagate]: if present in current frame's
+   locals, write that value to parent's locals; if absent (which means
+   the frame either never touched it or it was unset), remove the name
+   from parent's locals to mirror block(PROPAGATE x) + unset(x) (P4). *)
+let pop_frame ?(propagate = []) env =
+  match env.frames with
+  | top :: parent :: rest ->
+    let parent =
+      List.fold propagate ~init:parent ~f:(fun parent name ->
+        if Set.mem top.touched name then
+          (* Frame touched this name. Present in locals = lift the value;
+             absent = explicit unset, so unset in parent. *)
+          match Map.find top.locals name with
+          | Some v ->
+            { parent with
+              locals = Map.set parent.locals ~key:name ~data:v;
+              touched = Set.add parent.touched name }
+          | None ->
+            { parent with
+              locals = Map.remove parent.locals name;
+              touched = Set.add parent.touched name }
+        else
+          (* Untouched: leave parent alone (P3). *)
+          parent)
+    in
+    { env with frames = parent :: rest }
+  | _ ->
+    failwith "yelu_tiny: pop_frame on root frame (invariant violation)"
+
+(* [Return_function] is the control-flow exception raised by
+   [ECmakeReturn]. Carries:
+   - [env_at_return]: the env at the moment of return, so side effects
+     performed inside the function body (messages, install rules,
+     target writes, …) survive the unwind.
+   - [propagated]: the values of each PROPAGATE-named var, captured
+     at the return site (which may be inside several nested blocks).
+     [None] means the var was not bound at the return site, which the
+     catch turns into an unset in the caller. *)
+exception Return_function of {
+  env_at_return : env;
+  propagated : (string * value option) list;
+}
 
 let find_file env path = Map.find env.files path
 
@@ -373,18 +529,6 @@ let set_custom_target env (custom_target : custom_target) =
     custom_targets =
       Map.set env.custom_targets ~key:custom_target.name ~data:custom_target;
   }
-
-exception Eval_error of string
-
-(* Control-flow exceptions for cmake's break/continue/return. Each is
-   raised at the corresponding [ECmakeBreak] / [ECmakeContinue] /
-   [ECmakeReturn] eval site and caught by the surrounding loop or
-   function body. They are NOT [Eval_error]: they represent normal
-   control flow, not failures. *)
-exception Break_loop
-exception Continue_loop
-
-let fail fmt = Fmt.kstr (fun msg -> raise (Eval_error msg)) fmt
 
 let find_custom_command env primary_output =
   Map.find env.custom_commands primary_output

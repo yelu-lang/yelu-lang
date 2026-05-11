@@ -9,7 +9,8 @@
   test_yelu_tiny_steps
   test_yelu_tiny_emit
   test_yelu_tiny_function
-  test_yelu_tiny_foreach)
+  test_yelu_tiny_foreach
+  test_yelu_tiny_block_return)
  (libraries base alcotest angstrom yelu_langs step_common)
  (preprocess
   (pps ppx_jane)))

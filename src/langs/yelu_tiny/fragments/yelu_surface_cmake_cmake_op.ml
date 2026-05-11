@@ -110,6 +110,23 @@ type expr +=
      eval, caught by the innermost surrounding loop. *)
   | ECmakeBreak
   | ECmakeContinue
+  (* [block([SCOPE_FOR VARIABLES] [PROPAGATE <var>]) ... endblock()] —
+     introduces a new variable frame. On exit, the named [propagate]
+     var (if non-empty) is merged into the parent's locals via
+     [pop_frame ~propagate]. Scope policies (SCOPE_FOR POLICIES) are
+     emit-only at this slice. *)
+  | ECmakeBlock of {
+      scope_vars : string list;   (* SCOPE_FOR VARIABLES name list, emit-only *)
+      propagate : string;          (* single var, "" means none *)
+      body : expr;
+    }
+  (* [return([PROPAGATE <vars>...])] — exits the enclosing function via
+     [Return_function] exception; blocks / loops re-raise on the way
+     out. [propagate_vars] is the list of var names whose current
+     values (at the return site) should be lifted to the caller's
+     frame on catch. Per P13, this skips any enclosing block's own
+     PROPAGATE list (verified in P22). *)
+  | ECmakeReturn of { propagate_vars : string list }
 
 let bind_params env params arg_values =
   match List.zip params arg_values with
@@ -157,10 +174,37 @@ let eval_case ~eval env = function
        Some (env, VUnit)
      | Some { params; body } ->
        let env, arg_values = eval_args ~eval env args in
-       let saved_vars = env.vars in
+       (* Frame-based call mechanic. See
+          [doc/cmake_block_return_semantics.md] for the model.
+          [Return_function] from inside the body is caught here and
+          its propagate list merged into the caller's frame. *)
+       let caller_depth = List.length env.frames in
+       let env = push_frame env in
        let env = bind_params env params arg_values in
-       let env, result = eval env body in
-       Some ({ env with vars = saved_vars }, result))
+       (match eval env body with
+        | env, result -> Some (pop_frame env, result)
+        | exception Return_function { env_at_return; propagated } ->
+          (* Unwind any frames the return jumped over (blocks, etc.) by
+             popping without propagation until we reach the function
+             frame, then pop the function frame and write the captured
+             propagate values into the caller's locals. Side effects
+             performed inside the body before [return()] survive via
+             env_at_return. *)
+          let rec unwind env =
+            if List.length env.frames > caller_depth + 1 then
+              unwind (pop_frame env)
+            else env
+          in
+          let env_at_return = unwind env_at_return in
+          let env_after_pop = pop_frame env_at_return in
+          let env_after_pop =
+            List.fold propagated ~init:env_after_pop
+              ~f:(fun env (name, vopt) ->
+                match vopt with
+                | Some v -> set_var env ~key:name ~data:v
+                | None -> remove_var env name)
+          in
+          Some (env_after_pop, VUnit)))
   | ECmakeInclude { file; optional = _ } ->
     let env, file = eval_string ~eval env file in
     Some (add_include env file, VUnit)
@@ -228,6 +272,36 @@ let eval_case ~eval env = function
     Some (env, VUnit)
   | ECmakeBreak -> raise Break_loop
   | ECmakeContinue -> raise Continue_loop
+  | ECmakeReturn { propagate_vars } ->
+    (* Capture the propagate values at the return site (which may be
+       inside several blocks). The catch site uses these directly so
+       intermediate frames being unwound don't lose the values.
+       Per P22 / P13, any enclosing block's own PROPAGATE list is
+       discarded on unwind. *)
+    let propagated =
+      List.map propagate_vars ~f:(fun name -> (name, find_var env name))
+    in
+    raise (Return_function { env_at_return = env; propagated })
+  | ECmakeBlock { propagate; body; scope_vars = _ } ->
+    (* Per doc/cmake_block_return_semantics.md: push a frame; evaluate
+       body; on normal exit, [pop_frame ~propagate] merges the named
+       var into the parent's locals (also handles the unset case via
+       absence in the popped frame's locals). On unwinding via
+       break / continue / return, the block's own [propagate] list is
+       skipped (verified by P22). *)
+    let propagate_names =
+      if String.is_empty propagate then [] else [ propagate ]
+    in
+    let env = push_frame env in
+    (match eval env body with
+     | env, _ -> Some (pop_frame ~propagate:propagate_names env, VUnit)
+     | exception Break_loop ->
+       (* Pop frame without propagating, then re-raise. *)
+       let _ = pop_frame env in
+       raise Break_loop
+     | exception Continue_loop ->
+       let _ = pop_frame env in
+       raise Continue_loop)
   | ECmakeSeparateArguments { var; input; _ } ->
     let env, value = match input with
       | Some e ->

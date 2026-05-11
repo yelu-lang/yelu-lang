@@ -84,7 +84,7 @@ let function_definition_records_in_env =
       Alcotest.(check bool) "function recorded under its name" true
         (Option.is_some (find_function env "noop"));
       Alcotest.(check bool) "no var side effect from definition alone" true
-        (Map.is_empty env.vars))
+        (Map.is_empty (top_frame env).locals))
 
 (* --- Function call binds args; observed via message side effect. --- *)
 

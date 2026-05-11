@@ -127,6 +127,11 @@ let rec emit_expr_impl ~env e =
   | ESetVar (name, expr) -> [ Fmt.str "set(%s %s)" name (arg expr) ]
   | ECmakeUnsetVar name -> [ Fmt.str "unset(%s)" name ]
   | ECmakeUnsetVarCache name -> [ Fmt.str "unset(%s CACHE)" name ]
+  | ECmakeSetParentScope { name; value = EList exprs } ->
+    [ Fmt.str "set(%s %s PARENT_SCOPE)" name
+        (String.concat ~sep:" " (List.map exprs ~f:arg)) ]
+  | ECmakeSetParentScope { name; value } ->
+    [ Fmt.str "set(%s %s PARENT_SCOPE)" name (arg value) ]
   | ECmakeOption { name; message; value } ->
     [ Fmt.str "option(%s %s %s)" name (quoted message) (arg value) ]
   | ETarget _ -> []
@@ -647,6 +652,27 @@ let rec emit_expr_impl ~env e =
     @ [ "endwhile()" ]
   | ECmakeBreak -> [ "break()" ]
   | ECmakeContinue -> [ "continue()" ]
+  | ECmakeReturn { propagate_vars } ->
+    if List.is_empty propagate_vars then [ "return()" ]
+    else
+      [ Fmt.str "return(PROPAGATE %s)"
+          (String.concat ~sep:" " propagate_vars) ]
+  | ECmakeBlock { scope_vars; propagate; body } ->
+    let scope_part =
+      if List.is_empty scope_vars then ""
+      else " SCOPE_FOR VARIABLES " ^ String.concat ~sep:" " scope_vars
+    in
+    let propagate_part =
+      if String.is_empty propagate then ""
+      else " PROPAGATE " ^ propagate
+    in
+    let body_lines = emit_expr body in
+    [ Fmt.str "block(%s%s)"
+        (if String.is_empty scope_part then ""
+         else String.lstrip scope_part)
+        propagate_part ]
+    @ List.map body_lines ~f:(fun line -> "  " ^ line)
+    @ [ "endblock()" ]
   | ECmakeApply { name; args } ->
     [ Fmt.str "%s(%s)"
         (target_arg name)

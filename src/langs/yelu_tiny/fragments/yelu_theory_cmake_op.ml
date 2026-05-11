@@ -89,10 +89,15 @@ let eval_case ~eval env = function
      | None -> fail "apply to unknown function %S" name
      | Some { params; body } ->
        let env, arg_values = eval_args ~eval env args in
-       let saved_vars = env.vars in
+       (* F2 function call: push a new frame so the body sees a
+          fresh local scope; bind params into [locals]; evaluate;
+          pop frame on return. Per [doc/cmake_block_return_semantics.md],
+          the snapshot of the parent's vars is taken at push-time and
+          never updated mid-call by PARENT_SCOPE / PROPAGATE writes. *)
+       let env = push_frame env in
        let env = bind_params env params arg_values in
        let env, result = eval env body in
-       Some ({ env with vars = saved_vars }, result))
+       Some (pop_frame env, result))
   | EInclude { file; optional = _ } ->
     let env, file = eval_string ~eval env file in
     Some (add_include env file, VUnit)

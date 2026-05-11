@@ -15,10 +15,10 @@ let pp_vbox_to_string ast = Fmt.str "%a" (Fmt.vbox pp) ast
    / foreach_range / break / continue / return / separate_arguments) and
    are intentionally not bridged yet; their design conversation is
    pending. CI stays green; revisit each skip when R4-b lands. *)
-let bridge_skip = [
-  "empty_block"; "block_with_body"; "block_with_vars"; "block_with_propagate";
-  "return empty"; "return propagate";
-]
+(* R4-b.3 closes the last semantic gap: block + return + PARENT_SCOPE
+   all bridge via the env-frame stack model. bridge_skip is now empty;
+   194/194 compile programs bridge through tiny. *)
+let bridge_skip = []
 
 let assert_bridge_succeeds name yelu_ast =
   if Base.List.mem bridge_skip name ~equal:Base.String.equal then ()

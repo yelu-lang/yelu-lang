@@ -79,6 +79,9 @@ let rec lift_yelu1_to_yelu2 = function
   | ECmakeUnsetVar name -> EUnsetVar name
   | ECmakeUnsetVarCache name -> ECmakeUnsetVarCache name
   | ECmakeVarDefined name -> EVarDefined name
+  | ECmakeSetParentScope { name; value } ->
+    ECmakeSetParentScope
+      { name; value = lift_yelu1_to_yelu2 value }
   | ECmakeOption { name; value; _ } ->
     ESetVar (name, lift_yelu1_to_yelu2 value)
 
@@ -470,6 +473,11 @@ let rec lift_yelu1_to_yelu2 = function
         body = lift_yelu1_to_yelu2 body }
   | ECmakeBreak -> ECmakeBreak
   | ECmakeContinue -> ECmakeContinue
+  | ECmakeBlock { scope_vars; propagate; body } ->
+    ECmakeBlock
+      { scope_vars; propagate; body = lift_yelu1_to_yelu2 body }
+  | ECmakeReturn { propagate_vars } ->
+    ECmakeReturn { propagate_vars }
 
   (* CMake target surface -> Yelu target theory. Keep statement result as unit.
      Phase 2b: surface target-name fields are now [expr], so [lift] just
@@ -864,6 +872,9 @@ let rec lower_yelu2_to_yelu1 = function
   | EUnit -> EUnit
   | EUnsetVar name -> ECmakeUnsetVar name
   | ECmakeUnsetVarCache name -> ECmakeUnsetVarCache name
+  | ECmakeSetParentScope { name; value } ->
+    ECmakeSetParentScope
+      { name; value = lower_yelu2_to_yelu1 value }
   | EVarDefined name -> ECmakeVarDefined name
 
   (* Shared bool theory. *)
@@ -1343,6 +1354,11 @@ let rec lower_yelu2_to_yelu1 = function
         body = lower_yelu2_to_yelu1 body }
   | ECmakeBreak -> ECmakeBreak
   | ECmakeContinue -> ECmakeContinue
+  | ECmakeBlock { scope_vars; propagate; body } ->
+    ECmakeBlock
+      { scope_vars; propagate; body = lower_yelu2_to_yelu1 body }
+  | ECmakeReturn { propagate_vars } ->
+    ECmakeReturn { propagate_vars }
 
   (* Yelu target theory -> CMake target surface. *)
   | ESetVar (var, EExecutable { name = EString target_name; sources }) ->
