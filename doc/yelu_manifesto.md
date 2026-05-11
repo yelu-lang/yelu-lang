@@ -65,13 +65,13 @@ all 14 are instantiated against cmake semantics.
 
 **Compositional checking** decomposes verification into distinct passes:
 
-| Stage         | What it checks                                      | Status          |
-| ------------- | --------------------------------------------------- | --------------- |
-| `typecheck`   | Expression types: bool where string expected        | 14 theories     |
-| `wellform`    | Name binding: all references resolve to declarations| done            |
-| `effect`      | Execution-mode constraints: what's valid where      | next            |
-| `lower`       | Structural validity during AST → cmake emission     | partial         |
-| `configure`   | cmake itself validates the output                   | RunCMake compat |
+| Stage       | What it checks                                       | Status          |
+| ----------- | ---------------------------------------------------- | --------------- |
+| `typecheck` | Expression types: bool where string expected         | 14 theories     |
+| `wellform`  | Name binding: all references resolve to declarations | done            |
+| `effect`    | Execution-mode constraints: what's valid where       | next            |
+| `lower`     | Structural validity during AST → cmake emission      | partial         |
+| `configure` | cmake itself validates the output                    | RunCMake compat |
 
 Type checking is per-theory and per-statement (each theory's `Make_*_check`
 functor operates independently). Well-formedness is cross-theory and
@@ -274,7 +274,7 @@ what replaces it, and how.
 
 One concrete ecosystem-scale follow-up is **yelu_c**: take C as the next
 specimen after cmake, then rebuild a compact but real project such as
-`llama.c` in yelu. This would test whether the same low-entropy theory
+`llama.c` (`ds4.c`) in yelu. This would test whether the same low-entropy theory
 decomposition can cover not just configuration, but a practical systems
 program with memory layout, portability, compiler flags, profiling feedback,
 and library packaging pressure.
