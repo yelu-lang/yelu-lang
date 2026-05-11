@@ -1,15 +1,39 @@
 # yelu_tiny — Retirement Plan
 
-The plan for moving the production lowering off the legacy `src/langs/yelu_legacy/` (formerly `src/langs/yelu/fragments/`)
-and onto `src/langs/yelu_tiny/`. Companion to `status.md` (open work) and
+The plan for moving production lowering off the legacy
+`src/langs/yelu_legacy/` (formerly `src/langs/yelu/fragments/`) and onto
+`src/langs/yelu_tiny/`. Companion to `status.md` (open work) and
 `design.md` (the *why*).
 
-**Status (2026-05-11): Phase 1 done; Phase 2a + 2c structural move done; Phase 2b (R3 genex) and full retirement deferred.** Production text generation routes through `Yelu1 → emit_ast → Lang_cmake.exp → cmake_pp`; the byte-equality oracle in `test_yelu_compile.ml` reports 194/194 programs byte-identical with legacy. New parser `Yelu_parse_y1` covers all 12 families (831 unit tests, 93 pair-wise oracle tests byte-identical). Legacy code (compile / wellform / type / utils / 14 fragments) relocated from `src/langs/yelu/` to `src/langs/yelu_legacy/`; modules remain callable. Legacy parser + lexer stay in `src/langs/yelu/` as the still-production entry point.
+## Status (2026-05-11)
+
+**Phase 1 done; Phase 2a + 2c structural move done; remaining open work
+renumbered A–E below.**
+
+- Production text generation routes through
+  `Yelu1 → emit_ast → Lang_cmake.exp → cmake_pp`.
+- Byte-equality oracle in `test_yelu_compile.ml` reports 194/194 programs
+  byte-identical with legacy compile.
+- `runcmake-yelu` (50 pairs) routes through the AST path; matches
+  reference cmake stdout byte-for-byte.
+- New parser `Yelu_parse_y1` covers all 12 families. 263 parser tests
+  including 93 pair-wise oracle cases agree byte-for-byte with the
+  legacy parser → bridge → emit path.
+- Legacy compile / wellform / type / utils / 15 fragments relocated from
+  `src/langs/yelu/` to `src/langs/yelu_legacy/`. Module names unchanged
+  thanks to dune `(include_subdirs unqualified)`; no source-import
+  updates required.
+- Legacy parser + lexer stay in `src/langs/yelu/` as the still-production
+  entry point.
+- Two longstanding legacy parser bugs surfaced by the oracle (same
+  shape: command that only matches `Yexpr_string` but receives
+  `Ycs_path` / `EVar` fallback): `( set NAME val )` and
+  `( policy_set "CMPxxxx" )`. Both omitted from oracle; deferred.
 
 ## Vocabulary
 
 **Retirement is repointing, not deletion.** The old `yelu_cmake` AST,
-compile, wellform, and 14 `Make_*` fragments stay on disk after
+compile, wellform, and 15 legacy fragment modules stay on disk after
 retirement. What changes is the production call path: it stops going
 through `Lang_yelu_compile` and starts going through tiny. The legacy
 modules are demoted to `yelu_legacy` — kept callable as a reference
@@ -48,8 +72,8 @@ source.ye  →  parse  →  Yelu1 IR  →  emit_ast  →  Lang_cmake.exp  →  c
 Yelu1 IR is the canonical typed AST. The legacy `Lang_yelu_cmake` AST is
 no longer on the production path; it lives in `yelu_legacy/` as the old
 reference shape. Emit goes *through* `lang_cmake_pp.ml` (1.4 k lines of
-well-tested formatting) rather than re-implementing text rendering — exactly
-one cmake pretty-printer in the codebase.
+well-tested formatting) rather than re-implementing text rendering —
+exactly one cmake pretty-printer in the codebase.
 
 ## Where things go
 
@@ -58,7 +82,7 @@ one cmake pretty-printer in the codebase.
 | `src/langs/yelu/lang_yelu_parse.ml`                   |   955 | concrete syntax → `Lang_yelu_cmake` AST | still production parser; new `Yelu_parse_y1` covers all 12 families in parallel (Phase 2a done) |
 | `src/langs/yelu/lang_yelu_lexer.ml`                   |   197 | tokens                                 | unchanged; shared by both parsers                                                 |
 | `src/langs/yelu_legacy/lang_yelu_cmake.ml` (AST type) |   348 | production AST type                    | **moved to `yelu_legacy/` (Phase 2c)**; still callable from same library          |
-| `src/langs/yelu_legacy/lang_yelu_utils.ml`            |   561 | AST constructors used by step files    | **moved to `yelu_legacy/`**; step files still use it until Phase 2-final          |
+| `src/langs/yelu_legacy/lang_yelu_utils.ml`            |   561 | AST constructors used by step files    | **moved to `yelu_legacy/`**; step files still use it until item C lands           |
 | `src/langs/yelu_legacy/lang_yelu_compile.ml`          | 1,125 | production AST → cmake AST             | **moved to `yelu_legacy/`**; off the production text-generation path; serves the byte oracle |
 | `src/langs/yelu_legacy/lang_yelu_wellform.ml`         |   761 | name binding                           | **moved to `yelu_legacy/`**; Y17 builds tiny's own                                |
 | `src/langs/yelu_legacy/lang_yelu_type.ml` + `fragments/*_check.ml` | ~700 | per-theory typecheck             | **moved to `yelu_legacy/`**; Y17 builds tiny's own                                |
@@ -111,65 +135,7 @@ These four helpers carry essentially all the complexity Phase 1 has to
 land. The 1 k lines of command lowering arms below them are mostly
 constructor renames.
 
-### Genex during Phase 1
-
-First-class genex (`R3`) is **required for full retirement**, but Phase 1
-does **not** require it landed first. The current bridge already passes
-generator expressions through as opaque `EString` values (from
-`Ycs_eval`). Phase 1 preserves that: opaque genex strings render as
-`Lang_cmake.Quoted` or `Bare` tokens depending on context, exactly as the
-direct-text emit does today. R3 stays a Phase 2 / post-retirement work
-item.
-
-## Concrete steps
-
-### Pre-Phase-1 warm-up
-
-1. **`Yexpr_is_absolute` real bridge.** Currently `EBool false` at
-   `yelu_cmake_to_yelu1.ml:59`. Small.
-2. **`list(GET)` multi-index.** Bridge fails on >1 index at
-   `yelu_cmake_to_yelu1.ml:223`. Small.
-
-(R3 genex is no longer a Phase 1 prerequisite.)
-
-### Phase 1 — Emit through cmake AST
-
-3. **Skeleton `yelu_tiny_cmake_emit_ast.ml`.** Mirrors
-   `yelu_tiny_cmake_emit.ml`'s match structure but produces
-   `Lang_cmake.exp` values. Start with the four erasure helpers above.
-4. **Wire alt entry point.** Add `emit_ast :: expr → Lang_cmake.exp`
-   alongside the existing `emit_script :: expr → string`. Both stay
-   callable.
-5. **Parity tests.** Every emit test gets a companion: pipe through
-   `emit_ast |> lang_cmake_pp.pp_to_string` and assert against the
-   direct-text baseline. Where they diverge, pick the cmake_pp output as
-   canonical and update the baseline. The direct-emit module is the one
-   being retired; its formatting choices don't win.
-6. **Repoint runcmake-yelu equivalence harness.** Switch
-   `test_runcmake_yelu.ml` from direct-text to the AST path. If 50/50
-   still pass, the AST emit is at parity.
-7. **Direct-text emit becomes diagnostic / diff aid.** Keep
-   `yelu_tiny_cmake_emit.ml` callable but not on the critical path. Use
-   it for two purposes: (a) golden-diff testing during Phase 1
-   migration; (b) human inspection when the AST path produces
-   surprising text. Remove only after AST parity has held through at
-   least one R3 / Y17 milestone.
-
-**Phase 1 done criterion:** production text generation is
-`Yelu1 → cmake AST → lang_cmake_pp → text`. All tests green. Direct
-text emit kept around but not on the critical path.
-
-**Phase 1 status (as of 2026-05-11): done.** The byte-equality oracle
-in [test_yelu_compile.ml] reports 194/194 programs byte-identical
-between `legacy_compile → pp` and `bridge → emit_ast → pp`. The
-runcmake-yelu suite (50 pairs) routes through the AST path and matches
-reference cmake stdout byte-for-byte. The direct-text emit module
-stays in source as a diagnostic aid; production callers
-(test_yelu_compile, test_runcmake_yelu) use emit_ast, while the
-step-level bridge tests (test_yelu_tiny_steps, test_yelu_tiny_emit)
-exercise the diagnostic module to keep it from rotting.
-
-### Current happy path
+## Current happy path
 
 After Phase 1, every production yelu program flows through:
 
@@ -181,20 +147,26 @@ source.yelu  →  Lang_yelu_parse           (concrete syntax → production AST)
              →  CMakeLists.txt
 ```
 
-The legacy `Lang_yelu_compile.compile` (production AST → `Lang_cmake.exp`
-directly) is still callable and serves as the reference implementation
-for the byte-equality oracle. It is not on the production critical path.
+The legacy `Lang_yelu_compile.compile` (production AST →
+`Lang_cmake.exp` directly) is still callable and serves as the reference
+implementation for the byte-equality oracle. It is not on the production
+critical path.
 
-### Running the regression checks
+In parallel, `Yelu_parse_y1` reads the same concrete syntax directly
+into Yelu1 IR. Pair-wise oracle (`assert_parse_y1_equiv` in
+`test_yelu_cmake_parse.ml`) compares legacy parser → bridge → emit vs
+new parser → emit at cmake-text level. 93 pair-wise cases pass
+byte-identically across all 12 families. The new parser is not yet on
+the production switch — item A below covers what closes that gap.
+
+## Running the regression checks
 
 ```sh
 # Byte-equality oracle: legacy_compile → pp  ≡  bridge → emit_ast → pp
 # Runs 194 production-AST programs through both paths and asserts every
 # byte matches. The end-of-run stderr line reports:
 #   [emit_ast oracle] covered=194  uncovered=0  (194 total)
-# Coverage < 194 means emit_ast has a gap; uncovered list names the
-# missing constructor.
-dune build --force @runtest    # all 738 unit tests, including the oracle
+dune build --force @runtest    # all 831 unit tests, including the oracle
 dune test test/test-yelu       # same, scoped to the yelu unit tests
 
 # Runtime equivalence: tiny emit  ≡  reference cmake stdout
@@ -209,38 +181,123 @@ dune test test/test-yelu/test_yelu_tiny_emit.exe
 ```
 
 Watch the oracle line at the end of `test_yelu_compile`. Any drift from
-`covered=194 uncovered=0` is a real Phase 1 regression to investigate.
+`covered=194 uncovered=0` is a real regression to investigate.
 
-### Phase 2 — Parser produces Yelu1
+## Done
 
-8. **Survey `lang_yelu_parse.ml` → AST production rules.** ~50 rules per
-   family (var, string, list, target, install, …). Map each to its Yelu1
-   counterpart. The map mostly exists inside `yelu_cmake_to_yelu1.ml`
-   already.
-9. **Migrate one family at a time, with helpers.** Phase 2 does **not**
-   require literally folding all bridge logic into Menhir actions — that
-   would make the parser unreadable. Acceptable shapes:
-   - parser actions build small Yelu1 fragments via helper builders;
-   - or parser builds an intermediate "parse surface" (a thin sum type
-     mirroring concrete-syntax shape) that one short pass lowers to
-     Yelu1.
+Consolidated history; commit refs in parens.
 
-    Pick per family; the inline-bridge assertion that R6 added becomes
-    "parse → emit_ast → cmake_pp → text non-empty" (no bridge in the
-    middle).
-10. **R3 genex theory.** Real generator-expression constructors now make
-    sense as Yelu1 nodes (not opaque strings), since the parser owns
-    them directly. 12 variants per `status.md`.
-11. **Move `lang_yelu_cmake.ml` to `yelu_legacy/`.** Parser no longer
-    produces it.
-12. **Delete `yelu_cmake_to_yelu1.ml`.** Bridge has no inputs left.
-13. **Move legacy.** `git mv src/langs/yelu  src/langs/yelu_legacy` for
-    everything except `parse`, `lexer`. Update `dune` names.
-14. **Repoint binary callers.** Step files in `src/bin/yelu/` move from
-    `Lang_yelu_compile.compile` to the new direct path.
-15. **Optional: rename `yelu_tiny` → `yelu`.** Pure rename + dune entry
-    edit. `yelu_tiny` directory matched its experimental status; once
-    it *is* the production code, the name should match.
+- **Warm-up trio (08a6472).** `Yexpr_is_absolute` real bridge.
+  `list(GET)` multi-index. Opaque `ECmakeGenex of string` hook on the
+  bridge side so genex strings round-trip without catch-all stubbing.
+- **Phase 1 — emit through cmake AST (96062db, 682ebff).** Skeleton
+  `yelu_tiny_cmake_emit_ast.ml` lands with the four argument-erasure
+  helpers. Production callers (`test_yelu_compile`, `test_runcmake_yelu`)
+  routed onto `emit_ast`. Byte-equality oracle covers 194/194 programs
+  uncovered=0. `runcmake-yelu` 50/50 pairs identical stdout. Direct-text
+  emit demoted to diagnostic aid; step-level tests
+  (`test_yelu_tiny_steps`, `test_yelu_tiny_emit`) keep it exercised.
+- **Phase 2a — parser produces Yelu1 directly (f12758b → bd455d3).**
+  New parser `Yelu_parse_y1` covers all 12 families: control flow
+  (let / if / function / macro / while / foreach / apply / break /
+  continue / return / cond), var, cmake_op, target, dir, test,
+  string, list, file, path, find, install, property. Pair-wise oracle
+  `assert_parse_y1_equiv` in `test_yelu_cmake_parse.ml` runs 93 cases
+  byte-identical at the cmake-text level.
+- **Phase 2c — structural move (894133f).** `src/langs/yelu/`'s
+  compile / wellform / type / utils + 15 fragments relocated to
+  `src/langs/yelu_legacy/`. dune `(include_subdirs unqualified)` kept
+  module names stable, so no source-import updates. Parser + lexer
+  remain in `src/langs/yelu/` as the production entry.
+
+## Open
+
+Letter scheme so future additions don't disturb existing numbering.
+
+### A — Close the direct-parser gap list
+
+`Yelu_parse_y1` is broad enough to cover all 12 families, but it is
+still a parallel parser. Before flipping the production switch onto it,
+either close or explicitly defer each gap below:
+
+- Add direct parser + pair-wise oracle cases for `try_compile` /
+  `try_run` (surface, bridge, eval, and emit already exist).
+- Keep opaque `$<...>` as `ECmakeGenex` for now; first-class genex
+  constructors are item B.
+- Decide support-or-defer for each remaining bridge shape gap:
+  - string comparison conds beyond equality (`STRLESS`, `STRGREATER`,
+    `STRLESS_EQUAL`, `STRGREATER_EQUAL`),
+  - `EXCLUDE_FROM_ALL` on `add_executable` / `add_library`,
+  - multi-target `target_link_libraries`,
+  - `add_custom_command(TARGET ...)`.
+- Make the pair-wise oracle cover every direct-parser family intended
+  for the production switch (not only representative examples).
+- Document legacy-compatible defaults embedded in `Yelu_parse_y1`
+  (`"?"` out-var fallback, integer fallback to `0`, empty property /
+  find / install defaults) so they are not mistaken for final language
+  semantics.
+- Two legacy parser bugs surfaced by the oracle (`( set NAME val )`
+  and `( policy_set "CMPxxxx" )`): fix in legacy parser or accept the
+  gap explicitly.
+
+### B — R3 genex theory (first-class)
+
+With the parser owning genex directly (post-A), generator expressions
+graduate from opaque `ECmakeGenex of string` to typed constructors. ~17
+typed `Yge_*` variants exist in legacy; pick the first slice and add
+matching Yelu1 / Yelu2 nodes plus eval / emit / pair-wise tests. Full
+theory with eval semantics is deferred — first slice unblocks the
+production switch by letting genex-heavy families parse without
+catch-all stubbing.
+
+### C — Repoint binary callers
+
+Step files in `src/bin/yelu/v1/`, `src/bin/yelu/v2/`, and
+`src/bin/yelu/` (CMakeOnly suite) currently build production AST via
+`Lang_yelu_utils` and route through `Lang_yelu_compile.compile`. Move
+them onto the direct path: either build Yelu1 directly with tiny
+constructors, or keep producing `Lang_yelu_cmake` AST but route through
+`Yelu_cmake_to_yelu1.stmt |> emit_ast`. C must land before E (deleting
+the bridge) and before D's rename (so the rename doesn't touch step
+files mid-migration).
+
+### D — Naming honesty rename
+
+`yelu_tiny` was a useful experiment name, but it is no longer tiny and
+should disappear once the direct parser is the production path. Use
+language-level names, not `IR` / `DSL` labels:
+
+- `yelu_cmake_surface` — current Yelu1: CMake-faithful surface
+  language, command-shaped, used for byte parity and exact emission.
+- `yelu_cmake` — current Yelu2: the improved Yelu CMake language,
+  still in the CMake/build domain but not forced to mirror CMake's
+  statement/output-variable shape.
+- `yelu_cmake_legacy` — old `Lang_yelu_cmake` AST / compiler stack,
+  retained as oracle and Y17 reference.
+
+A final move merges `src/langs/yelu_tiny/` into `src/langs/yelu/`,
+joining the parser/lexer already there:
+
+- `yelu_parse_y1.ml` → `yelu_parse.ml`
+- `yelu_tiny_cmake_emit_ast.ml` → `yelu_cmake_surface_emit.ml`
+- `yelu_tiny_cmake_emit.ml` → `yelu_cmake_surface_emit_debug.ml`
+- `yelu_tiny_yelu1.ml` → `yelu_cmake_surface_eval.ml`
+- `yelu_tiny_yelu2.ml` → `yelu_cmake_eval.ml`
+- `yelu_tiny_translate.ml` → `yelu_cmake_translate.ml`
+- `yelu_cmake_to_yelu1.ml` → `yelu_cmake_legacy_bridge.ml` (until E
+  deletes it).
+
+### E — Bridge retirement
+
+Once A is closed and C has moved every production caller onto the
+direct parser, the bridge has no inputs left.
+
+- Move `lang_yelu_cmake.ml` (the AST type) into `yelu_legacy/` —
+  parser no longer produces it.
+- Delete `yelu_cmake_to_yelu1.ml`.
+- Switch the byte-equality oracle in `test_yelu_compile.ml` from the
+  bridge-fed shape (legacy AST in, two paths out) to the source-fed
+  shape (source in, two parsers + two emits, same `Lang_cmake_pp`).
 
 **Phase 2 done criterion:** production path is
 `parse → Yelu1 → emit_ast → cmake_pp → text` with no `yelu_legacy`
@@ -251,7 +308,7 @@ imports. Legacy compile stays callable for the oracle test.
 The legacy `Lang_yelu_compile.compile` function is the **reference
 implementation**. Two oracle shapes, depending on phase:
 
-**Before parser retirement (Phases 1 → mid-2):**
+**Today (Phase 1 done, parser switch pending):**
 
 ```ocaml
 let oracle (prog : Lang_yelu_cmake.yelu_stmt list) =
@@ -260,7 +317,7 @@ let oracle (prog : Lang_yelu_cmake.yelu_stmt list) =
   Alcotest.(check string) "legacy AST → text == tiny AST → text" legacy_text tiny_text
 ```
 
-**After parser retirement (Phase 2 done):**
+**After E (bridge retired):**
 
 ```ocaml
 let oracle (source : string) =
@@ -271,8 +328,8 @@ let oracle (source : string) =
   Alcotest.(check string) "legacy source → text == tiny source → text" legacy_text tiny_text
 ```
 
-The shift is which parser feeds each side — but both sides always end at
-`Lang_cmake_pp.pp_to_string` against the same cmake AST, so the
+The shift is which parser feeds each side — but both sides always end
+at `Lang_cmake_pp.pp_to_string` against the same cmake AST, so the
 equivalence claim stays byte-level.
 
 ## What stays callable forever (until separate decision)
@@ -290,15 +347,15 @@ equivalence claim stays byte-level.
 ## Sequencing summary
 
 ```
-warm-up:    is_absolute + list(GET)             ← unblocks Phase 1
-phase 1:    emit_ast lands; direct emit demoted to diagnostic aid
-phase 2a:   parser refactor (per family + helpers)
-phase 2b:   R3 genex first slice (now first-class)
-phase 2c:   legacy moved; bridge deleted
+done:       warm-up trio  →  Phase 1 (emit_ast)  →  Phase 2a (Yelu_parse_y1, 12 families)  →  Phase 2c (legacy move)
+open A:     close direct-parser gap list (try_compile coverage, oracle completeness, defaults documented)
+open B:     R3 genex first slice (parser owns it; constructors graduate from opaque strings)
+open C:     repoint binary callers in src/bin/yelu/* off Lang_yelu_compile
+open D:     naming honesty rename — yelu_tiny → yelu, naming aligned with surface vs cmake vs legacy
+open E:     bridge retirement — delete yelu_cmake_to_yelu1.ml; oracle shifts to source-fed shape
 y17:        post-retirement typing pass on tiny
 delete?:    separate decision, gated on Y17 + production stability
 ```
 
-Each transition is PR-sized. The full retirement is ~4 k lines of edits
-across ~30 commits; most of the work is *moving* code rather than
-rewriting it.
+Each transition is PR-sized. The work that remains is mostly *moving*
+code rather than rewriting it.
