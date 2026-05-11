@@ -62,6 +62,7 @@ let rec arg ?(env = empty_subst) = function
         the user wrote a string literal. *)
      | None -> "${" ^ name ^ "}")
   | EString s -> quoted s
+  | ECmakeGenex s -> quoted s
   | EInt n -> Int.to_string n
   | EBool true -> "ON"
   | EBool false -> "OFF"
@@ -120,6 +121,8 @@ let rec cond ?(env = empty_subst) = function
     arg ~env item ^ " IN_LIST " ^ arg ~env list_
   | ECmakeIsDirectory path ->
     "IS_DIRECTORY " ^ arg ~env path
+  | ECmakeIsAbsolute path ->
+    "IS_ABSOLUTE " ^ arg ~env path
   | ECmakePolicyCheck p ->
     "POLICY " ^ p
   | expr -> arg ~env expr
@@ -254,8 +257,9 @@ let rec emit_expr_impl ~env e =
         op (arg string1) (arg string2) out ]
   | ECmakeListAppend { list; items } ->
     [ Fmt.str "list(APPEND %s %s)" list (String.concat ~sep:" " (List.map items ~f:arg)) ]
-  | ECmakeListGet { list; index; out } ->
-    [ Fmt.str "list(GET %s %s %s)" list (arg index) out ]
+  | ECmakeListGet { list; indices; out } ->
+    let idxs = String.concat ~sep:" " (List.map indices ~f:Int.to_string) in
+    [ Fmt.str "list(GET %s %s %s)" list idxs out ]
   | ECmakeListLength { list; out } ->
     [ Fmt.str "list(LENGTH %s %s)" list out ]
   | ECmakeListJoin { list; glue; out } ->

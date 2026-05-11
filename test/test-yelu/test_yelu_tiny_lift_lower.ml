@@ -98,7 +98,7 @@ let yelu1_to_yelu2 =
         (ESeq [
           ESetVar ("XS", EList []);
           ECmakeListAppend { list = "XS"; items = [ EString "a"; EString "b" ] };
-          ECmakeListGet { list = "XS"; index = EInt 1; out = "ITEM" };
+          ECmakeListGet { list = "XS"; indices = [ 1 ]; out = "ITEM" };
           ECmakeListLength { list = "XS"; out = "LEN" };
           ECmakeListJoin { list = "XS"; glue = EString "-"; out = "OUT" };
           EVar "OUT";

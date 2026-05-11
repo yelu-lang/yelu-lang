@@ -62,6 +62,7 @@ let rec lift_yelu1_to_yelu2 = function
   (* Core/store cases shared by both bundles. *)
   | EVar name -> EVar name
   | EString s -> EString s
+  | ECmakeGenex s -> ECmakeGenex s
   | EBool b -> EBool b
   | EInt n -> EInt n
   | EUnit -> EUnit
@@ -100,6 +101,8 @@ let rec lift_yelu1_to_yelu2 = function
         list_ = lift_yelu1_to_yelu2 list_ }
   | ECmakeIsDirectory path ->
     ECmakeIsDirectory (lift_yelu1_to_yelu2 path)
+  | ECmakeIsAbsolute path ->
+    ECmakeIsAbsolute (lift_yelu1_to_yelu2 path)
   | ECmakePolicyCheck p -> ECmakePolicyCheck p
 
   (* Shared bool theory. *)
@@ -289,8 +292,15 @@ let rec lift_yelu1_to_yelu2 = function
     |> ESeq
   | ECmakeListLength { list; out } ->
     ESetVar (out, EListLength (EVar list))
-  | ECmakeListGet { list; index; out } ->
-    ESetVar (out, EListGet (EVar list, lift_yelu1_to_yelu2 index))
+  | ECmakeListGet { list; indices; out } ->
+    (* Yelu2 EListGet takes a single index expr. For multi-index lifts
+       we project the first index; semantics-preserving multi-index
+       requires a future Yelu2 ctor. *)
+    let i = match indices with
+      | [ i ] -> EInt i
+      | _ -> EInt 0
+    in
+    ESetVar (out, EListGet (EVar list, i))
   | ECmakeListJoin { list; glue; out } ->
     ESetVar (out, EStringJoin { sep = lift_yelu1_to_yelu2 glue; items = EVar list })
   (* Additional list() subcommands — surface-only passthrough. *)
@@ -944,6 +954,7 @@ let rec lower_yelu2_to_yelu1 = function
   (* Core/store cases shared by both bundles. *)
   | EVar name -> EVar name
   | EString s -> EString s
+  | ECmakeGenex s -> ECmakeGenex s
   | EBool b -> EBool b
   | EInt n -> EInt n
   | EUnit -> EUnit
@@ -969,6 +980,8 @@ let rec lower_yelu2_to_yelu1 = function
         list_ = lower_yelu2_to_yelu1 list_ }
   | ECmakeIsDirectory path ->
     ECmakeIsDirectory (lower_yelu2_to_yelu1 path)
+  | ECmakeIsAbsolute path ->
+    ECmakeIsAbsolute (lower_yelu2_to_yelu1 path)
   | ECmakePolicyCheck p -> ECmakePolicyCheck p
 
   (* Shared bool theory. *)
@@ -1268,7 +1281,11 @@ let rec lower_yelu2_to_yelu1 = function
   | ESetVar (name, EListLength (EVar list)) ->
     ECmakeListLength { list; out = name }
   | ESetVar (name, EListGet (EVar list, index)) ->
-    ECmakeListGet { list; index = lower_yelu2_to_yelu1 index; out = name }
+    let indices = match index with
+      | EInt i -> [ i ]
+      | _ -> [ 0 ]
+    in
+    ECmakeListGet { list; indices; out = name }
   | ESetVar (name, EStringJoin { sep; items = EVar list }) ->
     ECmakeListJoin { list; glue = lower_yelu2_to_yelu1 sep; out = name }
   (* Additional list() subcommands — surface-only passthrough. *)

@@ -8,8 +8,10 @@ code-anchored module guide in `structure.md`, history in
 (738 unit tests); byte-equality oracle covers 194/194 production
 programs with 0 uncovered, 0 skipped. Parser tests (170) all flow
 through emit_ast without falling back to direct emit.
-`make runcmake-yelu` green (50/50 pairs). Retirement Phase 1 done —
-see below.
+`make runcmake-yelu` green (50/50 pairs). Retirement Phase 1 done.
+Phase 2 warm-up trio landed: `Yexpr_is_absolute` real bridge,
+`list(GET)` multi-index, `ECmakeGenex` structural hook (no semantics
+yet — full R3 theory deferred). See below.
 
 ## What's done
 
@@ -42,9 +44,7 @@ Three breadth milestones, in order of attempt:
 
 | ID  | Title                            | Notes                                                                                                                                                                                           |
 | --- | -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| R3  | Genex theory                     | 0 / 16 production constructors mirrored (`lang_yelu_genex.ml:8-31`). First slice: `raw`, `config`, `not`, `and`, `if`, `bool`, `build_interface`, `install_interface`, `compile_language`, `target_property`, `target_file`, `target_file_dir`. |
-| —   | `Yexpr_is_absolute` stub         | `yelu_cmake_to_yelu1.ml:59` degrades to `EBool false`. Small fix; no production test exercises it as a meaningful predicate. Bundle with R3 as pre-retirement warm-up.                          |
-| —   | `list(GET)` multi-index          | Bridge fails on >1 index (`yelu_cmake_to_yelu1.ml:223`). Cmake supports multiple indices. Small. Bundle with R3 as pre-retirement warm-up.                                                      |
+| R3  | Genex theory (full)              | Production has 17 typed `Yge_*` ctors, but they're stringified at AST-build time via `yge` (`lang_yelu_utils.ml:7`), so the live production AST already carries opaque strings. Phase 2 warm-up landed `ECmakeGenex of string` as the bridge-side structural hook (commit TBD); full theory with eval semantics deferred until Phase 2c parser refactor reaches genex-heavy families. |
 | R7  | (postponed) typecheck + wellform | Re-framed as **Y17** (see below). Carrying the production checker over straight is no longer the plan; tiny's theories deserve a fresh typing pass once yelu1↔cmake and yelu2↔yelu1 are stable. |
 | —   | Macro elimination                | Deferred. Gated on R5 data + Bar #3 (real-world rewrites). Memo: `.claude/memory/project_macro_elimination.md`.                                                                                 |
 | —   | Bar #3 — real-world cmake        | Rewrite z3 / llvm / torch builds in yelu; prove structural equivalence. Not started.                                                                                                            |

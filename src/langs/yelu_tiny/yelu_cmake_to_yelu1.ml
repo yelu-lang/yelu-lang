@@ -27,6 +27,12 @@ let fail fmt = Fmt.kstr (fun msg -> raise (Bridge_error msg)) fmt
 let cvar_name ({ name; _ } : Old.tc_name) = name
 
 let rec expr : Old.yelu_expr -> Yelu_tiny.expr = function
+  (* Detect generator expressions ($<...>) inside Ycs_eval strings and
+     route them through ECmakeGenex so future R3 work has a distinct
+     hook. ${...} var-derefs remain plain EString — both render the
+     same way today (Quoted arg), preserving byte-equality with legacy. *)
+  | Yexpr_string (Ycs_eval s) when String.is_substring s ~substring:"$<" ->
+    ECmakeGenex s
   | Yexpr_string (Ycs_path s | Ycs_keyword s | Ycs_string s | Ycs_eval s) ->
     EString s
   | Yexpr_bool b -> EBool b
@@ -56,7 +62,7 @@ let rec expr : Old.yelu_expr -> Yelu_tiny.expr = function
   | Yexpr_in_list (item, list_) ->
     ECmakeInList { item = expr item; list_ = expr list_ }
   | Yexpr_is_directory e -> ECmakeIsDirectory (expr e)
-  | Yexpr_is_absolute _ -> ECmakeIsDirectory (EBool false)
+  | Yexpr_is_absolute e -> ECmakeIsAbsolute (expr e)
     (* [Yexpr_is_absolute] not yet a distinct constructor in tiny;
        degrade to a false-valued stub for now (no test in compile or
        parse exercises it as a meaningful predicate). *)
@@ -222,18 +228,12 @@ let var_statement : Old.yelu_var_stmt -> Yelu_tiny.expr = function
         cache_type = cache_type_s;
         docstring; force }
 
-let list_index ~indices =
-  match indices with
-  | [ index ] -> EInt index
-  | [] -> fail "list(GET) bridge requires one index; parser does not expose one yet"
-  | _ -> fail "list(GET) bridge currently supports exactly one index"
-
 let list_statement : Old.yelu_list_stmt -> Yelu_tiny.expr = function
   | Ylist_append { cvar; values } ->
     ECmakeListAppend { list = cvar_name cvar; items = List.map values ~f:expr }
   | Ylist_get { cvar; indices; out } ->
     ECmakeListGet
-      { list = cvar_name cvar; index = list_index ~indices; out = cvar_name out }
+      { list = cvar_name cvar; indices; out = cvar_name out }
   | Ylist_length { cvar; out } ->
     ECmakeListLength { list = cvar_name cvar; out = cvar_name out }
   | Ylist_join { cvar; glue; out } ->

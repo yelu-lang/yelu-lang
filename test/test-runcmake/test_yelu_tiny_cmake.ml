@@ -150,7 +150,7 @@ let yelu1_roundtrip =
       check_yelu1_roundtrip_cmake "list effects"
         (ESeq [
           ECmakeListAppend { list = "XS"; items = [ EString "a"; EString "b" ] };
-          ECmakeListGet { list = "XS"; index = EInt 1; out = "ITEM" };
+          ECmakeListGet { list = "XS"; indices = [ 1 ]; out = "ITEM" };
           EVar "ITEM";
         ]);
       check_yelu1_roundtrip_cmake "path effects"

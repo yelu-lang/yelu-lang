@@ -53,6 +53,10 @@ let rec arg ?(env = empty_subst) (e : expr) : C.arg =
     (match Map.find env name with
      | Some replacement -> arg ~env replacement
      | None -> C.Bare ("${" ^ name ^ "}"))
+  | ECmakeGenex s ->
+    (* Render genex source verbatim, Quoted. Matches legacy compile's
+       erase_arg for Ycs_eval — preserves byte-equality oracle. *)
+    C.Quoted s
   | EString s ->
     (* Quoting policy mirrors legacy [lang_yelu_compile.erase_arg]: quote
        when cmake would otherwise mis-tokenize. The ${...} substring rule
@@ -146,6 +150,7 @@ let rec cond_tokens ?(env = empty_subst) (e : expr) : string list =
   | ECmakeMatches { expr_; regex } -> [ cond_token ~env expr_; "MATCHES"; "\"" ^ regex ^ "\"" ]
   | ECmakeInList { item; list_ } -> [ cond_token ~env item; "IN_LIST"; cond_token ~env list_ ]
   | ECmakeIsDirectory p -> [ "IS_DIRECTORY"; cond_token ~env p ]
+  | ECmakeIsAbsolute p -> [ "IS_ABSOLUTE"; cond_token ~env p ]
   | ECmakePolicyCheck p -> [ "POLICY"; p ]
   | _ -> [ cond_token ~env e ]
 
@@ -739,12 +744,8 @@ let rec emit_exp ~env (e : expr) : C.exp =
       (C.Lc_insert { var = list; index; values = List.map items ~f:(arg ~env) })
   | ECmakeListLength { list; out } ->
     C.List_cmd (C.Lc_length { var = list; out })
-  | ECmakeListGet { list; index; out } ->
-    let i = match index with
-      | EInt n -> n
-      | _ -> fail "emit_ast: list(GET) index must be a literal integer"
-    in
-    C.List_cmd (C.Lc_get { var = list; indices = [ i ]; out })
+  | ECmakeListGet { list; indices; out } ->
+    C.List_cmd (C.Lc_get { var = list; indices; out })
   | ECmakeListJoin { list; glue; out } ->
     C.List_cmd (C.Lc_join { var = list; glue = arg ~env glue; out })
   | ECmakeListRemoveItem { list; items } ->

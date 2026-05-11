@@ -83,7 +83,15 @@ type expr +=
   | ECmakeMatches of { expr_ : expr; regex : string }
   | ECmakeInList of { item : expr; list_ : expr }
   | ECmakeIsDirectory of expr
+  | ECmakeIsAbsolute of expr
   | ECmakePolicyCheck of string
+  (* Minimal genex placeholder: carries the verbatim `$<...>` source
+     so the bridge stops conflating generator expressions with plain
+     var-deref strings (which both flow through Ycs_eval). No internal
+     structure or eval semantics — those are R3 (the genex first slice
+     proper). Emit renders identically to a Quoted EString to preserve
+     byte-equality with legacy compile. *)
+  | ECmakeGenex of string
 
 let replace_all ~match_ ~replace ~input =
   String.substr_replace_all input ~pattern:match_ ~with_:replace
@@ -219,6 +227,9 @@ let eval_case ~eval env = function
   | ECmakeStringCompare { out; _ } ->
     Some (set_var env ~key:out ~data:(VBool false), VUnit)
   | ECmakeMatches _ | ECmakeInList _
-  | ECmakeIsDirectory _ | ECmakePolicyCheck _ ->
+  | ECmakeIsDirectory _ | ECmakeIsAbsolute _ | ECmakePolicyCheck _ ->
     Some (env, VBool false)
+  (* Genex eval: opaque value, returned as the verbatim source string.
+     Real cmake expands at generate time; tiny doesn't model that. *)
+  | ECmakeGenex s -> Some (env, VString s)
   | _ -> None

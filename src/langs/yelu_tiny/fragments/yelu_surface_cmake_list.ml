@@ -7,7 +7,10 @@ let provides = [ "list.append"; "list.get"; "list.length"; "list.join" ]
 
 type expr +=
   | ECmakeListAppend of { list : string; items : expr list }
-  | ECmakeListGet of { list : string; index : expr; out : string }
+  (* Cmake's list(GET <var> <index>... <out>) supports multiple indices.
+     [indices] preserves the full list; legacy bridge collapsed to a
+     single-index case which failed on multi-index inputs. *)
+  | ECmakeListGet of { list : string; indices : int list; out : string }
   | ECmakeListLength of { list : string; out : string }
   | ECmakeListJoin of { list : string; glue : expr; out : string }
   (* Additional list() subcommands — emit-faithful, eval stubs. *)
@@ -55,11 +58,21 @@ let eval_case ~eval env = function
     let env, strings = eval_strings ~eval env items in
     let values = list_value env list @ List.map strings ~f:(fun s -> VString s) in
     Some (set_var env ~key:list ~data:(VList values), VUnit)
-  | ECmakeListGet { list; index; out } ->
-    let env, index = eval env index in
-    (match List.nth (list_value env list) (expect_int index) with
-     | Some value -> Some (set_var env ~key:out ~data:value, VUnit)
-     | None -> fail "list index out of range")
+  | ECmakeListGet { list; indices; out } ->
+    let items = list_value env list in
+    let n = List.length items in
+    let normalize i = if i < 0 then n + i else i in
+    let picked =
+      List.map indices ~f:(fun i ->
+        match List.nth items (normalize i) with
+        | Some v -> v
+        | None -> fail "list index out of range")
+    in
+    let data = match picked with
+      | [ v ] -> v
+      | vs -> VList vs
+    in
+    Some (set_var env ~key:out ~data, VUnit)
   | ECmakeListLength { list; out } ->
     let values = list_value env list in
     Some (set_var env ~key:out ~data:(VInt (List.length values)), VUnit)
