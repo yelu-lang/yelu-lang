@@ -5,7 +5,16 @@ let requires = [ "core.string" ]
 let provides = [ "find.find_package" ]
 
 type expr +=
-  | ECmakeFindPackage of { package_name : string; required : bool }
+  | ECmakeFindPackage of
+      { package_name : string;
+        version : string option;
+        exact : bool;
+        quiet : bool;
+        config_mode : bool;
+        required : bool;
+        components : string list;
+        optional_components : string list;
+      }
   (* find_library / find_path / find_program / find_file — same shape,
      different cmake command. Eval stub: bind out_var to placeholder
      (real path search happens at cmake configure). *)
@@ -27,7 +36,11 @@ type expr +=
     }
 
 let eval_case ~eval:_ env = function
-  | ECmakeFindPackage { package_name; required } ->
+  | ECmakeFindPackage { package_name; required; _ } ->
+    (* Eval records package_name + required only; the cmake-specific
+       attributes (version / exact / quiet / config_mode / components /
+       optional_components) survive in the surface IR for emit fidelity
+       but are not part of the eval-observable env state. *)
     Some (add_find_package env { package_name; required }, VUnit)
   | ECmakeFindLibrary { out; _ }
   | ECmakeFindPath { out; _ }

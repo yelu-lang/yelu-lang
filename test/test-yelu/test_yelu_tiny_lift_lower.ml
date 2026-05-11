@@ -195,7 +195,10 @@ let yelu1_to_yelu2 =
       check_yelu1_to_yelu2 "target include directories mutation"
         (ESeq [
           ECmakeAddExecutable { name = EString "app"; sources = [ EString "main.c" ] };
-          ECmakeTargetIncludeDirectories { target = EString "app"; visibility = "PUBLIC"; dirs = [ EString "include" ] };
+          ECmakeTargetIncludeDirectories
+            { target = EString "app"; visibility = "PUBLIC";
+              before = false; system = false;
+              dirs = [ EString "include" ] };
           ETarget "app";
         ])
         ~expected_value:(VTarget "app")
@@ -228,7 +231,9 @@ let yelu1_to_yelu2 =
         (ESeq [
           ECmakeAddExecutable { name = EString "app"; sources = [ EString "main.c" ] };
           ECmakeTargetCompileOptions
-            { target = EString "app"; visibility = "PRIVATE"; options_ = [ EString "-Wall" ] };
+            { target = EString "app"; visibility = "PRIVATE";
+              before = false;
+              options_ = [ EString "-Wall" ] };
           ETarget "app";
         ])
         ~expected_value:(VTarget "app")
@@ -264,7 +269,9 @@ let yelu1_to_yelu2 =
         (ESeq [
           ECmakeAddExecutable { name = EString "app"; sources = [ EString "main.c" ] };
           ECmakeTargetLinkOptions
-            { target = EString "app"; visibility = "PRIVATE"; options_ = [ EString "-Wl,--as-needed" ] };
+            { target = EString "app"; visibility = "PRIVATE";
+              before = false;
+              options_ = [ EString "-Wl,--as-needed" ] };
           ETarget "app";
         ])
         ~expected_value:(VTarget "app")
@@ -281,7 +288,9 @@ let yelu1_to_yelu2 =
         (ESeq [
           ECmakeAddExecutable { name = EString "app"; sources = [ EString "main.c" ] };
           ECmakeTargetLinkDirectories
-            { target = EString "app"; visibility = "PUBLIC"; dirs = [ EString "/opt/lib" ] };
+            { target = EString "app"; visibility = "PUBLIC";
+              before = false;
+              dirs = [ EString "/opt/lib" ] };
           ETarget "app";
         ])
         ~expected_value:(VTarget "app")
@@ -434,7 +443,10 @@ let yelu1_to_yelu2 =
                "OUTER_VIEW", VString "outer";
              ]);
       check_yelu1_to_yelu2 "find_package declaration"
-        (ECmakeFindPackage { package_name = "Threads"; required = false })
+        (ECmakeFindPackage
+           { package_name = "Threads"; required = false;
+             version = None; exact = false; quiet = false; config_mode = false;
+             components = []; optional_components = [] })
         ~expected_value:VUnit
         ~expected_env:
           (env_of_bindings

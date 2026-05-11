@@ -493,18 +493,31 @@ let rec emit_expr_impl ~env e =
         (String.concat ~sep:" " (List.map headers ~f:arg)) ]
   | ECmakeTargetLinkLibraries { target; visibility; items } ->
     [ Fmt.str "target_link_libraries(%s %s %s)" (target_arg target) visibility (String.concat ~sep:" " (List.map items ~f:arg)) ]
-  | ECmakeTargetIncludeDirectories { target; visibility; dirs } ->
-    [ Fmt.str "target_include_directories(%s %s %s)" (target_arg target) visibility (String.concat ~sep:" " (List.map dirs ~f:arg)) ]
+  | ECmakeTargetIncludeDirectories { target; visibility; before; system; dirs } ->
+    let b = if before then "BEFORE " else "" in
+    let s = if system then "SYSTEM " else "" in
+    [ Fmt.str "target_include_directories(%s %s%s%s %s)"
+        (target_arg target) b s visibility
+        (String.concat ~sep:" " (List.map dirs ~f:arg)) ]
   | ECmakeTargetCompileDefinitions { target; visibility; definitions } ->
     [ Fmt.str "target_compile_definitions(%s %s %s)" (target_arg target) visibility (String.concat ~sep:" " (List.map definitions ~f:arg)) ]
-  | ECmakeTargetCompileOptions { target; visibility; options_ } ->
-    [ Fmt.str "target_compile_options(%s %s %s)" (target_arg target) visibility (String.concat ~sep:" " (List.map options_ ~f:arg)) ]
+  | ECmakeTargetCompileOptions { target; visibility; before; options_ } ->
+    let b = if before then "BEFORE " else "" in
+    [ Fmt.str "target_compile_options(%s %s%s %s)"
+        (target_arg target) b visibility
+        (String.concat ~sep:" " (List.map options_ ~f:arg)) ]
   | ECmakeTargetCompileFeatures { target; visibility; features } ->
     [ Fmt.str "target_compile_features(%s %s %s)" (target_arg target) visibility (String.concat ~sep:" " (List.map features ~f:target_arg)) ]
-  | ECmakeTargetLinkOptions { target; visibility; options_ } ->
-    [ Fmt.str "target_link_options(%s %s %s)" (target_arg target) visibility (String.concat ~sep:" " (List.map options_ ~f:arg)) ]
-  | ECmakeTargetLinkDirectories { target; visibility; dirs } ->
-    [ Fmt.str "target_link_directories(%s %s %s)" (target_arg target) visibility (String.concat ~sep:" " (List.map dirs ~f:arg)) ]
+  | ECmakeTargetLinkOptions { target; visibility; before; options_ } ->
+    let b = if before then "BEFORE " else "" in
+    [ Fmt.str "target_link_options(%s %s%s %s)"
+        (target_arg target) b visibility
+        (String.concat ~sep:" " (List.map options_ ~f:arg)) ]
+  | ECmakeTargetLinkDirectories { target; visibility; before; dirs } ->
+    let b = if before then "BEFORE " else "" in
+    [ Fmt.str "target_link_directories(%s %s%s %s)"
+        (target_arg target) b visibility
+        (String.concat ~sep:" " (List.map dirs ~f:arg)) ]
   | ECmakeAddCustomTarget { name; all; commands; depends; comment } ->
     let all = if all then " ALL" else "" in
     let command_lines =
@@ -666,6 +679,19 @@ let rec emit_expr_impl ~env e =
     [ Fmt.str "foreach(%s IN ZIP_LISTS %s)"
         (String.concat ~sep:" " loop_vars)
         (String.concat ~sep:" " lists) ]
+    @ List.map body_lines ~f:(fun line -> "  " ^ line)
+    @ [ "endforeach()" ]
+  | ECmakeForeachInList { loop_var; lists; items; body } ->
+    let body_lines = emit_expr body in
+    let lists_part =
+      if List.is_empty lists then ""
+      else " LISTS " ^ String.concat ~sep:" " lists
+    in
+    let items_part =
+      if List.is_empty items then ""
+      else " ITEMS " ^ String.concat ~sep:" " (List.map items ~f:arg)
+    in
+    [ Fmt.str "foreach(%s IN%s%s)" loop_var lists_part items_part ]
     @ List.map body_lines ~f:(fun line -> "  " ^ line)
     @ [ "endforeach()" ]
   | ECmakeForeachRange { loop_var; start; stop; step; body } ->
@@ -873,10 +899,22 @@ let rec emit_expr_impl ~env e =
     [ Fmt.str "set_tests_properties(%s PROPERTIES %s)"
         (String.concat ~sep:" " (List.map tests ~f:arg))
         property_args ]
-  | ECmakeFindPackage { package_name; required = false } ->
-    [ Fmt.str "find_package(%s)" package_name ]
-  | ECmakeFindPackage { package_name; required = true } ->
-    [ Fmt.str "find_package(%s REQUIRED)" package_name ]
+  | ECmakeFindPackage { package_name; version; exact; quiet; config_mode;
+                        required; components; optional_components } ->
+    let parts =
+      [ Some package_name; version ]
+      |> List.filter_opt
+      |> fun xs -> xs
+        @ (if exact then [ "EXACT" ] else [])
+        @ (if quiet then [ "QUIET" ] else [])
+        @ (if config_mode then [ "CONFIG" ] else [])
+        @ (if required then [ "REQUIRED" ] else [])
+        @ (if List.is_empty components then []
+           else "COMPONENTS" :: components)
+        @ (if List.is_empty optional_components then []
+           else "OPTIONAL_COMPONENTS" :: optional_components)
+    in
+    [ Fmt.str "find_package(%s)" (String.concat ~sep:" " parts) ]
   | ECmakeFindLibrary { out; names; paths; hints; required } ->
     let kw_list key xs =
       if List.is_empty xs then ""

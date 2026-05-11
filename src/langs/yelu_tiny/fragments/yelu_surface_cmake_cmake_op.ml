@@ -103,6 +103,18 @@ type expr +=
       lists : string list;
       body : expr;
     }
+  (* [foreach(<var> IN LISTS <list-var>... ITEMS <item>...)] — preserves the
+     IN LISTS / IN ITEMS source form, distinct from plain
+     [foreach(<var> <items>...)]. Used when round-tripping the production
+     [Yc_foreach_in] AST so emit can render the [IN LISTS] keyword
+     faithfully (cmake's [IN LISTS] respects list-deref splitting on
+     semicolons, whereas plain foreach treats arguments literally). *)
+  | ECmakeForeachInList of {
+      loop_var : string;
+      lists : string list;
+      items : expr list;
+      body : expr;
+    }
   (* [separate_arguments(<var> <mode> [PROGRAM] [SEPARATE_ARGS] [<input>])]
      — string tokenization into a list. Eval stub: bind [var] to the
      input string (no actual tokenization in tiny). *)
@@ -284,6 +296,15 @@ let eval_case ~eval env = function
        defer that until needed. *)
     let env = List.fold loop_vars ~init:env ~f:(fun env v ->
       set_var env ~key:v ~data:(VString "")) in
+    (match eval env body with
+     | env, _ -> Some (env, VUnit)
+     | exception Break_loop -> Some (env, VUnit)
+     | exception Continue_loop -> Some (env, VUnit))
+  | ECmakeForeachInList { loop_var; lists = _; items = _; body } ->
+    (* Eval stub: bind loop_var to empty and evaluate the body once.
+       Real cmake splits lists on semicolons and iterates concatenated
+       elements; deferred until eval tests demand it. *)
+    let env = set_var env ~key:loop_var ~data:(VString "") in
     (match eval env body with
      | env, _ -> Some (env, VUnit)
      | exception Break_loop -> Some (env, VUnit)

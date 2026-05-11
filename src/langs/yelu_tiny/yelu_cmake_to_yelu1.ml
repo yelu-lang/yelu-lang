@@ -654,12 +654,11 @@ let property_statement : Old.yelu_property_stmt -> Yelu_tiny.expr = function
         brief_docs; full_docs; initialize_from }
 
 let find_statement : Old.yelu_find_stmt -> Yelu_tiny.expr = function
-  | Yfind_package { name; required; _ } ->
-    (* The version / exact / quiet / config_mode / components fields are
-       currently dropped at emit; cmake resolves them at configure time
-       from the package name alone in tiny's slice. A future
-       [ECmakeFindPackageEx] could carry them through. *)
-    ECmakeFindPackage { package_name = name; required }
+  | Yfind_package { name; version; exact; quiet; config_mode;
+                    required; components; optional_components } ->
+    ECmakeFindPackage
+      { package_name = name; version; exact; quiet; config_mode;
+        required; components; optional_components }
   | Yfind_library { cvar; names; paths; hints; required; _ } ->
     ECmakeFindLibrary
       { out = cvar_name cvar;
@@ -780,17 +779,14 @@ let target_statement : Old.yelu_target_stmt -> Yelu_tiny.expr = function
   | Ytgt_link_libraries { targets; _ } ->
     fail "target_link_libraries bridge currently supports exactly one target, got %d"
       (List.length targets)
-  | Ytgt_include_directories { target; before = _; system = _; items } ->
-    (* BEFORE / SYSTEM flags are dropped at this slice — they affect
-       cmake's include search ordering and "system header" diagnostic
-       behavior respectively. The bridge survey doesn't observe either;
-       step files don't use them. Recorded as emit-fidelity gap. *)
+  | Ytgt_include_directories { target; before; system; items } ->
     items
     |> List.map ~f:(fun ({ kind; items } : Old.yelu_items_with_kind) ->
       ECmakeTargetIncludeDirectories
         {
           target = target_name target;
           visibility = visibility_of_kind kind;
+          before; system;
           dirs = List.map items ~f:expr;
         })
     |> ESeq
@@ -804,13 +800,14 @@ let target_statement : Old.yelu_target_stmt -> Yelu_tiny.expr = function
           definitions = List.map items ~f:expr;
         })
     |> ESeq
-  | Ytgt_compile_options { target; before = _; items } ->
+  | Ytgt_compile_options { target; before; items } ->
     items
     |> List.map ~f:(fun ({ kind; items } : Old.yelu_items_with_kind) ->
       ECmakeTargetCompileOptions
         {
           target = target_name target;
           visibility = visibility_of_kind kind;
+          before;
           options_ = List.map items ~f:expr;
         })
     |> ESeq
@@ -824,23 +821,25 @@ let target_statement : Old.yelu_target_stmt -> Yelu_tiny.expr = function
           features = [ EString feature ];
         })
     |> ESeq
-  | Ytgt_link_options { target; before = _; items } ->
+  | Ytgt_link_options { target; before; items } ->
     items
     |> List.map ~f:(fun ({ kind; items } : Old.yelu_items_with_kind) ->
       ECmakeTargetLinkOptions
         {
           target = target_name target;
           visibility = visibility_of_kind kind;
+          before;
           options_ = List.map items ~f:expr;
         })
     |> ESeq
-  | Ytgt_link_directories { target; before = _; items } ->
+  | Ytgt_link_directories { target; before; items } ->
     items
     |> List.map ~f:(fun ({ kind; items } : Old.yelu_items_with_kind) ->
       ECmakeTargetLinkDirectories
         {
           target = target_name target;
           visibility = visibility_of_kind kind;
+          before;
           dirs = List.map items ~f:expr;
         })
     |> ESeq
@@ -1025,17 +1024,15 @@ let rec stmt : Old.yelu_stmt -> Yelu_tiny.expr = function
         lists = List.map lists ~f:cvar_name;
         body = stmt commands }
   | Yc_foreach_in { loop_var; lists; items; commands } ->
-    (* foreach(<loop_var> IN LISTS <list-vars>... ITEMS <items>...). At the
-       tiny slice we flatten: produce an [EVar] for each list-var so emit
-       renders the list-deref unquoted (`${name}`), which lets cmake split
-       on semicolons at configure time. Quoted `"${name}"` would be one
-       opaque string instead. *)
-    let list_refs =
-      List.map lists ~f:(fun lv -> Yelu_tiny.EVar (cvar_name lv))
-    in
-    ECmakeForeach
+    (* foreach(<loop_var> IN LISTS <list-vars>... ITEMS <items>...). Preserve
+       the IN LISTS / IN ITEMS source form via [ECmakeForeachInList] so
+       emit can render the cmake keyword faithfully; cmake's [IN LISTS]
+       respects semicolon-split list-deref while plain foreach treats
+       arguments literally. *)
+    ECmakeForeachInList
       { loop_var = cvar_name loop_var;
-        items = list_refs @ List.map items ~f:expr;
+        lists = List.map lists ~f:cvar_name;
+        items = List.map items ~f:expr;
         body = stmt commands }
   (* Production [Ylet] is sequence-shaped (its scope is the rest of the
      enclosing list). Tiny's [ELet] is expression-shaped. The conversion

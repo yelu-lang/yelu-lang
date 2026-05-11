@@ -484,6 +484,11 @@ let rec lift_yelu1_to_yelu2 = function
   | ECmakeForeachZip { loop_vars; lists; body } ->
     ECmakeForeachZip
       { loop_vars; lists; body = lift_yelu1_to_yelu2 body }
+  | ECmakeForeachInList { loop_var; lists; items; body } ->
+    ECmakeForeachInList
+      { loop_var; lists;
+        items = List.map items ~f:lift_yelu1_to_yelu2;
+        body = lift_yelu1_to_yelu2 body }
   | ECmakeSeparateArguments { var; mode; input } ->
     ECmakeSeparateArguments
       { var; mode; input = Option.map input ~f:lift_yelu1_to_yelu2 }
@@ -539,7 +544,11 @@ let rec lift_yelu1_to_yelu2 = function
             items = List.map items ~f:lift_yelu1_to_yelu2 };
         EUnit;
       ]
-  | ECmakeTargetIncludeDirectories { target; visibility; dirs } ->
+  | ECmakeTargetIncludeDirectories
+      { target; visibility; before = _; system = _; dirs } ->
+    (* Yelu2 theory drops cmake-specific BEFORE / SYSTEM flags; the
+       round-trip preserves them only via the Yelu1 surface, which is
+       where they belong. Lower fills with [false] (the legacy default). *)
     ESeq
       [
         ETargetIncludeDirectories
@@ -559,7 +568,7 @@ let rec lift_yelu1_to_yelu2 = function
           };
         EUnit;
       ]
-  | ECmakeTargetCompileOptions { target; visibility; options_ } ->
+  | ECmakeTargetCompileOptions { target; visibility; before = _; options_ } ->
     ESeq
       [
         ETargetCompileOptions
@@ -581,7 +590,7 @@ let rec lift_yelu1_to_yelu2 = function
           };
         EUnit;
       ]
-  | ECmakeTargetLinkOptions { target; visibility; options_ } ->
+  | ECmakeTargetLinkOptions { target; visibility; before = _; options_ } ->
     ESeq
       [
         ETargetLinkOptions
@@ -592,7 +601,7 @@ let rec lift_yelu1_to_yelu2 = function
           };
         EUnit;
       ]
-  | ECmakeTargetLinkDirectories { target; visibility; dirs } ->
+  | ECmakeTargetLinkDirectories { target; visibility; before = _; dirs } ->
     ESeq
       [
         ETargetLinkDirectories
@@ -863,8 +872,14 @@ let rec lift_yelu1_to_yelu2 = function
       { file = lift_yelu1_to_yelu2 file; property;
         values = List.map values ~f:lift_yelu1_to_yelu2 }
 
-  (* CMake find surface -> Yelu find theory. *)
-  | ECmakeFindPackage { package_name; required } ->
+  (* CMake find surface -> Yelu find theory. The cmake-specific
+     attributes (version / exact / quiet / config_mode / components /
+     optional_components) drop at lift since Yelu2's idealized theory
+     doesn't model them; lower fills with conservative defaults. *)
+  | ECmakeFindPackage
+      { package_name; required;
+        version = _; exact = _; quiet = _; config_mode = _;
+        components = _; optional_components = _ } ->
     EFindPackage { package_name; required }
   | ECmakeFindLibrary { out; names; paths; hints; required } ->
     ECmakeFindLibrary
@@ -1056,6 +1071,7 @@ let rec lower_yelu2_to_yelu1 = function
         ECmakeTargetIncludeDirectories
           { target = ETarget name;
             visibility;
+            before = false; system = false;
             dirs = List.map dirs ~f:lower_yelu2_to_yelu1 };
         ETarget name;
       ]
@@ -1064,6 +1080,7 @@ let rec lower_yelu2_to_yelu1 = function
       {
         target = lower_yelu2_to_yelu1 target;
         visibility;
+        before = false; system = false;
         dirs = List.map dirs ~f:lower_yelu2_to_yelu1;
       }
   | ETargetCompileDefinitions { target = ETarget name; visibility; definitions } ->
@@ -1091,6 +1108,7 @@ let rec lower_yelu2_to_yelu1 = function
           {
             target = ETarget name;
             visibility;
+            before = false;
             options_ = List.map options_ ~f:lower_yelu2_to_yelu1;
           };
         ETarget name;
@@ -1100,6 +1118,7 @@ let rec lower_yelu2_to_yelu1 = function
       {
         target = lower_yelu2_to_yelu1 target;
         visibility;
+        before = false;
         options_ = List.map options_ ~f:lower_yelu2_to_yelu1;
       }
   | ETargetCompileFeatures { target = ETarget name; visibility; features } ->
@@ -1127,6 +1146,7 @@ let rec lower_yelu2_to_yelu1 = function
           {
             target = ETarget name;
             visibility;
+            before = false;
             options_ = List.map options_ ~f:lower_yelu2_to_yelu1;
           };
         ETarget name;
@@ -1136,6 +1156,7 @@ let rec lower_yelu2_to_yelu1 = function
       {
         target = lower_yelu2_to_yelu1 target;
         visibility;
+        before = false;
         options_ = List.map options_ ~f:lower_yelu2_to_yelu1;
       }
   | ETargetLinkDirectories { target = ETarget name; visibility; dirs } ->
@@ -1145,6 +1166,7 @@ let rec lower_yelu2_to_yelu1 = function
           {
             target = ETarget name;
             visibility;
+            before = false;
             dirs = List.map dirs ~f:lower_yelu2_to_yelu1;
           };
         ETarget name;
@@ -1154,6 +1176,7 @@ let rec lower_yelu2_to_yelu1 = function
       {
         target = lower_yelu2_to_yelu1 target;
         visibility;
+        before = false;
         dirs = List.map dirs ~f:lower_yelu2_to_yelu1;
       }
   | ECustomTarget { name; all; commands; depends; comment } ->
@@ -1427,6 +1450,11 @@ let rec lower_yelu2_to_yelu1 = function
   | ECmakeForeachZip { loop_vars; lists; body } ->
     ECmakeForeachZip
       { loop_vars; lists; body = lower_yelu2_to_yelu1 body }
+  | ECmakeForeachInList { loop_var; lists; items; body } ->
+    ECmakeForeachInList
+      { loop_var; lists;
+        items = List.map items ~f:lower_yelu2_to_yelu1;
+        body = lower_yelu2_to_yelu1 body }
   | ECmakeSeparateArguments { var; mode; input } ->
     ECmakeSeparateArguments
       { var; mode; input = Option.map input ~f:lower_yelu2_to_yelu1 }
@@ -1633,7 +1661,10 @@ let rec lower_yelu2_to_yelu1 = function
 
   (* Yelu find theory -> CMake find surface. *)
   | EFindPackage { package_name; required } ->
-    ECmakeFindPackage { package_name; required }
+    ECmakeFindPackage
+      { package_name; required;
+        version = None; exact = false; quiet = false; config_mode = false;
+        components = []; optional_components = [] }
   | ECmakeFindLibrary { out; names; paths; hints; required } ->
     ECmakeFindLibrary
       { out;

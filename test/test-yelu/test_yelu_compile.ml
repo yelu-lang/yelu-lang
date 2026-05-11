@@ -50,25 +50,6 @@ let oracle_uncovered_msgs : (string, string) Stdlib.Hashtbl.t =
   Stdlib.Hashtbl.create 32
 
 let oracle_skip = [
-  (* Bridge flattens [Yc_foreach_in { loop_var; lists; items }] to a plain
-     [ECmakeForeach { items = [EVar lv; …] }]. Tiny needs a dedicated
-     [ECmakeForeachInList] constructor to round-trip the IN LISTS / IN ITEMS
-     form. *)
-  "foreach_in lists";
-  "foreach_in items";
-  (* Tiny surface [ECmakeTargetLinkOptions] drops the [before] flag the
-     production AST carries. Add it to the surface ctor to round-trip. *)
-  "target_link_options before";
-  (* [ECmakeFindPackage { package_name; required }] drops version /
-     exact / components / optional_components / quiet / config_mode.
-     Extend the tiny ctor to round-trip. *)
-  "find_package version";
-  "find_package required exact";
-  "find_package components";
-  "find_package optional_components";
-  "find_package quiet";
-  "find_package config_mode";
-  "find_package config_mode required components";
 ]
 
 let assert_byte_oracle name yelu_ast =
@@ -855,7 +836,7 @@ let () =
       |> Base.List.sort ~compare:(fun (a, _) (b, _) -> compare b a)
     in
     Stdlib.Printf.eprintf "[emit_ast oracle] top uncovered errors:\n%!";
-    Base.List.iter (Base.List.take by_count 10) ~f:(fun (n, msg) ->
+    Base.List.iter by_count ~f:(fun (n, msg) ->
       Stdlib.Printf.eprintf "  %3d × %s\n%!" n msg))
 
 let () =

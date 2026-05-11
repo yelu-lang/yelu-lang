@@ -39,12 +39,19 @@ type expr +=
   | ECmakeAddLibrary of { name : expr; type_ : string option; sources : expr list }
   | ECmakeTargetSources of { target : expr; visibility : string; sources : expr list }
   | ECmakeTargetLinkLibraries of { target : expr; visibility : string; items : expr list }
-  | ECmakeTargetIncludeDirectories of { target : expr; visibility : string; dirs : expr list }
-  | ECmakeTargetCompileDefinitions of { target : expr; visibility : string; definitions : expr list }
-  | ECmakeTargetCompileOptions of { target : expr; visibility : string; options_ : expr list }
-  | ECmakeTargetCompileFeatures of { target : expr; visibility : string; features : expr list }
-  | ECmakeTargetLinkOptions of { target : expr; visibility : string; options_ : expr list }
-  | ECmakeTargetLinkDirectories of { target : expr; visibility : string; dirs : expr list }
+  | ECmakeTargetIncludeDirectories of
+      { target : expr; visibility : string;
+        before : bool; system : bool; dirs : expr list }
+  | ECmakeTargetCompileDefinitions of
+      { target : expr; visibility : string; definitions : expr list }
+  | ECmakeTargetCompileOptions of
+      { target : expr; visibility : string; before : bool; options_ : expr list }
+  | ECmakeTargetCompileFeatures of
+      { target : expr; visibility : string; features : expr list }
+  | ECmakeTargetLinkOptions of
+      { target : expr; visibility : string; before : bool; options_ : expr list }
+  | ECmakeTargetLinkDirectories of
+      { target : expr; visibility : string; before : bool; dirs : expr list }
   | ECmakeAddCustomTarget of {
       name : expr;
       all : bool;
@@ -106,7 +113,7 @@ let eval_case ~eval env = function
     let env, target = eval_string ~eval env target in
     let env, items = eval_string_list ~eval env items in
     Some (add_target_links env target ~visibility items, VUnit)
-  | ECmakeTargetIncludeDirectories { target; visibility; dirs } ->
+  | ECmakeTargetIncludeDirectories { target; visibility; dirs; _ } ->
     let env, target = eval_string ~eval env target in
     let env, dirs = eval_string_list ~eval env dirs in
     Some (add_target_include_dirs env target ~visibility dirs, VUnit)
@@ -114,7 +121,7 @@ let eval_case ~eval env = function
     let env, target = eval_string ~eval env target in
     let env, definitions = eval_string_list ~eval env definitions in
     Some (add_target_compile_definitions env target ~visibility definitions, VUnit)
-  | ECmakeTargetCompileOptions { target; visibility; options_ } ->
+  | ECmakeTargetCompileOptions { target; visibility; options_; _ } ->
     let env, target = eval_string ~eval env target in
     let env, options_ = eval_string_list ~eval env options_ in
     Some (add_target_compile_options env target ~visibility options_, VUnit)
@@ -122,11 +129,11 @@ let eval_case ~eval env = function
     let env, target = eval_string ~eval env target in
     let env, features = eval_string_list ~eval env features in
     Some (add_target_compile_features env target ~visibility features, VUnit)
-  | ECmakeTargetLinkOptions { target; visibility; options_ } ->
+  | ECmakeTargetLinkOptions { target; visibility; options_; _ } ->
     let env, target = eval_string ~eval env target in
     let env, options_ = eval_string_list ~eval env options_ in
     Some (add_target_link_options env target ~visibility options_, VUnit)
-  | ECmakeTargetLinkDirectories { target; visibility; dirs } ->
+  | ECmakeTargetLinkDirectories { target; visibility; dirs; _ } ->
     let env, target = eval_string ~eval env target in
     let env, dirs = eval_string_list ~eval env dirs in
     Some (add_target_link_directories env target ~visibility dirs, VUnit)

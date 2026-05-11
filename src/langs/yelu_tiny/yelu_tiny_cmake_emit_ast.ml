@@ -293,6 +293,11 @@ let rec emit_exp ~env (e : expr) : C.exp =
   | ECmakeForeachZip { loop_vars; lists; body } ->
     C.Foreach_zip
       { loop_vars; lists; commands = emit_exp ~env body }
+  | ECmakeForeachInList { loop_var; lists; items; body } ->
+    C.Foreach_in
+      { loop_var; lists;
+        items = List.map items ~f:(arg ~env);
+        commands = emit_exp ~env body }
   | ECmakeFunction { name; params; body } ->
     (* cmake_pp's Function expects [cmds : cmd list] where [cmd = exp].
        Wrap our single [exp] as a one-element command list. *)
@@ -329,35 +334,35 @@ let rec emit_exp ~env (e : expr) : C.exp =
       (C.Target_link_libraries
          { targets = [ target_arg ~env target ];
            items = items_with_kind ~env ~visibility items })
-  | ECmakeTargetIncludeDirectories { target; visibility; dirs } ->
+  | ECmakeTargetIncludeDirectories { target; visibility; before; system; dirs } ->
     C.Project_cmd
       (C.Target_include_directories
          { target = target_arg ~env target;
-           system = None;
-           before_or_after = None;
+           system = (if system then Some true else None);
+           before_or_after = (if before then Some C.Before else None);
            items = items_with_kind ~env ~visibility dirs })
   | ECmakeTargetCompileDefinitions { target; visibility; definitions } ->
     C.Project_cmd
       (C.Target_compile_definitions
          { target = target_arg ~env target;
            items = items_with_kind ~env ~visibility definitions })
-  | ECmakeTargetCompileOptions { target; visibility; options_ } ->
+  | ECmakeTargetCompileOptions { target; visibility; before; options_ } ->
     C.Project_cmd
       (C.Target_compile_options
          { target = target_arg ~env target;
-           before = false;
+           before;
            items = items_with_kind ~env ~visibility options_ })
-  | ECmakeTargetLinkOptions { target; visibility; options_ } ->
+  | ECmakeTargetLinkOptions { target; visibility; before; options_ } ->
     C.Project_cmd
       (C.Target_link_options
          { target = target_arg ~env target;
-           before = false;
+           before;
            items = items_with_kind ~env ~visibility options_ })
-  | ECmakeTargetLinkDirectories { target; visibility; dirs } ->
+  | ECmakeTargetLinkDirectories { target; visibility; before; dirs } ->
     C.Project_cmd
       (C.Target_link_directories
          { target = target_arg ~env target;
-           before = false;
+           before;
            items = items_with_kind ~env ~visibility dirs })
   | ECmakeTargetCompileFeatures { target; visibility = _; features } ->
     C.Project_cmd
@@ -521,12 +526,13 @@ let rec emit_exp ~env (e : expr) : C.exp =
            property = { prop = property; value = C.Bare "" } })
 
   (* Find *)
-  | Yelu_surface_cmake_find.ECmakeFindPackage { package_name; required } ->
+  | Yelu_surface_cmake_find.ECmakeFindPackage
+      { package_name; version; exact; quiet; config_mode;
+        required; components; optional_components } ->
     C.Find_package
       { name = package_name; required;
-        version = None; exact = false; quiet = false;
-        config_mode = false;
-        components = []; optional_components = [] }
+        version; exact; quiet; config_mode;
+        components; optional_components }
 
   (* Property — non-target scopes *)
   | Yelu_surface_cmake_property.ECmakeDefineProperty
