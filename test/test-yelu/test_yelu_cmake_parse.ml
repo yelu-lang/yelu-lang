@@ -434,6 +434,32 @@ let tier0_var_y1 = ("t0-var-y1", [
   assert_parse_y1_equiv "y1: multi-value :="   "( FLAGS := \"-Wall\", \"-Wextra\" )";
 ])
 
+(* Phase 2a pair-wise oracle for control flow. Mimics legacy
+   grammar; ELet is naturally expression-shaped in Yelu1 (no
+   sequence-shaped Ylet awkwardness). *)
+let tier0_control_y1 = ("t0-control-y1", [
+  assert_parse_y1_equiv "y1: empty block" "( )";
+  assert_parse_y1_equiv "y1: let binding"
+    "let x = Target Foo in ( )";
+])
+
+let tier0_cond_y1 = ("t0-cond-y1", [
+  assert_parse_y1_equiv "y1: if defined"
+    "( if defined 'TEST' then ( message 'defined' ) )";
+  assert_parse_y1_equiv "y1: if simple ON"
+    "( if ON then ( message 'yes' ) )";
+  assert_parse_y1_equiv "y1: if target"
+    "( if target Target Foo then ( ) )";
+  assert_parse_y1_equiv "y1: cond exists"
+    "( if exists \"file.txt\" then ( ) )";
+  assert_parse_y1_equiv "y1: cond is_dir"
+    "( if is_dir \"path\" then ( ) )";
+  assert_parse_y1_equiv "y1: cond ver_lt"
+    "( if ver_lt ${CMAKE_VERSION} \"3.20\" then ( ) )";
+  assert_parse_y1_equiv "y1: cond policy"
+    "( if policy CMP0048 then ( ) )";
+])
+
 (* Phase 2a pair-wise oracle for cmake_op family (scalar commands). *)
 let tier0_cmake_op_y1 = ("t0-cmake_op-y1", [
   assert_parse_y1_equiv "y1: cmake_minimum_required" "( cmake_minimum_required \"3.20\" )";
@@ -568,7 +594,8 @@ let tier2_string_y1 = ("t2-string-y1", [
 
 let () =
   Alcotest.run "Yelu Parser" [
-    tier0_control; tier0_cond; tier0_var; tier0_var_y1; tier0_cmake_op; tier0_cmake_op_y1;
+    tier0_control; tier0_control_y1; tier0_cond; tier0_cond_y1;
+    tier0_var; tier0_var_y1; tier0_cmake_op; tier0_cmake_op_y1;
     tier0_target; tier0_target_y1; tier0_dir; tier0_dir_y1; tier0_file; tier0_scripting; tier0_full;
     tier1_target; tier2_string; tier2_string_y1; tier3_list; tier3_list_y1;
     tier4_file; tier4_file_y1; tier5_path; tier5_path_y1;

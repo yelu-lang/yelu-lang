@@ -10,6 +10,7 @@
 
 ## Project / open design directions
 - [Macro elimination as a yelu design direction](project_macro_elimination.md) — defer decision to after R5/Bar #3; R4-b.4 paused (current ECmakeMacro is wrong-but-unused dead code)
+- [Phase 2a parser-direct-to-Yelu1](project_phase2a_parser.md) — 11/12 families done; control flow next, mimic legacy, no new syntax design
 
 ## Feedback
 - [No eval $(opam env)](feedback_shell_env.md) — dune/opam already on PATH in CC env

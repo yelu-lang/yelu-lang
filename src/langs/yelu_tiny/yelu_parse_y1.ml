@@ -34,6 +34,8 @@
 open Base
 open Lang_yelu_lexer
 open Yelu_tiny
+open Yelu_theory_bool
+open Yelu_theory_int
 open Yelu_theory_list
 open Yelu_surface_cmake_store
 open Yelu_surface_cmake_string
@@ -53,10 +55,23 @@ open Yelu_surface_cmake_cmake_op
    Combinator primitives — duplicated from Lang_yelu_parse.
    ============================================================ *)
 
+(* kw mirrors [Lang_yelu_parse.kw]: reserved-word strings map to
+   dedicated tokens (LET / IF / FOREACH / FUNCTION / MACRO / etc.);
+   other strings match IDENT. *)
 let kw s toks =
+  let expect = match s with
+    | "let" -> LET | "in" -> IN | "if" -> IF | "then" -> THEN | "else" -> ELSE
+    | "foreach" -> FOREACH | "function" -> FUNCTION | "fun" -> FUNCTION
+    | "macro" -> MACRO
+    | "while" -> WHILE | "break" -> BREAK | "continue" -> CONTINUE
+    | "return" -> RETURN
+    | "target" -> TARGET | "cvar" -> CVAR | "cache" -> CACHE
+    | "RANGE" -> RANGE
+    | _ -> EOF
+  in
   match toks with
-  | KEYWORD k :: rest when String.equal k s -> Some ((), rest)
-  | IDENT k :: rest when String.equal k s -> Some ((), rest)
+  | IDENT s' :: rest when String.equal s s' -> Some ((), rest)
+  | t :: rest when Poly.equal t expect -> Some ((), rest)
   | _ -> None
 
 let delim t toks =
@@ -66,6 +81,10 @@ let delim t toks =
 
 let lparen = delim LPAREN
 let rparen = delim RPAREN
+let lbrack = delim LBRACK
+let rbrack = delim RBRACK
+let eq_tok = delim EQ
+let dotdot = delim DOTDOT
 
 (* ============================================================
    Expression parsing — minimal subset for var-family values.
@@ -146,62 +165,47 @@ let p_assign_y1 toks =
          Some (ESetVar (name, pack_set_value values), rest))
   | _ -> None
 
-(* `( set NAME value... )` plain set form. *)
+(* `set NAME value...` plain set form (outer `(`/`)` handled by block). *)
 let p_set_command_y1 toks =
-  match lparen toks with
+  match kw "set" toks with
   | None -> None
   | Some ((), toks) ->
-    match kw "set" toks with
-    | None -> None
-    | Some ((), toks) ->
-      match toks with
-      | (STRING name | PATH name | IDENT name) :: rest ->
-        let rec collect_vals acc toks =
-          match p_expr_y1 toks with
-          | Some (v, rest) -> collect_vals (v :: acc) rest
-          | None -> List.rev acc, toks
-        in
-        let values, rest = collect_vals [] rest in
-        (match rparen rest with
-         | Some ((), rest) ->
-           Some (ESetVar (name, pack_set_value values), rest)
-         | None -> None)
-      | _ -> None
+    match toks with
+    | (STRING name | PATH name | IDENT name) :: rest ->
+      let rec collect_vals acc toks =
+        match toks with
+        | (RPAREN :: _) | (SEMI :: _) | [] -> List.rev acc, toks
+        | _ ->
+          (match p_expr_y1 toks with
+           | Some (v, rest) -> collect_vals (v :: acc) rest
+           | None -> List.rev acc, toks)
+      in
+      let values, rest = collect_vals [] rest in
+      Some (ESetVar (name, pack_set_value values), rest)
+    | _ -> None
 
-(* `( option NAME value )` *)
+(* `option NAME value` *)
 let p_option_command_y1 toks =
-  match lparen toks with
+  match kw "option" toks with
   | None -> None
   | Some ((), toks) ->
-    match kw "option" toks with
-    | None -> None
-    | Some ((), toks) ->
-      match toks with
-      | (STRING name | IDENT name) :: rest ->
-        (match p_expr_y1 rest with
-         | None -> None
-         | Some (value, rest) ->
-           (match rparen rest with
-            | Some ((), rest) ->
-              Some
-                (ECmakeOption { name; message = ""; value }, rest)
-            | None -> None))
-      | _ -> None
+    match toks with
+    | (STRING name | IDENT name) :: rest ->
+      (match p_expr_y1 rest with
+       | None -> None
+       | Some (value, rest) ->
+         Some (ECmakeOption { name; message = ""; value }, rest))
+    | _ -> None
 
-(* `( unset_cache NAME )` *)
+(* `unset_cache NAME` *)
 let p_unset_cache_command_y1 toks =
-  match lparen toks with
+  match kw "unset_cache" toks with
   | None -> None
   | Some ((), toks) ->
-    match kw "unset_cache" toks with
-    | None -> None
-    | Some ((), toks) ->
-      match toks with
-      | (STRING name | IDENT name) :: rest ->
-        (match rparen rest with
-         | Some ((), rest) -> Some (ECmakeUnsetVarCache name, rest)
-         | None -> None)
-      | _ -> None
+    match toks with
+    | (STRING name | IDENT name) :: rest ->
+      Some (ECmakeUnsetVarCache name, rest)
+    | _ -> None
 
 let p_var_stmt_y1 toks =
   match p_assign_y1 toks with Some r -> Some r | None ->
@@ -328,18 +332,12 @@ let p_string_command_y1_inner name args kwargs =
   | _ -> None
 
 let p_string_command_y1 toks =
-  match lparen toks with
-  | None -> None
-  | Some ((), toks) ->
-    match toks with
-    | IDENT name :: rest when String.is_prefix name ~prefix:"string_" ->
+  match toks with
+  | IDENT name :: rest when String.is_prefix name ~prefix:"string_" ->
       let args, kwargs, rest = collect_command_args [] [] rest in
       (match p_string_command_y1_inner name args kwargs with
        | None -> None
-       | Some e ->
-         (match rparen rest with
-          | Some ((), rest) -> Some (e, rest)
-          | None -> None))
+       | Some e -> Some (e, rest))
     | _ -> None
 
 (* ============================================================
@@ -424,18 +422,12 @@ let p_list_command_y1_inner name args kwargs =
   | _ -> None
 
 let p_list_command_y1 toks =
-  match lparen toks with
-  | None -> None
-  | Some ((), toks) ->
-    match toks with
-    | IDENT name :: rest when String.is_prefix name ~prefix:"list_" ->
+  match toks with
+  | IDENT name :: rest when String.is_prefix name ~prefix:"list_" ->
       let args, kwargs, rest = collect_command_args [] [] rest in
       (match p_list_command_y1_inner name args kwargs with
        | None -> None
-       | Some e ->
-         (match rparen rest with
-          | Some ((), rest) -> Some (e, rest)
-          | None -> None))
+       | Some e -> Some (e, rest))
     | _ -> None
 
 (* ============================================================
@@ -517,20 +509,14 @@ let p_path_command_y1_inner name args kwargs =
   | _ -> None
 
 let p_path_command_y1 toks =
-  match lparen toks with
-  | None -> None
-  | Some ((), toks) ->
-    match toks with
-    | IDENT name :: rest
+  match toks with
+  | IDENT name :: rest
       when String.is_prefix name ~prefix:"path_"
         || String.equal name "get_filename_component" ->
       let args, kwargs, rest = collect_command_args [] [] rest in
       (match p_path_command_y1_inner name args kwargs with
        | None -> None
-       | Some e ->
-         (match rparen rest with
-          | Some ((), rest) -> Some (e, rest)
-          | None -> None))
+       | Some e -> Some (e, rest))
     | _ -> None
 
 (* ============================================================
@@ -580,20 +566,14 @@ let p_file_command_y1_inner name args kwargs =
   | _ -> None
 
 let p_file_command_y1 toks =
-  match lparen toks with
-  | None -> None
-  | Some ((), toks) ->
-    match toks with
-    | IDENT name :: rest
+  match toks with
+  | IDENT name :: rest
       when String.is_prefix name ~prefix:"file_"
         || String.equal name "configure_file" ->
       let args, kwargs, rest = collect_command_args [] [] rest in
       (match p_file_command_y1_inner name args kwargs with
        | None -> None
-       | Some e ->
-         (match rparen rest with
-          | Some ((), rest) -> Some (e, rest)
-          | None -> None))
+       | Some e -> Some (e, rest))
     | _ -> None
 
 (* ============================================================
@@ -704,11 +684,8 @@ let p_target_command_y1_inner name args _kwargs =
   | _ -> None
 
 let p_target_command_y1 toks =
-  match lparen toks with
-  | None -> None
-  | Some ((), toks) ->
-    match toks with
-    | IDENT name :: rest
+  match toks with
+  | IDENT name :: rest
       when (match name with
             | "add_exe" | "add_lib" | "link_lib" | "include_dirs"
             | "compile_defs" | "compile_opts" | "compile_feats"
@@ -717,10 +694,7 @@ let p_target_command_y1 toks =
       let args, kwargs, rest = collect_command_args [] [] rest in
       (match p_target_command_y1_inner name args kwargs with
        | None -> None
-       | Some e ->
-         (match rparen rest with
-          | Some ((), rest) -> Some (e, rest)
-          | None -> None))
+       | Some e -> Some (e, rest))
     | _ -> None
 
 (* ============================================================
@@ -748,11 +722,8 @@ let p_dir_command_y1_inner name args _kwargs =
   | _ -> None
 
 let p_dir_command_y1 toks =
-  match lparen toks with
-  | None -> None
-  | Some ((), toks) ->
-    match toks with
-    | IDENT name :: rest
+  match toks with
+  | IDENT name :: rest
       when (match name with
             | "add_subdirectory" | "include_directories"
             | "add_compile_definitions" | "add_compile_options"
@@ -762,10 +733,7 @@ let p_dir_command_y1 toks =
       let args, kwargs, rest = collect_command_args [] [] rest in
       (match p_dir_command_y1_inner name args kwargs with
        | None -> None
-       | Some e ->
-         (match rparen rest with
-          | Some ((), rest) -> Some (e, rest)
-          | None -> None))
+       | Some e -> Some (e, rest))
     | _ -> None
 
 (* ============================================================
@@ -780,20 +748,14 @@ let p_test_command_y1_inner name args _kwargs =
   | _ -> None
 
 let p_test_command_y1 toks =
-  match lparen toks with
-  | None -> None
-  | Some ((), toks) ->
-    match toks with
-    | IDENT name :: rest
+  match toks with
+  | IDENT name :: rest
       when String.equal name "enable_testing"
         || String.equal name "add_test" ->
       let args, kwargs, rest = collect_command_args [] [] rest in
       (match p_test_command_y1_inner name args kwargs with
        | None -> None
-       | Some e ->
-         (match rparen rest with
-          | Some ((), rest) -> Some (e, rest)
-          | None -> None))
+       | Some e -> Some (e, rest))
     | _ -> None
 
 (* ============================================================
@@ -835,11 +797,8 @@ let p_property_command_y1_inner name args kwargs =
   | _ -> None
 
 let p_property_command_y1 toks =
-  match lparen toks with
-  | None -> None
-  | Some ((), toks) ->
-    match toks with
-    | IDENT name :: rest
+  match toks with
+  | IDENT name :: rest
       when (match name with
             | "get_target_property" | "set_target_properties"
             | "set_property"
@@ -851,10 +810,7 @@ let p_property_command_y1 toks =
       let args, kwargs, rest = collect_command_args [] [] rest in
       (match p_property_command_y1_inner name args kwargs with
        | None -> None
-       | Some e ->
-         (match rparen rest with
-          | Some ((), rest) -> Some (e, rest)
-          | None -> None))
+       | Some e -> Some (e, rest))
     | _ -> None
 
 (* ============================================================
@@ -899,19 +855,13 @@ let p_find_command_y1_inner name args _kwargs =
   | _ -> None
 
 let p_find_command_y1 toks =
-  match lparen toks with
-  | None -> None
-  | Some ((), toks) ->
-    match toks with
-    | IDENT name :: rest
+  match toks with
+  | IDENT name :: rest
       when String.is_prefix name ~prefix:"find_" ->
       let args, kwargs, rest = collect_command_args [] [] rest in
       (match p_find_command_y1_inner name args kwargs with
        | None -> None
-       | Some e ->
-         (match rparen rest with
-          | Some ((), rest) -> Some (e, rest)
-          | None -> None))
+       | Some e -> Some (e, rest))
     | _ -> None
 
 (* ============================================================
@@ -950,11 +900,8 @@ let p_install_command_y1_inner name args _kwargs =
   | _ -> None
 
 let p_install_command_y1 toks =
-  match lparen toks with
-  | None -> None
-  | Some ((), toks) ->
-    match toks with
-    | IDENT name :: rest
+  match toks with
+  | IDENT name :: rest
       when (match name with
             | "install_targets" | "install_files" | "install_export"
             | "export" | "configure_package_config_file"
@@ -963,10 +910,7 @@ let p_install_command_y1 toks =
       let args, kwargs, rest = collect_command_args [] [] rest in
       (match p_install_command_y1_inner name args kwargs with
        | None -> None
-       | Some e ->
-         (match rparen rest with
-          | Some ((), rest) -> Some (e, rest)
-          | None -> None))
+       | Some e -> Some (e, rest))
     | _ -> None
 
 (* ============================================================
@@ -1040,11 +984,8 @@ let p_cmake_op_command_y1_inner name args kwargs =
   | _ -> None
 
 let p_cmake_op_command_y1 toks =
-  match lparen toks with
-  | None -> None
-  | Some ((), toks) ->
-    match toks with
-    | IDENT name :: rest
+  match toks with
+  | IDENT name :: rest
       when (match name with
             | "cmake_minimum_required" | "project" | "message"
             | "math" | "include" | "include_guard" | "policy_set"
@@ -1055,10 +996,7 @@ let p_cmake_op_command_y1 toks =
       let args, kwargs, rest = collect_command_args [] [] rest in
       (match p_cmake_op_command_y1_inner name args kwargs with
        | None -> None
-       | Some e ->
-         (match rparen rest with
-          | Some ((), rest) -> Some (e, rest)
-          | None -> None))
+       | Some e -> Some (e, rest))
     | _ -> None
 
 (* Outer block: `( <stmt> ... )`. Mirrors [Lang_yelu_parse.p_block]
@@ -1066,7 +1004,168 @@ let p_cmake_op_command_y1 toks =
    Phase 2a families are migrated, the block accepts any family-
    recognized statement; non-recognized inputs make the parser fail
    (the legacy parser handles them via its full grammar). *)
+(* ============================================================
+   Condition parser — mirrors [Lang_yelu_parse.p_cond] / [p_cond_atom]
+   structure. Builds Yelu1 cond expressions (ENot, EAnd, EOr,
+   EIntLess/Equal/etc., ECmakeStringEqual, ECmakeVarDefined,
+   ECmakeTargetExists, ECmakeMatches, ECmakeInList, ECmakeIsDirectory,
+   ECmakeIsAbsolute, ECmakeFileExists, ECmakePolicyCheck) directly.
+   ============================================================ *)
+
+let rec p_cond_atom_y1 toks =
+  let bin op cont rest =
+    match p_expr_y1 rest with
+    | Some (a, rest) ->
+      (match p_expr_y1 rest with
+       | Some (b, rest) -> Some (op a b, rest)
+       | None -> cont)
+    | None -> cont
+  in
+  let _ = bin in
+  match toks with
+  | IDENT "not" :: rest ->
+    (match p_cond_atom_y1 rest with
+     | Some (c, rest) -> Some (ENot c, rest)
+     | None -> None)
+  | TARGET :: rest ->
+    (match p_expr_y1 rest with
+     | Some (e, rest) ->
+       let target = match e with
+         | ETarget _ | EString _ -> e
+         | EVar name -> ETarget name
+         | _ -> ETarget "?"
+       in
+       Some (ECmakeTargetExists target, rest)
+     | None -> None)
+  | IDENT "defined" :: rest ->
+    (match p_expr_y1 rest with
+     | Some (e, rest) ->
+       let name = match e with
+         | EVar s | EString s -> s
+         | _ -> "?"
+       in
+       Some (ECmakeVarDefined name, rest)
+     | None -> None)
+  | IDENT "str_eq" :: rest ->
+    (match p_expr_y1 rest with
+     | Some (a, rest) ->
+       (match p_expr_y1 rest with
+        | Some (b, rest) -> Some (ECmakeStringEqual (a, b), rest)
+        | None -> None)
+     | None -> None)
+  | IDENT "eq" :: rest ->
+    (match p_expr_y1 rest with
+     | Some (a, rest) ->
+       (match p_expr_y1 rest with
+        | Some (b, rest) -> Some (EIntEqual (a, b), rest)
+        | None -> None)
+     | None -> None)
+  | IDENT "lt" :: rest ->
+    (match p_expr_y1 rest with
+     | Some (a, rest) ->
+       (match p_expr_y1 rest with
+        | Some (b, rest) -> Some (EIntLess (a, b), rest)
+        | None -> None)
+     | None -> None)
+  | IDENT "gt" :: rest ->
+    (match p_expr_y1 rest with
+     | Some (a, rest) ->
+       (match p_expr_y1 rest with
+        | Some (b, rest) -> Some (EIntGreater (a, b), rest)
+        | None -> None)
+     | None -> None)
+  | IDENT "ver_lt" :: rest ->
+    (match p_expr_y1 rest with
+     | Some (a, rest) ->
+       (match p_expr_y1 rest with
+        | Some (b, rest) -> Some (ECmakeVersionLess (a, b), rest)
+        | None -> None)
+     | None -> None)
+  | IDENT "ver_gt" :: rest ->
+    (match p_expr_y1 rest with
+     | Some (a, rest) ->
+       (match p_expr_y1 rest with
+        | Some (b, rest) -> Some (ECmakeVersionGreater (a, b), rest)
+        | None -> None)
+     | None -> None)
+  | IDENT "ver_eq" :: rest ->
+    (match p_expr_y1 rest with
+     | Some (a, rest) ->
+       (match p_expr_y1 rest with
+        | Some (b, rest) -> Some (ECmakeVersionEqual (a, b), rest)
+        | None -> None)
+     | None -> None)
+  | IDENT "match" :: rest ->
+    (match p_expr_y1 rest with
+     | Some (e, rest) ->
+       (match rest with
+        | STRING s :: rest' -> Some (ECmakeMatches { expr_ = e; regex = s }, rest')
+        | PATH s :: rest' -> Some (ECmakeMatches { expr_ = e; regex = s }, rest')
+        | _ -> None)
+     | None -> None)
+  | IDENT "list_in" :: rest ->
+    (match p_expr_y1 rest with
+     | Some (item, rest) ->
+       (match p_expr_y1 rest with
+        | Some (list_, rest) ->
+          Some (ECmakeInList { item; list_ }, rest)
+        | None -> None)
+     | None -> None)
+  | IDENT "exists" :: rest ->
+    (match p_expr_y1 rest with
+     | Some (e, rest) -> Some (ECmakeFileExists e, rest)
+     | None -> None)
+  | IDENT "is_dir" :: rest ->
+    (match p_expr_y1 rest with
+     | Some (e, rest) -> Some (ECmakeIsDirectory e, rest)
+     | None -> None)
+  | IDENT "is_abs" :: rest ->
+    (match p_expr_y1 rest with
+     | Some (e, rest) -> Some (ECmakeIsAbsolute e, rest)
+     | None -> None)
+  | IDENT "policy" :: rest ->
+    (match rest with
+     | IDENT id :: rest' -> Some (ECmakePolicyCheck id, rest')
+     | _ -> None)
+  | _ ->
+    (* Bare expression = truthy *)
+    p_expr_y1 toks
+
+(* Top-level cond: left-associative AND / OR over cond_atoms. *)
+let p_cond_y1 toks =
+  match p_cond_atom_y1 toks with
+  | None -> None
+  | Some (c1, rest) ->
+    let rec loop acc = function
+      | IDENT "and" :: r ->
+        (match p_cond_atom_y1 r with
+         | Some (c, r') -> loop (EAnd (acc, c)) r'
+         | None -> Some (acc, IDENT "and" :: r))
+      | IDENT "or" :: r ->
+        (match p_cond_atom_y1 r with
+         | Some (c, r') -> loop (EOr (acc, c)) r'
+         | None -> Some (acc, IDENT "or" :: r))
+      | r -> Some (acc, r)
+    in
+    loop c1 rest
+
+(* ============================================================
+   Statement dispatcher with mutually-recursive control flow.
+
+   Order matters: keyword-prefixed dispatchers (let / if / fun /
+   macro / while / foreach + break/continue/return) come first;
+   then family command dispatchers; then var assign; then bare
+   block; then apply (catches any IDENT-headed `( ... )` call).
+   ============================================================ *)
+
 let rec p_stmt_inner_y1 toks =
+  match p_let_y1 toks with Some r -> Some r | None ->
+  match p_if_y1 toks with Some r -> Some r | None ->
+  match p_function_y1 toks with Some r -> Some r | None ->
+  match p_macro_y1 toks with Some r -> Some r | None ->
+  match p_while_y1 toks with Some r -> Some r | None ->
+  match p_foreach_y1 toks with Some r -> Some r | None ->
+  match p_flow_y1 toks with Some r -> Some r | None ->
   match p_string_command_y1 toks with Some r -> Some r | None ->
   match p_list_command_y1 toks with Some r -> Some r | None ->
   match p_path_command_y1 toks with Some r -> Some r | None ->
@@ -1079,8 +1178,223 @@ let rec p_stmt_inner_y1 toks =
   match p_install_command_y1 toks with Some r -> Some r | None ->
   match p_cmake_op_command_y1 toks with Some r -> Some r | None ->
   match p_var_stmt_y1 toks with Some r -> Some r | None ->
+  match p_apply_y1 toks with Some r -> Some r | None ->
   p_block_y1 toks
 
+(* `let var [: type] = expr in stmt` — Yelu1 ELet is expression-shaped,
+   matching the syntax directly (no rest-of-list awkwardness like the
+   legacy sequence-shaped Ylet). *)
+and p_let_y1 toks =
+  match kw "let" toks with
+  | None -> None
+  | Some ((), toks) ->
+    match toks with
+    | IDENT name :: toks ->
+      (* skip optional `:type` annotation *)
+      let toks = match toks with
+        | COLON :: IDENT _ :: r -> r
+        | COLON :: TARGET :: r -> r
+        | COLON :: CVAR :: r -> r
+        | _ -> toks
+      in
+      (match eq_tok toks with
+       | None -> None
+       | Some ((), toks) ->
+         match p_expr_y1 toks with
+         | None -> None
+         | Some (value, toks) ->
+           match kw "in" toks with
+           | None -> None
+           | Some ((), toks) ->
+             match p_stmt_inner_y1 toks with
+             | Some (body, rest) ->
+               Some (ELet { var = name; value; body }, rest)
+             | None -> None)
+    | _ -> None
+
+(* `if cond then ( body ) [else ( body ) | else if ...]` *)
+and p_if_y1 toks =
+  match kw "if" toks with
+  | None -> None
+  | Some ((), toks) ->
+    match p_cond_y1 toks with
+    | None -> None
+    | Some (cond, toks) ->
+      match kw "then" toks with
+      | None -> None
+      | Some ((), toks) ->
+        match p_block_y1 toks with
+        | None -> None
+        | Some (then_, toks) ->
+          let else_opt =
+            match kw "else" toks with
+            | None -> None
+            | Some ((), r) ->
+              (match p_block_y1 r with
+               | Some (e, r') -> Some (Some e, r')
+               | None ->
+                 (match p_if_y1 r with
+                  | Some (e, r') -> Some (Some e, r')
+                  | None -> None))
+          in
+          (match else_opt with
+           | Some (else_, rest) ->
+             Some (Yelu_surface_cmake_if.ECmakeIfStmt { cond; then_; else_ }, rest)
+           | None ->
+             Some (Yelu_surface_cmake_if.ECmakeIfStmt
+                     { cond; then_; else_ = None }, toks))
+
+(* `fun name(args) ( body )` / `function name(args) ( body )` *)
+and p_function_y1 toks =
+  match kw "function" toks with
+  | None -> None
+  | Some ((), toks) ->
+    match toks with
+    | IDENT name :: toks ->
+      let args, toks =
+        match toks with
+        | LPAREN :: r ->
+          let rec loop acc = function
+            | RPAREN :: r' -> (List.rev acc, r')
+            | COMMA :: r' -> loop acc r'
+            | (IDENT a :: r') -> loop (a :: acc) r'
+            | toks' -> (List.rev acc, toks')
+          in
+          loop [] r
+        | _ -> ([], toks)
+      in
+      (match p_block_y1 toks with
+       | Some (body, rest) ->
+         Some (ECmakeFunction { name = EString name; params = args; body }, rest)
+       | None -> None)
+    | _ -> None
+
+(* `macro name(args) ( body )` *)
+and p_macro_y1 toks =
+  match kw "macro" toks with
+  | None -> None
+  | Some ((), toks) ->
+    match toks with
+    | IDENT name :: toks ->
+      let args, toks =
+        match toks with
+        | LPAREN :: r ->
+          let rec loop acc = function
+            | RPAREN :: r' -> (List.rev acc, r')
+            | COMMA :: r' -> loop acc r'
+            | (IDENT a :: r') -> loop (a :: acc) r'
+            | toks' -> (List.rev acc, toks')
+          in
+          loop [] r
+        | _ -> ([], toks)
+      in
+      (match p_block_y1 toks with
+       | Some (body, rest) ->
+         Some (ECmakeMacro { name = EString name; params = args; body }, rest)
+       | None -> None)
+    | _ -> None
+
+(* `while cond ( body )` *)
+and p_while_y1 toks =
+  match kw "while" toks with
+  | None -> None
+  | Some ((), toks) ->
+    match p_cond_y1 toks with
+    | None -> None
+    | Some (cond, toks) ->
+      match p_block_y1 toks with
+      | Some (body, rest) -> Some (ECmakeWhile { cond; body }, rest)
+      | None -> None
+
+(* `foreach var in items ( body )` plus
+   `foreach var in RANGE n..m ( body )` and
+   `foreach var in [ items ] ( body )`. The bare-list form uses LBRACK.
+   For symmetry with the legacy parser, we also try the IN ZIP_LISTS
+   shape (loop_vars × list_vars) — though it's less common. *)
+and p_foreach_y1 toks =
+  match kw "foreach" toks with
+  | None -> None
+  | Some ((), toks) ->
+    match toks with
+    | IDENT lv :: toks ->
+      (match kw "in" toks with
+       | None -> None
+       | Some ((), toks) ->
+         (* RANGE first *)
+         match kw "RANGE" toks with
+         | Some ((), r) ->
+           (match r with
+            | INT start :: r ->
+              (match dotdot r with
+               | None -> None
+               | Some ((), r) ->
+                 (match r with
+                  | INT stop :: r ->
+                    (match p_block_y1 r with
+                     | Some (body, r') ->
+                       Some (ECmakeForeachRange
+                               { loop_var = lv;
+                                 start = Some start;
+                                 stop;
+                                 step = None;
+                                 body }, r')
+                     | None -> None)
+                  | _ -> None))
+            | _ -> None)
+         | None ->
+           (* [ items ] bracketed list *)
+           match toks with
+           | LBRACK :: r ->
+             let rec items_loop acc = function
+               | RBRACK :: r' -> (List.rev acc, r')
+               | toks' ->
+                 (match p_expr_y1 toks' with
+                  | Some (e, r') -> items_loop (e :: acc) r'
+                  | None -> (List.rev acc, toks'))
+             in
+             let items, r = items_loop [] r in
+             (match p_block_y1 r with
+              | Some (body, r') ->
+                Some (ECmakeForeach
+                        { loop_var = lv; items; body }, r')
+              | None -> None)
+           | _ -> None)
+    | _ -> None
+
+(* Bare flow keywords: break / continue / return. *)
+and p_flow_y1 toks =
+  match toks with
+  | BREAK :: rest -> Some (ECmakeBreak, rest)
+  | CONTINUE :: rest -> Some (ECmakeContinue, rest)
+  | RETURN :: rest -> Some (ECmakeReturn { propagate_vars = [] }, rest)
+  | _ -> None
+
+(* Bare function application: `IDENT( args )` — only matches if the
+   IDENT is not a known reserved command name (since those go to
+   their specific dispatchers first via p_stmt_inner_y1). Has to come
+   AFTER all the family dispatchers to avoid hijacking. *)
+and p_apply_y1 toks =
+  match toks with
+  | LPAREN :: IDENT name :: LPAREN :: rest ->
+    (* Form: `( name(args) )` *)
+    let rec collect acc = function
+      | RPAREN :: r -> Some (List.rev acc, r)
+      | COMMA :: r -> collect acc r
+      | toks' ->
+        (match p_expr_y1 toks' with
+         | Some (e, r) -> collect (e :: acc) r
+         | None -> None)
+    in
+    (match collect [] rest with
+     | Some (args, rest) ->
+       (match rparen rest with
+        | Some ((), rest) ->
+          Some (ECmakeApply { name = EString name; args }, rest)
+        | None -> None)
+     | None -> None)
+  | _ -> None
+
+(* Block: `( stmt; stmt; ... )` — accepts any covered family. *)
 and p_block_y1 toks =
   match lparen toks with
   | None -> None
