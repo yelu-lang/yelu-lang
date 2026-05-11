@@ -9,7 +9,7 @@ target_link_libraries + target_include_directories + option +
 statement-if + compile definitions + target_compile_features +
 generator-expression-shaped compile options + add_test +
 set_tests_properties (emit-only). **Function definition + apply now
-have proper cmake-style function-call scope (F2 done) — tiny eval
+have proper cmake-style dynamic scope (F2 done) — tiny eval
 correctly tracks function registration, param binding, scoped variable
 restoration, and persistence of non-var effects.** Step6–12 plan out
 as the breadth-first tier list under "Next Steps".
@@ -450,7 +450,7 @@ parity)** roughly in parallel:
 - **Step5 root + math** — bridge + configure pass. **F2 function theory
   is done:** `function()` and `apply` definitions now register in
   `env.functions`, applications bind params, evaluate the body under
-  function-call scope, and restore vars on return. Step5's `test_suite`
+  cmake-style dynamic scope, and restore vars on return. Step5's `test_suite`
   function calls are now correctly simulated end-to-end (not just
   emit-correct). Dedicated theory-expansion tests live in
   `test/test-yelu/test_yelu_tiny_function.ml`.
@@ -478,7 +478,7 @@ individually.
 
 ### The function theory (F2 — done)
 
-`EFunction` / `EApply` (theory) and `ECmakeFunction` / `ECmakeApply`
+`EDynFunction` / `EApply` (theory) and `ECmakeFunction` / `ECmakeApply`
 (surface) are now first-class core constructs with proper semantics.
 
 **Decisions, all in place:**
@@ -490,15 +490,16 @@ individually.
   function theory whose scope design we haven't yet settled.
 - **Argument evaluation:** left-to-right, call-by-value (args fully
   evaluated before the function body runs).
-- **Scope (cmake-style "function-call scope"):** on function entry, the
+- **Scope: classic dynamic scope via shallow binding** (the canonical
+  PL terms; Bobrow & Wegbreit 1973, EOPL). On function entry the
   entire current variable scope is saved; params are bound as fresh
   vars; the body is evaluated in the extended env; on return the saved
-  variable scope is restored. *Side effects on non-variable env state
-  (targets, tests, install_rules, custom_targets, target_properties,
-  messages, …) persist across the call.* "Dynamic scope" is a fine
-  one-word label but the implementation is closer to
-  **save/restore around the call frame** and we use the name
-  *function-call scope* in code comments.
+  variable scope is restored. Variable *reads* inside the body see the
+  caller's scope (dynamic-scope semantics); variable *writes* are
+  local to the call frame (cmake's "writes local by default" wrinkle —
+  contrast with bash where writes leak). *Side effects on non-variable
+  env state (targets, tests, install_rules, custom_targets,
+  target_properties, messages, …) persist across the call.*
 - **Macros and ARGV/ARGC:** deferred. `macro()` is textual substitution
   with no scope frame; `ARGV` / `ARGC` / `ARGN` are positional argument
   reflection. Neither is needed for tutorial step parity in v1 of the
@@ -511,9 +512,12 @@ individually.
 - `env.functions : function_decl Map.M(String).t` is in the
   configure-time script-state group, with helpers `set_function`
   / `find_function`.
-- Eval lives in both [yelu_theory_cmake_op.ml] (EFunction/EApply) and
-  [yelu_surface_cmake_cmake_op.ml] (ECmake*). They share the same
-  scope mechanics via local `bind_params` / `eval_args` helpers.
+- Eval lives in both [yelu_theory_cmake_op.ml] (EDynFunction/EApply)
+  and [yelu_surface_cmake_cmake_op.ml] (ECmakeFunction/ECmakeApply).
+  They share the same scope mechanics via local `bind_params` /
+  `eval_args` helpers. The constructor name `EDynFunction` (rather
+  than the unmarked `EFunction`) reserves the unmarked name for a
+  future lexically-scoped / closure-style function.
 - Observability gotcha: at the IR level, the function's body is stored
   in different surface forms by Yelu1 (ECmake*) and Yelu2 (E*) — that
   divergence is *behaviorally* irrelevant but breaks strict

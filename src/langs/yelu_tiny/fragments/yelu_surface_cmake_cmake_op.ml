@@ -13,8 +13,9 @@ let provides =
   ]
 
 (* Surface mirror of the cmake_op theory. [ECmakeFunction] / [ECmakeApply]
-   carry the same shape as their theory siblings and use the same
-   save/restore scope; the cmake-flavored prefix exists so that the
+   carry the same shape as their theory siblings ([EDynFunction] / [EApply])
+   and the same scope mechanic: classic dynamic scope via shallow binding
+   (save / bind / eval / restore). The cmake-flavored prefix exists so the
    bridge from production [Yc_function] / [Yc_apply] lands cleanly here
    without needing to lift before eval. *)
 type expr +=

@@ -12,17 +12,27 @@ let provides =
     "cmake_op.apply";
   ]
 
-(* [EFunction] registers a named callable with formal [params] and a [body].
-   [EApply] looks the name up and invokes it. Scope is *function-call scope*
-   (cmake-style): the entire current variable map is saved on entry, [params]
-   are bound to the evaluated arguments as fresh vars, body is evaluated in
-   the extended env, and on return the saved variable map is restored —
-   so vars set inside the body do not leak to the caller. Side effects on
+(* [EDynFunction] registers a named, dynamically-scoped callable with
+   formal [params] and a [body]. [EApply] looks the name up and invokes
+   it.
+
+   Scope follows cmake / Tcl: classic *dynamic scope* implemented by
+   *shallow binding* (Bobrow & Wegbreit 1973; EOPL terminology). On
+   entry the entire current variable map is saved into the activation
+   record; [params] are bound as fresh vars; the body is evaluated in
+   that extended env; on return the saved variable map is restored.
+   Variable *reads* therefore see the caller's scope (dynamic-scope
+   semantics); variable *writes* are local to the call frame, which is
+   cmake's "writes local by default" wrinkle — to leak a write you
+   would need [PARENT_SCOPE], which is deferred. Side effects on
    non-variable env state (targets, tests, install_rules, custom_*,
-   target_properties, messages, …) persist across the call. Macros and
-   ARGV/ARGC/ARGN are deferred. *)
+   target_properties, messages, …) persist across the call.
+
+   The constructor name carries the scope discipline explicitly so we
+   can later add a lexically-scoped / closure-style [EFunction] without
+   the two clashing. Macros and ARGV/ARGC/ARGN are deferred. *)
 type expr +=
-  | EFunction of { name : expr; params : string list; body : expr }
+  | EDynFunction of { name : expr; params : string list; body : expr }
   | EApply of { name : expr; args : expr list }
   | EProject of { name : string; languages : string list; version : string option }
   | EMinVersion of string
@@ -54,7 +64,7 @@ let eval_case ~eval env = function
   | EMessage { mode; texts } ->
     let env, texts = eval_string_list ~eval env texts in
     Some (add_message env mode texts, VUnit)
-  | EFunction { name; params; body } ->
+  | EDynFunction { name; params; body } ->
     let env, name = eval_string ~eval env name in
     Some (set_function env name { params; body }, VUnit)
   | EApply { name; args } ->

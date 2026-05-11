@@ -447,7 +447,7 @@ let rec lift_yelu1_to_yelu2 = function
   | ECmakeMessage { mode; texts } ->
     EMessage { mode; texts = List.map texts ~f:lift_yelu1_to_yelu2 }
   | ECmakeFunction { name; params; body } ->
-    EFunction
+    EDynFunction
       {
         name = lift_yelu1_to_yelu2 name;
         params;
@@ -839,7 +839,7 @@ let rec lower_yelu2_to_yelu1 = function
   | EMinVersion version -> ECmakeMinimumRequired version
   | EMessage { mode; texts } ->
     ECmakeMessage { mode; texts = List.map texts ~f:lower_yelu2_to_yelu1 }
-  | EFunction { name; params; body } ->
+  | EDynFunction { name; params; body } ->
     ECmakeFunction
       {
         name = lower_yelu2_to_yelu1 name;

@@ -1,31 +1,41 @@
-(* Tests for the cmake-style function theory in yelu_tiny.
+(* Tests for the cmake-style dynamic-scope function theory in yelu_tiny.
 
    These tests are written in "language / theory expansion" mode: instead
    of feeding production yelu_cmake AST through the bridge, they construct
    tiny IR directly and assert eval-time behavior. The goal is to pin
-   down the semantics of [EFunction] / [EApply] (and their cmake-flavored
-   surface twins [ECmakeFunction] / [ECmakeApply]) at the IR level,
-   independent of the bridge or emit pipeline.
+   down the semantics of [EDynFunction] / [EApply] (and their cmake-
+   flavored surface twins [ECmakeFunction] / [ECmakeApply]) at the IR
+   level, independent of the bridge or emit pipeline.
 
    F2 design choices being tested:
 
    - Argument evaluation order: left-to-right, call-by-value (args are
      fully evaluated before the body runs).
-   - Scope: *function-call scope* (cmake-style). On entry, save the
+   - Scope: classic *dynamic scope* implemented via *shallow binding*
+     (Bobrow & Wegbreit 1973; EOPL terminology). On entry, save the
      entire current [env.vars]. Bind params as fresh vars. Evaluate
-     body. On return, restore the saved [env.vars]. Side effects on
-     non-variable env state (targets, tests, install_rules, custom_*,
+     body. On return, restore the saved [env.vars]. Variable *reads*
+     inside the body see the caller's scope (dynamic-scope semantics);
+     variable *writes* are local to the call frame, which is cmake's
+     "writes local by default" wrinkle. Side effects on non-variable
+     env state (targets, tests, install_rules, custom_*,
      target_properties, messages, …) persist across the call.
    - No closures / lexical capture at definition time. The body is
      re-evaluated against the env at each call.
-   - Arity mismatch fails. Macros and ARGV/ARGC are deferred.
+   - Arity mismatch fails. Macros, ARGV/ARGC/ARGN, and PARENT_SCOPE are
+     deferred.
 
-   Observation strategy: function-call scope means that variables set
-   inside a function body do *not* leak to the caller. To observe what
-   a function actually did, these tests use side effects on non-variable
-   env state, primarily [env.messages] (via [ECmakeMessage]). Each
-   message records the texts passed at call time, which lets us check
-   "the function saw arg value X" without depending on var leakage. *)
+   The name [EDynFunction] (rather than the unmarked [EFunction]) leaves
+   the unmarked name available for a future lexically-scoped / closure-
+   style function in Yelu2.
+
+   Observation strategy: dynamic scope with local-default writes means
+   variables set inside a function body do *not* leak to the caller. To
+   observe what a function actually did, these tests use side effects on
+   non-variable env state, primarily [env.messages] (via
+   [ECmakeMessage]). Each message records the texts passed at call time,
+   which lets us check "the function saw arg value X" without depending
+   on var leakage. *)
 
 open Base
 open Yelu_langs.Yelu_tiny
@@ -185,11 +195,11 @@ let function_target_decls_leak_across_call =
       Alcotest.(check bool) "app target survives the call" true
         (Option.is_some (find_target env "app")))
 
-(* --- Function-call scope: body reads caller's vars (cmake-style scope). --- *)
+(* --- Dynamic scope: body reads caller's vars at call time. --- *)
 
 let function_body_sees_callers_var =
   Alcotest.test_case
-    "body sees variables bound by the caller (cmake-style scope)"
+    "dynamic scope: body sees variables bound by the caller"
     `Quick (fun () ->
       let prog =
         ESeq
@@ -314,15 +324,15 @@ let lift_lower_roundtrip_for_function =
         "lower preserves observable messages"
         (message_texts env_a) (message_texts env_c))
 
-(* --- Theory-side: pure EFunction / EApply (no cmake prefix) work
+(* --- Theory-side: pure EDynFunction / EApply (no cmake prefix) work
        under the Yelu2 evaluator with identical semantics. --- *)
 
 let theory_form_works =
-  Alcotest.test_case "EFunction / EApply (theory side) under Yelu2" `Quick
+  Alcotest.test_case "EDynFunction / EApply (theory side) under Yelu2" `Quick
     (fun () ->
       let prog =
         ESeq
-          [ EFunction
+          [ EDynFunction
               { name = EString "echo";
                 params = [ "x" ];
                 body = EMessage { mode = ""; texts = [ EVar "x" ] } };
