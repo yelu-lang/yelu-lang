@@ -199,6 +199,41 @@ let target_feature_of_expr ~env (feature : expr) : C.target_feature =
   (* tiny stores features as plain strings; assume PRIVATE kind by default. *)
   { kind = "PRIVATE"; feature = target_arg ~env feature }
 
+(* Inverse of bridge's [string_of_cmake_path_get_field]. Tiny stores
+   the field as a keyword string ("ROOT_NAME", "EXTENSION LAST_ONLY", …);
+   here we map back to the typed [Lang_cmake.cmake_path_get_field]. *)
+let cmake_path_get_field_of_string s : C.cmake_path_get_field =
+  match s with
+  | "ROOT_NAME" -> C.Cpf_root_name
+  | "ROOT_DIRECTORY" -> C.Cpf_root_directory
+  | "ROOT_PATH" -> C.Cpf_root_path
+  | "FILENAME" -> C.Cpf_filename
+  | "EXTENSION" -> C.Cpf_extension false
+  | "EXTENSION LAST_ONLY" -> C.Cpf_extension true
+  | "STEM" -> C.Cpf_stem false
+  | "STEM LAST_ONLY" -> C.Cpf_stem true
+  | "RELATIVE_PART" -> C.Cpf_relative_part
+  | "PARENT_PATH" -> C.Cpf_parent_path
+  | _ -> fail "emit_ast: unknown cmake_path GET field %S" s
+
+let cmake_path_has_field_of_string s : C.cmake_path_has_field =
+  match s with
+  | "HAS_ROOT_NAME" -> C.Cph_root_name
+  | "HAS_ROOT_DIRECTORY" -> C.Cph_root_directory
+  | "HAS_ROOT_PATH" -> C.Cph_root_path
+  | "HAS_FILENAME" -> C.Cph_filename
+  | "HAS_EXTENSION" -> C.Cph_extension
+  | "HAS_STEM" -> C.Cph_stem
+  | "HAS_RELATIVE_PART" -> C.Cph_relative_part
+  | "HAS_PARENT_PATH" -> C.Cph_parent_path
+  | _ -> fail "emit_ast: unknown cmake_path HAS field %S" s
+
+let cmake_path_compare_op_of_string s : C.cmake_path_compare_op =
+  match s with
+  | "EQUAL" -> C.Cpco_equal
+  | "NOT_EQUAL" -> C.Cpco_not_equal
+  | _ -> fail "emit_ast: unknown cmake_path COMPARE op %S" s
+
 let rec emit_exp ~env (e : expr) : C.exp =
   match e with
   | EUnit -> C.Exp_list []
@@ -549,7 +584,8 @@ let rec emit_exp ~env (e : expr) : C.exp =
          { mode = dpm; property_name; inherited; brief_docs; full_docs;
            initialize_from = Option.value initialize_from ~default:"" })
 
-  (* Path — first slice *)
+  (* Path — full family. cmake_path(...) wraps in Cmake_cmd / Cmake_path;
+     get_filename_component is its own top-level ctor. *)
   | Yelu_surface_cmake_path.ECmakePathSet { path; input; normalize } ->
     C.Cmake_cmd
       (C.Cmake_path
@@ -557,6 +593,107 @@ let rec emit_exp ~env (e : expr) : C.exp =
   | Yelu_surface_cmake_path.ECmakePathNormalPath { path; out } ->
     C.Cmake_cmd
       (C.Cmake_path (C.Cpp_normal_path { path_var = path; out_var = out }))
+  | Yelu_surface_cmake_path.ECmakePathGetFilename { path; out } ->
+    C.Cmake_cmd
+      (C.Cmake_path
+         (C.Cpp_get
+            { path_var = path; field = C.Cpf_filename; out_var = out }))
+  | Yelu_surface_cmake_path.ECmakePathGet { path; field; out } ->
+    C.Cmake_cmd
+      (C.Cmake_path
+         (C.Cpp_get
+            { path_var = path;
+              field = cmake_path_get_field_of_string field;
+              out_var = out }))
+  | Yelu_surface_cmake_path.ECmakePathHas { path; field; out } ->
+    C.Cmake_cmd
+      (C.Cmake_path
+         (C.Cpp_has
+            { path_var = path;
+              field = cmake_path_has_field_of_string field;
+              out_var = out }))
+  | Yelu_surface_cmake_path.ECmakePathIsAbsolute { path; out } ->
+    C.Cmake_cmd (C.Cmake_path (C.Cpp_is_absolute { path_var = path; out_var = out }))
+  | Yelu_surface_cmake_path.ECmakePathIsRelative { path; out } ->
+    C.Cmake_cmd (C.Cmake_path (C.Cpp_is_relative { path_var = path; out_var = out }))
+  | Yelu_surface_cmake_path.ECmakePathIsPrefix { path; input; normalize; out } ->
+    C.Cmake_cmd
+      (C.Cmake_path
+         (C.Cpp_is_prefix
+            { path_var = path; input = arg ~env input; normalize;
+              out_var = out }))
+  | Yelu_surface_cmake_path.ECmakePathCompare { input1; op; input2; out } ->
+    C.Cmake_cmd
+      (C.Cmake_path
+         (C.Cpp_compare
+            { input1 = arg ~env input1;
+              op = cmake_path_compare_op_of_string op;
+              input2 = arg ~env input2;
+              out_var = out }))
+  | Yelu_surface_cmake_path.ECmakePathAppend { path; inputs; out } ->
+    C.Cmake_cmd
+      (C.Cmake_path
+         (C.Cpp_append
+            { path_var = path;
+              inputs = List.map inputs ~f:(arg ~env);
+              out_var = out }))
+  | Yelu_surface_cmake_path.ECmakePathAppendString { path; inputs; out } ->
+    C.Cmake_cmd
+      (C.Cmake_path
+         (C.Cpp_append_string
+            { path_var = path;
+              inputs = List.map inputs ~f:(arg ~env);
+              out_var = out }))
+  | Yelu_surface_cmake_path.ECmakePathRemoveFilename { path; out } ->
+    C.Cmake_cmd
+      (C.Cmake_path (C.Cpp_remove_filename { path_var = path; out_var = out }))
+  | Yelu_surface_cmake_path.ECmakePathReplaceFilename { path; input; out } ->
+    C.Cmake_cmd
+      (C.Cmake_path
+         (C.Cpp_replace_filename
+            { path_var = path; input = arg ~env input; out_var = out }))
+  | Yelu_surface_cmake_path.ECmakePathRemoveExtension { path; last_only; out } ->
+    C.Cmake_cmd
+      (C.Cmake_path
+         (C.Cpp_remove_extension { path_var = path; last_only; out_var = out }))
+  | Yelu_surface_cmake_path.ECmakePathReplaceExtension { path; last_only; input; out } ->
+    C.Cmake_cmd
+      (C.Cmake_path
+         (C.Cpp_replace_extension
+            { path_var = path; last_only;
+              input = arg ~env input; out_var = out }))
+  | Yelu_surface_cmake_path.ECmakePathRelativePath { path; base_dir; out } ->
+    C.Cmake_cmd
+      (C.Cmake_path
+         (C.Cpp_relative_path
+            { path_var = path;
+              base_dir = Option.map base_dir ~f:(arg ~env);
+              out_var = out }))
+  | Yelu_surface_cmake_path.ECmakePathAbsolutePath { path; base_dir; normalize; out } ->
+    C.Cmake_cmd
+      (C.Cmake_path
+         (C.Cpp_absolute_path
+            { path_var = path;
+              base_dir = Option.map base_dir ~f:(arg ~env);
+              normalize;
+              out_var = out }))
+  | Yelu_surface_cmake_path.ECmakePathNativePath { path; normalize; out } ->
+    C.Cmake_cmd
+      (C.Cmake_path
+         (C.Cpp_native_path { path_var = path; normalize; out_var = out }))
+  | Yelu_surface_cmake_path.ECmakePathConvertToCmake { input; normalize; out } ->
+    C.Cmake_cmd
+      (C.Cmake_path
+         (C.Cpp_convert_to_cmake
+            { input = arg ~env input; normalize; out_var = out }))
+  | Yelu_surface_cmake_path.ECmakePathConvertToNative { input; normalize; out } ->
+    C.Cmake_cmd
+      (C.Cmake_path
+         (C.Cpp_convert_to_native
+            { input = arg ~env input; normalize; out_var = out }))
+  | Yelu_surface_cmake_path.ECmakePathHash { path; out } ->
+    C.Cmake_cmd
+      (C.Cmake_path (C.Cpp_hash { path_var = path; out_var = out }))
   | Yelu_surface_cmake_path.ECmakeGetFilenameComponent { var; filename; mode } ->
     C.Get_filename_component
       { var; filename = target_arg ~env filename; mode; cache = false }
