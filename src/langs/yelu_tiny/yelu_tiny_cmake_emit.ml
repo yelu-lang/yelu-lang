@@ -293,6 +293,7 @@ let rec emit_expr_impl ~env e =
     [ Fmt.str "include(%s)" (arg file) ]
   | ECmakeInclude { file; optional = true } ->
     [ Fmt.str "include(%s OPTIONAL)" (arg file) ]
+  | ECmakeAtVar key -> [ Fmt.str "@%s@" key ]
   | ECmakeAddSubdirectory path ->
     [ Fmt.str "add_subdirectory(%s)" (arg path) ]
   | ECmakeEnableTesting -> [ "enable_testing()" ]

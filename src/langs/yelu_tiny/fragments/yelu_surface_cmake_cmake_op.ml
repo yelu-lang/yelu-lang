@@ -11,6 +11,7 @@ let provides =
     "cmake_op.function";
     "cmake_op.apply";
     "cmake_op.include";
+    "cmake_op.at_var";
   ]
 
 (* Surface mirror of the cmake_op theory. [ECmakeFunction] / [ECmakeApply]
@@ -26,6 +27,9 @@ type expr +=
   | ECmakeFunction of { name : expr; params : string list; body : expr }
   | ECmakeApply of { name : expr; args : expr list }
   | ECmakeInclude of { file : expr; optional : bool }
+  (* See [EAtVar] in the theory fragment for semantics. Emit-only literal
+     [@key@] injection, no eval effect, no surface-specific behavior. *)
+  | ECmakeAtVar of string
 
 let bind_params env params arg_values =
   match List.zip params arg_values with
@@ -75,4 +79,5 @@ let eval_case ~eval env = function
   | ECmakeInclude { file; optional = _ } ->
     let env, file = eval_string ~eval env file in
     Some (add_include env file, VUnit)
+  | ECmakeAtVar _ -> Some (env, VUnit)
   | _ -> None

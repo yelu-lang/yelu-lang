@@ -11,6 +11,7 @@ let provides =
     "cmake_op.function";
     "cmake_op.apply";
     "cmake_op.include";
+    "cmake_op.at_var";
   ]
 
 (* [EDynFunction] registers a named, dynamically-scoped callable with
@@ -44,6 +45,14 @@ type expr +=
      modules (CTest / CPack / CMakePackageConfigHelpers / ...) plus
      local module files. *)
   | EInclude of { file : expr; optional : bool }
+  (* [EAtVar key] is an emit-only literal injection: the script line is
+     just [@key@]. cmake itself treats it as plain text; the value is
+     substituted by [configure_package_config_file] (which runs string-
+     replacement over a *.cmake.in template). The bridge maps production
+     [Ycmake_at_var key], whose compiler renders it as a [Quote "@key@"]
+     line. Eval is a no-op — there is no run-time effect at script
+     evaluation time. *)
+  | EAtVar of string
 
 let bind_params env params arg_values =
   match List.zip params arg_values with
@@ -87,4 +96,5 @@ let eval_case ~eval env = function
   | EInclude { file; optional = _ } ->
     let env, file = eval_string ~eval env file in
     Some (add_include env file, VUnit)
+  | EAtVar _ -> Some (env, VUnit)
   | _ -> None

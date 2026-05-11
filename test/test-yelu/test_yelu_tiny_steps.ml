@@ -809,6 +809,40 @@ let step10_bridge =
                ~substring:"option(BUILD_SHARED_LIBS"))
     ] )
 
+(* step11_config (one of the two files step11 generates) is the smallest
+   exercise of [yc_at_var]: just [@PACKAGE_INIT@] followed by an include.
+   PACKAGE_INIT itself is later substituted by [configure_package_config_file]
+   running over a *.cmake.in template — at script-emit time it's plain
+   text [@PACKAGE_INIT@]. *)
+let step11_config_bridge =
+  let module Old = Yelu_langs.Lang_yelu_cmake in
+  let open Yelu_langs.Lang_yelu_utils in
+  let cmd : Old.yelu_stmt =
+    ycmd_of_list
+      [
+        yc_at_var "PACKAGE_INIT";
+        yc_include
+          (dir_concat Yelu_langs.Lang_yelu_utils.list_this
+             "MathFunctionsTargets.cmake");
+      ]
+  in
+  ( "step11_config_bridge",
+    [
+      Alcotest.test_case "v1 step11_config bridges yc_at_var and include"
+        `Quick
+        (fun () ->
+          let yelu1 = Yelu_langs.Yelu_cmake_to_yelu1.stmt cmd in
+          let cmake_text =
+            Yelu_langs.Yelu_tiny_cmake_emit.emit_script yelu1
+          in
+          Alcotest.(check bool) "contains literal @PACKAGE_INIT@" true
+            (String.is_substring cmake_text ~substring:"@PACKAGE_INIT@");
+          Alcotest.(check bool) "contains include of MathFunctionsTargets.cmake"
+            true
+            (String.is_substring cmake_text
+               ~substring:"MathFunctionsTargets.cmake"))
+    ] )
+
 let () =
   Alcotest.run "yelu_tiny_steps"
     [
@@ -828,4 +862,5 @@ let () =
       step8_math_bridge;
       step9_bridge;
       step10_bridge;
+      step11_config_bridge;
     ]

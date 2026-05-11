@@ -198,6 +198,7 @@ let cmake_op_statement : Old.yelu_cmake_stmt -> Yelu_tiny.expr = function
         mode = string_of_message_mode mode;
         texts = List.map texts ~f:(fun s -> EString s);
       }
+  | Ycmake_at_var key -> ECmakeAtVar key
   | _ -> fail "unsupported yelu_cmake cmake_op statement for Yelu1 bridge"
 
 let dir_statement : Old.yelu_dir_stmt -> Yelu_tiny.expr = function

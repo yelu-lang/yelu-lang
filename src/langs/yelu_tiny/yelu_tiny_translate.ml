@@ -461,6 +461,7 @@ let rec lift_yelu1_to_yelu2 = function
       }
   | ECmakeInclude { file; optional } ->
     EInclude { file = lift_yelu1_to_yelu2 file; optional }
+  | ECmakeAtVar key -> EAtVar key
 
   (* CMake dir surface -> Yelu dir theory. *)
   | ECmakeAddSubdirectory path -> EAddSubdirectory (lift_yelu1_to_yelu2 path)
@@ -856,6 +857,7 @@ let rec lower_yelu2_to_yelu1 = function
       }
   | EInclude { file; optional } ->
     ECmakeInclude { file = lower_yelu2_to_yelu1 file; optional }
+  | EAtVar key -> ECmakeAtVar key
 
   (* Yelu dir theory -> CMake dir surface. *)
   | EAddSubdirectory path -> ECmakeAddSubdirectory (lower_yelu2_to_yelu1 path)
