@@ -434,6 +434,30 @@ let tier0_var_y1 = ("t0-var-y1", [
   assert_parse_y1_equiv "y1: multi-value :="   "( FLAGS := \"-Wall\", \"-Wextra\" )";
 ])
 
+(* Phase 2a pair-wise oracle for the dir family. *)
+let tier0_dir_y1 = ("t0-dir-y1", [
+  assert_parse_y1_equiv "y1: add_subdirectory"        "( add_subdirectory \"MathFunctions\" )";
+  assert_parse_y1_equiv "y1: include_directories"     "( include_directories \"dir1\" \"dir2\" )";
+  assert_parse_y1_equiv "y1: add_compile_options"     "( add_compile_options \"-Wall\" \"-Wextra\" )";
+  assert_parse_y1_equiv "y1: add_link_options"        "( add_link_options \"-pie\" )";
+  assert_parse_y1_equiv "y1: add_definitions"         "( add_definitions \"-DFOO\" )";
+  assert_parse_y1_equiv "y1: link_directories"        "( link_directories \"/opt/lib\" )";
+])
+
+(* Phase 2a pair-wise oracle for the target family. *)
+let tier0_target_y1 = ("t0-target-y1", [
+  assert_parse_y1_equiv "y1: add_exe"      "( add_exe Target Foo )";
+  assert_parse_y1_equiv "y1: add_lib"      "( add_lib Target MathFunctions )";
+  assert_parse_y1_equiv "y1: link_lib"     "( link_lib Target Tutorial )";
+  assert_parse_y1_equiv "y1: link_lib scoped"
+    "( link_lib Target Tutorial PRIVATE \"m\" PUBLIC \"dep\" )";
+  assert_parse_y1_equiv "y1: include_dirs" "( include_dirs Target Tutorial )";
+  assert_parse_y1_equiv "y1: include_dirs scoped"
+    "( include_dirs Target Tutorial PRIVATE \"include\" INTERFACE \"iface\" )";
+  assert_parse_y1_equiv "y1: compile_defs" "( compile_defs Target Tutorial )";
+  assert_parse_y1_equiv "y1: compile_opts" "( compile_opts Target Tutorial )";
+])
+
 (* Phase 2a pair-wise oracle for the file family. *)
 let tier4_file_y1 = ("t4-file-y1", [
   assert_parse_y1_equiv "y1: read"              "( file_read \"f.txt\" ~out:OUT )";
@@ -506,7 +530,7 @@ let tier2_string_y1 = ("t2-string-y1", [
 let () =
   Alcotest.run "Yelu Parser" [
     tier0_control; tier0_cond; tier0_var; tier0_var_y1; tier0_cmake_op;
-    tier0_target; tier0_dir; tier0_file; tier0_scripting; tier0_full;
+    tier0_target; tier0_target_y1; tier0_dir; tier0_dir_y1; tier0_file; tier0_scripting; tier0_full;
     tier1_target; tier2_string; tier2_string_y1; tier3_list; tier3_list_y1;
     tier4_file; tier4_file_y1; tier5_path; tier5_path_y1;
     tier6_find_install; tier7_scripting; tier8_misc; tier_remaining; tier9_genex;

@@ -40,6 +40,10 @@ open Yelu_surface_cmake_string
 open Yelu_surface_cmake_list
 open Yelu_surface_cmake_path
 open Yelu_surface_cmake_file
+open Yelu_theory_target
+open Yelu_surface_cmake_target
+open Yelu_surface_cmake_dir
+open Yelu_surface_cmake_test
 
 (* ============================================================
    Combinator primitives — duplicated from Lang_yelu_parse.
@@ -69,6 +73,7 @@ let rparen = delim RPAREN
 
 let p_expr_y1 toks =
   match toks with
+  | TARGET :: IDENT name :: rest -> Some (ETarget name, rest)
   | STRING s :: rest -> Some (EString s, rest)
   | PATH s :: rest -> Some (EString s, rest)
   | EVAL s :: rest ->
@@ -587,6 +592,206 @@ let p_file_command_y1 toks =
           | None -> None))
     | _ -> None
 
+(* ============================================================
+   Target family — add_exe / add_lib / link_lib / include_dirs /
+   compile_defs / compile_opts / compile_feats / link_opts /
+   link_dirs / target_sources / aliases / imported / dependencies.
+
+   Items are grouped by visibility keyword (PUBLIC / PRIVATE /
+   INTERFACE) appearing in positional args; default group is "PLAIN".
+   Multi-group commands emit ESeq of multiple ECmakeTarget* calls
+   (one per visibility group) — matching the bridge's
+   [target_sources_items |> List.map |> ESeq] shape.
+   ============================================================ *)
+
+(* Detect a visibility-keyword expr; matches both bare-IDENT forms
+   (EVar "PUBLIC") and string-quoted forms (EString "PUBLIC"). *)
+let visibility_of_expr_y1 = function
+  | EVar "PUBLIC" | EString "PUBLIC" -> Some "PUBLIC"
+  | EVar "PRIVATE" | EString "PRIVATE" -> Some "PRIVATE"
+  | EVar "INTERFACE" | EString "INTERFACE" -> Some "INTERFACE"
+  | _ -> None
+
+(* Group a flat positional-arg list into [(visibility, items)] runs.
+   Default visibility is "PRIVATE" (matches the bridge's
+   [visibility_of_kind] mapping for `Plain` — see
+   yelu_cmake_to_yelu1.ml's `visibility_of_kind` helper). *)
+let group_by_visibility_y1 items : (string * expr list) list =
+  let rec loop current_kind current_items groups = function
+    | [] ->
+      List.rev ((current_kind, List.rev current_items) :: groups)
+    | item :: rest ->
+      match visibility_of_expr_y1 item with
+      | Some kind ->
+        let groups =
+          if List.is_empty current_items
+          then groups
+          else (current_kind, List.rev current_items) :: groups
+        in
+        loop kind [] groups rest
+      | None ->
+        loop current_kind (item :: current_items) groups rest
+  in
+  loop "PRIVATE" [] [] items
+
+(* Wrap multi-group target commands in ESeq when there's more than
+   one visibility group; single-group case returns the single ctor.
+   Empty-group input still produces a single PLAIN group with empty
+   items (matches the bridge's invariant). *)
+let target_groups_to_y1 (ctor : visibility:string -> expr list -> expr) items =
+  let groups = group_by_visibility_y1 items in
+  match List.map groups ~f:(fun (vis, its) -> ctor ~visibility:vis its) with
+  | [ s ] -> s
+  | ss -> ESeq ss
+
+let p_target_command_y1_inner name args _kwargs =
+  match name, args with
+  | "add_exe", name_arg :: sources ->
+    Some (ECmakeAddExecutable { name = name_arg; sources })
+  | "add_lib", name_arg :: sources ->
+    Some (ECmakeAddLibrary
+            { name = name_arg; type_ = None; sources })
+  | "link_lib", target :: items ->
+    Some (target_groups_to_y1
+            (fun ~visibility items ->
+              ECmakeTargetLinkLibraries { target; visibility; items })
+            items)
+  | "include_dirs", target :: items ->
+    Some (target_groups_to_y1
+            (fun ~visibility items ->
+              ECmakeTargetIncludeDirectories
+                { target; visibility; before = false; system = false;
+                  dirs = items })
+            items)
+  | "compile_defs", target :: items ->
+    Some (target_groups_to_y1
+            (fun ~visibility items ->
+              ECmakeTargetCompileDefinitions
+                { target; visibility; definitions = items })
+            items)
+  | "compile_opts", target :: items ->
+    Some (target_groups_to_y1
+            (fun ~visibility items ->
+              ECmakeTargetCompileOptions
+                { target; visibility; before = false; options_ = items })
+            items)
+  | "link_opts", target :: items ->
+    Some (target_groups_to_y1
+            (fun ~visibility items ->
+              ECmakeTargetLinkOptions
+                { target; visibility; before = false; options_ = items })
+            items)
+  | "link_dirs", target :: items ->
+    Some (target_groups_to_y1
+            (fun ~visibility items ->
+              ECmakeTargetLinkDirectories
+                { target; visibility; before = false; dirs = items })
+            items)
+  | "target_sources", target :: items ->
+    Some (target_groups_to_y1
+            (fun ~visibility items ->
+              ECmakeTargetSources { target; visibility; sources = items })
+            items)
+  | "compile_feats", [ target ] ->
+    (* Legacy parses with empty features list, which the bridge wraps in
+       a single Plain-visibility group. *)
+    Some (ECmakeTargetCompileFeatures
+            { target; visibility = "PRIVATE"; features = [] })
+  | _ -> None
+
+let p_target_command_y1 toks =
+  match lparen toks with
+  | None -> None
+  | Some ((), toks) ->
+    match toks with
+    | IDENT name :: rest
+      when (match name with
+            | "add_exe" | "add_lib" | "link_lib" | "include_dirs"
+            | "compile_defs" | "compile_opts" | "compile_feats"
+            | "link_opts" | "link_dirs" | "target_sources" -> true
+            | _ -> false) ->
+      let args, kwargs, rest = collect_command_args [] [] rest in
+      (match p_target_command_y1_inner name args kwargs with
+       | None -> None
+       | Some e ->
+         (match rparen rest with
+          | Some ((), rest) -> Some (e, rest)
+          | None -> None))
+    | _ -> None
+
+(* ============================================================
+   Dir family — add_subdirectory, include_directories,
+   add_compile_definitions, add_compile_options, add_link_options,
+   add_definitions, link_directories.
+   ============================================================ *)
+
+let p_dir_command_y1_inner name args _kwargs =
+  match name, args with
+  | "add_subdirectory", [ dir ] ->
+    Some (ECmakeAddSubdirectory dir)
+  | "include_directories", dirs ->
+    Some (ECmakeIncludeDirectories { dirs; before = false; system = false })
+  | "add_compile_definitions", defs ->
+    Some (ECmakeAddCompileDefinitions defs)
+  | "add_compile_options", opts ->
+    Some (ECmakeAddCompileOptions opts)
+  | "add_link_options", opts ->
+    Some (ECmakeAddLinkOptions opts)
+  | "add_definitions", defs ->
+    Some (ECmakeAddDefinitions defs)
+  | "link_directories", dirs ->
+    Some (ECmakeLinkDirectories { dirs; before = false })
+  | _ -> None
+
+let p_dir_command_y1 toks =
+  match lparen toks with
+  | None -> None
+  | Some ((), toks) ->
+    match toks with
+    | IDENT name :: rest
+      when (match name with
+            | "add_subdirectory" | "include_directories"
+            | "add_compile_definitions" | "add_compile_options"
+            | "add_link_options" | "add_definitions"
+            | "link_directories" -> true
+            | _ -> false) ->
+      let args, kwargs, rest = collect_command_args [] [] rest in
+      (match p_dir_command_y1_inner name args kwargs with
+       | None -> None
+       | Some e ->
+         (match rparen rest with
+          | Some ((), rest) -> Some (e, rest)
+          | None -> None))
+    | _ -> None
+
+(* ============================================================
+   Test family — enable_testing, add_test.
+   ============================================================ *)
+
+let p_test_command_y1_inner name args _kwargs =
+  match name, args with
+  | "enable_testing", [] -> Some ECmakeEnableTesting
+  | "add_test", name_arg :: command :: rest ->
+    Some (ECmakeAddTest { name = name_arg; command; args = rest })
+  | _ -> None
+
+let p_test_command_y1 toks =
+  match lparen toks with
+  | None -> None
+  | Some ((), toks) ->
+    match toks with
+    | IDENT name :: rest
+      when String.equal name "enable_testing"
+        || String.equal name "add_test" ->
+      let args, kwargs, rest = collect_command_args [] [] rest in
+      (match p_test_command_y1_inner name args kwargs with
+       | None -> None
+       | Some e ->
+         (match rparen rest with
+          | Some ((), rest) -> Some (e, rest)
+          | None -> None))
+    | _ -> None
+
 (* Outer block: `( <stmt> ... )`. Mirrors [Lang_yelu_parse.p_block]
    semicolon-separated semantics and the single-stmt collapse. As
    Phase 2a families are migrated, the block accepts any family-
@@ -597,6 +802,9 @@ let rec p_stmt_inner_y1 toks =
   match p_list_command_y1 toks with Some r -> Some r | None ->
   match p_path_command_y1 toks with Some r -> Some r | None ->
   match p_file_command_y1 toks with Some r -> Some r | None ->
+  match p_target_command_y1 toks with Some r -> Some r | None ->
+  match p_dir_command_y1 toks with Some r -> Some r | None ->
+  match p_test_command_y1 toks with Some r -> Some r | None ->
   match p_var_stmt_y1 toks with Some r -> Some r | None ->
   p_block_y1 toks
 
