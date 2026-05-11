@@ -2,9 +2,9 @@
 
 Status: tiny composition harness in progress. **Bar #2 (theory breadth lite)
 reached** — all 14 production theories have at least a first slice.
-**Bar #1 progress:** tutorial v1 step1 through step6 (root) bridge through
+**Bar #1 progress:** tutorial v1 step1 through step7 (root) bridge through
 tiny and configure through real cmake; step6_ctest bridges (no
-configure test — it's just `set()`s). Constructs covered include project +
+configure test — it's just `set()`s); step7_math bridges. Constructs covered include project +
 cxx_standard + configure_file + add_executable + add_subdirectory +
 target_link_libraries + target_include_directories + option +
 statement-if + compile definitions + target_compile_features +
@@ -472,7 +472,7 @@ strengthen eval as needed.
 | Tier | Target step(s) | New work |
 | --- | --- | --- |
 | **A** ✓ | step6, step6_ctest | `include(FILE_OR_MODULE)` — first slice: records name in `env.includes`, emits `include("FILE")` (with `OPTIONAL` suffix when set). Step6 root + step6_ctest now bridge; step6 root also configures through real cmake. |
-| **B** | step7, step7_math | Already covered by stub `yc_apply` to non-defined names (cmake built-in modules like `check_cxx_source_compiles`). May need eval-side fix when F2 lands. |
+| **B** ✓ | step7, step7_math | Two pieces: (a) bridge keeps `EVar` / `Yexpr_name` in `yc_function` / `yc_apply` name position so ELet substitution at emit can resolve let-bound function names (was `command_name` short-circuit; now `expr`); (b) surface `ECmakeApply` evaluates lenient — unknown functions return `VUnit` after evaluating args, since cmake routinely calls bodies loaded via `include(SomeModule)` that tiny does not simulate. Theory `EApply` stays strict. New `let_value` bridge rule maps `ycstr name` (= `Yexpr_name {ns=Ns_var; name}`) to `EString` in let-value position so `ylet "x" (ycstr "x")` and `ylet "x" (ycstr "literal")` don't create self-cycles or unintended derefs. step7 root + step7_math now bridge; step7 root configures through real cmake. |
 | **C** | step8_table | `add_custom_command(TARGET ...)` — pre/post-build hook variant. Distinct from the existing `OUTPUT` form. |
 | **D** | step9, step10 | `cpack_basic` extras + `shared_libs_output_dirs` — mostly `yc_set` to cache vars (already works) plus the Tier A `include()`. |
 | **E** | step11, step11_config | `yc_at_var "PACKAGE_INIT"` — emit-only literal injection. |

@@ -59,7 +59,13 @@ let eval_case ~eval env = function
   | ECmakeApply { name; args } ->
     let env, name = eval_string ~eval env name in
     (match find_function env name with
-     | None -> fail "apply to unknown function %S" name
+     | None ->
+       (* Lenient: cmake routinely invokes functions defined by
+          [include(SomeModule)] whose body the tiny eval does not
+          simulate. Evaluate the args for their side effects and
+          return [VUnit] so the surrounding sequence keeps going. *)
+       let env, _ = eval_args ~eval env args in
+       Some (env, VUnit)
      | Some { params; body } ->
        let env, arg_values = eval_args ~eval env args in
        let saved_vars = env.vars in

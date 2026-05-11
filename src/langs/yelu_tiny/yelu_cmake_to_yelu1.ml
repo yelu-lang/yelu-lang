@@ -48,9 +48,16 @@ let rec expr : Old.yelu_expr -> Yelu_tiny.expr = function
    documentation at call sites. *)
 let target_name = expr
 
-let command_name : Old.yelu_expr -> Yelu_tiny.expr = function
-  | Yexpr_var (Yvar name) -> EString name
-  | Yexpr_name { name; _ } -> EString name
+(* [Ylet] values come from idioms like [ylet "do_test" (ycstr "do_test")] —
+   the user means "bind the compile-time name [do_test] to the literal
+   cmake identifier [do_test]", not "bind to a deref of cmake var [do_test]".
+   [ycstr] produces [Yexpr_name { ns = Ns_var; name }], which the general
+   [expr] mapper sends to [EVar] (correct in argument position, where it
+   should deref). In let-value position we want a literal name [EString].
+   [ytval], [yfile], [ykeyword] etc. (other [Yexpr_name] namespaces) are
+   already string-valued via the general fallthrough. *)
+let let_value : Old.yelu_expr -> Yelu_tiny.expr = function
+  | Yexpr_name { ns = Ns_var; name } -> EString name
   | e -> expr e
 
 let one_input ~op = function
@@ -422,18 +429,23 @@ let rec stmt : Old.yelu_stmt -> Yelu_tiny.expr = function
   | Yc_include { file; optional } ->
     ECmakeInclude { file = expr file; optional }
   | Yc_function { name; args; body } ->
-    (* In production [Yc_function], [args] is the formal parameter list. *)
+    (* In production [Yc_function], [args] is the formal parameter list.
+       Using [expr] (rather than a name-collapsing helper) preserves
+       [EVar] references so the let-binding substitution at emit time
+       can resolve a let-bound function name. *)
     ECmakeFunction
-      { name = command_name name; params = args; body = stmts_to_expr body }
+      { name = expr name; params = args; body = stmts_to_expr body }
   | Yc_apply { name; args } ->
-    ECmakeApply { name = command_name name; args = List.map args ~f:expr }
+    (* Same rationale as Yc_function: keep [EVar] / [Yexpr_name] shape
+       so the apply target survives ELet substitution. *)
+    ECmakeApply { name = expr name; args = List.map args ~f:expr }
   (* Production [Ylet] is sequence-shaped (its scope is the rest of the
      enclosing list). Tiny's [ELet] is expression-shaped. The conversion
      happens in [stmts_to_expr] when handling [Ystmt_list]; a standalone
      [Ylet] outside a sequence has no observable scope, so we emit an empty
      [body] for completeness. *)
   | Ylet { var = Yvar name; value } ->
-    ELet { var = name; value = expr value; body = EUnit }
+    ELet { var = name; value = let_value value; body = EUnit }
   | Yif { cond; then_; else_ } ->
     Yelu_surface_cmake_if.ECmakeIfStmt
       {
@@ -450,8 +462,8 @@ let rec stmt : Old.yelu_stmt -> Yelu_tiny.expr = function
 and stmts_to_expr = function
   | [] -> EUnit
   | [Old.Ylet { var = Yvar name; value }] ->
-    ELet { var = name; value = expr value; body = EUnit }
+    ELet { var = name; value = let_value value; body = EUnit }
   | Old.Ylet { var = Yvar name; value } :: rest ->
-    ELet { var = name; value = expr value; body = stmts_to_expr rest }
+    ELet { var = name; value = let_value value; body = stmts_to_expr rest }
   | [s] -> stmt s
   | s :: rest -> ESeq [ stmt s; stmts_to_expr rest ]

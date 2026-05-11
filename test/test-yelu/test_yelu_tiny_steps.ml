@@ -477,6 +477,123 @@ let step6_ctest_bridge =
     )
     ] )
 
+(* step7 root is structurally identical to step6 root in our generators
+   (see [diff src/bin/yelu/v1/step6.ml step7.ml] — empty). The bridge test
+   exists to pin the contract: future divergence in the helpers should
+   surface here, not in step6_bridge. *)
+let step7_bridge =
+  let module Old = Yelu_langs.Lang_yelu_cmake in
+  let open Yelu_langs.Lang_yelu_utils in
+  let cmd : Old.yelu_stmt =
+    ycmd_of_list
+      (Step_common.project_preamble
+       @ [
+           ylet "tut" (ytval "Tutorial");
+           ylet "flags" (ytval "tutorial_compiler_flags");
+           ylet "do_test" (ycstr "do_test");
+         ]
+       @ Step_common.compiler_flags_lib
+       @ Step_common.compiler_warning_options
+       @ [
+           Step_common.configure_tutorial_header;
+           yc_add_subdirectory (ydir "MathFunctions");
+           add_exe ~sources:[ yfile "tutorial.cxx" ] (yvar "tut");
+           link_lib [ yvar "tut" ]
+             [ ytarget_def [ ytval "MathFunctions"; yvar "flags" ] ];
+           include_dirs (yvar "tut")
+             [ ytarget_def [ dir Yelu_langs.Lang_yelu_utils.output_root ] ];
+         ]
+       @ Step_common.install_tutorial
+       @ Step_common.test_suite ~ctest:true)
+  in
+  ( "step7_bridge",
+    [
+      Alcotest.test_case "v1 step7 root program bridges to Yelu1 and emits cmake"
+        `Quick
+        (fun () ->
+          let yelu1 = Yelu_langs.Yelu_cmake_to_yelu1.stmt cmd in
+          let cmake_text =
+            Yelu_langs.Yelu_tiny_cmake_emit.emit_script yelu1
+          in
+          Alcotest.(check bool) "step7 uses include(CTest)" true
+            (String.is_substring cmake_text ~substring:"include(\"CTest\")");
+          Alcotest.(check bool) "step7 still installs Tutorial" true
+            (String.is_substring cmake_text ~substring:"install(TARGETS Tutorial"))
+    ] )
+
+(* step7_math exercises the new include() + apply pieces that step6_math
+   does not: math_check_cxx_features inserts [include(CheckCXXSourceCompiles)]
+   followed by [check_cxx_source_compiles(...)] calls. The apply name comes
+   in as [yvar "check_cxx"], let-bound to "check_cxx_source_compiles" — so
+   this also pins the bridge's expr-preserving treatment of apply names
+   (no command_name short-circuit) and the lenient surface ECmakeApply
+   semantics (the function body lives in the included module, not in env). *)
+let step7_math_bridge =
+  let module Old = Yelu_langs.Lang_yelu_cmake in
+  let open Yelu_langs.Lang_yelu_utils in
+  let cmd : Old.yelu_stmt =
+    ycmd_of_list
+      ([
+         ylet "flags" (ytval "tutorial_compiler_flags");
+         ylet "math" (ytval "MathFunctions");
+         ylet "sqrt" (ytval "SqrtLibrary");
+         ylet "check_cxx" (ycstr "check_cxx_source_compiles");
+         ylet "inst_libs" (ycstr "installable_libs");
+         ylet "have_log" (ycstr "HAVE_LOG");
+         ylet "have_exp" (ycstr "HAVE_EXP");
+         ylet "use_mymath" (ycstr "USE_MYMATH");
+         yc_extern_target "tutorial_compiler_flags";
+         add_lib ~sources:[ yfile "MathFunctions.cxx" ] (yvar "math");
+         include_dirs (yvar "math")
+           [ ytarget_def ~kind:Interface [ ydir "${CMAKE_CURRENT_SOURCE_DIR}" ] ];
+         yc_option ~value:(ybool true)
+           ~msg:"Use tutorial provided math implementation" (ycvar "USE_MYMATH");
+         yifthen (ytruthy (yvar "use_mymath"))
+           (ycmd_of_list
+              ([
+                 compile_defs (yvar "math")
+                   [ ytarget_def ~kind:Private [ ykeyword "USE_MYMATH" ] ];
+                 add_lib ~type_:Lib_static ~sources:[ yfile "mysqrt.cxx" ]
+                   (yvar "sqrt");
+                 link_lib [ yvar "sqrt" ]
+                   [ ytarget_def ~kind:Public [ yvar "flags" ] ];
+               ]
+              @ Step_common.math_check_cxx_features
+              @ [
+                  link_lib [ yvar "math" ]
+                    [ ytarget_def ~kind:Private [ yvar "sqrt" ] ];
+                ]));
+         link_lib [ yvar "math" ]
+           [ ytarget_def ~kind:Public [ yvar "flags" ] ];
+       ]
+      @ Step_common.math_install_libs ())
+  in
+  ( "step7_math_bridge",
+    [
+      Alcotest.test_case "v1 step7 MathFunctions bridges, including check_cxx apply"
+        `Quick
+        (fun () ->
+          let yelu1 = Yelu_langs.Yelu_cmake_to_yelu1.stmt cmd in
+          let cmake_text =
+            Yelu_langs.Yelu_tiny_cmake_emit.emit_script yelu1
+          in
+          Alcotest.(check bool) "include(CheckCXXSourceCompiles) emitted" true
+            (String.is_substring cmake_text
+               ~substring:"include(\"CheckCXXSourceCompiles\")");
+          (* The let binding check_cxx = "check_cxx_source_compiles" must
+             substitute through emit so the apply name is the cmake module
+             function, not the let-var name. *)
+          Alcotest.(check bool) "apply lowered to check_cxx_source_compiles(..)"
+            true
+            (String.is_substring cmake_text
+               ~substring:"check_cxx_source_compiles(");
+          Alcotest.(check bool) "no stray check_cxx( as a bare command" false
+            (String.is_substring cmake_text ~substring:"check_cxx(");
+          Alcotest.(check bool) "still emits the math target setup" true
+            (String.is_substring cmake_text
+               ~substring:"add_library(MathFunctions"))
+    ] )
+
 let () =
   Alcotest.run "yelu_tiny_steps"
     [
@@ -490,4 +607,6 @@ let () =
       step5_math_bridge;
       step6_bridge;
       step6_ctest_bridge;
+      step7_bridge;
+      step7_math_bridge;
     ]

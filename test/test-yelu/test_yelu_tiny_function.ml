@@ -241,12 +241,41 @@ let args_evaluated_left_to_right =
         "args bound to params in positional order"
         [ [ "first"; "second"; "third" ] ] (message_texts env))
 
-(* --- Unknown function fails. --- *)
+(* --- Unknown function: surface is lenient, theory is strict. ---
 
-let unknown_function_fails =
-  expect_eval_error "applying an unknown function fails with a useful message"
-    (ECmakeApply { name = EString "nope"; args = [] })
-    ~substring:"unknown function"
+   Surface [ECmakeApply] is lenient because production cmake routinely
+   calls functions loaded via [include(SomeModule)] — bodies whose
+   tiny eval does not simulate. A lenient apply lets the surrounding
+   sequence keep running and lets emit still produce a faithful
+   function-call line. Theory [EApply] stays strict so we can pin
+   down the pure operational semantics in tests. *)
+
+let unknown_surface_apply_is_lenient =
+  Alcotest.test_case "ECmakeApply on unknown function is a no-op" `Quick
+    (fun () ->
+      let prog =
+        ESeq
+          [ ECmakeApply { name = EString "nope"; args = [ EString "ignored" ] };
+            probe_message [ EString "after_apply" ];
+          ]
+      in
+      let env, value = eval_from_empty prog in
+      Alcotest.(check bool) "final result is VUnit" true
+        (equal_value value VUnit);
+      Alcotest.(check (list (list string)))
+        "subsequent probe still runs"
+        [ [ "after_apply" ] ] (message_texts env))
+
+let unknown_theory_apply_fails =
+  Alcotest.test_case "EApply on unknown function (theory) fails" `Quick
+    (fun () ->
+      match eval_yelu2_expr empty_env (EApply { name = EString "nope"; args = [] }) with
+      | exception Eval_error msg ->
+        Alcotest.(check bool)
+          "Eval_error mentions unknown function" true
+          (String.is_substring msg ~substring:"unknown function")
+      | _ ->
+        Alcotest.failf "expected Eval_error; theory EApply was lenient")
 
 (* --- Arity mismatch fails. --- *)
 
@@ -360,7 +389,8 @@ let () =
           redefining_function_overwrites;
         ] );
       ( "errors",
-        [ unknown_function_fails;
+        [ unknown_surface_apply_is_lenient;
+          unknown_theory_apply_fails;
           arity_mismatch_fails;
         ] );
       ( "translate_and_theory_side",
