@@ -25,6 +25,8 @@ Three breadth milestones, in order of attempt:
 | ID  | Title                            | Notes                                                                                                                                                                                           |
 | --- | -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | R3  | Genex theory                     | 0 / 16 production constructors mirrored (`lang_yelu_genex.ml:8-31`). First slice: `raw`, `config`, `not`, `and`, `if`, `bool`, `build_interface`, `install_interface`, `compile_language`, `target_property`, `target_file`, `target_file_dir`. |
+| —   | `Yexpr_is_absolute` stub         | `yelu_cmake_to_yelu1.ml:59` degrades to `EBool false`. Small fix; no production test exercises it as a meaningful predicate. Bundle with R3 as pre-retirement warm-up.                          |
+| —   | `list(GET)` multi-index          | Bridge fails on >1 index (`yelu_cmake_to_yelu1.ml:223`). Cmake supports multiple indices. Small. Bundle with R3 as pre-retirement warm-up.                                                      |
 | R7  | (postponed) typecheck + wellform | Re-framed as **Y17** (see below). Carrying the production checker over straight is no longer the plan; tiny's theories deserve a fresh typing pass once yelu1↔cmake and yelu2↔yelu1 are stable. |
 | —   | Macro elimination                | Deferred. Gated on R5 data + Bar #3 (real-world rewrites). Memo: `.claude/memory/project_macro_elimination.md`.                                                                                 |
 | —   | Bar #3 — real-world cmake        | Rewrite z3 / llvm / torch builds in yelu; prove structural equivalence. Not started.                                                                                                            |
@@ -63,6 +65,29 @@ old `src/langs/yelu/` (sans parser / lexer / post-bridge stages) becomes
 `src/langs/yelu_legacy/`. Legacy deletion is a separate later decision
 gated on Y17 — keep `yelu_legacy` around as a comparison baseline until
 the typing model is settled.
+
+## Post-retirement cleanup
+
+Deferred until after the production switch, in order of value:
+
+1. **Split `cmake_op`** into smaller surfaces (project/message, control
+   flow, function/macro, process, policy/include). 390-line surface +
+   103-line theory is the largest single fragment and the broadest
+   compatibility bucket.
+2. **Generated fragment coverage table** — auto-generate a matrix
+   (semantics eval, lift, lower, emit, bridge, unit test, cmake-backed
+   test) per fragment so coverage gaps stay visible as constructors are
+   added.
+3. **Move emit / translate arms closer to each fragment.** Currently
+   `yelu_tiny_translate.ml` (1.7 k lines) and `yelu_tiny_cmake_emit.ml`
+   (964 lines) are central registries — they work, but entropy returns
+   here as constructors land. Per-fragment translate / emit modules
+   reverse the trend. Cosmetic, not load-bearing; defer until after
+   the bigger Y17 typing decisions.
+4. **Y17 — fresh typing pass on tiny** (see below).
+5. **Promote compat surfaces to real theories** where they're worth it
+   (genex first, then find / try / cmake_op subsets). This pairs with
+   Y17 — typing decisions inform which surfaces deserve the lift.
 
 ## Deferred
 

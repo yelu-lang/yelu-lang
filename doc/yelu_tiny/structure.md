@@ -95,26 +95,32 @@ effects). `translate.ml` maps between them. A few asymmetries by design:
 
 ### Theory list
 
-| Theory     | Surface lines | Theory lines | Notes                                                                                                     |
-| ---------- | ------------: | -----------: | --------------------------------------------------------------------------------------------------------- |
-| `store`    |            81 |           11 | var set / unset / cache / PARENT_SCOPE / env / option                                                     |
-| `string`   |           224 |           61 | concat, replace, regex, length, version compare, json, IN_LIST cond, MATCHES cond, POLICY cond            |
-| `list`     |           105 |           31 | append, get, length, join, sort, filter, transform                                                        |
-| `path`     |           130 |           44 | set, normalize, get-filename, native/cmake conversion                                                     |
-| `file`     |           131 |           41 | write, read, exists, glob, copy, configure_file                                                           |
-| `target`   |           181 |          275 | add_executable, add_library, target_* visibility-aware                                                    |
-| `install`  |           105 |          102 | install(TARGETS / FILES / EXPORT) + package-config writer                                                 |
-| `property` |            80 |           47 | set_target_properties, get_target_property, set_property scopes                                           |
-| `find`     |            37 |           13 | find_package / library / path / program / file                                                            |
-| `try`      |            60 |           20 | try_compile + try_run                                                                                     |
-| `cmake_op` |           390 |          103 | project, minimum_required, message, math, execute_process, block, return, while, foreach, function, macro |
-| `dir`      |            31 |           15 | add_subdirectory + dir-level include/compile/link commands                                                |
-| `test`     |            19 |           19 | enable_testing, add_test                                                                                  |
-| `if`       |            31 |           23 | cmake statement-if vs tiny expression-if                                                                  |
-| `bool`     |             — |           37 | shared: and / or / not                                                                                    |
-| `int`      |             — |           45 | shared: add / less / equal                                                                                |
+`Kind` distinguishes a real theory (value-oriented, eval is meaningful) from
+a cmake compatibility surface (emit-faithful, eval delegates to real cmake).
+`Mixed` = real for the common ops, compat for the long tail. See
+`design.md`'s "Fragment kinds" section.
 
-Shared theories (no surface module) are used directly by both evaluators.
+| Theory     | Kind   | Surface lines | Theory lines | Notes                                                                                                     |
+| ---------- | ------ | ------------: | -----------: | --------------------------------------------------------------------------------------------------------- |
+| `bool`     | real   |             — |           37 | shared: and / or / not                                                                                    |
+| `int`      | real   |             — |           45 | shared: add / less / equal                                                                                |
+| `if`       | real   |            31 |           23 | cmake statement-if vs tiny expression-if                                                                  |
+| `store`    | real   |            81 |           11 | var set / unset / PARENT_SCOPE / option; cache / env deferred                                             |
+| `target`   | real   |           181 |          275 | add_executable, add_library, target_* visibility-aware                                                    |
+| `install`  | real   |           105 |          102 | install(TARGETS / FILES / EXPORT) + package-config writer                                                 |
+| `test`     | real   |            19 |           19 | enable_testing, add_test                                                                                  |
+| `dir`      | real   |            31 |           15 | add_subdirectory + dir-level include/compile/link commands; scope isolation deferred                      |
+| `string`   | mixed  |           224 |           61 | core (concat/replace/length/equal): real; regex / timestamp / uuid / json: emit-faithful stubs            |
+| `list`     | mixed  |           105 |           31 | core (append/get/length/join/sort): real; advanced transforms: emit-faithful                              |
+| `path`     | mixed  |           130 |           44 | core (set / normalize / get-filename): real; native/cmake conversion + many subcommands: emit-faithful    |
+| `file`     | mixed  |           131 |           41 | in-memory fs for write / read / exists: real; glob / copy / many fs ops: emit-faithful                    |
+| `property` | mixed  |            80 |           47 | target-property: real; global / source / test / directory scopes: emit-faithful                           |
+| `cmake_op` | compat |           390 |          103 | project / message / math / include / function / macro / block / while / foreach / execute_process — broad surface bucket |
+| `find`     | compat |            37 |           13 | find_package / library / path / program / file — eval is placeholder; real semantics depend on host       |
+| `try`      | compat |            60 |           20 | try_compile + try_run — eval stubs result; real probe runs only when emitted cmake script runs            |
+
+Shared theories (`bool`, `int` — no surface module) are used directly by
+both evaluators.
 
 ### Fragment shape
 

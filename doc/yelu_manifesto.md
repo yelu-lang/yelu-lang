@@ -272,6 +272,13 @@ the language substrate is assembled from proven theories rather than inherited
 from legacy. The human-written stack is a bootstrap legacy; the question is
 what replaces it, and how.
 
+One concrete ecosystem-scale follow-up is **yelu_c**: take C as the next
+specimen after cmake, then rebuild a compact but real project such as
+`llama.c` in yelu. This would test whether the same low-entropy theory
+decomposition can cover not just configuration, but a practical systems
+program with memory layout, portability, compiler flags, profiling feedback,
+and library packaging pressure.
+
 ## What this is not
 
 - **Not a cmake replacement.** yelu targets cmake as output; it doesn't

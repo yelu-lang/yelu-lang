@@ -64,6 +64,36 @@ The initial target is configure-time computation and configure-time effects.
 Build-relevant declarations come later because they interact with delayed
 generator expressions and generated build rules.
 
+### Fragment kinds: real theory vs compatibility surface
+
+Not every `yelu_theory_*` module carries the same kind of semantic weight.
+After landing all 14 production theories as tiny slices, two kinds of
+fragment emerged — and the distinction matters for reading the theory
+list and for planning post-retirement cleanup.
+
+- **Real theory.** Value-oriented and executable inside tiny semantics.
+  Eval produces meaningful results that can be tested without consulting
+  cmake. Examples: `bool`, `int`, core parts of `string`, core parts of
+  `list`, `if`, the build-graph parts of `target`, the frame parts of
+  `store`.
+- **CMake compatibility surface.** Emit-faithful shape whose semantics
+  are mostly delegated to real cmake. Eval is often a stub that binds an
+  output variable to a plausible value (empty string, `false`, an
+  unmodified input) and trusts cmake to handle the real work. Examples:
+  much of `cmake_op`, advanced `file`, `find`, `try`, advanced `string`
+  (regex / timestamp / uuid / json), advanced `path`, non-target
+  property scopes.
+
+Both are legitimate — the surfaces buy bridge faithfulness and emit
+coverage cheaply, and the real theories are where invariants and proofs
+will eventually live. The risk is rhetorical: do not present every
+`yelu_theory_*` file as equally pure or principled. `structure.md`'s
+theory list carries a `Kind` column to keep this distinction visible.
+
+Post-retirement (Y17 territory): decide which compatibility surfaces are
+worth promoting to real theories — at minimum genex, plausibly find /
+try / `cmake_op` subsets.
+
 ## Goal
 
 Build a minimal experiment that proves this composition pattern:
