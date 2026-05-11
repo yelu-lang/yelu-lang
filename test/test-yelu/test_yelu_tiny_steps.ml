@@ -1379,6 +1379,409 @@ let step12_multi_bridge =
                ~substring:"set(CPACK_INSTALL_CMAKE_PROJECTS"))
     ] )
 
+(* R1b — v2 root step files. v2 is a different shape from v1: most
+   commands are spelled as [yc_apply (yname "...") [...]] rather than
+   typed [yc_*] helpers, so the lenient-apply path (Tier B) carries
+   most of it. The v2 files that DO need new typed constructors (alias,
+   dependencies, target_sources_fs, precompile_headers) get bridged in
+   demand-order; see comments per test. *)
+
+let v2_root_bridge =
+  let module Old = Yelu_langs.Lang_yelu_cmake in
+  let open Yelu_langs.Lang_yelu_utils in
+  let cmd : Old.yelu_stmt =
+    ycmd_of_list [
+      yc_project ~version:{ major = 1; minor = 0; patch = "0" } "Tutorial";
+      yc_option ~value:(ybool true)
+        ~msg:"Build the Tutorial executable" (ycvar "TUTORIAL_BUILD_UTILITIES");
+      yc_option ~value:(ybool false)
+        ~msg:"Use std::sqrt" (ycvar "TUTORIAL_USE_STD_SQRT");
+      yc_option ~value:(ybool true)
+        ~msg:"Check for and use IPO support" (ycvar "TUTORIAL_ENABLE_IPO");
+      yc_option ~value:(ybool true)
+        ~msg:"Enable testing and build tests" (ycvar "BUILD_TESTING");
+      yifthen (ytruthy (ycstr "TUTORIAL_ENABLE_IPO"))
+        (ycmd_of_list [
+          yc_include (yname "CheckIPOSupported");
+          yc_apply (yname "check_ipo_supported")
+            [ ystr_eval "RESULT"; ystr_eval "result";
+              ystr_eval "OUTPUT"; ystr_eval "output" ];
+          yif (ytruthy (ycstr "result"))
+            (ycmd_of_list [
+              yc_message ~mode:Mm_none [ "IPO is supported, enabling IPO" ];
+              yc_set (ycvar "CMAKE_INTERPROCEDURAL_OPTIMIZATION") [ ybool true ];
+            ])
+            (yc_message ~mode:Mm_warning [ "IPO is not supported: ${output}" ]);
+        ]);
+      yifthen (ytruthy (ycstr "TUTORIAL_BUILD_UTILITIES"))
+        (yc_add_subdirectory (ydir "Tutorial"));
+      yifthen (ytruthy (ycstr "BUILD_TESTING"))
+        (ycmd_of_list [
+          yc_enable_testing;
+          yc_add_subdirectory (ydir "Tests");
+        ]);
+      yc_add_subdirectory (ydir "MathFunctions");
+      yc_include (yname "GNUInstallDirs");
+      yc_apply (yname "install")
+        [ ykeyword "TARGETS"; ytval "MathFunctions"; ytval "OpAdd"; ytval "OpMul";
+          ytval "OpSub"; ytval "MathLogger"; ytval "SqrtTable";
+          ykeyword "EXPORT"; yname "TutorialTargets";
+          ykeyword "FILE_SET"; ykeyword "HEADERS" ];
+      yc_install_export ~namespace:"Tutorial::"
+        (yname "TutorialTargets")
+        (ystr_eval "${CMAKE_INSTALL_LIBDIR}/cmake/Tutorial");
+      yc_include (yname "CMakePackageConfigHelpers");
+      yc_write_basic_package_version_file
+        ~compatibility:Yelu_langs.Lang_cmake.Exact_version
+        (ystr_eval "${CMAKE_CURRENT_BINARY_DIR}/TutorialConfigVersion.cmake");
+      yc_install_files
+        [ yfile "cmake/TutorialConfig.cmake";
+          ystr_eval "${CMAKE_CURRENT_BINARY_DIR}/TutorialConfigVersion.cmake" ]
+        (ystr_eval "${CMAKE_INSTALL_LIBDIR}/cmake/Tutorial");
+    ]
+  in
+  ( "v2_root_bridge",
+    [
+      Alcotest.test_case "v2 root program bridges to Yelu1"
+        `Quick
+        (fun () ->
+          let yelu1 = Yelu_langs.Yelu_cmake_to_yelu1.stmt cmd in
+          let cmake_text =
+            Yelu_langs.Yelu_tiny_cmake_emit.emit_script yelu1
+          in
+          Alcotest.(check bool) "emits project(Tutorial" true
+            (String.is_substring cmake_text ~substring:"project(Tutorial");
+          Alcotest.(check bool) "emits include(CheckIPOSupported)" true
+            (String.is_substring cmake_text
+               ~substring:"include(\"CheckIPOSupported\")");
+          Alcotest.(check bool) "emits the install(TARGETS ...) apply" true
+            (String.is_substring cmake_text ~substring:"install(\"TARGETS\"");
+          Alcotest.(check bool) "emits install(EXPORT TutorialTargets ...)" true
+            (String.is_substring cmake_text
+               ~substring:"install(EXPORT \"TutorialTargets\""))
+    ] )
+
+(* v2_mathlogger / v2_opadd / v2_opmul / v2_opsub / v2_mathext / v2_tests —
+   these are tiny per-target files. Bundled into one bridge test that
+   walks each program through the bridge and asserts it produces
+   non-empty cmake. *)
+
+let v2_mathlogger_bridge =
+  let module Old = Yelu_langs.Lang_yelu_cmake in
+  let open Yelu_langs.Lang_yelu_utils in
+  let cmd : Old.yelu_stmt =
+    ycmd_of_list [
+      add_lib (ytval "MathLogger");
+      yc_target_sources_fs (ytval "MathLogger") [
+        ytsi_plain Private [ yfile "MathLogger.cxx" ];
+        ytsi_file_set_headers ~files:[ yfile "MathLogger.h" ] Public;
+      ];
+      compile_feats (ytval "MathLogger")
+        [ { kind = Private; feature = "cxx_std_20" } ];
+    ]
+  in
+  ( "v2_mathlogger_bridge",
+    [
+      Alcotest.test_case "v2 MathLogger bridges (target_sources_fs)"
+        `Quick
+        (fun () ->
+          let yelu1 = Yelu_langs.Yelu_cmake_to_yelu1.stmt cmd in
+          let cmake_text =
+            Yelu_langs.Yelu_tiny_cmake_emit.emit_script yelu1
+          in
+          Alcotest.(check bool) "emits add_library(MathLogger" true
+            (String.is_substring cmake_text
+               ~substring:"add_library(MathLogger");
+          Alcotest.(check bool) "emits FILE_SET HEADERS clause" true
+            (String.is_substring cmake_text ~substring:"FILE_SET HEADERS"))
+    ] )
+
+(* v2_mathext: just 3 add_subdirectory calls. *)
+let v2_mathext_bridge =
+  let module Old = Yelu_langs.Lang_yelu_cmake in
+  let open Yelu_langs.Lang_yelu_utils in
+  let cmd : Old.yelu_stmt =
+    ycmd_of_list [
+      yc_add_subdirectory (ydir "OpAdd");
+      yc_add_subdirectory (ydir "OpMul");
+      yc_add_subdirectory (ydir "OpSub");
+    ]
+  in
+  ( "v2_mathext_bridge",
+    [
+      Alcotest.test_case "v2 MathExtensions bridges (three add_subdirectory)"
+        `Quick
+        (fun () ->
+          let yelu1 = Yelu_langs.Yelu_cmake_to_yelu1.stmt cmd in
+          let cmake_text =
+            Yelu_langs.Yelu_tiny_cmake_emit.emit_script yelu1
+          in
+          Alcotest.(check bool) "emits add_subdirectory(OpAdd" true
+            (String.is_substring cmake_text
+               ~substring:"add_subdirectory(\"OpAdd\""))
+    ] )
+
+(* v2_opadd / v2_opmul / v2_opsub are structurally identical. One test
+   for OpAdd; the others would only diverge if the file generators do. *)
+let v2_opadd_bridge =
+  let module Old = Yelu_langs.Lang_yelu_cmake in
+  let open Yelu_langs.Lang_yelu_utils in
+  let cmd : Old.yelu_stmt =
+    ycmd_of_list [
+      add_lib ~type_:Yelu_langs.Lang_cmake.Lib_object (ytval "OpAdd");
+      yc_target_sources_fs (ytval "OpAdd") [
+        ytsi_plain Private [ yfile "OpAdd.cxx" ];
+        ytsi_file_set_headers ~files:[ yfile "OpAdd.h" ] Interface;
+      ];
+    ]
+  in
+  ( "v2_opadd_bridge",
+    [
+      Alcotest.test_case "v2 OpAdd bridges (OBJECT lib + FILE_SET HEADERS)"
+        `Quick
+        (fun () ->
+          let yelu1 = Yelu_langs.Yelu_cmake_to_yelu1.stmt cmd in
+          let cmake_text =
+            Yelu_langs.Yelu_tiny_cmake_emit.emit_script yelu1
+          in
+          Alcotest.(check bool) "emits OBJECT library" true
+            (String.is_substring cmake_text
+               ~substring:"add_library(OpAdd OBJECT"))
+    ] )
+
+let v2_opmul_bridge =
+  let module Old = Yelu_langs.Lang_yelu_cmake in
+  let open Yelu_langs.Lang_yelu_utils in
+  let cmd : Old.yelu_stmt =
+    ycmd_of_list [
+      add_lib ~type_:Yelu_langs.Lang_cmake.Lib_object (ytval "OpMul");
+      yc_target_sources_fs (ytval "OpMul") [
+        ytsi_plain Private [ yfile "OpMul.cxx" ];
+        ytsi_file_set_headers ~files:[ yfile "OpMul.h" ] Interface;
+      ];
+    ]
+  in
+  ( "v2_opmul_bridge",
+    [ Alcotest.test_case "v2 OpMul bridges" `Quick
+        (fun () ->
+          let yelu1 = Yelu_langs.Yelu_cmake_to_yelu1.stmt cmd in
+          let _ = Yelu_langs.Yelu_tiny_cmake_emit.emit_script yelu1 in
+          ()) ] )
+
+let v2_opsub_bridge =
+  let module Old = Yelu_langs.Lang_yelu_cmake in
+  let open Yelu_langs.Lang_yelu_utils in
+  let cmd : Old.yelu_stmt =
+    ycmd_of_list [
+      add_lib ~type_:Yelu_langs.Lang_cmake.Lib_object (ytval "OpSub");
+      yc_target_sources_fs (ytval "OpSub") [
+        ytsi_plain Private [ yfile "OpSub.cxx" ];
+        ytsi_file_set_headers ~files:[ yfile "OpSub.h" ] Interface;
+      ];
+    ]
+  in
+  ( "v2_opsub_bridge",
+    [ Alcotest.test_case "v2 OpSub bridges" `Quick
+        (fun () ->
+          let yelu1 = Yelu_langs.Yelu_cmake_to_yelu1.stmt cmd in
+          let _ = Yelu_langs.Yelu_tiny_cmake_emit.emit_script yelu1 in
+          ()) ] )
+
+(* v2_maketable: add_custom_command(OUTPUT ...) + add_custom_target +
+   add_dependencies + FILE_SET HEADERS with BASE_DIRS. *)
+let v2_maketable_bridge =
+  let module Old = Yelu_langs.Lang_yelu_cmake in
+  let open Yelu_langs.Lang_yelu_utils in
+  let cmd : Old.yelu_stmt =
+    ycmd_of_list [
+      add_exe (ytval "MakeTable");
+      yc_target_sources_fs (ytval "MakeTable") [
+        ytsi_plain Private [ yfile "MakeTable.cxx" ];
+      ];
+      yc_add_custom_command
+        ~outputs:[ yfile "SqrtTable.h" ]
+        ~depends:[ ytval "MakeTable" ]
+        ~verbatim:true
+        [ { command = "MakeTable"; args = [ "SqrtTable.h" ] } ];
+      yc_add_custom_target ~depends:[ yfile "SqrtTable.h" ] "RunMakeTable";
+      add_lib ~type_:Yelu_langs.Lang_cmake.Lib_interface (ytval "SqrtTable");
+      yc_target_sources_fs (ytval "SqrtTable") [
+        ytsi_file_set_headers
+          ~base_dirs:[ ystr_eval "${CMAKE_CURRENT_BINARY_DIR}" ]
+          ~files:[ ystr_eval "${CMAKE_CURRENT_BINARY_DIR}/SqrtTable.h" ]
+          Interface;
+      ];
+      yc_add_dependencies "SqrtTable" "RunMakeTable";
+    ]
+  in
+  ( "v2_maketable_bridge",
+    [
+      Alcotest.test_case "v2 MakeTable bridges (custom_command + add_dependencies)"
+        `Quick
+        (fun () ->
+          let yelu1 = Yelu_langs.Yelu_cmake_to_yelu1.stmt cmd in
+          let cmake_text =
+            Yelu_langs.Yelu_tiny_cmake_emit.emit_script yelu1
+          in
+          Alcotest.(check bool) "emits add_custom_target(RunMakeTable" true
+            (String.is_substring cmake_text
+               ~substring:"add_custom_target(RunMakeTable");
+          Alcotest.(check bool) "emits add_dependencies(SqrtTable RunMakeTable)" true
+            (String.is_substring cmake_text
+               ~substring:"add_dependencies(SqrtTable RunMakeTable)");
+          Alcotest.(check bool) "FILE_SET HEADERS with BASE_DIRS" true
+            (String.is_substring cmake_text ~substring:"BASE_DIRS"))
+    ] )
+
+(* v2_mathfuncs: alias library + many target_sources_fs + check_include_files. *)
+let v2_mathfuncs_bridge =
+  let module Old = Yelu_langs.Lang_yelu_cmake in
+  let open Yelu_langs.Lang_yelu_utils in
+  let cmd : Old.yelu_stmt =
+    ycmd_of_list [
+      add_lib (ytval "MathFunctions");
+      add_lib_alias ~alias_of:"MathFunctions" "Tutorial::MathFunctions";
+      yc_target_sources_fs (ytval "MathFunctions") [
+        ytsi_plain Private [ yfile "MathFunctions.cxx" ];
+        ytsi_file_set_headers ~files:[ yfile "MathFunctions.h" ] Public;
+      ];
+      link_lib [ ytval "MathFunctions" ] [
+        ytarget_def ~kind:Private [ ytval "MathLogger"; ytval "SqrtTable" ];
+        ytarget_def ~kind:Public [ ytval "OpAdd"; ytval "OpMul"; ytval "OpSub" ];
+      ];
+      compile_feats (ytval "MathFunctions")
+        [ { kind = Private; feature = "cxx_std_20" } ];
+      yifthen (ytruthy (ycstr "TUTORIAL_USE_STD_SQRT"))
+        (compile_defs (ytval "MathFunctions")
+           [ ytarget_def ~kind:Private [ ykeyword "TUTORIAL_USE_STD_SQRT" ] ]);
+      yc_include (yname "CheckIncludeFiles");
+      yc_apply (yname "check_include_files")
+        [ yfile "emmintrin.h"; ycstr "HAS_EMMINTRIN";
+          ykeyword "LANGUAGE"; ykeyword "CXX" ];
+      yc_add_subdirectory (ydir "MathLogger");
+      yc_add_subdirectory (ydir "MathExtensions");
+      yc_add_subdirectory (ydir "MakeTable");
+    ]
+  in
+  ( "v2_mathfuncs_bridge",
+    [
+      Alcotest.test_case "v2 MathFunctions bridges (alias + many target ops)"
+        `Quick
+        (fun () ->
+          let yelu1 = Yelu_langs.Yelu_cmake_to_yelu1.stmt cmd in
+          let cmake_text =
+            Yelu_langs.Yelu_tiny_cmake_emit.emit_script yelu1
+          in
+          Alcotest.(check bool) "emits ALIAS library" true
+            (String.is_substring cmake_text
+               ~substring:"add_library(Tutorial::MathFunctions ALIAS MathFunctions)"))
+    ] )
+
+(* v2_simpletest: install + write_basic_package_version_file ~arch_independent. *)
+let v2_simpletest_bridge =
+  let module Old = Yelu_langs.Lang_yelu_cmake in
+  let open Yelu_langs.Lang_yelu_utils in
+  let cmd : Old.yelu_stmt =
+    ycmd_of_list [
+      yc_project ~version:{ major = 0; minor = 0; patch = "1" } "SimpleTest";
+      add_lib ~type_:Yelu_langs.Lang_cmake.Lib_interface (ytval "SimpleTest");
+      yc_target_sources_fs (ytval "SimpleTest") [
+        ytsi_file_set_headers ~files:[ yfile "SimpleTest.h" ] Interface;
+      ];
+      compile_feats (ytval "SimpleTest")
+        [ { kind = Interface; feature = "cxx_std_20" } ];
+      yc_write_basic_package_version_file
+        ~compatibility:Yelu_langs.Lang_cmake.Exact_version
+        ~arch_independent:true
+        (ystr_eval "${CMAKE_CURRENT_BINARY_DIR}/SimpleTestConfigVersion.cmake");
+    ]
+  in
+  ( "v2_simpletest_bridge",
+    [
+      Alcotest.test_case "v2 SimpleTest bridges (ARCH_INDEPENDENT)"
+        `Quick
+        (fun () ->
+          let yelu1 = Yelu_langs.Yelu_cmake_to_yelu1.stmt cmd in
+          let cmake_text =
+            Yelu_langs.Yelu_tiny_cmake_emit.emit_script yelu1
+          in
+          Alcotest.(check bool) "emits ARCH_INDEPENDENT flag" true
+            (String.is_substring cmake_text ~substring:"ARCH_INDEPENDENT"))
+    ] )
+
+(* v2_tutorial_exe: yif (else branch) + compile_opts + find_path via apply. *)
+let v2_tutorial_exe_bridge =
+  let module Old = Yelu_langs.Lang_yelu_cmake in
+  let open Yelu_langs.Lang_yelu_utils in
+  let msvc_cond =
+    yor (ystrequal (ycstr "CMAKE_CXX_COMPILER_ID") (ystr "MSVC"))
+      (ystrequal (ycstr "CMAKE_CXX_COMPILER_FRONTEND_VARIANT") (ystr "MSVC"))
+  in
+  let cmd : Old.yelu_stmt =
+    ycmd_of_list [
+      add_exe (ytval "Tutorial");
+      yc_target_sources_fs (ytval "Tutorial") [
+        ytsi_plain Private [ yfile "Tutorial.cxx" ];
+      ];
+      link_lib [ ytval "Tutorial" ] [
+        ytarget_def ~kind:Private [ ytval "MathFunctions" ];
+      ];
+      compile_feats (ytval "Tutorial")
+        [ { kind = Private; feature = "cxx_std_20" } ];
+      yifthen msvc_cond
+        (compile_opts (ytval "Tutorial")
+           [ ytarget_def ~kind:Private [ ystr "/W3" ] ]);
+    ]
+  in
+  ( "v2_tutorial_exe_bridge",
+    [
+      Alcotest.test_case "v2 Tutorial exe bridges"
+        `Quick
+        (fun () ->
+          let yelu1 = Yelu_langs.Yelu_cmake_to_yelu1.stmt cmd in
+          let cmake_text =
+            Yelu_langs.Yelu_tiny_cmake_emit.emit_script yelu1
+          in
+          Alcotest.(check bool) "emits add_executable(Tutorial" true
+            (String.is_substring cmake_text
+               ~substring:"add_executable(Tutorial"))
+    ] )
+
+(* v2_tests: find_package + apply (for simpletest_discover_tests). *)
+let v2_tests_bridge =
+  let module Old = Yelu_langs.Lang_yelu_cmake in
+  let open Yelu_langs.Lang_yelu_utils in
+  let cmd : Old.yelu_stmt =
+    ycmd_of_list [
+      add_exe (ytval "TestMathFunctions");
+      yc_target_sources_fs (ytval "TestMathFunctions") [
+        ytsi_plain Private [ yfile "TestMathFunctions.cxx" ];
+      ];
+      yc_find_package ~required:true "SimpleTest";
+      link_lib [ ytval "TestMathFunctions" ] [
+        ytarget_def ~kind:Private
+          [ ytval "MathFunctions"; ytval "SimpleTest::SimpleTest" ];
+      ];
+      yc_apply (yname "simpletest_discover_tests") [ ytval "TestMathFunctions" ];
+    ]
+  in
+  ( "v2_tests_bridge",
+    [
+      Alcotest.test_case "v2 Tests bridges"
+        `Quick
+        (fun () ->
+          let yelu1 = Yelu_langs.Yelu_cmake_to_yelu1.stmt cmd in
+          let cmake_text =
+            Yelu_langs.Yelu_tiny_cmake_emit.emit_script yelu1
+          in
+          Alcotest.(check bool) "emits find_package(SimpleTest" true
+            (String.is_substring cmake_text
+               ~substring:"find_package(SimpleTest");
+          Alcotest.(check bool) "emits simpletest_discover_tests apply" true
+            (String.is_substring cmake_text
+               ~substring:"simpletest_discover_tests("))
+    ] )
+
 let () =
   Alcotest.run "yelu_tiny_steps"
     [
@@ -1407,4 +1810,15 @@ let () =
       step12_bridge;
       step12_math_bridge;
       step12_multi_bridge;
+      v2_root_bridge;
+      v2_mathlogger_bridge;
+      v2_mathext_bridge;
+      v2_opadd_bridge;
+      v2_opmul_bridge;
+      v2_opsub_bridge;
+      v2_maketable_bridge;
+      v2_mathfuncs_bridge;
+      v2_simpletest_bridge;
+      v2_tutorial_exe_bridge;
+      v2_tests_bridge;
     ]

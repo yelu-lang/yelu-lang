@@ -94,6 +94,21 @@ type custom_command = {
 }
 [@@deriving equal, sexp_of]
 
+(* File-set group for [target_sources(... FILE_SET <name> TYPE HEADERS BASE_DIRS ... FILES ...)].
+   Lives in the shared core so theory- and surface-target fragments can both
+   carry the same [target_sources_fs] item shape without each one needing
+   to depend on the other. *)
+type tiny_file_set = {
+  kind : string;
+  type_ : string;
+  base_dirs : expr list;
+  files : expr list;
+}
+
+and tiny_target_sources_item =
+  | Tsi_plain of { visibility : string; items : expr list }
+  | Tsi_file_set of tiny_file_set
+
 type install_rule =
   | InstallTargets of {
       targets : string list;

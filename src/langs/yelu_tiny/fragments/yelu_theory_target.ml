@@ -28,6 +28,19 @@ type expr +=
       comment : string option;
       verbatim : bool;
     }
+  | ELibraryAlias of { name : string; target : string }
+  | EExecutableAlias of { name : string; target : string }
+  | EAddDependencies of { target : string; dep : string }
+  (* See [tiny_target_sources_item] in [yelu_tiny.ml] for shape. *)
+  | ETargetSourcesFs of {
+      target : expr;
+      items : tiny_target_sources_item list;
+    }
+  | ETargetPrecompileHeaders of {
+      target : expr;
+      visibility : string;
+      headers : expr list;
+    }
 
 let eval_string ~eval env expr =
   let env, value = eval env expr in

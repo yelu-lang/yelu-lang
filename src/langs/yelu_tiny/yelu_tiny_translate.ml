@@ -196,6 +196,28 @@ let rec lift_yelu1_to_yelu2 = function
         comment;
         verbatim;
       }
+  | ELibraryAlias { name; target } -> ELibraryAlias { name; target }
+  | EExecutableAlias { name; target } -> EExecutableAlias { name; target }
+  | EAddDependencies { target; dep } -> EAddDependencies { target; dep }
+  | ETargetSourcesFs { target; items } ->
+    let lift_item = function
+      | Tsi_plain { visibility; items } ->
+        Tsi_plain
+          { visibility; items = List.map items ~f:lift_yelu1_to_yelu2 }
+      | Tsi_file_set { kind; type_; base_dirs; files } ->
+        Tsi_file_set
+          { kind; type_;
+            base_dirs = List.map base_dirs ~f:lift_yelu1_to_yelu2;
+            files = List.map files ~f:lift_yelu1_to_yelu2 }
+    in
+    ETargetSourcesFs
+      { target = lift_yelu1_to_yelu2 target;
+        items = List.map items ~f:lift_item }
+  | ETargetPrecompileHeaders { target; visibility; headers } ->
+    ETargetPrecompileHeaders
+      { target = lift_yelu1_to_yelu2 target;
+        visibility;
+        headers = List.map headers ~f:lift_yelu1_to_yelu2 }
 
   (* Shared install theory. *)
   | EInstallTargets { targets; destination; export } ->
@@ -408,6 +430,31 @@ let rec lift_yelu1_to_yelu2 = function
           };
         EUnit;
       ]
+  | ECmakeAddLibraryAlias { name; target } ->
+    ELibraryAlias { name; target }
+  | ECmakeAddExecutableAlias { name; target } ->
+    EExecutableAlias { name; target }
+  | ECmakeAddDependencies { target; dep } ->
+    EAddDependencies { target; dep }
+  | ECmakeTargetSourcesFs { target; items } ->
+    let lift_item = function
+      | Tsi_plain { visibility; items } ->
+        Tsi_plain
+          { visibility; items = List.map items ~f:lift_yelu1_to_yelu2 }
+      | Tsi_file_set { kind; type_; base_dirs; files } ->
+        Tsi_file_set
+          { kind; type_;
+            base_dirs = List.map base_dirs ~f:lift_yelu1_to_yelu2;
+            files = List.map files ~f:lift_yelu1_to_yelu2 }
+    in
+    ETargetSourcesFs
+      { target = lift_yelu1_to_yelu2 target;
+        items = List.map items ~f:lift_item }
+  | ECmakeTargetPrecompileHeaders { target; visibility; headers } ->
+    ETargetPrecompileHeaders
+      { target = lift_yelu1_to_yelu2 target;
+        visibility;
+        headers = List.map headers ~f:lift_yelu1_to_yelu2 }
   | ECmakeInstallTargets { targets; destination; export } ->
     ESeq
       [
@@ -776,6 +823,31 @@ let rec lower_yelu2_to_yelu1 = function
         comment;
         verbatim;
       }
+  | ELibraryAlias { name; target } ->
+    ECmakeAddLibraryAlias { name; target }
+  | EExecutableAlias { name; target } ->
+    ECmakeAddExecutableAlias { name; target }
+  | EAddDependencies { target; dep } ->
+    ECmakeAddDependencies { target; dep }
+  | ETargetSourcesFs { target; items } ->
+    let lower_item = function
+      | Tsi_plain { visibility; items } ->
+        Tsi_plain
+          { visibility; items = List.map items ~f:lower_yelu2_to_yelu1 }
+      | Tsi_file_set { kind; type_; base_dirs; files } ->
+        Tsi_file_set
+          { kind; type_;
+            base_dirs = List.map base_dirs ~f:lower_yelu2_to_yelu1;
+            files = List.map files ~f:lower_yelu2_to_yelu1 }
+    in
+    ECmakeTargetSourcesFs
+      { target = lower_yelu2_to_yelu1 target;
+        items = List.map items ~f:lower_item }
+  | ETargetPrecompileHeaders { target; visibility; headers } ->
+    ECmakeTargetPrecompileHeaders
+      { target = lower_yelu2_to_yelu1 target;
+        visibility;
+        headers = List.map headers ~f:lower_yelu2_to_yelu1 }
   | EInstallTargets { targets; destination; export } ->
     ECmakeInstallTargets
       {

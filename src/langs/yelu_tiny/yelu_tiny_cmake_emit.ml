@@ -168,8 +168,34 @@ let rec emit_expr_impl ~env e =
         (target_arg name)
         args
     ]
+  | ECmakeAddLibraryAlias { name; target } ->
+    [ Fmt.str "add_library(%s ALIAS %s)" name target ]
+  | ECmakeAddExecutableAlias { name; target } ->
+    [ Fmt.str "add_executable(%s ALIAS %s)" name target ]
+  | ECmakeAddDependencies { target; dep } ->
+    [ Fmt.str "add_dependencies(%s %s)" target dep ]
   | ECmakeTargetSources { target; visibility; sources } ->
     [ Fmt.str "target_sources(%s %s %s)" (target_arg target) visibility (String.concat ~sep:" " (List.map sources ~f:arg)) ]
+  | ECmakeTargetSourcesFs { target; items } ->
+    let render_item = function
+      | Tsi_plain { visibility; items } ->
+        Fmt.str "%s %s" visibility
+          (String.concat ~sep:" " (List.map items ~f:arg))
+      | Tsi_file_set { kind; type_; base_dirs; files } ->
+        let opt_kw kw xs =
+          if List.is_empty xs then ""
+          else " " ^ kw ^ " " ^ String.concat ~sep:" " (List.map xs ~f:arg)
+        in
+        Fmt.str "%s FILE_SET %s%s%s" kind type_
+          (opt_kw "BASE_DIRS" base_dirs)
+          (opt_kw "FILES" files)
+    in
+    [ Fmt.str "target_sources(%s %s)" (target_arg target)
+        (String.concat ~sep:" " (List.map items ~f:render_item)) ]
+  | ECmakeTargetPrecompileHeaders { target; visibility; headers } ->
+    [ Fmt.str "target_precompile_headers(%s %s %s)"
+        (target_arg target) visibility
+        (String.concat ~sep:" " (List.map headers ~f:arg)) ]
   | ECmakeTargetLinkLibraries { target; visibility; items } ->
     [ Fmt.str "target_link_libraries(%s %s %s)" (target_arg target) visibility (String.concat ~sep:" " (List.map items ~f:arg)) ]
   | ECmakeTargetIncludeDirectories { target; visibility; dirs } ->

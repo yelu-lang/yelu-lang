@@ -8,8 +8,13 @@ let provides =
   [
     "target.add_executable";
     "target.add_library";
+    "target.add_library_alias";
+    "target.add_executable_alias";
+    "target.add_dependencies";
     "target.exists";
     "target.sources";
+    "target.sources_fs";
+    "target.precompile_headers";
     "target.link_libraries";
     "target.include_directories";
     "target.compile_definitions";
@@ -20,6 +25,10 @@ let provides =
     "target.custom_target";
     "target.custom_command";
   ]
+
+(* [tiny_file_set] / [tiny_target_sources_item] live in yelu_tiny.ml
+   so theory and surface fragments can both reference the same shape
+   without one depending on the other. See that file for definitions. *)
 
 (* Phase 2b: target-name fields are now [expr] rather than [string] so that
    ELet bindings can flow through emit-time substitution into target-name
@@ -51,6 +60,26 @@ type expr +=
       verbatim : bool;
     }
   | ECmakeTargetExists of expr
+  (* [add_library(<name> ALIAS <target>)] and the executable sibling.
+     Eval is a target declaration aliasing an existing target name. *)
+  | ECmakeAddLibraryAlias of { name : string; target : string }
+  | ECmakeAddExecutableAlias of { name : string; target : string }
+  (* [add_dependencies(<target> <dep>)]. Eval is a no-op for now —
+     dependency graph tracking lives in env.build but no caller yet
+     queries it. *)
+  | ECmakeAddDependencies of { target : string; dep : string }
+  (* [target_sources(... FILE_SET ...)] richer form. See tiny_target_sources_item. *)
+  | ECmakeTargetSourcesFs of {
+      target : expr;
+      items : tiny_target_sources_item list;
+    }
+  (* [target_precompile_headers(<target> <visibility> <headers>)] same
+     shape as ECmakeTargetSources. *)
+  | ECmakeTargetPrecompileHeaders of {
+      target : expr;
+      visibility : string;
+      headers : expr list;
+    }
 
 let eval_case ~eval env = function
   | ECmakeAddExecutable { name; sources } ->
@@ -110,4 +139,32 @@ let eval_case ~eval env = function
   | ECmakeTargetExists target ->
     let env, target = eval_string ~eval env target in
     Some (env, VBool (target_exists env target))
+  | ECmakeAddLibraryAlias { name; target = _ } ->
+    (* The alias is recorded as another target with no sources; the
+       linker plumbing is left to cmake. *)
+    Some (declare_target ~kind:(TargetLibrary (Some "INTERFACE")) env name, VUnit)
+  | ECmakeAddExecutableAlias { name; target = _ } ->
+    Some (declare_target ~kind:TargetExecutable env name, VUnit)
+  | ECmakeAddDependencies _ ->
+    Some (env, VUnit)
+  | ECmakeTargetSourcesFs { target; items } ->
+    let env, target = eval_string ~eval env target in
+    (* Walk each item, evaluating inner exprs for side effects. Only the
+       plain-source pieces feed into env.target_sources; file-set
+       headers are emit-only at this slice. *)
+    let env =
+      List.fold items ~init:env ~f:(fun env -> function
+        | Tsi_plain { visibility; items } ->
+          let env, items = eval_string_list ~eval env items in
+          add_target_sources env target ~visibility items
+        | Tsi_file_set { base_dirs; files; _ } ->
+          let env, _ = eval_string_list ~eval env base_dirs in
+          let env, _ = eval_string_list ~eval env files in
+          env)
+    in
+    Some (env, VUnit)
+  | ECmakeTargetPrecompileHeaders { target; visibility; headers } ->
+    let env, target = eval_string ~eval env target in
+    let env, _headers = eval_string_list ~eval env headers in
+    Some (add_target_sources env target ~visibility [], VUnit)
   | _ -> None

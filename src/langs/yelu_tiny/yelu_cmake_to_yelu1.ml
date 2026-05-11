@@ -398,6 +398,44 @@ let target_statement : Old.yelu_target_stmt -> Yelu_tiny.expr = function
         comment;
         verbatim;
       }
+  | Ytgt_add_library_alias { name; target } ->
+    ECmakeAddLibraryAlias { name; target }
+  | Ytgt_add_executable_alias { name; target } ->
+    ECmakeAddExecutableAlias { name; target }
+  | Ytgt_add_dependencies { target; dep } ->
+    ECmakeAddDependencies { target; dep }
+  | Ytgt_sources_fs { target; items } ->
+    let file_set_type : Lang_cmake.file_set_type -> string = function
+      | Fs_headers -> "HEADERS"
+      | Fs_cxxmodules -> "CXX_MODULES"
+    in
+    let item : Old.yelu_target_sources_item -> tiny_target_sources_item = function
+      | Ytsi_plain { kind; items } ->
+        Tsi_plain
+          { visibility = visibility_of_kind kind;
+            items = List.map items ~f:expr }
+      | Ytsi_file_set { kind; type_; base_dirs; files } ->
+        Tsi_file_set
+          { kind = visibility_of_kind kind;
+            type_ = file_set_type type_;
+            base_dirs = List.map base_dirs ~f:expr;
+            files = List.map files ~f:expr }
+    in
+    ECmakeTargetSourcesFs
+      { target = target_name target; items = List.map items ~f:item }
+  | Ytgt_precompile_headers { target; items = [ { kind; items } ] } ->
+    ECmakeTargetPrecompileHeaders
+      { target = target_name target;
+        visibility = visibility_of_kind kind;
+        headers = List.map items ~f:expr }
+  | Ytgt_precompile_headers { target; items } ->
+    items
+    |> List.map ~f:(fun ({ kind; items } : Old.yelu_items_with_kind) ->
+      ECmakeTargetPrecompileHeaders
+        { target = target_name target;
+          visibility = visibility_of_kind kind;
+          headers = List.map items ~f:expr })
+    |> ESeq
   | _ -> fail "unsupported yelu_cmake target statement for Yelu1 bridge"
 
 let string_of_compatibility : Lang_cmake.compatibility -> string = function
