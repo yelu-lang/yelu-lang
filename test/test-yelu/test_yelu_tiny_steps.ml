@@ -594,6 +594,119 @@ let step7_math_bridge =
                ~substring:"add_library(MathFunctions"))
     ] )
 
+(* step8_table introduces the OUTPUT form of [add_custom_command]: a build
+   rule that produces [outputs] by running [commands], with optional
+   [DEPENDS]. The bridge already supports this via [Ytgt_add_custom_command]
+   (vs the deferred TARGET-form sibling [Ytgt_add_custom_command_target]). *)
+let step8_table_bridge =
+  let module Old = Yelu_langs.Lang_yelu_cmake in
+  let open Yelu_langs.Lang_yelu_utils in
+  let cmd : Old.yelu_stmt =
+    ycmd_of_list
+      [
+        yc_extern_target "tutorial_compiler_flags";
+        add_exe ~sources:[ yfile "MakeTable.cxx" ] (ytval "MakeTable");
+        link_lib [ ytval "MakeTable" ]
+          [ ytarget_def ~kind:Private [ ytval "tutorial_compiler_flags" ] ];
+        yc_add_custom_command
+          ~outputs:[ yfile "${CMAKE_CURRENT_BINARY_DIR}/Table.h" ]
+          ~depends:[ ystr "MakeTable" ]
+          [ custom_command "MakeTable" [ "${CMAKE_CURRENT_BINARY_DIR}/Table.h" ] ];
+      ]
+  in
+  ( "step8_table_bridge",
+    [
+      Alcotest.test_case "v1 step8_table MathFunctions/MakeTable bridges to Yelu1"
+        `Quick
+        (fun () ->
+          let yelu1 = Yelu_langs.Yelu_cmake_to_yelu1.stmt cmd in
+          let cmake_text =
+            Yelu_langs.Yelu_tiny_cmake_emit.emit_script yelu1
+          in
+          Alcotest.(check bool) "emits add_executable for MakeTable" true
+            (String.is_substring cmake_text
+               ~substring:"add_executable(MakeTable");
+          Alcotest.(check bool) "emits add_custom_command(" true
+            (String.is_substring cmake_text
+               ~substring:"add_custom_command(");
+          Alcotest.(check bool) "emits OUTPUT clause on a continuation line" true
+            (String.is_substring cmake_text ~substring:"OUTPUT");
+          Alcotest.(check bool) "emits the Table.h output" true
+            (String.is_substring cmake_text ~substring:"Table.h");
+          Alcotest.(check bool) "emits DEPENDS MakeTable" true
+            (String.is_substring cmake_text ~substring:"DEPENDS"))
+    ] )
+
+(* step8_math adds [include("MakeTable.cmake")] (Tier A) and a generated
+   source ${CMAKE_CURRENT_BINARY_DIR}/Table.h passed to add_library. Both
+   are existing pieces — this test confirms they compose. *)
+let step8_math_bridge =
+  let module Old = Yelu_langs.Lang_yelu_cmake in
+  let open Yelu_langs.Lang_yelu_utils in
+  let cmd : Old.yelu_stmt =
+    ycmd_of_list
+      ([
+         ylet "flags" (ytval "tutorial_compiler_flags");
+         ylet "math" (ytval "MathFunctions");
+         ylet "sqrt" (ytval "SqrtLibrary");
+         ylet "check_cxx" (ycstr "check_cxx_source_compiles");
+         ylet "inst_libs" (ycstr "installable_libs");
+         ylet "have_log" (ycstr "HAVE_LOG");
+         ylet "have_exp" (ycstr "HAVE_EXP");
+         ylet "use_mymath" (ycstr "USE_MYMATH");
+         yc_extern_target "tutorial_compiler_flags";
+         yc_include (yfile "MakeTable.cmake");
+         add_lib ~sources:[ yfile "MathFunctions.cxx" ] (yvar "math");
+         include_dirs (yvar "math")
+           [ ytarget_def ~kind:Interface [ ydir "${CMAKE_CURRENT_SOURCE_DIR}" ] ];
+         yc_option ~value:(ybool true)
+           ~msg:"Use tutorial provided math implementation" (ycvar "USE_MYMATH");
+         yifthen (ytruthy (yvar "use_mymath"))
+           (ycmd_of_list
+              ([
+                 compile_defs (yvar "math")
+                   [ ytarget_def ~kind:Private [ ykeyword "USE_MYMATH" ] ];
+                 add_lib ~type_:Lib_static
+                   ~sources:[ yfile "mysqrt.cxx";
+                              yfile "${CMAKE_CURRENT_BINARY_DIR}/Table.h" ]
+                   (yvar "sqrt");
+                 include_dirs (yvar "sqrt")
+                   [
+                     ytarget_def ~kind:Private
+                       [ ydir "${CMAKE_CURRENT_BINARY_DIR}" ];
+                   ];
+                 link_lib [ yvar "sqrt" ]
+                   [ ytarget_def ~kind:Public [ yvar "flags" ] ];
+               ]
+              @ Step_common.math_check_cxx_features
+              @ [
+                  link_lib [ yvar "math" ]
+                    [ ytarget_def ~kind:Private [ yvar "sqrt" ] ];
+                ]));
+         link_lib [ yvar "math" ]
+           [ ytarget_def ~kind:Public [ yvar "flags" ] ];
+       ]
+      @ Step_common.math_install_libs ())
+  in
+  ( "step8_math_bridge",
+    [
+      Alcotest.test_case "v1 step8 MathFunctions bridges to Yelu1"
+        `Quick
+        (fun () ->
+          let yelu1 = Yelu_langs.Yelu_cmake_to_yelu1.stmt cmd in
+          let cmake_text =
+            Yelu_langs.Yelu_tiny_cmake_emit.emit_script yelu1
+          in
+          Alcotest.(check bool) "emits include(MakeTable.cmake)" true
+            (String.is_substring cmake_text
+               ~substring:"include(\"MakeTable.cmake\")");
+          Alcotest.(check bool) "Table.h appears as a source to sqrt" true
+            (String.is_substring cmake_text ~substring:"Table.h");
+          Alcotest.(check bool) "still emits the math target setup" true
+            (String.is_substring cmake_text
+               ~substring:"add_library(MathFunctions"))
+    ] )
+
 let () =
   Alcotest.run "yelu_tiny_steps"
     [
@@ -609,4 +722,6 @@ let () =
       step6_ctest_bridge;
       step7_bridge;
       step7_math_bridge;
+      step8_table_bridge;
+      step8_math_bridge;
     ]

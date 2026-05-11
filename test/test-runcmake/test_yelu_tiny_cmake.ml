@@ -851,6 +851,38 @@ let yelu2_configure_lowering =
           ESetVar ("OUT", EStringUpper (EString "yes"));
           EVar "OUT";
         ]);
+      (* Slim configure test for step8_table's distinguishing piece — the
+         custom_command(OUTPUT ...) rule. The full v1 step8_table also
+         links MakeTable against [tutorial_compiler_flags], which would
+         need the upper-level target to exist; we drop that line here so
+         the rule can configure standalone. *)
+      check_yelu2_lowering_configure "step8_table MakeTable configures via tiny bridge"
+        ~files:
+          [
+            "MakeTable.cxx",
+              "#include <cstdio>\nint main(int, char**) { return 0; }\n";
+          ]
+        (ESeq [
+          (let module Old = Yelu_langs.Lang_yelu_cmake in
+           let open Yelu_langs.Lang_yelu_utils in
+           let cmd : Old.yelu_stmt =
+             ycmd_of_list
+               (Step_common.project_preamble
+                @ [
+                    add_exe ~sources:[ yfile "MakeTable.cxx" ]
+                      (ytval "MakeTable");
+                    yc_add_custom_command
+                      ~outputs:[ yfile "${CMAKE_CURRENT_BINARY_DIR}/Table.h" ]
+                      ~depends:[ ystr "MakeTable" ]
+                      [ custom_command "MakeTable"
+                          [ "${CMAKE_CURRENT_BINARY_DIR}/Table.h" ] ];
+                  ])
+           in
+           Yelu_langs.Yelu_cmake_to_yelu1.stmt cmd
+           |> lift_yelu1_to_yelu2);
+          ESetVar ("OUT", EStringUpper (EString "yes"));
+          EVar "OUT";
+        ]);
     ] )
 
 let yelu2_build_lowering =
