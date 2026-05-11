@@ -1,0 +1,10 @@
+{
+  "files.exclude": {
+    "**/*.exe": true
+  },
+  "ocaml.sandbox": {
+    "kind": "opam",
+    "switch": "default"
+  },
+  "makefile.configureOnOpen": false
+}

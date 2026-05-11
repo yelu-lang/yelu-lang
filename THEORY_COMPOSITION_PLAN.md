@@ -534,6 +534,46 @@ individually.
   observe function behavior without depending on var leakage or on
   internal storage.
 
+### Retirement track (post-Bar #1)
+
+**Goal.** Glue the existing `yelu_cmake` test surface (step files, parser,
+compile, runcmake-yelu pairs) onto the `bridge → tiny → cmake` path so
+that retiring `src/langs/yelu/fragments/` becomes the natural next move
+once gluing covers every test. Typecheck + wellform port intentionally
+postponed; keep tiny fragment distribution aligned with production
+fragment distribution so the eventual port stays mechanical.
+
+**Goal status (as of 2026-05-10).** Step files 19 / 51 bridged; bridge
+fail-cases 13 catch-alls; `test_yelu_compile` 0 / 194 routed through
+tiny; `test_runcmake_yelu` 0 / 50; `test_yelu_parse` 0 / 170; genex
+theory has 0 / 34 production constructors mirrored.
+
+Phases, in suggested order. The dependency is mostly demand-driven:
+each phase surfaces fail-cases for the next; bridge-fail attrition
+(R2) and genex (R3) advance whenever R1/R4/R5/R6 demand them.
+
+| Phase | What | Detail |
+| --- | --- | --- |
+| **R1** | Step file backfill (32 files) | v1 math: step4_math, step6_math, step10_math, step11_math, step12_math, step12_multi (6). v2 root: step1–step11 (11). CMakeOnly top-level: 15. Strategy: add bridge tests one batch at a time; let failures direct R2. |
+| **R2** | Bridge fail-case attrition | 13 `_ -> fail "unsupported yelu_cmake …"` catch-alls. Demand-driven from R1 / R4 / R5 / R6. Each new constructor: bridge case + surface mirror + theory mirror + lift/lower + emit. |
+| **R3** | Genex theory | Net-new theory. Production has 34 constructors; tiny has 0. First slice is the few generator expressions v2 / CMakeOnly steps actually use (`$<CONFIG:...>` etc.); rest deferred. |
+| **R4** | Glue `test_yelu_compile` (194 tests) | Mirror each compile test against `bridge → tiny → emit`. Compare structurally to production cmake output (gersemi or text-eq mod whitespace). Drives R2 hard. |
+| **R5** | Glue `test_runcmake_yelu` (50 pairs) | Drive tiny-emitted scripts through cmake `-P` (or configure) and compare against the same reference. |
+| **R6** | Glue `test_yelu_parse` (170 tests) | Parser already produces production AST → bridge it. Each parser test becomes a bridge test too. |
+| **R7** | (postponed) typecheck + wellform port | Carry over the 14 `Make_*_check` modules and the wellform pass to tiny. Defer until R1–R6 stabilize the fragment distribution so the port is mechanical. |
+
+**Retirement criterion.** `src/langs/yelu/fragments/` is retirable when:
+- (R1) all 51 step files bridge.
+- (R2) zero `_ -> fail` cases remain in the bridge.
+- (R4 + R5 + R6) production tests run through tiny with equivalent
+  cmake output / configure success.
+- (R7) typecheck + wellform exist in tiny so the production checker
+  module can be removed.
+
+At that point `src/langs/yelu_tiny/` becomes the production code and
+`src/langs/yelu/` (sans parser, lexer, post-bridge stages) becomes
+`src/langs/yelu_legacy/` per the original direction.
+
 ### Skip-for-now (axle 2)
 
 - `Stage_typecheck` / `Stage_wellform` passes on the tiny core.

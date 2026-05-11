@@ -1021,6 +1021,364 @@ let step12_bridge =
             (String.is_substring cmake_text ~substring:"SameMajorVersion"))
     ] )
 
+(* R1a — back-fill the v1 math sub-step files. Most of these compose
+   already-bridged constructs; their value is pinning that the bridge
+   handles each step's specific shape (different option flags,
+   different sources, different set_target_properties / genex
+   strings, etc.). *)
+
+let step4_math_bridge =
+  let module Old = Yelu_langs.Lang_yelu_cmake in
+  let open Yelu_langs.Lang_yelu_utils in
+  let cmd : Old.yelu_stmt =
+    ycmd_of_list
+      ([
+         ylet "flags" (ytval "tutorial_compiler_flags");
+         ylet "math" (ytval "MathFunctions");
+         ylet "sqrt" (ytval "SqrtLibrary");
+         ylet "inst_libs" (ycstr "installable_libs");
+         ylet "use_mymath" (ycstr "USE_MYMATH");
+         yc_extern_target "tutorial_compiler_flags";
+         add_lib ~sources:[ yfile "MathFunctions.cxx" ] (yvar "math");
+         include_dirs (yvar "math")
+           [ ytarget_def ~kind:Interface [ ydir "${CMAKE_CURRENT_SOURCE_DIR}" ] ];
+         yc_option ~value:(ybool true)
+           ~msg:"Use tutorial provided math implementation" (ycvar "USE_MYMATH");
+         yifthen (ytruthy (yvar "use_mymath"))
+           (ycmd_of_list
+              [
+                compile_defs (yvar "math")
+                  [ ytarget_def ~kind:Private [ ykeyword "USE_MYMATH" ] ];
+                add_lib ~type_:Lib_static ~sources:[ yfile "mysqrt.cxx" ]
+                  (yvar "sqrt");
+                link_lib [ yvar "sqrt" ]
+                  [ ytarget_def ~kind:Public [ yvar "flags" ] ];
+                link_lib [ yvar "math" ]
+                  [ ytarget_def ~kind:Private [ yvar "sqrt" ] ];
+              ]);
+         link_lib [ yvar "math" ]
+           [ ytarget_def ~kind:Public [ yvar "flags" ] ];
+       ])
+  in
+  ( "step4_math_bridge",
+    [
+      Alcotest.test_case "v1 step4 math program bridges to Yelu1"
+        `Quick
+        (fun () ->
+          let yelu1 = Yelu_langs.Yelu_cmake_to_yelu1.stmt cmd in
+          let cmake_text =
+            Yelu_langs.Yelu_tiny_cmake_emit.emit_script yelu1
+          in
+          Alcotest.(check bool) "emits add_library(MathFunctions" true
+            (String.is_substring cmake_text
+               ~substring:"add_library(MathFunctions");
+          Alcotest.(check bool) "emits option(USE_MYMATH" true
+            (String.is_substring cmake_text ~substring:"option(USE_MYMATH"))
+    ] )
+
+let step6_math_bridge =
+  let module Old = Yelu_langs.Lang_yelu_cmake in
+  let open Yelu_langs.Lang_yelu_utils in
+  let cmd : Old.yelu_stmt =
+    ycmd_of_list
+      ([
+         ylet "flags" (ytval "tutorial_compiler_flags");
+         ylet "math" (ytval "MathFunctions");
+         ylet "sqrt" (ytval "SqrtLibrary");
+         ylet "inst_libs" (ycstr "installable_libs");
+         ylet "use_mymath" (ycstr "USE_MYMATH");
+         yc_extern_target "tutorial_compiler_flags";
+         add_lib ~sources:[ yfile "MathFunctions.cxx" ] (yvar "math");
+         include_dirs (yvar "math")
+           [ ytarget_def ~kind:Interface [ ydir "${CMAKE_CURRENT_SOURCE_DIR}" ] ];
+         yc_option ~value:(ybool true)
+           ~msg:"Use tutorial provided math implementation" (ycvar "USE_MYMATH");
+         yifthen (ytruthy (yvar "use_mymath"))
+           (ycmd_of_list
+              [
+                compile_defs (yvar "math")
+                  [ ytarget_def ~kind:Private [ ykeyword "USE_MYMATH" ] ];
+                add_lib ~type_:Lib_static ~sources:[ yfile "mysqrt.cxx" ]
+                  (yvar "sqrt");
+                link_lib [ yvar "sqrt" ]
+                  [ ytarget_def ~kind:Public [ yvar "flags" ] ];
+                link_lib [ yvar "math" ]
+                  [ ytarget_def ~kind:Private [ yvar "sqrt" ] ];
+              ]);
+         link_lib [ yvar "math" ]
+           [ ytarget_def ~kind:Public [ yvar "flags" ] ];
+       ]
+       @ Step_common.math_install_libs ())
+  in
+  ( "step6_math_bridge",
+    [
+      Alcotest.test_case "v1 step6 math program bridges to Yelu1"
+        `Quick
+        (fun () ->
+          let yelu1 = Yelu_langs.Yelu_cmake_to_yelu1.stmt cmd in
+          let cmake_text =
+            Yelu_langs.Yelu_tiny_cmake_emit.emit_script yelu1
+          in
+          Alcotest.(check bool) "emits add_library(MathFunctions" true
+            (String.is_substring cmake_text
+               ~substring:"add_library(MathFunctions"))
+    ] )
+
+(* step10_math adds POSITION_INDEPENDENT_CODE + EXPORTING_MYMATH on top
+   of step8_math. *)
+let step10_math_bridge =
+  let module Old = Yelu_langs.Lang_yelu_cmake in
+  let open Yelu_langs.Lang_yelu_utils in
+  let cmd : Old.yelu_stmt =
+    ycmd_of_list
+      ([
+         ylet "flags" (ytval "tutorial_compiler_flags");
+         ylet "math" (ytval "MathFunctions");
+         ylet "sqrt" (ytval "SqrtLibrary");
+         ylet "check_cxx" (ycstr "check_cxx_source_compiles");
+         ylet "inst_libs" (ycstr "installable_libs");
+         ylet "have_log" (ycstr "HAVE_LOG");
+         ylet "have_exp" (ycstr "HAVE_EXP");
+         ylet "use_mymath" (ycstr "USE_MYMATH");
+         yc_extern_target "tutorial_compiler_flags";
+         yc_include (yfile "MakeTable.cmake");
+         add_lib ~sources:[ yfile "MathFunctions.cxx" ] (yvar "math");
+         include_dirs (yvar "math")
+           [ ytarget_def ~kind:Interface [ ydir "${CMAKE_CURRENT_SOURCE_DIR}" ] ];
+         yc_option ~value:(ybool true)
+           ~msg:"Use tutorial provided math implementation" (ycvar "USE_MYMATH");
+         yifthen (ytruthy (yvar "use_mymath"))
+           (ycmd_of_list
+              ([
+                 compile_defs (yvar "math")
+                   [ ytarget_def ~kind:Private [ ykeyword "USE_MYMATH" ] ];
+                 add_lib ~type_:Lib_static
+                   ~sources:[ yfile "mysqrt.cxx";
+                              yfile "${CMAKE_CURRENT_BINARY_DIR}/Table.h" ]
+                   (yvar "sqrt");
+                 yc_set_target_properties (yvar "sqrt")
+                   [ ("POSITION_INDEPENDENT_CODE",
+                      ystr "${BUILD_SHARED_LIBS}") ];
+                 include_dirs (yvar "sqrt")
+                   [ ytarget_def ~kind:Private
+                       [ ydir "${CMAKE_CURRENT_BINARY_DIR}" ] ];
+                 link_lib [ yvar "sqrt" ]
+                   [ ytarget_def ~kind:Public [ yvar "flags" ] ];
+               ]
+              @ Step_common.math_check_cxx_features
+              @ [
+                  compile_defs (yvar "math")
+                    [ ytarget_def ~kind:Private
+                        [ ykeyword "EXPORTING_MYMATH" ] ];
+                  link_lib [ yvar "math" ]
+                    [ ytarget_def ~kind:Private [ yvar "sqrt" ] ];
+                ]));
+         link_lib [ yvar "math" ]
+           [ ytarget_def ~kind:Public [ yvar "flags" ] ];
+       ]
+       @ Step_common.math_install_libs ())
+  in
+  ( "step10_math_bridge",
+    [
+      Alcotest.test_case "v1 step10 math program bridges (POSITION_INDEPENDENT_CODE)"
+        `Quick
+        (fun () ->
+          let yelu1 = Yelu_langs.Yelu_cmake_to_yelu1.stmt cmd in
+          let cmake_text =
+            Yelu_langs.Yelu_tiny_cmake_emit.emit_script yelu1
+          in
+          Alcotest.(check bool) "emits POSITION_INDEPENDENT_CODE prop" true
+            (String.is_substring cmake_text
+               ~substring:"POSITION_INDEPENDENT_CODE");
+          Alcotest.(check bool) "emits EXPORTING_MYMATH compile def" true
+            (String.is_substring cmake_text ~substring:"EXPORTING_MYMATH"))
+    ] )
+
+(* step11_math + step12_math add BUILD_INTERFACE / INSTALL_INTERFACE
+   generator-expression strings (flowed as opaque cmake-eval strings via
+   [ystr], i.e. [EString], so no new theory needed) and the EXPORT
+   parameter to math_install_libs. *)
+let step11_math_bridge =
+  let module Old = Yelu_langs.Lang_yelu_cmake in
+  let open Yelu_langs.Lang_yelu_utils in
+  let cmd : Old.yelu_stmt =
+    ycmd_of_list
+      ([
+         ylet "flags" (ytval "tutorial_compiler_flags");
+         ylet "math" (ytval "MathFunctions");
+         ylet "sqrt" (ytval "SqrtLibrary");
+         ylet "check_cxx" (ycstr "check_cxx_source_compiles");
+         ylet "inst_libs" (ycstr "installable_libs");
+         ylet "have_log" (ycstr "HAVE_LOG");
+         ylet "have_exp" (ycstr "HAVE_EXP");
+         ylet "use_mymath" (ycstr "USE_MYMATH");
+         yc_extern_target "tutorial_compiler_flags";
+         yc_include (yfile "MakeTable.cmake");
+         add_lib ~sources:[ yfile "MathFunctions.cxx" ] (yvar "math");
+         include_dirs (yvar "math")
+           [
+             ytarget_def ~kind:Interface
+               [
+                 ystr "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>";
+                 ystr "$<INSTALL_INTERFACE:include>";
+               ];
+           ];
+         yc_option ~value:(ybool true)
+           ~msg:"Use tutorial provided math implementation" (ycvar "USE_MYMATH");
+         yifthen (ytruthy (yvar "use_mymath"))
+           (ycmd_of_list
+              ([
+                 compile_defs (yvar "math")
+                   [ ytarget_def ~kind:Private [ ykeyword "USE_MYMATH" ] ];
+                 add_lib ~type_:Lib_static
+                   ~sources:[ yfile "mysqrt.cxx";
+                              yfile "${CMAKE_CURRENT_BINARY_DIR}/Table.h" ]
+                   (yvar "sqrt");
+                 yc_set_target_properties (yvar "sqrt")
+                   [ ("POSITION_INDEPENDENT_CODE",
+                      ystr "${BUILD_SHARED_LIBS}") ];
+                 include_dirs (yvar "sqrt")
+                   [ ytarget_def ~kind:Private
+                       [ ydir "${CMAKE_CURRENT_BINARY_DIR}" ] ];
+                 link_lib [ yvar "sqrt" ]
+                   [ ytarget_def ~kind:Public [ yvar "flags" ] ];
+               ]
+              @ Step_common.math_check_cxx_features
+              @ [
+                  compile_defs (yvar "math")
+                    [ ytarget_def ~kind:Private
+                        [ ykeyword "EXPORTING_MYMATH" ] ];
+                  link_lib [ yvar "math" ]
+                    [ ytarget_def ~kind:Private [ yvar "sqrt" ] ];
+                ]));
+         link_lib [ yvar "math" ]
+           [ ytarget_def ~kind:Public [ yvar "flags" ] ];
+       ]
+       @ Step_common.math_install_libs ~export:(ystr "MathFunctionsTargets") ())
+  in
+  ( "step11_math_bridge",
+    [
+      Alcotest.test_case "v1 step11 math program bridges (BUILD_INTERFACE genex)"
+        `Quick
+        (fun () ->
+          let yelu1 = Yelu_langs.Yelu_cmake_to_yelu1.stmt cmd in
+          let cmake_text =
+            Yelu_langs.Yelu_tiny_cmake_emit.emit_script yelu1
+          in
+          Alcotest.(check bool) "emits $<BUILD_INTERFACE genex" true
+            (String.is_substring cmake_text ~substring:"$<BUILD_INTERFACE:");
+          Alcotest.(check bool) "emits $<INSTALL_INTERFACE genex" true
+            (String.is_substring cmake_text ~substring:"$<INSTALL_INTERFACE:");
+          Alcotest.(check bool) "emits install with EXPORT MathFunctionsTargets" true
+            (String.is_substring cmake_text
+               ~substring:"EXPORT \"MathFunctionsTargets\""))
+    ] )
+
+(* step12_math is structurally identical to step11_math (only the
+   parent step's root differs in DEBUG_POSTFIX). Kept as its own test
+   so future divergence surfaces here. *)
+let step12_math_bridge =
+  let module Old = Yelu_langs.Lang_yelu_cmake in
+  let open Yelu_langs.Lang_yelu_utils in
+  let cmd : Old.yelu_stmt =
+    ycmd_of_list
+      ([
+         ylet "flags" (ytval "tutorial_compiler_flags");
+         ylet "math" (ytval "MathFunctions");
+         ylet "sqrt" (ytval "SqrtLibrary");
+         ylet "check_cxx" (ycstr "check_cxx_source_compiles");
+         ylet "inst_libs" (ycstr "installable_libs");
+         ylet "have_log" (ycstr "HAVE_LOG");
+         ylet "have_exp" (ycstr "HAVE_EXP");
+         ylet "use_mymath" (ycstr "USE_MYMATH");
+         yc_extern_target "tutorial_compiler_flags";
+         yc_include (yfile "MakeTable.cmake");
+         add_lib ~sources:[ yfile "MathFunctions.cxx" ] (yvar "math");
+         include_dirs (yvar "math")
+           [
+             ytarget_def ~kind:Interface
+               [
+                 ystr "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>";
+                 ystr "$<INSTALL_INTERFACE:include>";
+               ];
+           ];
+         yc_option ~value:(ybool true)
+           ~msg:"Use tutorial provided math implementation" (ycvar "USE_MYMATH");
+         yifthen (ytruthy (yvar "use_mymath"))
+           (ycmd_of_list
+              ([
+                 compile_defs (yvar "math")
+                   [ ytarget_def ~kind:Private [ ykeyword "USE_MYMATH" ] ];
+                 add_lib ~type_:Lib_static
+                   ~sources:[ yfile "mysqrt.cxx";
+                              yfile "${CMAKE_CURRENT_BINARY_DIR}/Table.h" ]
+                   (yvar "sqrt");
+                 yc_set_target_properties (yvar "sqrt")
+                   [ ("POSITION_INDEPENDENT_CODE",
+                      ystr "${BUILD_SHARED_LIBS}") ];
+                 include_dirs (yvar "sqrt")
+                   [ ytarget_def ~kind:Private
+                       [ ydir "${CMAKE_CURRENT_BINARY_DIR}" ] ];
+                 link_lib [ yvar "sqrt" ]
+                   [ ytarget_def ~kind:Public [ yvar "flags" ] ];
+               ]
+              @ Step_common.math_check_cxx_features
+              @ [
+                  compile_defs (yvar "math")
+                    [ ytarget_def ~kind:Private
+                        [ ykeyword "EXPORTING_MYMATH" ] ];
+                  link_lib [ yvar "math" ]
+                    [ ytarget_def ~kind:Private [ yvar "sqrt" ] ];
+                ]));
+         link_lib [ yvar "math" ]
+           [ ytarget_def ~kind:Public [ yvar "flags" ] ];
+       ]
+       @ Step_common.math_install_libs ~export:(ystr "MathFunctionsTargets") ())
+  in
+  ( "step12_math_bridge",
+    [
+      Alcotest.test_case "v1 step12 math program bridges"
+        `Quick
+        (fun () ->
+          let yelu1 = Yelu_langs.Yelu_cmake_to_yelu1.stmt cmd in
+          let cmake_text =
+            Yelu_langs.Yelu_tiny_cmake_emit.emit_script yelu1
+          in
+          Alcotest.(check bool) "emits the math install rule" true
+            (String.is_substring cmake_text
+               ~substring:"install(TARGETS ${installable_libs}"))
+    ] )
+
+(* step12_multi is just include + a multi-config CPACK_INSTALL_CMAKE_PROJECTS
+   set — no new constructs. *)
+let step12_multi_bridge =
+  let module Old = Yelu_langs.Lang_yelu_cmake in
+  let open Yelu_langs.Lang_yelu_utils in
+  let cmd : Old.yelu_stmt =
+    ycmd_of_list
+      [
+        yc_include (yfile "release/CPackConfig.cmake");
+        yc_set (ycvar "CPACK_INSTALL_CMAKE_PROJECTS")
+          [ ystr "debug;Tutorial;ALL;/"; ystr "release;Tutorial;ALL;/" ];
+      ]
+  in
+  ( "step12_multi_bridge",
+    [
+      Alcotest.test_case "v1 step12_multi multi-config CPack bridges"
+        `Quick
+        (fun () ->
+          let yelu1 = Yelu_langs.Yelu_cmake_to_yelu1.stmt cmd in
+          let cmake_text =
+            Yelu_langs.Yelu_tiny_cmake_emit.emit_script yelu1
+          in
+          Alcotest.(check bool) "includes the per-config CPackConfig" true
+            (String.is_substring cmake_text
+               ~substring:"include(\"release/CPackConfig.cmake\")");
+          Alcotest.(check bool) "emits CPACK_INSTALL_CMAKE_PROJECTS set" true
+            (String.is_substring cmake_text
+               ~substring:"set(CPACK_INSTALL_CMAKE_PROJECTS"))
+    ] )
+
 let () =
   Alcotest.run "yelu_tiny_steps"
     [
@@ -1030,9 +1388,11 @@ let () =
       step3_bridge;
       step3_math_bridge;
       step4_bridge;
+      step4_math_bridge;
       step5_bridge;
       step5_math_bridge;
       step6_bridge;
+      step6_math_bridge;
       step6_ctest_bridge;
       step7_bridge;
       step7_math_bridge;
@@ -1040,7 +1400,11 @@ let () =
       step8_math_bridge;
       step9_bridge;
       step10_bridge;
+      step10_math_bridge;
       step11_config_bridge;
       step11_bridge;
+      step11_math_bridge;
       step12_bridge;
+      step12_math_bridge;
+      step12_multi_bridge;
     ]
