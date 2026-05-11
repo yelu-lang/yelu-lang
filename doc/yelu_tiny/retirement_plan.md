@@ -1,14 +1,23 @@
-# yelu_tiny — Retirement Plan
+# Retirement Plan (formerly "yelu_tiny → yelu")
 
 The plan for moving production lowering off the legacy
 `src/langs/yelu_legacy/` (formerly `src/langs/yelu/fragments/`) and onto
-`src/langs/yelu_tiny/`. Companion to `status.md` (open work) and
-`design.md` (the *why*).
+`src/langs/yelu/` (formerly `src/langs/yelu_tiny/`). Companion to
+`status.md` (open work) and `design.md` (the *why*).
+
+Note: this doc still lives at `doc/yelu_tiny/` for git-history
+continuity; the directory name will be revisited once full E lands.
 
 ## Status (2026-05-11)
 
 **Phase 1 done; Phase 2a + 2c structural move done; items A, B
-(reframed), and C done; items D and E open.**
+(reframed), C, and D done; only full E remains open (gated on
+`Lang_yelu_utils` rewrite or step-file `.ye` migration).**
+
+A no-deletion prerequisite ("E-lite") moved the legacy parser
+and lexer into `src/langs/yelu_legacy/`. The yelu_tiny directory
+has been renamed to `src/langs/yelu/` with all module names
+updated. See the rename mapping in item D below.
 
 - Production text generation routes through
   `Yelu1 → emit_ast → Lang_cmake.exp → cmake_pp`.
@@ -234,7 +243,7 @@ Consolidated history; commit refs in parens.
   (CMakeOnly suite) all funnel through one helper —
   `Step_common.print_cmake` — which was the sole call site of
   `Lang_yelu_compile.compile` in the binary tree. Repointed it onto
-  `Yelu_cmake_to_yelu1.stmt |> Yelu_tiny_cmake_emit_ast.emit_ast`,
+  `Yelu_cmake_legacy_bridge.stmt |> Yelu_cmake_surface_emit.emit_ast`,
   preserving the same `Lang_cmake_pp` rendering. Verified via
   `make cmake-only-check` (12/12 OK) and `make runcmake-yelu`
   (50/50). The legacy compile stays callable for the byte-equality
@@ -242,52 +251,69 @@ Consolidated history; commit refs in parens.
   pre-existing failure since the initial commit unrelated to the
   retirement work: `yis_target` expects `Yexpr_name` but
   `test_cmake_commands.ml:1560` passes `ystr "Another::Alias"`.)
+- **E-lite — legacy parser/lexer relocated.** `git mv` moved
+  `lang_yelu_parse.ml` and `lang_yelu_lexer.ml` from
+  `src/langs/yelu/` into `src/langs/yelu_legacy/`. dune
+  `(include_subdirs unqualified)` kept the module names stable, so
+  no import edits were needed. This emptied `src/langs/yelu/`,
+  unblocking item D's directory rename.
+- **Item D — naming honesty rename.** `src/langs/yelu_tiny/` renamed
+  to `src/langs/yelu/`. File and module renames:
+    - `yelu_tiny.ml` → `yelu_cmake_ir.ml` (core IR types/env/eval)
+    - `yelu_parse_y1.ml` → `yelu_parse.ml`
+    - `yelu_cmake_to_yelu1.ml` → `yelu_cmake_legacy_bridge.ml`
+    - `yelu_tiny_cmake_emit_ast.ml` → `yelu_cmake_surface_emit.ml`
+    - `yelu_tiny_cmake_emit.ml` → `yelu_cmake_surface_emit_debug.ml`
+    - `yelu_tiny_yelu1.ml` → `yelu_cmake_surface_eval.ml`
+    - `yelu_tiny_yelu2.ml` → `yelu_cmake_eval.ml`
+    - `yelu_tiny_translate.ml` → `yelu_cmake_translate.ml`
+
+  Test files dropped the `_tiny` infix
+  (`test_yelu_tiny_*` → `test_yelu_*`); helper renamed
+  `yelu_tiny_test_helpers.ml` → `yelu_test_helpers.ml`. Module
+  references updated across ~50 files in one mechanical token
+  pass (superstring-first order, verified by build). Tests stay
+  byte-identical: byte-equality oracle 194/194; parser 295;
+  `make cmake-only-check` 12/12; `make runcmake-yelu` 50/50.
 
 ## Open
 
-Letter scheme so future additions don't disturb existing numbering.
-
-### D — Naming honesty rename
-
-`yelu_tiny` was a useful experiment name, but it is no longer tiny and
-should disappear once the direct parser is the production path. Use
-language-level names, not `IR` / `DSL` labels:
-
-- `yelu_cmake_surface` — current Yelu1: CMake-faithful surface
-  language, command-shaped, used for byte parity and exact emission.
-- `yelu_cmake` — current Yelu2: the improved Yelu CMake language,
-  still in the CMake/build domain but not forced to mirror CMake's
-  statement/output-variable shape.
-- `yelu_cmake_legacy` — old `Lang_yelu_cmake` AST / compiler stack,
-  retained as oracle and Y17 reference.
-
-A final move merges `src/langs/yelu_tiny/` into `src/langs/yelu/`,
-joining the parser/lexer already there:
-
-- `yelu_parse_y1.ml` → `yelu_parse.ml`
-- `yelu_tiny_cmake_emit_ast.ml` → `yelu_cmake_surface_emit.ml`
-- `yelu_tiny_cmake_emit.ml` → `yelu_cmake_surface_emit_debug.ml`
-- `yelu_tiny_yelu1.ml` → `yelu_cmake_surface_eval.ml`
-- `yelu_tiny_yelu2.ml` → `yelu_cmake_eval.ml`
-- `yelu_tiny_translate.ml` → `yelu_cmake_translate.ml`
-- `yelu_cmake_to_yelu1.ml` → `yelu_cmake_legacy_bridge.ml` (until E
-  deletes it).
-
 ### E — Bridge retirement
 
-Once A is closed and C has moved every production caller onto the
-direct parser, the bridge has no inputs left.
+After items A, B (reframed), C, E-lite, and D, the bridge
+(`Yelu_cmake_legacy_bridge`, formerly `Yelu_cmake_to_yelu1`) still
+has two active producers of `Lang_yelu_cmake` AST:
 
-- Move `lang_yelu_cmake.ml` (the AST type) into `yelu_legacy/` —
-  parser no longer produces it.
-- Delete `yelu_cmake_to_yelu1.ml`.
-- Switch the byte-equality oracle in `test_yelu_compile.ml` from the
-  bridge-fed shape (legacy AST in, two paths out) to the source-fed
-  shape (source in, two parsers + two emits, same `Lang_cmake_pp`).
+1. **Step files in `src/bin/yelu/*`**, which build the legacy AST
+   via `Lang_yelu_utils` helpers and feed it through the bridge in
+   `Step_common.print_cmake`.
+2. **The legacy parser** (`Lang_yelu_parse` in `yelu_legacy/`),
+   which is still the source-to-AST front end used by the byte
+   oracle and the pair-wise oracle.
+
+To retire the bridge, exactly one of these has to go:
+
+- **Option E-utils** — rewrite `Lang_yelu_utils` (in
+  `yelu_legacy/`) so its constructors produce Yelu1 IR directly
+  instead of `Lang_yelu_cmake` AST. Step files keep their
+  ergonomic shape; only the back-end of `Lang_yelu_utils`
+  changes. Sized at ~50 helper functions to repoint.
+- **Option E-source** — rewrite step files as `.ye` source
+  consumed by `Yelu_parse` (the renamed `Yelu_parse_y1`). More
+  invasive but ends with one production parser as the source of
+  truth for both binary and test paths.
+
+Once either lands, the bridge can be deleted and the
+byte-equality oracle in `test_yelu_compile.ml` shifts from the
+bridge-fed shape (legacy AST in, two paths out) to the source-fed
+shape (source in, two parsers + two emits, same `Lang_cmake_pp`).
+`Lang_yelu_cmake` (the AST type) may then stay in `yelu_legacy/`
+as a frozen reference shape, callable only by the legacy compile.
 
 **Phase 2 done criterion:** production path is
-`parse → Yelu1 → emit_ast → cmake_pp → text` with no `yelu_legacy`
-imports. Legacy compile stays callable for the oracle test.
+`parse → Yelu1 → emit_ast → cmake_pp → text` with no
+`yelu_legacy` imports on the binary side. Legacy compile stays
+callable for the oracle test.
 
 ## Equivalence oracle (kept callable forever)
 
@@ -333,10 +359,9 @@ equivalence claim stays byte-level.
 ## Sequencing summary
 
 ```
-done:       warm-up trio  →  Phase 1 (emit_ast)  →  Phase 2a (Yelu_parse_y1, 12 families)  →  Phase 2c (legacy move)  →  A (direct-parser gap list closed)  →  B (genex opaque-string handling sufficient; typed theory deferred to Y17)  →  C (binary callers repointed onto bridge + emit_ast)
-open D:     naming honesty rename — yelu_tiny → yelu, naming aligned with surface vs cmake vs legacy
-open E:     bridge retirement — delete yelu_cmake_to_yelu1.ml; oracle shifts to source-fed shape
-y17:        post-retirement typing pass on tiny (incl. typed genex)
+done:       warm-up trio  →  Phase 1 (emit_ast)  →  Phase 2a (parser-direct-to-Yelu1, 12 families)  →  Phase 2c (legacy fragments relocated)  →  A (direct-parser gap list closed)  →  B (genex opaque-string sufficient; typed theory → Y17)  →  C (binary callers onto bridge + emit_ast)  →  E-lite (legacy parser+lexer to yelu_legacy)  →  D (yelu_tiny renamed to yelu; Yelu_tiny_* → Yelu_cmake_*)
+open E:     full bridge retirement — either Lang_yelu_utils rewrite (E-utils) or step files → .ye source (E-source); then delete yelu_cmake_legacy_bridge.ml; oracle shifts to source-fed shape
+y17:        post-retirement typing pass on the renamed harness (incl. typed genex)
 delete?:    separate decision, gated on Y17 + production stability
 ```
 

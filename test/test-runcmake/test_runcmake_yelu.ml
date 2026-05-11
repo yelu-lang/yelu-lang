@@ -47,11 +47,11 @@ let compile_to_cmake prog =
    Used by the [check_pair_*] helpers to assert tiny's emit produces
    cmake that runs identically to the reference. Phase 1.4 routes
    through the AST path (Yelu1 -> Lang_cmake.exp -> lang_cmake_pp);
-   the direct-text [Yelu_tiny_cmake_emit.emit_script] is retained as a
+   the direct-text [Yelu_cmake_surface_emit_debug.emit_script] is retained as a
    diagnostic aid but is no longer the production path. *)
 let bridge_to_cmake_via_tiny prog =
-  let yelu1 = Yelu_langs.Yelu_cmake_to_yelu1.stmt prog in
-  Yelu_langs.Yelu_tiny_cmake_emit_ast.emit_script yelu1
+  let yelu1 = Yelu_langs.Yelu_cmake_legacy_bridge.stmt prog in
+  Yelu_langs.Yelu_cmake_surface_emit.emit_script yelu1
 
 let fail_mismatch ref_result yelu_result cmake_text =
   Alcotest.failf "stdout mismatch\nref :\n%s\nyelu:\n%s\nyelu cmake:\n%s"
@@ -64,7 +64,7 @@ let fail_mismatch ref_result yelu_result cmake_text =
    semantic-equivalence check. *)
 let check_tiny_matches_ref name ref_result prog =
   match bridge_to_cmake_via_tiny prog with
-  | exception Yelu_langs.Yelu_cmake_to_yelu1.Bridge_error msg ->
+  | exception Yelu_langs.Yelu_cmake_legacy_bridge.Bridge_error msg ->
     Alcotest.failf "%s: tiny bridge raised: %s" name msg
   | tiny_cmake ->
     let tiny_result = run_script tiny_cmake in

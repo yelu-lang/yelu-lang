@@ -58,8 +58,15 @@ make step1 .. step12     # generate → cmake configure → build → run
 
 | File                                   | Purpose                                                          |
 | -------------------------------------- | ---------------------------------------------------------------- |
-| `src/langs/yelu/lang_yelu_parse.ml`            | Concrete-syntax parser → `Lang_yelu_cmake` AST (still production entry; new `Yelu_parse_y1` runs in parallel) |
-| `src/langs/yelu/lang_yelu_lexer.ml`            | Tokens; shared by both parsers                                   |
+| `src/langs/yelu/yelu_parse.ml`                 | Concrete-syntax parser → Yelu1 IR (formerly `yelu_parse_y1.ml`; now the default) |
+| `src/langs/yelu/yelu_cmake_ir.ml`              | Core Yelu1 IR types + env + eval (formerly `yelu_tiny.ml`)       |
+| `src/langs/yelu/yelu_cmake_surface_emit.ml`    | Yelu1 IR → `Lang_cmake.exp` (production emit; formerly `yelu_tiny_cmake_emit_ast.ml`) |
+| `src/langs/yelu/yelu_cmake_surface_eval.ml`    | Yelu1 surface eval (formerly `yelu_tiny_yelu1.ml`)               |
+| `src/langs/yelu/yelu_cmake_eval.ml`            | Yelu2 idealized eval (formerly `yelu_tiny_yelu2.ml`)             |
+| `src/langs/yelu/yelu_cmake_translate.ml`       | Yelu1 ↔ Yelu2 lift/lower (formerly `yelu_tiny_translate.ml`)     |
+| `src/langs/yelu/yelu_cmake_legacy_bridge.ml`   | Legacy `Lang_yelu_cmake` AST → Yelu1 IR (formerly `yelu_cmake_to_yelu1.ml`) |
+| `src/langs/yelu_legacy/lang_yelu_parse.ml`     | Legacy parser → `Lang_yelu_cmake` AST; still feeds the byte oracle |
+| `src/langs/yelu_legacy/lang_yelu_lexer.ml`     | Tokens; shared by both parsers                                   |
 | `src/langs/yelu_legacy/lang_yelu.ml`           | Core: `LANG_TYPES`, `Make_stmt` functor bundle (relocated to legacy 2026-05-11) |
 | `src/langs/yelu_legacy/lang_yelu_type.ml`      | Type universe, `checking_stage`, `CHECKER_BASE`                  |
 | `src/langs/yelu_legacy/lang_yelu_cmake.ml`     | Cmake-pack: `yelu_stmt`, `Cmake_check`, 14 theory instantiations |
@@ -110,12 +117,13 @@ All 14 `Make_*_check` modules expose `let stage = Stage_typecheck`, enforced by 
 | `test/test-yelu/test_yelu_check.ml`        | 57    | per-theory type checking + wellform name binding           |
 | `test/test-yelu/test_yelu_lexer.ml`        | 25    | concrete-syntax lexer                                      |
 | `test/test-yelu/test_yelu_parse.ml`        | 170   | concrete-syntax parser                                     |
-| `test/test-yelu/test_yelu_tiny_bridge.ml`  | 43    | production yelu_cmake AST → tiny Yelu1                     |
-| `test/test-yelu/test_yelu_tiny_emit.ml`    | 3     | tiny IR → cmake text                                       |
-| `test/test-yelu/test_yelu_tiny_lift_lower.ml` | 65 | Yelu1 ↔ Yelu2 roundtrip                                    |
-| `test/test-yelu/test_yelu_tiny_steps.ml`   | 19    | tutorial v1 step1–step12 + 8_table + 11_config + ctest     |
-| `test/test-yelu/test_yelu_tiny_function.ml`| 14    | F2: dynamic scope / shallow binding                        |
-| `test/test-runcmake/test_yelu_tiny_cmake.ml`| 40   | tiny lowerings configure through real cmake                |
+| `test/test-yelu/test_yelu_bridge.ml`       | 43    | production yelu_cmake AST → Yelu1 (via legacy bridge)      |
+| `test/test-yelu/test_yelu_emit_debug.ml`   | 3     | Yelu1 → cmake text (debug direct-emit path)                |
+| `test/test-yelu/test_yelu_emit.ml`         | —     | Yelu1 → `Lang_cmake.exp` → cmake text (production emit)    |
+| `test/test-yelu/test_yelu_lift_lower.ml`   | 65    | Yelu1 ↔ Yelu2 roundtrip                                    |
+| `test/test-yelu/test_yelu_steps.ml`        | 19    | tutorial v1 step1–step12 + 8_table + 11_config + ctest     |
+| `test/test-yelu/test_yelu_function.ml`     | 14    | F2: dynamic scope / shallow binding                        |
+| `test/test-runcmake/test_yelu_cmake.ml`    | 40    | Yelu1 lowerings configure through real cmake               |
 | `test/test-runcmake/` (other)              | 37    | cmake -P compat + yelu scripts                             |
 | `test/test-file-api/`                      | —     | codemodel-v2 JSON diff                                     |
 
@@ -169,9 +177,9 @@ for one cmake command family and validates expression-level types independently.
 Theories compose via `Make_stmt` in `lang_yelu.ml`; the cmake-pack (`lang_yelu_cmake.ml`)
 is the integration point where all 14 theories are instantiated against `Cmake_types`.
 
-### Parallel harness: yelu_tiny
+### Yelu1/Yelu2 harness
 
-A separate composition harness in `src/langs/yelu_tiny/` re-shapes the
+The composition harness in `src/langs/yelu/` (formerly `yelu_tiny/`) re-shapes the
 production AST into two axles (Yelu1 = tiny core + cmake-shaped surfaces;
 Yelu2 = tiny core + idealized theories) and bridges from production
 `yelu_cmake` AST → Yelu1 → cmake. Each fragment provides a matched

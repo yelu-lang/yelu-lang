@@ -194,6 +194,6 @@ let math_install_libs ?export () =
     [Lang_yelu_compile.compile] stays callable for the byte-equality
     oracle in [test_yelu_compile.ml]. *)
 let print_cmake cmd =
-  let yelu1 = Yelu_langs.Yelu_cmake_to_yelu1.stmt cmd in
+  let yelu1 = Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd in
   Fmt.pr "%a" (Fmt.vbox Yelu_langs.Lang_cmake_pp.pp)
-    (Yelu_langs.Yelu_tiny_cmake_emit_ast.emit_ast yelu1)
+    (Yelu_langs.Yelu_cmake_surface_emit.emit_ast yelu1)

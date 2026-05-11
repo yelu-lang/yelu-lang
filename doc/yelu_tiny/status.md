@@ -1,4 +1,7 @@
-# yelu_tiny — Current Open Work
+# Retirement Status — Current Open Work
+
+(Doc still under `doc/yelu_tiny/` for git-history continuity; the
+on-disk subsystem is now `src/langs/yelu/` after item D.)
 
 Living tracker. Strip and update freely; durable design is in `design.md`,
 code-anchored module guide in `structure.md`, history in
@@ -25,7 +28,15 @@ shapes; typed Yge_* theory deferred to Y17. **Item C (binary
 callers repointed):** `Step_common.print_cmake` — the sole call
 site of `Lang_yelu_compile.compile` in `src/bin/yelu/` — now
 routes through bridge + emit_ast (`make cmake-only-check` 12/12,
-`make runcmake-yelu` 50/50). Four legacy-parser bugs surfaced (same
+`make runcmake-yelu` 50/50). **E-lite + item D (naming honesty
+rename) done:** legacy parser+lexer relocated to
+`src/langs/yelu_legacy/`, the `yelu_tiny` directory renamed to
+`src/langs/yelu/`, and all `Yelu_tiny_*` / `Yelu_parse_y1` /
+`Yelu_cmake_to_yelu1` modules renamed to the
+`Yelu_cmake_*` / `Yelu_parse` scheme. Test files dropped the
+`_tiny` infix; all 295 parser tests + byte-equality oracle
+194/194 + cmake-only-check + runcmake-yelu still pass byte-
+identically. Four legacy-parser bugs surfaced (same
 shape: handler only matches narrow Yexpr_string variant and falls
 through to "" / "?" for the rest):
 - `( set NAME val )` form
