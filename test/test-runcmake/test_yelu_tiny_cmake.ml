@@ -1,3 +1,10 @@
+(* Tiny lift/lower roundtrip equivalence tests with real cmake. Uses
+   [Yelu_tiny_cmake_emit] (direct text emit, demoted to diagnostic
+   aid in Phase 1.5) intentionally — this suite checks that
+   [lift_yelu1_to_yelu2 |> lower_yelu2_to_yelu1] produces cmake whose
+   stdout matches the original, an evaluator-correctness check that
+   does not require routing through the production AST emit path.
+   Production-path runtime equivalence lives in [test_runcmake_yelu]. *)
 open Yelu_langs.Yelu_tiny
 open Yelu_langs.Yelu_theory_store
 open Yelu_langs.Yelu_theory_bool

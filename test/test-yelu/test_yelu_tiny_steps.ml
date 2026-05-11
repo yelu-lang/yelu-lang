@@ -1,3 +1,11 @@
+(* Tutorial v1 step1-step12 bridge tests. Each test parses through
+   [Yelu_cmake_to_yelu1.stmt], emits via [Yelu_tiny_cmake_emit] (the
+   direct-text emitter, now diagnostic aid), and substring-asserts that
+   key cmake constructs appear in the output. The format-specific
+   substring assertions (e.g. always-quoted strings) are tuned to the
+   direct emitter's conventions, not [emit_ast]'s — these tests
+   intentionally cover the diagnostic path. Production-path coverage
+   lives in [test_yelu_compile.ml]'s byte-equality oracle. *)
 open Base
 let step1_bridge =
   let module Old = Yelu_langs.Lang_yelu_cmake in

@@ -4,6 +4,11 @@ Living tracker. Strip and update freely; durable design is in `design.md`,
 code-anchored module guide in `structure.md`, history in
 `../worklog_2026_04.md` / `../worklog_2026_05.md`.
 
+**Last verified 2026-05-11:** `dune build && dune test` green
+(738 unit tests); byte-equality oracle covers 194/194 production
+programs with 0 uncovered, 0 skipped. `make runcmake-yelu` green
+(50/50 pairs). Retirement Phase 1 done — see below.
+
 ## What's done
 
 Three breadth milestones, in order of attempt:
@@ -41,6 +46,28 @@ Three breadth milestones, in order of attempt:
 | R7  | (postponed) typecheck + wellform | Re-framed as **Y17** (see below). Carrying the production checker over straight is no longer the plan; tiny's theories deserve a fresh typing pass once yelu1↔cmake and yelu2↔yelu1 are stable. |
 | —   | Macro elimination                | Deferred. Gated on R5 data + Bar #3 (real-world rewrites). Memo: `.claude/memory/project_macro_elimination.md`.                                                                                 |
 | —   | Bar #3 — real-world cmake        | Rewrite z3 / llvm / torch builds in yelu; prove structural equivalence. Not started.                                                                                                            |
+
+### Known bridge gaps (explicit fail cases, no production test hits them)
+
+These are documented constructor-shape gaps where the bridge raises
+`Bridge_error` with a descriptive message rather than silently dropping
+data. Production tests do not exercise any of these today; each is a
+future-work item that needs a tiny IR extension or bridge rewrite.
+
+- **String-comparison conds beyond equality.** `Yexpr_str_less`,
+  `Yexpr_str_greater`, `Yexpr_str_less_eq`, `Yexpr_str_greater_eq`
+  (the STRLESS / STRGREATER / STRLESS_EQUAL / STRGREATER_EQUAL forms)
+  not yet mirrored in tiny. See `yelu_cmake_to_yelu1.ml:64`.
+- **`add_executable` / `add_library` with `EXCLUDE_FROM_ALL`.** Bridge
+  rejects the flag at `:743` and `:752`; tiny surface ctors don't
+  carry the field. Extending the ctors is straightforward when needed.
+- **`target_link_libraries` multi-target.** Bridge supports exactly
+  one target per call (`yelu_cmake_to_yelu1.ml:774`); production AST
+  allows multiple in a single statement. Surface either takes a list
+  or the bridge splits into multiple per-target ECmake* statements.
+- **`add_custom_command(TARGET ...)`.** TARGET-form custom command
+  deferred — production tests use the OUTPUT-form variant. See
+  `yelu_cmake_to_yelu1.ml:900`.
 
 ## Y17 — types-on-tiny (post-retirement)
 

@@ -2,7 +2,14 @@
 
 The plan for moving the production lowering off `src/langs/yelu/fragments/`
 and onto `src/langs/yelu_tiny/`. Companion to `status.md` (open work) and
-`design.md` (the *why*). Status as of 2026-05-11: planning, not started.
+`design.md` (the *why*).
+
+**Status (2026-05-11): Phase 1 done, Phase 2 planned.** Production text
+generation routes through `Yelu1 → emit_ast → Lang_cmake.exp → cmake_pp`;
+the byte-equality oracle in `test_yelu_compile.ml` reports 194/194
+programs byte-identical with legacy. See "Phase 1 status" below and
+"Current happy path" for the pipeline diagram + how to run the
+regression check.
 
 ## Vocabulary
 

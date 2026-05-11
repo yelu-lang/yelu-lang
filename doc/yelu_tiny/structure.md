@@ -7,13 +7,16 @@ for current open work see `status.md`.
 
 ```
 src/langs/yelu_tiny/
-├── yelu_tiny.ml              core IR + env + frame stack + helpers
-├── yelu_tiny_yelu1.ml        Yelu1 evaluator   (tiny core + cmake-shaped surfaces)
-├── yelu_tiny_yelu2.ml        Yelu2 evaluator   (tiny core + idealized theories)
-├── yelu_tiny_translate.ml    lift / lower + public eval API
-├── yelu_tiny_cmake_emit.ml   Yelu1 IR → cmake text
-├── yelu_cmake_to_yelu1.ml    bridge: production yelu_cmake AST → Yelu1 IR
-└── fragments/                per-theory + per-surface modules (see below)
+├── yelu_tiny.ml                  core IR + env + frame stack + helpers
+├── yelu_tiny_yelu1.ml            Yelu1 evaluator   (tiny core + cmake-shaped surfaces)
+├── yelu_tiny_yelu2.ml            Yelu2 evaluator   (tiny core + idealized theories)
+├── yelu_tiny_translate.ml        lift / lower + public eval API
+├── yelu_tiny_cmake_emit_ast.ml   Yelu1 IR → Lang_cmake.exp (PRODUCTION emitter)
+├── yelu_tiny_cmake_emit.ml       Yelu1 IR → cmake text (DIAGNOSTIC AID, not on
+│                                 production path; kept for human inspection
+│                                 and as a regression target for step tests)
+├── yelu_cmake_to_yelu1.ml        bridge: production yelu_cmake AST → Yelu1 IR
+└── fragments/                    per-theory + per-surface modules (see below)
 ```
 
 ### `yelu_tiny.ml`
@@ -56,15 +59,47 @@ isomorphisms — most cases are mechanical (rename `ECmakeFoo` →
 `EFoo`) but a few (e.g. cmake `ECmakeOption` → tiny `ESetVar`) do real
 shape change.
 
-### `yelu_tiny_cmake_emit.ml`
+### `yelu_tiny_cmake_emit_ast.ml` (production emitter)
 
-`emit_expr_impl ~env e` produces cmake text. Threads a substitution env so
-that `ELet`-bound names resolve to their values at emit time instead of
-emitting `${name}`; see [phase 2a in design.md]. Two arg-style helpers,
-`arg` and `target_arg`, render expressions in script-positional vs.
-target-name context — target names render unquoted by convention.
-Conditions go through `cond` / `cond_atom` (separate because cmake's
-`if(A AND B)` needs parens to disambiguate from operators).
+`emit_ast e` lowers a Yelu1 IR expression to `Lang_cmake.exp` (the cmake
+syntax AST), then `emit_script e` runs `Lang_cmake_pp.pp` to produce
+text. This is the production path as of Phase 1 retirement (commit
+`682ebff`, 2026-05-11) — every production caller goes through this
+module so cmake text generation is unified on `lang_cmake_pp`.
+
+Four erasure helpers carry the real complexity:
+
+- `arg :: expr → Lang_cmake.arg` — Bare/Quoted/Bracket selection
+  matches legacy compile's policy: quote when cmake would otherwise
+  mis-tokenize (empty / whitespace / `$<...>` / `${...}` / `\\`).
+- `target_arg :: expr → string` — target / cvar / file-name positions,
+  unquoted by cmake convention.
+- `cond_tokens :: bool expr → string list` — cmake's
+  `cond = string list`. EVar in cond position renders as the bare name
+  (cmake's `if(FOO)` auto-derefs identifiers), distinct from arg-position
+  `${name}`. AND/OR always wraps in `(...)` tokens to mirror legacy.
+- `ELet` substitution — threaded via a `subst : expr Map.M(String).t`
+  through every erasure; the let header is dropped from output, and
+  EVar references that match the env get substituted.
+
+Verified by the byte-equality oracle in `test_yelu_compile.ml`: for all
+194 production-AST test programs, `legacy_compile → pp` and
+`bridge → emit_ast → pp` produce byte-identical text.
+
+### `yelu_tiny_cmake_emit.ml` (diagnostic aid)
+
+Older direct-text emitter. As of Phase 1.5 (commit `682ebff`), this is
+no longer on the production path. It stays callable as a diagnostic
+aid — useful for human inspection of bridge output without going
+through the cmake AST, and as a regression target for the step-level
+bridge tests (`test_yelu_tiny_steps`, `test_yelu_tiny_emit`,
+`test_yelu_tiny_cmake`) that were written against its specific format
+conventions (always-quote, trailing newline). Removal is gated on AST
+parity holding through at least one R3 / Y17 milestone — see
+[retirement_plan.md](retirement_plan.md).
+
+Same substitution-env architecture as `emit_ast`; output goes to a
+text-string list via `Fmt.str` instead of constructing a typed AST.
 
 ### `yelu_cmake_to_yelu1.ml`
 
@@ -160,8 +195,12 @@ For a new cmake command `cmake_thing(arg1 arg2 OUT out)`:
 3. **Bridge** in `yelu_cmake_to_yelu1.ml`:
    add a match arm under the appropriate `Y<theory>_*` group that
    produces `ECmakeThing { ... }` from the production AST.
-4. **Emit** in `yelu_tiny_cmake_emit.ml`:
-   add a match arm that produces the cmake text line(s).
+4. **Emit AST** in `yelu_tiny_cmake_emit_ast.ml` (production path):
+   add a match arm that produces the corresponding `Lang_cmake.exp`
+   value. The byte-equality oracle in `test_yelu_compile.ml` will
+   immediately verify it matches legacy compile output.
+   Optionally also add a match arm to `yelu_tiny_cmake_emit.ml` (the
+   diagnostic direct-text aid) if step tests need to see the value.
 5. **Lift / lower** in `yelu_tiny_translate.ml`:
    one arm in `lift_yelu1_to_yelu2` (`ECmakeThing → EThing`) and one
    in `lower_yelu2_to_yelu1` (`EThing → ECmakeThing`).

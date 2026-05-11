@@ -1,3 +1,9 @@
+(* Regression tests for [Yelu_tiny_cmake_emit] (the direct-text emitter,
+   demoted to diagnostic aid in Phase 1.5 of retirement, commit 682ebff).
+   Production lowering goes through [Yelu_tiny_cmake_emit_ast]; the AST
+   path has its own parity tests in [test_yelu_tiny_emit_ast.ml]. These
+   tests cover ELet emit-time substitution as exercised by the direct
+   path, and protect against the diagnostic module rotting. *)
 open Base
 open Yelu_langs.Yelu_tiny
 let let_emit_resolve =
