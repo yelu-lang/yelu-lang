@@ -273,6 +273,23 @@ let rec lift_yelu1_to_yelu2 = function
     ESetVar (out, EListGet (EVar list, lift_yelu1_to_yelu2 index))
   | ECmakeListJoin { list; glue; out } ->
     ESetVar (out, EStringJoin { sep = lift_yelu1_to_yelu2 glue; items = EVar list })
+  (* Additional list() subcommands — surface-only passthrough. *)
+  | ECmakeListPrepend { list; items } ->
+    ECmakeListPrepend
+      { list; items = List.map items ~f:lift_yelu1_to_yelu2 }
+  | ECmakeListInsert { list; index; items } ->
+    ECmakeListInsert
+      { list; index; items = List.map items ~f:lift_yelu1_to_yelu2 }
+  | ECmakeListRemoveItem { list; items } ->
+    ECmakeListRemoveItem
+      { list; items = List.map items ~f:lift_yelu1_to_yelu2 }
+  | ECmakeListRemoveAt _ | ECmakeListRemoveDuplicates _
+  | ECmakeListReverse _ | ECmakeListSort _ | ECmakeListFilter _
+  | ECmakeListSublist _ | ECmakeListPopBack _ | ECmakeListPopFront _
+  | ECmakeListTransform _ as e -> e
+  | ECmakeListFind { list; value; out } ->
+    ECmakeListFind
+      { list; value = lift_yelu1_to_yelu2 value; out }
 
   (* CMake path surface -> Yelu path theory. *)
   | ECmakePathSet { path; input; normalize } ->
@@ -286,6 +303,19 @@ let rec lift_yelu1_to_yelu2 = function
   | ECmakePathNormalPath { path; out } ->
     let out = Option.value out ~default:path in
     ESetVar (out, EPathNormalize (EVar path))
+  (* Generalized cmake_path subcommands lift as passthrough — they are
+     surface-only constructs at this slice; the eval-stubs live in the
+     surface fragment. *)
+  | ECmakePathGet _ | ECmakePathHas _
+  | ECmakePathIsAbsolute _ | ECmakePathIsRelative _ | ECmakePathIsPrefix _
+  | ECmakePathCompare _
+  | ECmakePathAppend _ | ECmakePathAppendString _
+  | ECmakePathRemoveFilename _ | ECmakePathReplaceFilename _
+  | ECmakePathRemoveExtension _ | ECmakePathReplaceExtension _
+  | ECmakePathRelativePath _ | ECmakePathAbsolutePath _
+  | ECmakePathNativePath _
+  | ECmakePathConvertToCmake _ | ECmakePathConvertToNative _
+  | ECmakePathHash _ as e -> e
 
   (* CMake file surface -> Yelu file theory. *)
   | ECmakeFileWrite { path; content } ->
@@ -316,12 +346,104 @@ let rec lift_yelu1_to_yelu2 = function
         relative = Option.map relative ~f:lift_yelu1_to_yelu2;
         configure_depends;
         patterns = List.map patterns ~f:lift_yelu1_to_yelu2 }
+  (* Additional file() subcommands — surface-only passthrough. *)
+  | ECmakeFileWriteAppend { path; content } ->
+    ECmakeFileWriteAppend
+      { path = lift_yelu1_to_yelu2 path;
+        content = List.map content ~f:lift_yelu1_to_yelu2 }
+  | ECmakeFileReadFull { path; out; offset; limit; hex } ->
+    ECmakeFileReadFull
+      { path = lift_yelu1_to_yelu2 path; out; offset; limit; hex }
+  | ECmakeFileStrings { out; path; regex; encoding; limit_count } ->
+    ECmakeFileStrings
+      { out; path = lift_yelu1_to_yelu2 path; regex; encoding; limit_count }
+  | ECmakeFileTouch { files; nocreate } ->
+    ECmakeFileTouch
+      { files = List.map files ~f:lift_yelu1_to_yelu2; nocreate }
+  | ECmakeFileMakeDirectory { dirs } ->
+    ECmakeFileMakeDirectory
+      { dirs = List.map dirs ~f:lift_yelu1_to_yelu2 }
+  | ECmakeFileRename { old_; new_; result; no_replace } ->
+    ECmakeFileRename
+      { old_ = lift_yelu1_to_yelu2 old_;
+        new_ = lift_yelu1_to_yelu2 new_;
+        result; no_replace }
+  | ECmakeFileRemove { files; recurse } ->
+    ECmakeFileRemove
+      { files = List.map files ~f:lift_yelu1_to_yelu2; recurse }
+  | ECmakeFileCopy { input; output; result; only_if_different } ->
+    ECmakeFileCopy
+      { input = lift_yelu1_to_yelu2 input;
+        output = lift_yelu1_to_yelu2 output;
+        result; only_if_different }
+  | ECmakeFileRealPath { out; path; base_dir; expand_tilde } ->
+    ECmakeFileRealPath
+      { out; path = lift_yelu1_to_yelu2 path;
+        base_dir = Option.map base_dir ~f:lift_yelu1_to_yelu2;
+        expand_tilde }
+  | ECmakeFileSize { out; path } ->
+    ECmakeFileSize { out; path = lift_yelu1_to_yelu2 path }
+  | ECmakeFileReadSymlink { out; link } ->
+    ECmakeFileReadSymlink { out; link = lift_yelu1_to_yelu2 link }
+  | ECmakeFileTimestamp { out; path; format; utc } ->
+    ECmakeFileTimestamp
+      { out; path = lift_yelu1_to_yelu2 path; format; utc }
   | ECmakeStringRegexReplace { regex; replace; out; inputs } ->
     ECmakeStringRegexReplace
       { regex;
         replace = lift_yelu1_to_yelu2 replace;
         out;
         inputs = List.map inputs ~f:lift_yelu1_to_yelu2 }
+  (* Additional string() subcommands — surface-only passthrough. *)
+  | ECmakeStringTolower { input; out } ->
+    ECmakeStringTolower { input = lift_yelu1_to_yelu2 input; out }
+  | ECmakeStringStrip { input; out } ->
+    ECmakeStringStrip { input = lift_yelu1_to_yelu2 input; out }
+  | ECmakeStringRegexMatch { regex; out; inputs } ->
+    ECmakeStringRegexMatch
+      { regex; out; inputs = List.map inputs ~f:lift_yelu1_to_yelu2 }
+  | ECmakeStringRegexMatchAll { regex; out; inputs } ->
+    ECmakeStringRegexMatchAll
+      { regex; out; inputs = List.map inputs ~f:lift_yelu1_to_yelu2 }
+  | ECmakeStringRegexQuote { out; inputs } ->
+    ECmakeStringRegexQuote
+      { out; inputs = List.map inputs ~f:lift_yelu1_to_yelu2 }
+  | ECmakeStringAppend { cvar; inputs } ->
+    ECmakeStringAppend
+      { cvar; inputs = List.map inputs ~f:lift_yelu1_to_yelu2 }
+  | ECmakeStringPrepend { cvar; inputs } ->
+    ECmakeStringPrepend
+      { cvar; inputs = List.map inputs ~f:lift_yelu1_to_yelu2 }
+  | ECmakeStringJoin { glue; out; inputs } ->
+    ECmakeStringJoin
+      { glue = lift_yelu1_to_yelu2 glue; out;
+        inputs = List.map inputs ~f:lift_yelu1_to_yelu2 }
+  | ECmakeStringFind { string; substring; out; reverse } ->
+    ECmakeStringFind
+      { string = lift_yelu1_to_yelu2 string;
+        substring = lift_yelu1_to_yelu2 substring; out; reverse }
+  | ECmakeStringSubstring { string; begin_; length; out } ->
+    ECmakeStringSubstring
+      { string = lift_yelu1_to_yelu2 string; begin_; length; out }
+  | ECmakeStringRepeat { string; count; out } ->
+    ECmakeStringRepeat
+      { string = lift_yelu1_to_yelu2 string; count; out }
+  | ECmakeStringGenexStrip { input; out } ->
+    ECmakeStringGenexStrip { input = lift_yelu1_to_yelu2 input; out }
+  | ECmakeStringMakeCIdentifier { input; out } ->
+    ECmakeStringMakeCIdentifier { input = lift_yelu1_to_yelu2 input; out }
+  | ECmakeStringTimestamp _ as e -> e
+  | ECmakeStringHex { input; out } ->
+    ECmakeStringHex { input = lift_yelu1_to_yelu2 input; out }
+  | ECmakeStringUuid _ as e -> e
+  | ECmakeStringCompare { op; string1; string2; out } ->
+    ECmakeStringCompare
+      { op; string1 = lift_yelu1_to_yelu2 string1;
+        string2 = lift_yelu1_to_yelu2 string2; out }
+  | ECmakeStringJson { out; error_var; op_name; args } ->
+    ECmakeStringJson
+      { out; error_var; op_name;
+        args = List.map args ~f:lift_yelu1_to_yelu2 }
   | ECmakeGetFilenameComponent { var; filename; mode } ->
     ECmakeGetFilenameComponent
       { var; filename = lift_yelu1_to_yelu2 filename; mode }
@@ -555,6 +677,34 @@ let rec lift_yelu1_to_yelu2 = function
   | ECmakeVersionGreaterEqual (a, b) ->
     ECmakeVersionGreaterEqual (lift_yelu1_to_yelu2 a, lift_yelu1_to_yelu2 b)
   | ECmakeMath { exp; out } -> ECmakeMath { exp; out }
+  (* Additional cmake_op subcommands — surface-only passthrough. *)
+  | ECmakeEnableLanguage _ | ECmakePolicySet _
+  | ECmakeLanguageEval _ | ECmakeLanguageGetLogLevel _
+  | ECmakeVariableWatch _ | ECmakeIncludeGuard _
+  | ECmakeQuoteCmd _ as e -> e
+  | ECmakeLanguageCall { cmd; args } ->
+    ECmakeLanguageCall
+      { cmd; args = List.map args ~f:lift_yelu1_to_yelu2 }
+  | ECmakeExecuteProcess r ->
+    ECmakeExecuteProcess
+      { commands = List.map r.commands
+            ~f:(List.map ~f:lift_yelu1_to_yelu2);
+        working_directory =
+          Option.map r.working_directory ~f:lift_yelu1_to_yelu2;
+        timeout = r.timeout;
+        result_variable = r.result_variable;
+        output_variable = r.output_variable;
+        error_variable = r.error_variable;
+        input_file = Option.map r.input_file ~f:lift_yelu1_to_yelu2;
+        output_file = Option.map r.output_file ~f:lift_yelu1_to_yelu2;
+        error_file = Option.map r.error_file ~f:lift_yelu1_to_yelu2;
+        output_quiet = r.output_quiet;
+        error_quiet = r.error_quiet;
+        output_strip_trailing_whitespace =
+          r.output_strip_trailing_whitespace;
+        error_strip_trailing_whitespace =
+          r.error_strip_trailing_whitespace;
+        command_error_is_fatal = r.command_error_is_fatal }
   | ECmakeStringConcat { inputs; out } ->
     ESetVar (out, EStringConcat (List.map inputs ~f:lift_yelu1_to_yelu2))
   | ECmakeStringToupper { input; out } ->
@@ -644,6 +794,19 @@ let rec lift_yelu1_to_yelu2 = function
   | ECmakeSetGlobalProperty { properties } ->
     ECmakeSetGlobalProperty
       { properties = List.map properties ~f:(fun (p, v) -> p, lift_yelu1_to_yelu2 v) }
+  (* Additional property subcommands — surface-only passthrough. *)
+  | ECmakeGetProperty { var; target; property; set_form } ->
+    ECmakeGetProperty
+      { var; target = lift_yelu1_to_yelu2 target; property; set_form }
+  | ECmakeGetDirectoryProperty _ | ECmakeGetGlobalProperty _
+  | ECmakeDefineProperty _ as e -> e
+  | ECmakeSetDirectoryProperty { property; append; values } ->
+    ECmakeSetDirectoryProperty
+      { property; append; values = List.map values ~f:lift_yelu1_to_yelu2 }
+  | ECmakeSetSourceProperty { file; property; values } ->
+    ECmakeSetSourceProperty
+      { file = lift_yelu1_to_yelu2 file; property;
+        values = List.map values ~f:lift_yelu1_to_yelu2 }
 
   (* CMake find surface -> Yelu find theory. *)
   | ECmakeFindPackage { package_name; required } ->
@@ -652,6 +815,32 @@ let rec lift_yelu1_to_yelu2 = function
   (* CMake try surface -> Yelu try theory. *)
   | ECmakeTryCompile { result_var; sources } ->
     ETryCompile { result_var; sources = List.map sources ~f:lift_yelu1_to_yelu2 }
+  | ECmakeTryCompileEx r ->
+    ECmakeTryCompileEx
+      { result_var = r.result_var;
+        sources = List.map r.sources ~f:lift_yelu1_to_yelu2;
+        compile_definitions =
+          List.map r.compile_definitions ~f:lift_yelu1_to_yelu2;
+        link_libraries =
+          List.map r.link_libraries ~f:lift_yelu1_to_yelu2;
+        link_options =
+          List.map r.link_options ~f:lift_yelu1_to_yelu2;
+        output_variable = r.output_variable;
+        no_cache = r.no_cache;
+        c_standard = r.c_standard;
+        cxx_standard = r.cxx_standard }
+  | ECmakeTryRun r ->
+    ECmakeTryRun
+      { run_result_var = r.run_result_var;
+        compile_result_var = r.compile_result_var;
+        sources = List.map r.sources ~f:lift_yelu1_to_yelu2;
+        compile_definitions =
+          List.map r.compile_definitions ~f:lift_yelu1_to_yelu2;
+        link_libraries =
+          List.map r.link_libraries ~f:lift_yelu1_to_yelu2;
+        compile_output_variable = r.compile_output_variable;
+        run_output_variable = r.run_output_variable;
+        args = List.map r.args ~f:lift_yelu1_to_yelu2 }
   | _ -> fail "cannot translate unknown Yelu1 expression"
 let rec lower_yelu2_to_yelu1 = function
   (* Core/store cases shared by both bundles. *)
@@ -956,6 +1145,23 @@ let rec lower_yelu2_to_yelu1 = function
     ECmakeListGet { list; index = lower_yelu2_to_yelu1 index; out = name }
   | ESetVar (name, EStringJoin { sep; items = EVar list }) ->
     ECmakeListJoin { list; glue = lower_yelu2_to_yelu1 sep; out = name }
+  (* Additional list() subcommands — surface-only passthrough. *)
+  | ECmakeListPrepend { list; items } ->
+    ECmakeListPrepend
+      { list; items = List.map items ~f:lower_yelu2_to_yelu1 }
+  | ECmakeListInsert { list; index; items } ->
+    ECmakeListInsert
+      { list; index; items = List.map items ~f:lower_yelu2_to_yelu1 }
+  | ECmakeListRemoveItem { list; items } ->
+    ECmakeListRemoveItem
+      { list; items = List.map items ~f:lower_yelu2_to_yelu1 }
+  | ECmakeListRemoveAt _ | ECmakeListRemoveDuplicates _
+  | ECmakeListReverse _ | ECmakeListSort _ | ECmakeListFilter _
+  | ECmakeListSublist _ | ECmakeListPopBack _ | ECmakeListPopFront _
+  | ECmakeListTransform _ as e -> e
+  | ECmakeListFind { list; value; out } ->
+    ECmakeListFind
+      { list; value = lower_yelu2_to_yelu1 value; out }
 
   (* Yelu path theory -> CMake path surface. *)
   | ESetVar (name, EPathFilename (EVar path)) ->
@@ -966,6 +1172,17 @@ let rec lower_yelu2_to_yelu1 = function
     ECmakePathNormalPath { path; out = Some name }
   | ESetVar (name, EPathNormalize expr) ->
     ECmakePathSet { path = name; input = lower_yelu2_to_yelu1 expr; normalize = true }
+  (* Generalized cmake_path subcommands: surface-only, passthrough. *)
+  | ECmakePathGet _ | ECmakePathHas _
+  | ECmakePathIsAbsolute _ | ECmakePathIsRelative _ | ECmakePathIsPrefix _
+  | ECmakePathCompare _
+  | ECmakePathAppend _ | ECmakePathAppendString _
+  | ECmakePathRemoveFilename _ | ECmakePathReplaceFilename _
+  | ECmakePathRemoveExtension _ | ECmakePathReplaceExtension _
+  | ECmakePathRelativePath _ | ECmakePathAbsolutePath _
+  | ECmakePathNativePath _
+  | ECmakePathConvertToCmake _ | ECmakePathConvertToNative _
+  | ECmakePathHash _ as e -> e
 
   (* Yelu file theory -> CMake file surface. *)
   | EFileWrite { path; content } ->
@@ -989,12 +1206,104 @@ let rec lower_yelu2_to_yelu1 = function
         relative = Option.map relative ~f:lower_yelu2_to_yelu1;
         configure_depends;
         patterns = List.map patterns ~f:lower_yelu2_to_yelu1 }
+  (* Additional file() subcommands — surface-only passthrough. *)
+  | ECmakeFileWriteAppend { path; content } ->
+    ECmakeFileWriteAppend
+      { path = lower_yelu2_to_yelu1 path;
+        content = List.map content ~f:lower_yelu2_to_yelu1 }
+  | ECmakeFileReadFull { path; out; offset; limit; hex } ->
+    ECmakeFileReadFull
+      { path = lower_yelu2_to_yelu1 path; out; offset; limit; hex }
+  | ECmakeFileStrings { out; path; regex; encoding; limit_count } ->
+    ECmakeFileStrings
+      { out; path = lower_yelu2_to_yelu1 path; regex; encoding; limit_count }
+  | ECmakeFileTouch { files; nocreate } ->
+    ECmakeFileTouch
+      { files = List.map files ~f:lower_yelu2_to_yelu1; nocreate }
+  | ECmakeFileMakeDirectory { dirs } ->
+    ECmakeFileMakeDirectory
+      { dirs = List.map dirs ~f:lower_yelu2_to_yelu1 }
+  | ECmakeFileRename { old_; new_; result; no_replace } ->
+    ECmakeFileRename
+      { old_ = lower_yelu2_to_yelu1 old_;
+        new_ = lower_yelu2_to_yelu1 new_;
+        result; no_replace }
+  | ECmakeFileRemove { files; recurse } ->
+    ECmakeFileRemove
+      { files = List.map files ~f:lower_yelu2_to_yelu1; recurse }
+  | ECmakeFileCopy { input; output; result; only_if_different } ->
+    ECmakeFileCopy
+      { input = lower_yelu2_to_yelu1 input;
+        output = lower_yelu2_to_yelu1 output;
+        result; only_if_different }
+  | ECmakeFileRealPath { out; path; base_dir; expand_tilde } ->
+    ECmakeFileRealPath
+      { out; path = lower_yelu2_to_yelu1 path;
+        base_dir = Option.map base_dir ~f:lower_yelu2_to_yelu1;
+        expand_tilde }
+  | ECmakeFileSize { out; path } ->
+    ECmakeFileSize { out; path = lower_yelu2_to_yelu1 path }
+  | ECmakeFileReadSymlink { out; link } ->
+    ECmakeFileReadSymlink { out; link = lower_yelu2_to_yelu1 link }
+  | ECmakeFileTimestamp { out; path; format; utc } ->
+    ECmakeFileTimestamp
+      { out; path = lower_yelu2_to_yelu1 path; format; utc }
   | ECmakeStringRegexReplace { regex; replace; out; inputs } ->
     ECmakeStringRegexReplace
       { regex;
         replace = lower_yelu2_to_yelu1 replace;
         out;
         inputs = List.map inputs ~f:lower_yelu2_to_yelu1 }
+  (* Additional string() subcommands — surface-only passthrough. *)
+  | ECmakeStringTolower { input; out } ->
+    ECmakeStringTolower { input = lower_yelu2_to_yelu1 input; out }
+  | ECmakeStringStrip { input; out } ->
+    ECmakeStringStrip { input = lower_yelu2_to_yelu1 input; out }
+  | ECmakeStringRegexMatch { regex; out; inputs } ->
+    ECmakeStringRegexMatch
+      { regex; out; inputs = List.map inputs ~f:lower_yelu2_to_yelu1 }
+  | ECmakeStringRegexMatchAll { regex; out; inputs } ->
+    ECmakeStringRegexMatchAll
+      { regex; out; inputs = List.map inputs ~f:lower_yelu2_to_yelu1 }
+  | ECmakeStringRegexQuote { out; inputs } ->
+    ECmakeStringRegexQuote
+      { out; inputs = List.map inputs ~f:lower_yelu2_to_yelu1 }
+  | ECmakeStringAppend { cvar; inputs } ->
+    ECmakeStringAppend
+      { cvar; inputs = List.map inputs ~f:lower_yelu2_to_yelu1 }
+  | ECmakeStringPrepend { cvar; inputs } ->
+    ECmakeStringPrepend
+      { cvar; inputs = List.map inputs ~f:lower_yelu2_to_yelu1 }
+  | ECmakeStringJoin { glue; out; inputs } ->
+    ECmakeStringJoin
+      { glue = lower_yelu2_to_yelu1 glue; out;
+        inputs = List.map inputs ~f:lower_yelu2_to_yelu1 }
+  | ECmakeStringFind { string; substring; out; reverse } ->
+    ECmakeStringFind
+      { string = lower_yelu2_to_yelu1 string;
+        substring = lower_yelu2_to_yelu1 substring; out; reverse }
+  | ECmakeStringSubstring { string; begin_; length; out } ->
+    ECmakeStringSubstring
+      { string = lower_yelu2_to_yelu1 string; begin_; length; out }
+  | ECmakeStringRepeat { string; count; out } ->
+    ECmakeStringRepeat
+      { string = lower_yelu2_to_yelu1 string; count; out }
+  | ECmakeStringGenexStrip { input; out } ->
+    ECmakeStringGenexStrip { input = lower_yelu2_to_yelu1 input; out }
+  | ECmakeStringMakeCIdentifier { input; out } ->
+    ECmakeStringMakeCIdentifier { input = lower_yelu2_to_yelu1 input; out }
+  | ECmakeStringTimestamp _ as e -> e
+  | ECmakeStringHex { input; out } ->
+    ECmakeStringHex { input = lower_yelu2_to_yelu1 input; out }
+  | ECmakeStringUuid _ as e -> e
+  | ECmakeStringCompare { op; string1; string2; out } ->
+    ECmakeStringCompare
+      { op; string1 = lower_yelu2_to_yelu1 string1;
+        string2 = lower_yelu2_to_yelu1 string2; out }
+  | ECmakeStringJson { out; error_var; op_name; args } ->
+    ECmakeStringJson
+      { out; error_var; op_name;
+        args = List.map args ~f:lower_yelu2_to_yelu1 }
   | ECmakeGetFilenameComponent { var; filename; mode } ->
     ECmakeGetFilenameComponent
       { var; filename = lower_yelu2_to_yelu1 filename; mode }
@@ -1103,6 +1412,34 @@ let rec lower_yelu2_to_yelu1 = function
   | EInclude { file; optional } ->
     ECmakeInclude { file = lower_yelu2_to_yelu1 file; optional }
   | EAtVar key -> ECmakeAtVar key
+  (* Additional cmake_op subcommands — surface-only passthrough on lower. *)
+  | ECmakeEnableLanguage _ | ECmakePolicySet _
+  | ECmakeLanguageEval _ | ECmakeLanguageGetLogLevel _
+  | ECmakeVariableWatch _ | ECmakeIncludeGuard _
+  | ECmakeQuoteCmd _ as e -> e
+  | ECmakeLanguageCall { cmd; args } ->
+    ECmakeLanguageCall
+      { cmd; args = List.map args ~f:lower_yelu2_to_yelu1 }
+  | ECmakeExecuteProcess r ->
+    ECmakeExecuteProcess
+      { commands = List.map r.commands
+            ~f:(List.map ~f:lower_yelu2_to_yelu1);
+        working_directory =
+          Option.map r.working_directory ~f:lower_yelu2_to_yelu1;
+        timeout = r.timeout;
+        result_variable = r.result_variable;
+        output_variable = r.output_variable;
+        error_variable = r.error_variable;
+        input_file = Option.map r.input_file ~f:lower_yelu2_to_yelu1;
+        output_file = Option.map r.output_file ~f:lower_yelu2_to_yelu1;
+        error_file = Option.map r.error_file ~f:lower_yelu2_to_yelu1;
+        output_quiet = r.output_quiet;
+        error_quiet = r.error_quiet;
+        output_strip_trailing_whitespace =
+          r.output_strip_trailing_whitespace;
+        error_strip_trailing_whitespace =
+          r.error_strip_trailing_whitespace;
+        command_error_is_fatal = r.command_error_is_fatal }
 
   (* Yelu dir theory -> CMake dir surface. *)
   | EAddSubdirectory path -> ECmakeAddSubdirectory (lower_yelu2_to_yelu1 path)
@@ -1142,6 +1479,19 @@ let rec lower_yelu2_to_yelu1 = function
   | ECmakeSetGlobalProperty { properties } ->
     ECmakeSetGlobalProperty
       { properties = List.map properties ~f:(fun (p, v) -> p, lower_yelu2_to_yelu1 v) }
+  (* Additional property subcommands — surface-only passthrough. *)
+  | ECmakeGetProperty { var; target; property; set_form } ->
+    ECmakeGetProperty
+      { var; target = lower_yelu2_to_yelu1 target; property; set_form }
+  | ECmakeGetDirectoryProperty _ | ECmakeGetGlobalProperty _
+  | ECmakeDefineProperty _ as e -> e
+  | ECmakeSetDirectoryProperty { property; append; values } ->
+    ECmakeSetDirectoryProperty
+      { property; append; values = List.map values ~f:lower_yelu2_to_yelu1 }
+  | ECmakeSetSourceProperty { file; property; values } ->
+    ECmakeSetSourceProperty
+      { file = lower_yelu2_to_yelu1 file; property;
+        values = List.map values ~f:lower_yelu2_to_yelu1 }
 
   (* Yelu find theory -> CMake find surface. *)
   | EFindPackage { package_name; required } ->
@@ -1151,6 +1501,32 @@ let rec lower_yelu2_to_yelu1 = function
   | ETryCompile { result_var; sources } ->
     ECmakeTryCompile
       { result_var; sources = List.map sources ~f:lower_yelu2_to_yelu1 }
+  | ECmakeTryCompileEx r ->
+    ECmakeTryCompileEx
+      { result_var = r.result_var;
+        sources = List.map r.sources ~f:lower_yelu2_to_yelu1;
+        compile_definitions =
+          List.map r.compile_definitions ~f:lower_yelu2_to_yelu1;
+        link_libraries =
+          List.map r.link_libraries ~f:lower_yelu2_to_yelu1;
+        link_options =
+          List.map r.link_options ~f:lower_yelu2_to_yelu1;
+        output_variable = r.output_variable;
+        no_cache = r.no_cache;
+        c_standard = r.c_standard;
+        cxx_standard = r.cxx_standard }
+  | ECmakeTryRun r ->
+    ECmakeTryRun
+      { run_result_var = r.run_result_var;
+        compile_result_var = r.compile_result_var;
+        sources = List.map r.sources ~f:lower_yelu2_to_yelu1;
+        compile_definitions =
+          List.map r.compile_definitions ~f:lower_yelu2_to_yelu1;
+        link_libraries =
+          List.map r.link_libraries ~f:lower_yelu2_to_yelu1;
+        compile_output_variable = r.compile_output_variable;
+        run_output_variable = r.run_output_variable;
+        args = List.map r.args ~f:lower_yelu2_to_yelu1 }
 
   | ESetVar (name, expr) -> ESetVar (name, lower_yelu2_to_yelu1 expr)
   | ESeq exprs -> ESeq (List.map exprs ~f:lower_yelu2_to_yelu1)

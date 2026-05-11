@@ -28,6 +28,23 @@ type expr +=
   | ECmakeSetGlobalProperty of {
       properties : (string * expr) list;
     }
+  (* Additional property subcommands — emit-faithful, eval-stub. *)
+  | ECmakeGetProperty of {
+      var : string; target : expr; property : string; set_form : bool
+    }
+  | ECmakeGetDirectoryProperty of { var : string; property : string }
+  | ECmakeSetDirectoryProperty of {
+      property : string; append : bool; values : expr list
+    }
+  | ECmakeSetSourceProperty of {
+      file : expr; property : string; values : expr list
+    }
+  | ECmakeGetGlobalProperty of { var : string; property : string }
+  | ECmakeDefineProperty of {
+      mode : string; property_name : string; inherited : bool;
+      brief_docs : string list; full_docs : string list;
+      initialize_from : string option;
+    }
 
 let eval_case ~eval env = function
   | ECmakeSetTargetProperty { target; property; value } ->
@@ -53,4 +70,11 @@ let eval_case ~eval env = function
     in
     Some (env, VUnit)
   | ECmakeSetGlobalProperty _ -> Some (env, VUnit)
+  | ECmakeGetProperty { var; _ }
+  | ECmakeGetDirectoryProperty { var; _ }
+  | ECmakeGetGlobalProperty { var; _ } ->
+    Some (set_var env ~key:var ~data:(VString ""), VUnit)
+  | ECmakeSetDirectoryProperty _ | ECmakeSetSourceProperty _
+  | ECmakeDefineProperty _ ->
+    Some (env, VUnit)
   | _ -> None

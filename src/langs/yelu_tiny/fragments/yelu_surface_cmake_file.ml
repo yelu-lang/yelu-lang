@@ -7,7 +7,15 @@ let provides = [ "file.write"; "file.read"; "file.exists" ]
 
 type expr +=
   | ECmakeFileWrite of { path : expr; content : expr list }
+  | ECmakeFileWriteAppend of { path : expr; content : expr list }
   | ECmakeFileRead of { path : expr; out : string }
+  | ECmakeFileReadFull of {
+      path : expr;
+      out : string;
+      offset : int option;
+      limit : int option;
+      hex : bool;
+    }
   | ECmakeFileExists of expr
   | ECmakeConfigureFile of { input : expr; output : expr }
   (* [file(RELATIVE_PATH <var> <base> <file>)]. Eval stub: binds var to
@@ -22,6 +30,33 @@ type expr +=
       relative : expr option;
       configure_depends : bool;
       patterns : expr list;
+    }
+  (* Additional file() subcommands — emit-faithful, eval-stub. *)
+  | ECmakeFileStrings of {
+      out : string;
+      path : expr;
+      regex : string option;
+      encoding : string option;
+      limit_count : int option;
+    }
+  | ECmakeFileTouch of { files : expr list; nocreate : bool }
+  | ECmakeFileMakeDirectory of { dirs : expr list }
+  | ECmakeFileRename of {
+      old_ : expr; new_ : expr;
+      result : string option; no_replace : bool
+    }
+  | ECmakeFileRemove of { files : expr list; recurse : bool }
+  | ECmakeFileCopy of {
+      input : expr; output : expr;
+      result : string option; only_if_different : bool
+    }
+  | ECmakeFileRealPath of {
+      out : string; path : expr; base_dir : expr option; expand_tilde : bool
+    }
+  | ECmakeFileSize of { out : string; path : expr }
+  | ECmakeFileReadSymlink of { out : string; link : expr }
+  | ECmakeFileTimestamp of {
+      out : string; path : expr; format : string option; utc : bool
     }
 
 let eval_string ~eval env expr =
@@ -60,5 +95,37 @@ let eval_case ~eval env = function
     let env, file = eval_string ~eval env file in
     Some (set_var env ~key:var ~data:(VString file), VUnit)
   | ECmakeFileGlob { out; _ } ->
+    Some (set_var env ~key:out ~data:(VString ""), VUnit)
+  (* Additional file() subcommands — eval stubs. Where a result/out var
+     exists, we bind it to a placeholder so callers can still read it. *)
+  | ECmakeFileWriteAppend { path; content } ->
+    let env, path = eval_string ~eval env path in
+    let env, content = eval_strings ~eval env content in
+    let existing = Option.value (find_file env path) ~default:"" in
+    Some (set_file env ~path ~content:(existing ^ String.concat content), VUnit)
+  | ECmakeFileReadFull { path; out; _ } ->
+    let env, path = eval_string ~eval env path in
+    (match find_file env path with
+     | Some content ->
+       Some (set_var env ~key:out ~data:(VString content), VUnit)
+     | None ->
+       Some (set_var env ~key:out ~data:(VString ""), VUnit))
+  | ECmakeFileStrings { out; _ } ->
+    Some (set_var env ~key:out ~data:(VString ""), VUnit)
+  | ECmakeFileTouch _ | ECmakeFileMakeDirectory _ | ECmakeFileRemove _ ->
+    Some (env, VUnit)
+  | ECmakeFileRename { result; _ } | ECmakeFileCopy { result; _ } ->
+    (match result with
+     | Some var -> Some (set_var env ~key:var ~data:(VString "0"), VUnit)
+     | None -> Some (env, VUnit))
+  | ECmakeFileRealPath { out; path; _ } ->
+    let env, path = eval_string ~eval env path in
+    Some (set_var env ~key:out ~data:(VString path), VUnit)
+  | ECmakeFileSize { out; _ } ->
+    Some (set_var env ~key:out ~data:(VInt 0), VUnit)
+  | ECmakeFileReadSymlink { out; link } ->
+    let env, link = eval_string ~eval env link in
+    Some (set_var env ~key:out ~data:(VString link), VUnit)
+  | ECmakeFileTimestamp { out; _ } ->
     Some (set_var env ~key:out ~data:(VString ""), VUnit)
   | _ -> None

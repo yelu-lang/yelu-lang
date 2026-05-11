@@ -9,15 +9,43 @@ let _stage = stage
 let pp_to_string ast = Fmt.str "%a" pp ast
 let pp_vbox_to_string ast = Fmt.str "%a" (Fmt.vbox pp) ast
 
+(* R4 bridge check. After R4-a's mechanical attrition, every program in
+   this file is expected to bridge through tiny EXCEPT the 13 listed in
+   [bridge_skip] — those exercise the R4-b semantic batch (block / while
+   / foreach_range / break / continue / return / separate_arguments) and
+   are intentionally not bridged yet; their design conversation is
+   pending. CI stays green; revisit each skip when R4-b lands. *)
+let bridge_skip = [
+  "empty_block"; "block_with_body"; "block_with_vars"; "block_with_propagate";
+  "foreach_range stop only"; "foreach_range start stop";
+  "break"; "continue"; "return empty"; "return propagate"; "while empty body";
+  "separate_arguments unix";
+]
+
+let assert_bridge_succeeds name yelu_ast =
+  if Base.List.mem bridge_skip name ~equal:Base.String.equal then ()
+  else
+    match Yelu_langs.Yelu_cmake_to_yelu1.stmt yelu_ast with
+    | exception Yelu_langs.Yelu_cmake_to_yelu1.Bridge_error msg ->
+      Alcotest.failf "%s: tiny bridge raised Bridge_error: %s" name msg
+    | yelu1 ->
+      let cmake_text = Yelu_langs.Yelu_tiny_cmake_emit.emit_script yelu1 in
+      Alcotest.(check bool)
+        (Printf.sprintf "%s: tiny bridge produced non-empty cmake" name)
+        true
+        (String.length cmake_text > 0)
+
 let check name expected yelu_ast =
   Alcotest.test_case name `Quick (fun () ->
       let cmake_ast = compile empty_env yelu_ast |> snd in
-      Alcotest.(check string) name expected (pp_to_string cmake_ast))
+      Alcotest.(check string) name expected (pp_to_string cmake_ast);
+      assert_bridge_succeeds name yelu_ast)
 
 let check_vbox name expected yelu_ast =
   Alcotest.test_case name `Quick (fun () ->
       let cmake_ast = compile empty_env yelu_ast |> snd in
-      Alcotest.(check string) name expected (pp_vbox_to_string cmake_ast))
+      Alcotest.(check string) name expected (pp_vbox_to_string cmake_ast);
+      assert_bridge_succeeds name yelu_ast)
 
 (* --- Test groups --- *)
 

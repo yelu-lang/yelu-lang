@@ -37,6 +37,31 @@ type expr +=
      evaluated by cmake. Eval is a stub (returns VUnit and leaves [out]
      unbound); emit faithfully renders the cmake command. *)
   | ECmakeMath of { exp : string; out : string }
+  (* Additional cmake_op subcommands — emit-faithful, eval-stub. *)
+  | ECmakeEnableLanguage of { langs : string list; optional : bool }
+  | ECmakePolicySet of { id : string; new_ : bool }
+  | ECmakeLanguageCall of { cmd : string; args : expr list }
+  | ECmakeLanguageEval of { code : string }
+  | ECmakeLanguageGetLogLevel of { out : string }
+  | ECmakeVariableWatch of { var : string; command : string option }
+  | ECmakeExecuteProcess of {
+      commands : expr list list;
+      working_directory : expr option;
+      timeout : float option;
+      result_variable : string option;
+      output_variable : string option;
+      error_variable : string option;
+      input_file : expr option;
+      output_file : expr option;
+      error_file : expr option;
+      output_quiet : bool;
+      error_quiet : bool;
+      output_strip_trailing_whitespace : bool;
+      error_strip_trailing_whitespace : bool;
+      command_error_is_fatal : string option;
+    }
+  | ECmakeIncludeGuard of { scope : string }
+  | ECmakeQuoteCmd of string
   (* [foreach(<loop_var> <items>...)] — list iteration. On each iteration
      [loop_var] is set in the caller's variable scope; **the binding
      persists after the loop ends**, retaining its final iteration
@@ -115,6 +140,27 @@ let eval_case ~eval env = function
     Some (add_include env file, VUnit)
   | ECmakeAtVar _ -> Some (env, VUnit)
   | ECmakeMath _ -> Some (env, VUnit)
+  | ECmakeEnableLanguage _ | ECmakePolicySet _
+  | ECmakeLanguageEval _ | ECmakeVariableWatch _
+  | ECmakeIncludeGuard _ | ECmakeQuoteCmd _ ->
+    Some (env, VUnit)
+  | ECmakeLanguageCall _ -> Some (env, VUnit)
+  | ECmakeLanguageGetLogLevel { out } ->
+    Some (set_var env ~key:out ~data:(VString "STATUS"), VUnit)
+  | ECmakeExecuteProcess { result_variable; output_variable; error_variable; _ } ->
+    let env = match result_variable with
+      | Some v -> set_var env ~key:v ~data:(VString "0")
+      | None -> env
+    in
+    let env = match output_variable with
+      | Some v -> set_var env ~key:v ~data:(VString "")
+      | None -> env
+    in
+    let env = match error_variable with
+      | Some v -> set_var env ~key:v ~data:(VString "")
+      | None -> env
+    in
+    Some (env, VUnit)
   | ECmakeForeach { loop_var; items; body } ->
     (* No-restore semantics, matching cmake: [loop_var] leaks past
        [endforeach] with its final iteration value. Empty [items]

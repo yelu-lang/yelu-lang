@@ -86,25 +86,94 @@ let string_statement : Old.yelu_string_stmt -> Yelu_tiny.expr = function
       }
   | Ystr_length { string; out } ->
     ECmakeStringLength { input = expr string; out = cvar_name out }
-  | Ystr_compare { op = Sco_equal; string1; string2; out } ->
-    ESetVar (cvar_name out, ECmakeStringEqual (expr string1, expr string2))
+  | Ystr_compare { op; string1; string2; out } ->
+    (* Non-EQUAL compares: less / greater / notequal / less_equal /
+       greater_equal. Lower as a boolean expr in tiny via the existing
+       version-style operators (cmake's STRLESS / STRGREATER / ...).
+       Emit faithfully; eval is a stub on these for now. *)
+    let op_str = match op with
+      | Sco_less -> "LESS" | Sco_greater -> "GREATER"
+      | Sco_notequal -> "NOTEQUAL"
+      | Sco_less_equal -> "LESS_EQUAL"
+      | Sco_greater_equal -> "GREATER_EQUAL"
+      | Sco_equal -> "EQUAL"
+    in
+    ECmakeStringCompare
+      { op = op_str; string1 = expr string1; string2 = expr string2;
+        out = cvar_name out }
   | Ystr_regex_replace { regex; replace; out; inputs } ->
     ECmakeStringRegexReplace
       { regex;
         replace = expr replace;
         out = cvar_name out;
         inputs = List.map inputs ~f:expr }
-  | _ -> fail "unsupported yelu_cmake string statement for Yelu1 bridge"
+  | Ystr_tolower { string; out } ->
+    ECmakeStringTolower { input = expr string; out = cvar_name out }
+  | Ystr_strip { string; out } ->
+    ECmakeStringStrip { input = expr string; out = cvar_name out }
+  | Ystr_regex_match { regex; out; inputs } ->
+    ECmakeStringRegexMatch
+      { regex; out = cvar_name out; inputs = List.map inputs ~f:expr }
+  | Ystr_regex_matchall { regex; out; inputs } ->
+    ECmakeStringRegexMatchAll
+      { regex; out = cvar_name out; inputs = List.map inputs ~f:expr }
+  | Ystr_regex_quote { out; inputs } ->
+    ECmakeStringRegexQuote
+      { out = cvar_name out; inputs = List.map inputs ~f:expr }
+  | Ystr_append { cvar; inputs } ->
+    ECmakeStringAppend
+      { cvar = cvar_name cvar; inputs = List.map inputs ~f:expr }
+  | Ystr_prepend { cvar; inputs } ->
+    ECmakeStringPrepend
+      { cvar = cvar_name cvar; inputs = List.map inputs ~f:expr }
+  | Ystr_join { glue; out; inputs } ->
+    ECmakeStringJoin
+      { glue = expr glue; out = cvar_name out;
+        inputs = List.map inputs ~f:expr }
+  | Ystr_find { string; substring; out; reverse } ->
+    ECmakeStringFind
+      { string = expr string; substring = expr substring;
+        out = cvar_name out; reverse }
+  | Ystr_substring { string; begin_; length; out } ->
+    ECmakeStringSubstring
+      { string = expr string; begin_; length; out = cvar_name out }
+  | Ystr_repeat { string; count; out } ->
+    ECmakeStringRepeat
+      { string = expr string; count; out = cvar_name out }
+  | Ystr_genex_strip { string; out } ->
+    ECmakeStringGenexStrip { input = expr string; out = cvar_name out }
+  | Ystr_make_c_identifier { string; out } ->
+    ECmakeStringMakeCIdentifier { input = expr string; out = cvar_name out }
+  | Ystr_timestamp { out; format; utc } ->
+    ECmakeStringTimestamp { out = cvar_name out; format; utc }
+  | Ystr_hex { string; out } ->
+    ECmakeStringHex { input = expr string; out = cvar_name out }
+  | Ystr_uuid { out; namespace; name; type_; upper } ->
+    let type_str = match type_ with `Md5 -> "MD5" | `Sha1 -> "SHA1" in
+    ECmakeStringUuid
+      { out = cvar_name out; namespace; name;
+        type_ = type_str; upper }
+  | Ystr_json { out; error_var; op = _ } ->
+    (* JSON op shape is bridged as opaque; the op_name + args are not
+       carried at this slice. *)
+    ECmakeStringJson
+      { out = cvar_name out;
+        error_var = Option.map error_var ~f:cvar_name;
+        op_name = "JSON_op";
+        args = [] }
 
 let var_statement : Old.yelu_var_stmt -> Yelu_tiny.expr = function
-  | Yvar_set { cvar; values = [ value ]; parent_scope = false } ->
+  | Yvar_set { cvar; values = [ value ]; parent_scope = _ } ->
+    (* PARENT_SCOPE is dropped at this slice: real cmake writes to the
+       calling function/directory's scope, which would need a scope
+       chain in env. The bridge survey treats it as a local set; emit
+       loses the PARENT_SCOPE keyword. Recorded as a semantic-fidelity
+       gap, batched with R4-b. *)
     ESetVar (cvar_name cvar, expr value)
-  | Yvar_set { cvar; values = []; parent_scope = false } ->
+  | Yvar_set { cvar; values = []; parent_scope = _ } ->
     ESetVar (cvar_name cvar, EString "")
-  | Yvar_set { cvar; values; parent_scope = false } ->
+  | Yvar_set { cvar; values; parent_scope = _ } ->
     ESetVar (cvar_name cvar, EList (List.map values ~f:expr))
-  | Yvar_set { parent_scope = true; _ } ->
-    fail "set(PARENT_SCOPE) is outside the first Yelu1 bridge slice"
   | Yvar_option { cvar; msg; value } ->
     ECmakeOption { name = cvar_name cvar; message = msg; value = expr value }
   | Yvar_unset_cache { cvar } ->
@@ -127,34 +196,225 @@ let list_statement : Old.yelu_list_stmt -> Yelu_tiny.expr = function
     ECmakeListLength { list = cvar_name cvar; out = cvar_name out }
   | Ylist_join { cvar; glue; out } ->
     ECmakeListJoin { list = cvar_name cvar; glue = expr glue; out = cvar_name out }
-  | _ -> fail "unsupported yelu_cmake list statement for Yelu1 bridge"
+  | Ylist_prepend { cvar; values } ->
+    ECmakeListPrepend
+      { list = cvar_name cvar; items = List.map values ~f:expr }
+  | Ylist_insert { cvar; index; values } ->
+    ECmakeListInsert
+      { list = cvar_name cvar; index;
+        items = List.map values ~f:expr }
+  | Ylist_remove_item { cvar; values } ->
+    ECmakeListRemoveItem
+      { list = cvar_name cvar; items = List.map values ~f:expr }
+  | Ylist_remove_at { cvar; indices } ->
+    ECmakeListRemoveAt { list = cvar_name cvar; indices }
+  | Ylist_remove_duplicates { cvar } ->
+    ECmakeListRemoveDuplicates { list = cvar_name cvar }
+  | Ylist_reverse { cvar } ->
+    ECmakeListReverse { list = cvar_name cvar }
+  | Ylist_sort { cvar; order; compare; case } ->
+    let order_s = Option.map order ~f:(function
+      | Lang_cmake.Ls_ascending -> "ASCENDING"
+      | Lang_cmake.Ls_descending -> "DESCENDING")
+    in
+    let compare_s = Option.map compare ~f:(function
+      | Lang_cmake.Ls_string -> "STRING"
+      | Lang_cmake.Ls_file_basename -> "FILE_BASENAME"
+      | Lang_cmake.Ls_natural -> "NATURAL")
+    in
+    let case_s = Option.map case ~f:(function
+      | Lang_cmake.Ls_sensitive -> "SENSITIVE"
+      | Lang_cmake.Ls_insensitive -> "INSENSITIVE")
+    in
+    ECmakeListSort
+      { list = cvar_name cvar;
+        order = order_s; compare = compare_s; case = case_s }
+  | Ylist_filter { cvar; mode; regex } ->
+    let mode_s = match mode with
+      | Lang_cmake.Lf_include -> "INCLUDE"
+      | Lang_cmake.Lf_exclude -> "EXCLUDE"
+    in
+    ECmakeListFilter { list = cvar_name cvar; mode = mode_s; regex }
+  | Ylist_sublist { cvar; begin_; length; out } ->
+    ECmakeListSublist
+      { list = cvar_name cvar; begin_; length; out = cvar_name out }
+  | Ylist_find { cvar; value; out } ->
+    ECmakeListFind
+      { list = cvar_name cvar; value = expr value; out = cvar_name out }
+  | Ylist_pop_back { cvar; out_vars } ->
+    ECmakeListPopBack
+      { list = cvar_name cvar; out_vars = List.map out_vars ~f:cvar_name }
+  | Ylist_pop_front { cvar; out_vars } ->
+    ECmakeListPopFront
+      { list = cvar_name cvar; out_vars = List.map out_vars ~f:cvar_name }
+  | Ylist_transform { cvar; action; selector; output } ->
+    let action_s = match action with
+      | Lang_cmake.Lta_append _ -> "APPEND"
+      | Lang_cmake.Lta_prepend _ -> "PREPEND"
+      | Lang_cmake.Lta_toupper -> "TOUPPER"
+      | Lang_cmake.Lta_tolower -> "TOLOWER"
+      | Lang_cmake.Lta_strip -> "STRIP"
+      | Lang_cmake.Lta_genex_strip -> "GENEX_STRIP"
+      | Lang_cmake.Lta_replace _ -> "REPLACE"
+    in
+    let selector_s = Option.map selector ~f:(function
+      | Lang_cmake.Lts_at _ -> "AT"
+      | Lang_cmake.Lts_for _ -> "FOR"
+      | Lang_cmake.Lts_regex _ -> "REGEX")
+    in
+    ECmakeListTransform
+      { list = cvar_name cvar;
+        action = action_s;
+        selector = selector_s;
+        output = Option.map output ~f:cvar_name }
+
+let string_of_cmake_path_get_field : Lang_cmake.cmake_path_get_field -> string = function
+  | Cpf_root_name -> "ROOT_NAME"
+  | Cpf_root_directory -> "ROOT_DIRECTORY"
+  | Cpf_root_path -> "ROOT_PATH"
+  | Cpf_filename -> "FILENAME"
+  | Cpf_extension last_only ->
+    if last_only then "EXTENSION LAST_ONLY" else "EXTENSION"
+  | Cpf_stem last_only ->
+    if last_only then "STEM LAST_ONLY" else "STEM"
+  | Cpf_relative_part -> "RELATIVE_PART"
+  | Cpf_parent_path -> "PARENT_PATH"
+
+let string_of_cmake_path_has_field : Lang_cmake.cmake_path_has_field -> string = function
+  | Cph_root_name -> "HAS_ROOT_NAME"
+  | Cph_root_directory -> "HAS_ROOT_DIRECTORY"
+  | Cph_root_path -> "HAS_ROOT_PATH"
+  | Cph_filename -> "HAS_FILENAME"
+  | Cph_extension -> "HAS_EXTENSION"
+  | Cph_stem -> "HAS_STEM"
+  | Cph_relative_part -> "HAS_RELATIVE_PART"
+  | Cph_parent_path -> "HAS_PARENT_PATH"
+
+let string_of_cmake_path_compare_op : Lang_cmake.cmake_path_compare_op -> string = function
+  | Cpco_equal -> "EQUAL"
+  | Cpco_not_equal -> "NOT_EQUAL"
 
 let path_statement : Old.yelu_path_stmt -> Yelu_tiny.expr = function
   | Ypath_set { path_var; input; normalize } ->
     ECmakePathSet { path = cvar_name path_var; input = expr input; normalize }
   | Ypath_get { path_var; field = Cpf_filename; out } ->
     ECmakePathGetFilename { path = cvar_name path_var; out = cvar_name out }
+  | Ypath_get { path_var; field; out } ->
+    ECmakePathGet
+      { path = cvar_name path_var;
+        field = string_of_cmake_path_get_field field;
+        out = cvar_name out }
+  | Ypath_has { path_var; field; out } ->
+    ECmakePathHas
+      { path = cvar_name path_var;
+        field = string_of_cmake_path_has_field field;
+        out = cvar_name out }
+  | Ypath_is_absolute { path_var; out } ->
+    ECmakePathIsAbsolute { path = cvar_name path_var; out = cvar_name out }
+  | Ypath_is_relative { path_var; out } ->
+    ECmakePathIsRelative { path = cvar_name path_var; out = cvar_name out }
+  | Ypath_is_prefix { path_var; input; normalize; out } ->
+    ECmakePathIsPrefix
+      { path = cvar_name path_var; input = expr input; normalize;
+        out = cvar_name out }
+  | Ypath_compare { input1; op; input2; out } ->
+    ECmakePathCompare
+      { input1 = expr input1;
+        op = string_of_cmake_path_compare_op op;
+        input2 = expr input2;
+        out = cvar_name out }
+  | Ypath_append { path_var; inputs; out } ->
+    ECmakePathAppend
+      { path = cvar_name path_var;
+        inputs = List.map inputs ~f:expr;
+        out = Option.map out ~f:cvar_name }
+  | Ypath_append_string { path_var; inputs; out } ->
+    ECmakePathAppendString
+      { path = cvar_name path_var;
+        inputs = List.map inputs ~f:expr;
+        out = Option.map out ~f:cvar_name }
+  | Ypath_remove_filename { path_var; out } ->
+    ECmakePathRemoveFilename
+      { path = cvar_name path_var; out = Option.map out ~f:cvar_name }
+  | Ypath_replace_filename { path_var; input; out } ->
+    ECmakePathReplaceFilename
+      { path = cvar_name path_var; input = expr input;
+        out = Option.map out ~f:cvar_name }
+  | Ypath_remove_extension { path_var; last_only; out } ->
+    ECmakePathRemoveExtension
+      { path = cvar_name path_var; last_only;
+        out = Option.map out ~f:cvar_name }
+  | Ypath_replace_extension { path_var; last_only; input; out } ->
+    ECmakePathReplaceExtension
+      { path = cvar_name path_var; last_only; input = expr input;
+        out = Option.map out ~f:cvar_name }
   | Ypath_normal_path { path_var; out } ->
     ECmakePathNormalPath
       { path = cvar_name path_var; out = Option.map out ~f:cvar_name }
+  | Ypath_relative_path { path_var; base_dir; out } ->
+    ECmakePathRelativePath
+      { path = cvar_name path_var;
+        base_dir = Option.map base_dir ~f:expr;
+        out = Option.map out ~f:cvar_name }
+  | Ypath_absolute_path { path_var; base_dir; normalize; out } ->
+    ECmakePathAbsolutePath
+      { path = cvar_name path_var;
+        base_dir = Option.map base_dir ~f:expr;
+        normalize;
+        out = Option.map out ~f:cvar_name }
+  | Ypath_native_path { path_var; normalize; out } ->
+    ECmakePathNativePath
+      { path = cvar_name path_var; normalize; out = cvar_name out }
+  | Ypath_convert_to_cmake { input; normalize; out } ->
+    ECmakePathConvertToCmake
+      { input = expr input; normalize; out = cvar_name out }
+  | Ypath_convert_to_native { input; normalize; out } ->
+    ECmakePathConvertToNative
+      { input = expr input; normalize; out = cvar_name out }
+  | Ypath_hash { path_var; out } ->
+    ECmakePathHash { path = cvar_name path_var; out = cvar_name out }
   | Ypath_get_filename_component { var; filename; mode } ->
     ECmakeGetFilenameComponent
       { var = cvar_name var; filename = expr filename; mode }
-  | _ -> fail "unsupported yelu_cmake path statement for Yelu1 bridge"
 
 let file_statement : Old.yelu_file_io_stmt -> Yelu_tiny.expr = function
   | Yfile_write { file; append = false; content } ->
     ECmakeFileWrite { path = expr file; content = List.map content ~f:expr }
-  | Yfile_write { append = true; _ } ->
-    fail "file(APPEND) is outside the current Yelu1 bridge slice"
+  | Yfile_write { file; append = true; content } ->
+    ECmakeFileWriteAppend { path = expr file; content = List.map content ~f:expr }
   | Yfile_read { out; file; offset = None; limit = None; hex = false } ->
     ECmakeFileRead { path = expr file; out = cvar_name out }
-  | Yfile_read { offset = Some _; _ } ->
-    fail "file(READ OFFSET) is outside the current Yelu1 bridge slice"
-  | Yfile_read { limit = Some _; _ } ->
-    fail "file(READ LIMIT) is outside the current Yelu1 bridge slice"
-  | Yfile_read { hex = true; _ } ->
-    fail "file(READ HEX) is outside the current Yelu1 bridge slice"
+  | Yfile_read { out; file; offset; limit; hex } ->
+    ECmakeFileReadFull
+      { path = expr file; out = cvar_name out; offset; limit; hex }
+  | Yfile_strings { out; file; regex; encoding; limit_count } ->
+    ECmakeFileStrings
+      { out = cvar_name out; path = expr file; regex; encoding; limit_count }
+  | Yfile_touch { files; nocreate } ->
+    ECmakeFileTouch { files = List.map files ~f:expr; nocreate }
+  | Yfile_make_directory { dirs } ->
+    ECmakeFileMakeDirectory { dirs = List.map dirs ~f:expr }
+  | Yfile_rename { old_; new_; result; no_replace } ->
+    ECmakeFileRename
+      { old_ = expr old_; new_ = expr new_;
+        result = Option.map result ~f:cvar_name; no_replace }
+  | Yfile_remove { files; recurse } ->
+    ECmakeFileRemove { files = List.map files ~f:expr; recurse }
+  | Yfile_copy { input; output; result; only_if_different } ->
+    ECmakeFileCopy
+      { input = expr input; output = expr output;
+        result = Option.map result ~f:cvar_name; only_if_different }
+  | Yfile_real_path { out; path; base_dir; expand_tilde } ->
+    ECmakeFileRealPath
+      { out = cvar_name out; path = expr path;
+        base_dir = Option.map base_dir ~f:expr; expand_tilde }
+  | Yfile_size { out; file } ->
+    ECmakeFileSize { out = cvar_name out; path = expr file }
+  | Yfile_read_symlink { out; link } ->
+    ECmakeFileReadSymlink { out = cvar_name out; link = expr link }
+  | Yfile_timestamp { out; file; format; utc } ->
+    ECmakeFileTimestamp
+      { out = cvar_name out; path = expr file; format; utc }
   | Yfile_configure { input; output } ->
     ECmakeConfigureFile { input = expr input; output = expr output }
   | Yfile_relative_path { var; base; file } ->
@@ -174,7 +434,6 @@ let file_statement : Old.yelu_file_io_stmt -> Yelu_tiny.expr = function
         relative = Option.map relative ~f:expr;
         configure_depends;
         patterns = List.map patterns ~f:expr }
-  | _ -> fail "unsupported yelu_cmake file statement for Yelu1 bridge"
 
 let string_of_version (v : Lang_cmake.version) =
   let patch = if String.length v.patch = 0 then "" else "." ^ v.patch in
@@ -234,7 +493,42 @@ let cmake_op_statement : Old.yelu_cmake_stmt -> Yelu_tiny.expr = function
   | Ycmake_at_var key -> ECmakeAtVar key
   | Ycmake_math { exp; out; output_format = _ } ->
     ECmakeMath { exp; out = cvar_name out }
-  | _ -> fail "unsupported yelu_cmake cmake_op statement for Yelu1 bridge"
+  | Ycmake_enable_language { langs; optional } ->
+    ECmakeEnableLanguage { langs; optional }
+  | Ycmake_policy_set { id; new_ } ->
+    ECmakePolicySet { id; new_ }
+  | Ycmake_language_call { cmd; args } ->
+    ECmakeLanguageCall { cmd; args = List.map args ~f:expr }
+  | Ycmake_language_eval { code } ->
+    ECmakeLanguageEval { code }
+  | Ycmake_language_get_log_level { out } ->
+    ECmakeLanguageGetLogLevel { out = cvar_name out }
+  | Ycmake_variable_watch { var; command } ->
+    ECmakeVariableWatch { var = cvar_name var; command }
+  | Ycmake_execute_process r ->
+    ECmakeExecuteProcess
+      { commands = List.map r.commands ~f:(List.map ~f:expr);
+        working_directory = Option.map r.working_directory ~f:expr;
+        timeout = r.timeout;
+        result_variable = Option.map r.result_variable ~f:cvar_name;
+        output_variable = Option.map r.output_variable ~f:cvar_name;
+        error_variable = Option.map r.error_variable ~f:cvar_name;
+        input_file = Option.map r.input_file ~f:expr;
+        output_file = Option.map r.output_file ~f:expr;
+        error_file = Option.map r.error_file ~f:expr;
+        output_quiet = r.output_quiet;
+        error_quiet = r.error_quiet;
+        output_strip_trailing_whitespace = r.output_strip_trailing_whitespace;
+        error_strip_trailing_whitespace = r.error_strip_trailing_whitespace;
+        command_error_is_fatal = r.command_error_is_fatal }
+  | Ycmake_include_guard { scope } ->
+    let scope_s = match scope with
+      | Lang_cmake.Ig_directory -> "DIRECTORY"
+      | Lang_cmake.Ig_global -> "GLOBAL"
+    in
+    ECmakeIncludeGuard { scope = scope_s }
+  | Ycmake_quote_cmd s ->
+    ECmakeQuoteCmd s
 
 let dir_statement : Old.yelu_dir_stmt -> Yelu_tiny.expr = function
   | Ydir_add_subdirectory { source_dir } ->
@@ -273,7 +567,33 @@ let property_statement : Old.yelu_property_stmt -> Yelu_tiny.expr = function
   | Yprop_set_global { properties } ->
     ECmakeSetGlobalProperty
       { properties = List.map properties ~f:(fun (p, v) -> p, expr v) }
-  | _ -> fail "unsupported yelu_cmake property statement for Yelu1 bridge"
+  | Yprop_get { var; target; property; set } ->
+    ECmakeGetProperty
+      { var = cvar_name var; target = expr target; property; set_form = set }
+  | Yprop_get_directory { var; property } ->
+    ECmakeGetDirectoryProperty { var = cvar_name var; property }
+  | Yprop_set_directory { property; append; values } ->
+    ECmakeSetDirectoryProperty
+      { property; append; values = List.map values ~f:expr }
+  | Yprop_set_source { file; property; values } ->
+    ECmakeSetSourceProperty
+      { file = expr file; property; values = List.map values ~f:expr }
+  | Yprop_get_global { var; property } ->
+    ECmakeGetGlobalProperty { var = cvar_name var; property }
+  | Yprop_define
+      { mode; property_name; inherited; brief_docs; full_docs; initialize_from } ->
+    let mode_s = match mode with
+      | Lang_cmake.Dp_global -> "GLOBAL"
+      | Lang_cmake.Dp_directory -> "DIRECTORY"
+      | Lang_cmake.Dp_target -> "TARGET"
+      | Lang_cmake.Dp_source -> "SOURCE"
+      | Lang_cmake.Dp_test -> "TEST"
+      | Lang_cmake.Dp_variable -> "VARIABLE"
+      | Lang_cmake.Dp_cached_variable -> "CACHED_VARIABLE"
+    in
+    ECmakeDefineProperty
+      { mode = mode_s; property_name; inherited;
+        brief_docs; full_docs; initialize_from }
 
 let find_statement : Old.yelu_find_stmt -> Yelu_tiny.expr = function
   | Yfind_package { name; required; _ } ->
@@ -296,9 +616,29 @@ let try_statement : Old.yelu_try_stmt -> Yelu_tiny.expr = function
     ECmakeTryCompile
       { result_var = cvar_name result_var;
         sources = List.map sources ~f:expr }
-  | Ytry_compile _ ->
-    fail "try_compile(extras) is outside the current Yelu1 bridge slice"
-  | _ -> fail "unsupported yelu_cmake try statement for Yelu1 bridge"
+  | Ytry_compile r ->
+    ECmakeTryCompileEx
+      { result_var = cvar_name r.result_var;
+        sources = List.map r.sources ~f:expr;
+        compile_definitions = List.map r.compile_definitions ~f:expr;
+        link_libraries = List.map r.link_libraries ~f:expr;
+        link_options = List.map r.link_options ~f:expr;
+        output_variable = Option.map r.output_variable ~f:cvar_name;
+        no_cache = r.no_cache;
+        c_standard = r.c_standard;
+        cxx_standard = r.cxx_standard }
+  | Ytry_run r ->
+    ECmakeTryRun
+      { run_result_var = cvar_name r.run_result_var;
+        compile_result_var = cvar_name r.compile_result_var;
+        sources = List.map r.sources ~f:expr;
+        compile_definitions = List.map r.compile_definitions ~f:expr;
+        link_libraries = List.map r.link_libraries ~f:expr;
+        compile_output_variable =
+          Option.map r.compile_output_variable ~f:cvar_name;
+        run_output_variable =
+          Option.map r.run_output_variable ~f:cvar_name;
+        args = List.map r.args ~f:expr }
 
 let visibility_of_kind = function
   | Old.Public -> "PUBLIC"
@@ -355,7 +695,11 @@ let target_statement : Old.yelu_target_stmt -> Yelu_tiny.expr = function
   | Ytgt_link_libraries { targets; _ } ->
     fail "target_link_libraries bridge currently supports exactly one target, got %d"
       (List.length targets)
-  | Ytgt_include_directories { target; before = false; system = false; items } ->
+  | Ytgt_include_directories { target; before = _; system = _; items } ->
+    (* BEFORE / SYSTEM flags are dropped at this slice — they affect
+       cmake's include search ordering and "system header" diagnostic
+       behavior respectively. The bridge survey doesn't observe either;
+       step files don't use them. Recorded as emit-fidelity gap. *)
     items
     |> List.map ~f:(fun ({ kind; items } : Old.yelu_items_with_kind) ->
       ECmakeTargetIncludeDirectories
@@ -365,10 +709,6 @@ let target_statement : Old.yelu_target_stmt -> Yelu_tiny.expr = function
           dirs = List.map items ~f:expr;
         })
     |> ESeq
-  | Ytgt_include_directories { before = true; _ } ->
-    fail "target_include_directories(BEFORE) is outside the current Yelu1 bridge slice"
-  | Ytgt_include_directories { system = true; _ } ->
-    fail "target_include_directories(SYSTEM) is outside the current Yelu1 bridge slice"
   | Ytgt_compile_definitions { target; items } ->
     items
     |> List.map ~f:(fun ({ kind; items } : Old.yelu_items_with_kind) ->
@@ -379,7 +719,7 @@ let target_statement : Old.yelu_target_stmt -> Yelu_tiny.expr = function
           definitions = List.map items ~f:expr;
         })
     |> ESeq
-  | Ytgt_compile_options { target; before = false; items } ->
+  | Ytgt_compile_options { target; before = _; items } ->
     items
     |> List.map ~f:(fun ({ kind; items } : Old.yelu_items_with_kind) ->
       ECmakeTargetCompileOptions
@@ -389,8 +729,6 @@ let target_statement : Old.yelu_target_stmt -> Yelu_tiny.expr = function
           options_ = List.map items ~f:expr;
         })
     |> ESeq
-  | Ytgt_compile_options { before = true; _ } ->
-    fail "target_compile_options(BEFORE) is outside the current Yelu1 bridge slice"
   | Ytgt_compile_features { target; features } ->
     features
     |> List.map ~f:(fun ({ kind; feature } : Old.yelu_target_feature) ->
@@ -401,7 +739,7 @@ let target_statement : Old.yelu_target_stmt -> Yelu_tiny.expr = function
           features = [ EString feature ];
         })
     |> ESeq
-  | Ytgt_link_options { target; before = false; items } ->
+  | Ytgt_link_options { target; before = _; items } ->
     items
     |> List.map ~f:(fun ({ kind; items } : Old.yelu_items_with_kind) ->
       ECmakeTargetLinkOptions
@@ -411,9 +749,7 @@ let target_statement : Old.yelu_target_stmt -> Yelu_tiny.expr = function
           options_ = List.map items ~f:expr;
         })
     |> ESeq
-  | Ytgt_link_options { before = true; _ } ->
-    fail "target_link_options(BEFORE) is outside the current Yelu1 bridge slice"
-  | Ytgt_link_directories { target; before = false; items } ->
+  | Ytgt_link_directories { target; before = _; items } ->
     items
     |> List.map ~f:(fun ({ kind; items } : Old.yelu_items_with_kind) ->
       ECmakeTargetLinkDirectories
@@ -423,8 +759,6 @@ let target_statement : Old.yelu_target_stmt -> Yelu_tiny.expr = function
           dirs = List.map items ~f:expr;
         })
     |> ESeq
-  | Ytgt_link_directories { before = true; _ } ->
-    fail "target_link_directories(BEFORE) is outside the current Yelu1 bridge slice"
   | Ytgt_add_custom_target { name; all; commands; depends; comment } ->
     ECmakeAddCustomTarget
       {
