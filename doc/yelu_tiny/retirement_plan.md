@@ -160,6 +160,48 @@ stays in source as a diagnostic aid; production callers
 step-level bridge tests (test_yelu_tiny_steps, test_yelu_tiny_emit)
 exercise the diagnostic module to keep it from rotting.
 
+### Current happy path
+
+After Phase 1, every production yelu program flows through:
+
+```
+source.yelu  →  Lang_yelu_parse           (concrete syntax → production AST)
+             →  Yelu_cmake_to_yelu1.stmt  (production AST → Yelu1 IR)
+             →  Yelu_tiny_cmake_emit_ast  (Yelu1 IR → Lang_cmake.exp)
+             →  Lang_cmake_pp.pp          (Lang_cmake.exp → text)
+             →  CMakeLists.txt
+```
+
+The legacy `Lang_yelu_compile.compile` (production AST → `Lang_cmake.exp`
+directly) is still callable and serves as the reference implementation
+for the byte-equality oracle. It is not on the production critical path.
+
+### Running the regression checks
+
+```sh
+# Byte-equality oracle: legacy_compile → pp  ≡  bridge → emit_ast → pp
+# Runs 194 production-AST programs through both paths and asserts every
+# byte matches. The end-of-run stderr line reports:
+#   [emit_ast oracle] covered=194  uncovered=0  (194 total)
+# Coverage < 194 means emit_ast has a gap; uncovered list names the
+# missing constructor.
+dune build --force @runtest    # all 738 unit tests, including the oracle
+dune test test/test-yelu       # same, scoped to the yelu unit tests
+
+# Runtime equivalence: tiny emit  ≡  reference cmake stdout
+# Runs 50 cmake -P script pairs and asserts identical stdout.
+make runcmake-yelu
+
+# Direct-text emit regression suite (diagnostic aid coverage)
+# Substring-level assertions on the demoted yelu_tiny_cmake_emit path;
+# protects against the diagnostic module rotting as new ctors land.
+dune test test/test-yelu/test_yelu_tiny_steps.exe
+dune test test/test-yelu/test_yelu_tiny_emit.exe
+```
+
+Watch the oracle line at the end of `test_yelu_compile`. Any drift from
+`covered=194 uncovered=0` is a real Phase 1 regression to investigate.
+
 ### Phase 2 — Parser produces Yelu1
 
 8. **Survey `lang_yelu_parse.ml` → AST production rules.** ~50 rules per

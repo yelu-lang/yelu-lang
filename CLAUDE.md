@@ -11,8 +11,22 @@ All commands run from the yelu repo root (`dune-project` lives here).
 dune build                                      # everything
 dune build src/langs/ src/bin/cmake/v1/         # cmake layer only
 dune build src/langs/ src/bin/yelu/             # yelu layer only
-dune test                                       # all unit tests (281 tests)
+dune test                                       # all unit tests (738 tests)
+dune build --force @runtest                     # all tests + Phase 1 oracle line
 ```
+
+After Phase 1 of retirement, the production yelu compile path is
+
+```
+source.yelu → parse → bridge → Yelu1 → emit_ast → Lang_cmake.exp → cmake_pp → text
+```
+
+with the byte-equality oracle in `test_yelu_compile.ml` asserting every
+program produces byte-identical text against the legacy `Lang_yelu_compile`
+reference. Watch for the `[emit_ast oracle] covered=194 uncovered=0`
+line at the end of `dune test` — any drift is a Phase 1 regression. See
+[doc/yelu_tiny/retirement_plan.md](doc/yelu_tiny/retirement_plan.md) for
+the full happy path + invocation guide.
 
 Make targets (from repo root):
 
