@@ -78,6 +78,12 @@ type expr +=
   | ECmakeStringCompare of {
       op : string; string1 : expr; string2 : expr; out : string
     }
+  (* Additional cond expressions (R6 attrition). Emit-only at the cond
+     level; eval stub returns false. *)
+  | ECmakeMatches of { expr_ : expr; regex : string }
+  | ECmakeInList of { item : expr; list_ : expr }
+  | ECmakeIsDirectory of expr
+  | ECmakePolicyCheck of string
 
 let replace_all ~match_ ~replace ~input =
   String.substr_replace_all input ~pattern:match_ ~with_:replace
@@ -212,4 +218,7 @@ let eval_case ~eval env = function
     Some (set_var env ~key:out ~data:(VString ""), VUnit)
   | ECmakeStringCompare { out; _ } ->
     Some (set_var env ~key:out ~data:(VBool false), VUnit)
+  | ECmakeMatches _ | ECmakeInList _
+  | ECmakeIsDirectory _ | ECmakePolicyCheck _ ->
+    Some (env, VBool false)
   | _ -> None

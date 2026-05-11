@@ -17,6 +17,17 @@ type expr +=
      real cmake handles them. *)
   | ECmakeSetEnvVar of { name : string; value : expr }
   | ECmakeUnsetEnvVar of string
+  (* [set(<var> <value>... CACHE <type> "<doc>" [FORCE])] — cache namespace
+     write. See doc/cmake_cache_semantics.md for the dual-write trap; tiny
+     emits faithfully but does not model the cache vs normal split (yet).
+     Eval writes to the current frame's locals so subsequent reads work. *)
+  | ECmakeSetCache of {
+      name : string;
+      values : expr list;
+      cache_type : string;
+      docstring : string;
+      force : bool;
+    }
 
 let eval_case env = function
   | ECmakeUnsetVar name -> Some (remove_var env name, VUnit)
@@ -40,6 +51,18 @@ let eval_case env = function
     (* Env-namespace ops are emit-only at this slice; cmake handles
        the OS env at configure time. *)
     Some (env, VUnit)
+  | ECmakeSetCache { name; values; _ } ->
+    (* Cache write: store the value(s) in the current frame's locals
+       so subsequent reads work. The dual-write semantics (first-write-
+       wins across runs) is not modelled at this slice — see
+       doc/cmake_cache_semantics.md. *)
+    let data = match values with
+      | [ EString s ] -> VString s
+      | [ EBool b ] -> VBool b
+      | [ EInt n ] -> VInt n
+      | _ -> VString ""
+    in
+    Some (set_var env ~key:name ~data, VUnit)
   | ECmakeOption { name; value; _ } ->
     (match value with
      | EBool _ | EString _ | EVar _ ->

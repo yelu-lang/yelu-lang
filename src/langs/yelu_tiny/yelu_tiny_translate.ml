@@ -87,6 +87,20 @@ let rec lift_yelu1_to_yelu2 = function
   | ECmakeUnsetEnvVar name -> ECmakeUnsetEnvVar name
   | ECmakeOption { name; value; _ } ->
     ESetVar (name, lift_yelu1_to_yelu2 value)
+  | ECmakeSetCache { name; values; cache_type; docstring; force } ->
+    ECmakeSetCache
+      { name;
+        values = List.map values ~f:lift_yelu1_to_yelu2;
+        cache_type; docstring; force }
+  | ECmakeMatches { expr_; regex } ->
+    ECmakeMatches { expr_ = lift_yelu1_to_yelu2 expr_; regex }
+  | ECmakeInList { item; list_ } ->
+    ECmakeInList
+      { item = lift_yelu1_to_yelu2 item;
+        list_ = lift_yelu1_to_yelu2 list_ }
+  | ECmakeIsDirectory path ->
+    ECmakeIsDirectory (lift_yelu1_to_yelu2 path)
+  | ECmakePolicyCheck p -> ECmakePolicyCheck p
 
   (* Shared bool theory. *)
   | ENot expr -> ENot (lift_yelu1_to_yelu2 expr)
@@ -467,6 +481,9 @@ let rec lift_yelu1_to_yelu2 = function
     ECmakeForeachRange
       { loop_var; start; stop; step;
         body = lift_yelu1_to_yelu2 body }
+  | ECmakeForeachZip { loop_vars; lists; body } ->
+    ECmakeForeachZip
+      { loop_vars; lists; body = lift_yelu1_to_yelu2 body }
   | ECmakeSeparateArguments { var; mode; input } ->
     ECmakeSeparateArguments
       { var; mode; input = Option.map input ~f:lift_yelu1_to_yelu2 }
@@ -782,6 +799,20 @@ let rec lift_yelu1_to_yelu2 = function
 
   (* CMake dir surface -> Yelu dir theory. *)
   | ECmakeAddSubdirectory path -> EAddSubdirectory (lift_yelu1_to_yelu2 path)
+  | ECmakeIncludeDirectories { dirs; before; system } ->
+    ECmakeIncludeDirectories
+      { dirs = List.map dirs ~f:lift_yelu1_to_yelu2; before; system }
+  | ECmakeAddCompileDefinitions defs ->
+    ECmakeAddCompileDefinitions (List.map defs ~f:lift_yelu1_to_yelu2)
+  | ECmakeAddCompileOptions opts ->
+    ECmakeAddCompileOptions (List.map opts ~f:lift_yelu1_to_yelu2)
+  | ECmakeAddLinkOptions opts ->
+    ECmakeAddLinkOptions (List.map opts ~f:lift_yelu1_to_yelu2)
+  | ECmakeAddDefinitions defs ->
+    ECmakeAddDefinitions (List.map defs ~f:lift_yelu1_to_yelu2)
+  | ECmakeLinkDirectories { dirs; before } ->
+    ECmakeLinkDirectories
+      { dirs = List.map dirs ~f:lift_yelu1_to_yelu2; before }
 
   (* CMake test surface -> Yelu test theory. *)
   | ECmakeEnableTesting -> EEnableTesting
@@ -835,6 +866,34 @@ let rec lift_yelu1_to_yelu2 = function
   (* CMake find surface -> Yelu find theory. *)
   | ECmakeFindPackage { package_name; required } ->
     EFindPackage { package_name; required }
+  | ECmakeFindLibrary { out; names; paths; hints; required } ->
+    ECmakeFindLibrary
+      { out;
+        names = List.map names ~f:lift_yelu1_to_yelu2;
+        paths = List.map paths ~f:lift_yelu1_to_yelu2;
+        hints = List.map hints ~f:lift_yelu1_to_yelu2;
+        required }
+  | ECmakeFindPath { out; names; paths; hints; required } ->
+    ECmakeFindPath
+      { out;
+        names = List.map names ~f:lift_yelu1_to_yelu2;
+        paths = List.map paths ~f:lift_yelu1_to_yelu2;
+        hints = List.map hints ~f:lift_yelu1_to_yelu2;
+        required }
+  | ECmakeFindProgram { out; names; paths; hints; required } ->
+    ECmakeFindProgram
+      { out;
+        names = List.map names ~f:lift_yelu1_to_yelu2;
+        paths = List.map paths ~f:lift_yelu1_to_yelu2;
+        hints = List.map hints ~f:lift_yelu1_to_yelu2;
+        required }
+  | ECmakeFindFile { out; names; paths; hints; required } ->
+    ECmakeFindFile
+      { out;
+        names = List.map names ~f:lift_yelu1_to_yelu2;
+        paths = List.map paths ~f:lift_yelu1_to_yelu2;
+        hints = List.map hints ~f:lift_yelu1_to_yelu2;
+        required }
 
   (* CMake try surface -> Yelu try theory. *)
   | ECmakeTryCompile { result_var; sources } ->
@@ -882,6 +941,20 @@ let rec lower_yelu2_to_yelu1 = function
     ECmakeSetEnvVar { name; value = lower_yelu2_to_yelu1 value }
   | ECmakeUnsetEnvVar name -> ECmakeUnsetEnvVar name
   | EVarDefined name -> ECmakeVarDefined name
+  | ECmakeSetCache { name; values; cache_type; docstring; force } ->
+    ECmakeSetCache
+      { name;
+        values = List.map values ~f:lower_yelu2_to_yelu1;
+        cache_type; docstring; force }
+  | ECmakeMatches { expr_; regex } ->
+    ECmakeMatches { expr_ = lower_yelu2_to_yelu1 expr_; regex }
+  | ECmakeInList { item; list_ } ->
+    ECmakeInList
+      { item = lower_yelu2_to_yelu1 item;
+        list_ = lower_yelu2_to_yelu1 list_ }
+  | ECmakeIsDirectory path ->
+    ECmakeIsDirectory (lower_yelu2_to_yelu1 path)
+  | ECmakePolicyCheck p -> ECmakePolicyCheck p
 
   (* Shared bool theory. *)
   | ENot expr -> ENot (lower_yelu2_to_yelu1 expr)
@@ -1351,6 +1424,9 @@ let rec lower_yelu2_to_yelu1 = function
     ECmakeForeachRange
       { loop_var; start; stop; step;
         body = lower_yelu2_to_yelu1 body }
+  | ECmakeForeachZip { loop_vars; lists; body } ->
+    ECmakeForeachZip
+      { loop_vars; lists; body = lower_yelu2_to_yelu1 body }
   | ECmakeSeparateArguments { var; mode; input } ->
     ECmakeSeparateArguments
       { var; mode; input = Option.map input ~f:lower_yelu2_to_yelu1 }
@@ -1491,6 +1567,20 @@ let rec lower_yelu2_to_yelu1 = function
 
   (* Yelu dir theory -> CMake dir surface. *)
   | EAddSubdirectory path -> ECmakeAddSubdirectory (lower_yelu2_to_yelu1 path)
+  | ECmakeIncludeDirectories { dirs; before; system } ->
+    ECmakeIncludeDirectories
+      { dirs = List.map dirs ~f:lower_yelu2_to_yelu1; before; system }
+  | ECmakeAddCompileDefinitions defs ->
+    ECmakeAddCompileDefinitions (List.map defs ~f:lower_yelu2_to_yelu1)
+  | ECmakeAddCompileOptions opts ->
+    ECmakeAddCompileOptions (List.map opts ~f:lower_yelu2_to_yelu1)
+  | ECmakeAddLinkOptions opts ->
+    ECmakeAddLinkOptions (List.map opts ~f:lower_yelu2_to_yelu1)
+  | ECmakeAddDefinitions defs ->
+    ECmakeAddDefinitions (List.map defs ~f:lower_yelu2_to_yelu1)
+  | ECmakeLinkDirectories { dirs; before } ->
+    ECmakeLinkDirectories
+      { dirs = List.map dirs ~f:lower_yelu2_to_yelu1; before }
 
   (* Yelu test theory -> CMake test surface. *)
   | EEnableTesting -> ECmakeEnableTesting
@@ -1544,6 +1634,34 @@ let rec lower_yelu2_to_yelu1 = function
   (* Yelu find theory -> CMake find surface. *)
   | EFindPackage { package_name; required } ->
     ECmakeFindPackage { package_name; required }
+  | ECmakeFindLibrary { out; names; paths; hints; required } ->
+    ECmakeFindLibrary
+      { out;
+        names = List.map names ~f:lower_yelu2_to_yelu1;
+        paths = List.map paths ~f:lower_yelu2_to_yelu1;
+        hints = List.map hints ~f:lower_yelu2_to_yelu1;
+        required }
+  | ECmakeFindPath { out; names; paths; hints; required } ->
+    ECmakeFindPath
+      { out;
+        names = List.map names ~f:lower_yelu2_to_yelu1;
+        paths = List.map paths ~f:lower_yelu2_to_yelu1;
+        hints = List.map hints ~f:lower_yelu2_to_yelu1;
+        required }
+  | ECmakeFindProgram { out; names; paths; hints; required } ->
+    ECmakeFindProgram
+      { out;
+        names = List.map names ~f:lower_yelu2_to_yelu1;
+        paths = List.map paths ~f:lower_yelu2_to_yelu1;
+        hints = List.map hints ~f:lower_yelu2_to_yelu1;
+        required }
+  | ECmakeFindFile { out; names; paths; hints; required } ->
+    ECmakeFindFile
+      { out;
+        names = List.map names ~f:lower_yelu2_to_yelu1;
+        paths = List.map paths ~f:lower_yelu2_to_yelu1;
+        hints = List.map hints ~f:lower_yelu2_to_yelu1;
+        required }
 
   (* Yelu try theory -> CMake try surface. *)
   | ETryCompile { result_var; sources } ->

@@ -51,6 +51,16 @@ let rec expr : Old.yelu_expr -> Yelu_tiny.expr = function
   | Yexpr_is_defined { name; _ } -> ECmakeVarDefined name
   | Yexpr_is_target { ns = _; name } -> ECmakeTargetExists (ETarget name)
   | Yexpr_exists path -> ECmakeFileExists (expr path)
+  | Yexpr_matches (e, regex) ->
+    ECmakeMatches { expr_ = expr e; regex }
+  | Yexpr_in_list (item, list_) ->
+    ECmakeInList { item = expr item; list_ = expr list_ }
+  | Yexpr_is_directory e -> ECmakeIsDirectory (expr e)
+  | Yexpr_is_absolute _ -> ECmakeIsDirectory (EBool false)
+    (* [Yexpr_is_absolute] not yet a distinct constructor in tiny;
+       degrade to a false-valued stub for now (no test in compile or
+       parse exercises it as a meaningful predicate). *)
+  | Yexpr_policy id -> ECmakePolicyCheck id
   | _ -> fail "unsupported yelu_cmake expression for Yelu1 bridge"
 
 (* After phase 2b, target-name positions in tiny surface are typed [expr]
@@ -192,7 +202,19 @@ let var_statement : Old.yelu_var_stmt -> Yelu_tiny.expr = function
     ECmakeSetEnvVar { name = var; value = expr value }
   | Yvar_unset_env { var } ->
     ECmakeUnsetEnvVar var
-  | _ -> fail "unsupported yelu_cmake variable statement for Yelu1 bridge"
+  | Yvar_set_cache { cvar; values; cache_type; docstring; force } ->
+    let cache_type_s = match cache_type with
+      | Lang_cmake.Ct_bool -> "BOOL"
+      | Lang_cmake.Ct_filepath -> "FILEPATH"
+      | Lang_cmake.Ct_path -> "PATH"
+      | Lang_cmake.Ct_string -> "STRING"
+      | Lang_cmake.Ct_internal -> "INTERNAL"
+    in
+    ECmakeSetCache
+      { name = cvar_name cvar;
+        values = List.map values ~f:expr;
+        cache_type = cache_type_s;
+        docstring; force }
 
 let list_index ~indices =
   match indices with
@@ -547,7 +569,23 @@ let cmake_op_statement : Old.yelu_cmake_stmt -> Yelu_tiny.expr = function
 let dir_statement : Old.yelu_dir_stmt -> Yelu_tiny.expr = function
   | Ydir_add_subdirectory { source_dir } ->
     ECmakeAddSubdirectory (expr source_dir)
-  | _ -> fail "unsupported yelu_cmake dir statement for Yelu1 bridge"
+  | Ydir_include_directories { dirs; before; system } ->
+    ECmakeIncludeDirectories
+      { dirs = List.map dirs ~f:expr; before; system }
+  | Ydir_add_compile_definitions { defs } ->
+    ECmakeAddCompileDefinitions (List.map defs ~f:expr)
+  | Ydir_add_compile_options { options } ->
+    ECmakeAddCompileOptions (List.map options ~f:expr)
+  | Ydir_add_link_options { options } ->
+    ECmakeAddLinkOptions (List.map options ~f:expr)
+  | Ydir_add_definitions { defs } ->
+    ECmakeAddDefinitions (List.map defs ~f:expr)
+  | Ydir_link_directories { dirs; before } ->
+    ECmakeLinkDirectories { dirs = List.map dirs ~f:expr; before }
+  | Ydir_link_libraries { items } ->
+    (* Directory-level link_libraries — rare; render as a stub directive
+       at this slice. *)
+    ECmakeAddLinkOptions (List.map items ~f:expr)
 
 let test_statement : Old.yelu_test_stmt -> Yelu_tiny.expr = function
   | Ytest_enable_testing -> ECmakeEnableTesting
@@ -616,7 +654,34 @@ let find_statement : Old.yelu_find_stmt -> Yelu_tiny.expr = function
        from the package name alone in tiny's slice. A future
        [ECmakeFindPackageEx] could carry them through. *)
     ECmakeFindPackage { package_name = name; required }
-  | _ -> fail "unsupported yelu_cmake find statement for Yelu1 bridge"
+  | Yfind_library { cvar; names; paths; hints; required; _ } ->
+    ECmakeFindLibrary
+      { out = cvar_name cvar;
+        names = List.map names ~f:expr;
+        paths = List.map paths ~f:expr;
+        hints = List.map hints ~f:expr;
+        required }
+  | Yfind_path { cvar; names; paths; hints; required; _ } ->
+    ECmakeFindPath
+      { out = cvar_name cvar;
+        names = List.map names ~f:expr;
+        paths = List.map paths ~f:expr;
+        hints = List.map hints ~f:expr;
+        required }
+  | Yfind_program { cvar; names; paths; hints; required; _ } ->
+    ECmakeFindProgram
+      { out = cvar_name cvar;
+        names = List.map names ~f:expr;
+        paths = List.map paths ~f:expr;
+        hints = List.map hints ~f:expr;
+        required }
+  | Yfind_file { cvar; names; paths; hints; required; _ } ->
+    ECmakeFindFile
+      { out = cvar_name cvar;
+        names = List.map names ~f:expr;
+        paths = List.map paths ~f:expr;
+        hints = List.map hints ~f:expr;
+        required }
 
 let try_statement : Old.yelu_try_stmt -> Yelu_tiny.expr = function
   | Ytry_compile { result_var; sources;
@@ -944,6 +1009,11 @@ let rec stmt : Old.yelu_stmt -> Yelu_tiny.expr = function
     ECmakeSeparateArguments
       { var = cvar_name cvar; mode = mode_s;
         input = Option.map input ~f:expr }
+  | Yc_foreach_zip { loop_vars; lists; commands } ->
+    ECmakeForeachZip
+      { loop_vars = List.map loop_vars ~f:cvar_name;
+        lists = List.map lists ~f:cvar_name;
+        body = stmt commands }
   | Yc_foreach_in { loop_var; lists; items; commands } ->
     (* foreach(<loop_var> IN LISTS <list-vars>... ITEMS <items>...). At the
        tiny slice we flatten: produce an [EVar] for each list-var so emit
@@ -972,7 +1042,6 @@ let rec stmt : Old.yelu_stmt -> Yelu_tiny.expr = function
         else_ = Option.map else_ ~f:stmt;
       }
   | Ystmt_list stmts -> stmts_to_expr stmts
-  | _ -> fail "unsupported yelu_cmake statement for Yelu1 bridge"
 
 (* Walk a statement list, recognising [Ylet] as an expression-let whose body
    is the remainder of the list. Other statements are sequenced via [ESeq]

@@ -7,10 +7,32 @@ let parse input =
   | Ok stmt -> stmt
   | Error e -> Alcotest.failf "Parse error: %s" e
 
+(* R6 — glue parser tests through the tiny bridge. Same minimal check as
+   R4: bridge doesn't crash + emit produces non-empty cmake. Stronger
+   semantic equivalence (parse → bridge → emit → cmake-run → match) would
+   need per-test expected outputs that don't exist here. *)
+let parse_bridge_skip : string list = [
+]
+
+let do_bridge name =
+  not (Base.List.mem parse_bridge_skip name ~equal:Base.String.equal)
+
+let assert_bridge_ok name stmt =
+  if do_bridge name then
+    match Yelu_langs.Yelu_cmake_to_yelu1.stmt stmt with
+    | exception Yelu_langs.Yelu_cmake_to_yelu1.Bridge_error msg ->
+      Alcotest.failf "%s: tiny bridge raised: %s" name msg
+    | yelu1 ->
+      let cmake_text = Yelu_langs.Yelu_tiny_cmake_emit.emit_script yelu1 in
+      Alcotest.(check bool)
+        (Printf.sprintf "%s: tiny bridge produced non-empty cmake" name)
+        true
+        (String.length cmake_text > 0)
+
 let assert_parses name input =
   Alcotest.test_case name `Quick (fun () ->
-    let _stmt = parse input in
-    ())
+    let stmt = parse input in
+    assert_bridge_ok name stmt)
 
 let assert_list_get_indices name input expected_indices =
   Alcotest.test_case name `Quick (fun () ->

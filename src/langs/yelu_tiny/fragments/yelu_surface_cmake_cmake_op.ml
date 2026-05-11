@@ -93,6 +93,16 @@ type expr +=
       step : int option;
       body : expr;
     }
+  (* [foreach(<var1> <var2> ... IN ZIP_LISTS <list1> <list2> ...)] —
+     parallel iteration over multiple lists. Eval at this slice
+     iterates one step per shortest list and binds each loop_var to
+     the empty string (we don't model list-deref splitting at
+     eval-time). Emit faithfully renders the cmake form. *)
+  | ECmakeForeachZip of {
+      loop_vars : string list;
+      lists : string list;
+      body : expr;
+    }
   (* [separate_arguments(<var> <mode> [PROGRAM] [SEPARATE_ARGS] [<input>])]
      — string tokenization into a list. Eval stub: bind [var] to the
      input string (no actual tokenization in tiny). *)
@@ -268,6 +278,16 @@ let eval_case ~eval env = function
       | None -> env
     in
     Some (env, VUnit)
+  | ECmakeForeachZip { loop_vars; lists = _; body } ->
+    (* Eval stub: bind each loop_var to empty for one iteration and
+       evaluate the body once. Real cmake iterates zipped elements; we
+       defer that until needed. *)
+    let env = List.fold loop_vars ~init:env ~f:(fun env v ->
+      set_var env ~key:v ~data:(VString "")) in
+    (match eval env body with
+     | env, _ -> Some (env, VUnit)
+     | exception Break_loop -> Some (env, VUnit)
+     | exception Continue_loop -> Some (env, VUnit))
   | ECmakeForeachRange { loop_var; start; stop; step; body } ->
     let s = Option.value start ~default:0 in
     let step = Option.value step ~default:1 in

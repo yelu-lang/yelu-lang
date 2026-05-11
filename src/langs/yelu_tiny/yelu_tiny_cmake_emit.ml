@@ -101,6 +101,14 @@ let rec cond ?(env = empty_subst) = function
   | ECmakeVarDefined name -> "DEFINED " ^ name
   | ECmakeTargetExists target -> "TARGET " ^ target_arg ~env target
   | ECmakeFileExists path -> "EXISTS " ^ arg ~env path
+  | ECmakeMatches { expr_; regex } ->
+    arg ~env expr_ ^ " MATCHES " ^ quoted regex
+  | ECmakeInList { item; list_ } ->
+    arg ~env item ^ " IN_LIST " ^ arg ~env list_
+  | ECmakeIsDirectory path ->
+    "IS_DIRECTORY " ^ arg ~env path
+  | ECmakePolicyCheck p ->
+    "POLICY " ^ p
   | expr -> arg ~env expr
 
 and cond_atom ?(env = empty_subst) expr =
@@ -152,6 +160,11 @@ let rec emit_expr_impl ~env e =
     [ Fmt.str "unset(ENV{%s})" name ]
   | ECmakeOption { name; message; value } ->
     [ Fmt.str "option(%s %s %s)" name (quoted message) (arg value) ]
+  | ECmakeSetCache { name; values; cache_type; docstring; force } ->
+    let values_s = String.concat ~sep:" " (List.map values ~f:arg) in
+    let force_s = if force then " FORCE" else "" in
+    [ Fmt.str "set(%s %s CACHE %s %s%s)"
+        name values_s cache_type (quoted docstring) force_s ]
   | ETarget _ -> []
   | EVar name -> [ Fmt.str "message(\"RESULT=${%s}\")" name ]
   | EString s -> [ Fmt.str "message(\"RESULT=%s\")" (escape_quoted s) ]
@@ -648,6 +661,13 @@ let rec emit_expr_impl ~env e =
         (String.concat ~sep:" " (List.map items ~f:arg)) ]
     @ List.map body_lines ~f:(fun line -> "  " ^ line)
     @ [ "endforeach()" ]
+  | ECmakeForeachZip { loop_vars; lists; body } ->
+    let body_lines = emit_expr body in
+    [ Fmt.str "foreach(%s IN ZIP_LISTS %s)"
+        (String.concat ~sep:" " loop_vars)
+        (String.concat ~sep:" " lists) ]
+    @ List.map body_lines ~f:(fun line -> "  " ^ line)
+    @ [ "endforeach()" ]
   | ECmakeForeachRange { loop_var; start; stop; step; body } ->
     let body_lines = emit_expr body in
     let args = match start, step with
@@ -761,6 +781,33 @@ let rec emit_expr_impl ~env e =
   | ECmakeQuoteCmd s -> [ s ]
   | ECmakeAddSubdirectory path ->
     [ Fmt.str "add_subdirectory(%s)" (arg path) ]
+  | ECmakeIncludeDirectories { dirs; before; system } ->
+    let prefix_parts =
+      (if before then [ "BEFORE" ] else [])
+      @ (if system then [ "SYSTEM" ] else [])
+    in
+    let inner =
+      String.concat ~sep:" "
+        (prefix_parts @ List.map dirs ~f:arg)
+    in
+    [ Fmt.str "include_directories(%s)" inner ]
+  | ECmakeAddCompileDefinitions defs ->
+    [ Fmt.str "add_compile_definitions(%s)"
+        (String.concat ~sep:" " (List.map defs ~f:arg)) ]
+  | ECmakeAddCompileOptions opts ->
+    [ Fmt.str "add_compile_options(%s)"
+        (String.concat ~sep:" " (List.map opts ~f:arg)) ]
+  | ECmakeAddLinkOptions opts ->
+    [ Fmt.str "add_link_options(%s)"
+        (String.concat ~sep:" " (List.map opts ~f:arg)) ]
+  | ECmakeAddDefinitions defs ->
+    [ Fmt.str "add_definitions(%s)"
+        (String.concat ~sep:" " (List.map defs ~f:arg)) ]
+  | ECmakeLinkDirectories { dirs; before } ->
+    let before_s = if before then "BEFORE " else "" in
+    [ Fmt.str "link_directories(%s%s)"
+        before_s
+        (String.concat ~sep:" " (List.map dirs ~f:arg)) ]
   | ECmakeEnableTesting -> [ "enable_testing()" ]
   | ECmakeAddTest { name; command; args = [] } ->
     [ Fmt.str "add_test(NAME %s COMMAND %s)" (arg name) (arg command) ]
@@ -830,6 +877,42 @@ let rec emit_expr_impl ~env e =
     [ Fmt.str "find_package(%s)" package_name ]
   | ECmakeFindPackage { package_name; required = true } ->
     [ Fmt.str "find_package(%s REQUIRED)" package_name ]
+  | ECmakeFindLibrary { out; names; paths; hints; required } ->
+    let kw_list key xs =
+      if List.is_empty xs then ""
+      else " " ^ key ^ " " ^ String.concat ~sep:" " (List.map xs ~f:arg)
+    in
+    let req = if required then " REQUIRED" else "" in
+    [ Fmt.str "find_library(%s%s%s%s%s)"
+        out (kw_list "NAMES" names) (kw_list "HINTS" hints)
+        (kw_list "PATHS" paths) req ]
+  | ECmakeFindPath { out; names; paths; hints; required } ->
+    let kw_list key xs =
+      if List.is_empty xs then ""
+      else " " ^ key ^ " " ^ String.concat ~sep:" " (List.map xs ~f:arg)
+    in
+    let req = if required then " REQUIRED" else "" in
+    [ Fmt.str "find_path(%s%s%s%s%s)"
+        out (kw_list "NAMES" names) (kw_list "HINTS" hints)
+        (kw_list "PATHS" paths) req ]
+  | ECmakeFindProgram { out; names; paths; hints; required } ->
+    let kw_list key xs =
+      if List.is_empty xs then ""
+      else " " ^ key ^ " " ^ String.concat ~sep:" " (List.map xs ~f:arg)
+    in
+    let req = if required then " REQUIRED" else "" in
+    [ Fmt.str "find_program(%s%s%s%s%s)"
+        out (kw_list "NAMES" names) (kw_list "HINTS" hints)
+        (kw_list "PATHS" paths) req ]
+  | ECmakeFindFile { out; names; paths; hints; required } ->
+    let kw_list key xs =
+      if List.is_empty xs then ""
+      else " " ^ key ^ " " ^ String.concat ~sep:" " (List.map xs ~f:arg)
+    in
+    let req = if required then " REQUIRED" else "" in
+    [ Fmt.str "find_file(%s%s%s%s%s)"
+        out (kw_list "NAMES" names) (kw_list "HINTS" hints)
+        (kw_list "PATHS" paths) req ]
   | ECmakeTryCompile { result_var; sources } ->
     [ Fmt.str "try_compile(%s SOURCES %s)"
         result_var
