@@ -896,6 +896,14 @@ let rec emit_exp ~env (e : expr) : C.exp =
   | ECmakeStringMakeCIdentifier { input; out } ->
     C.String_cmd
       (C.Sc_make_c_identifier { string = arg ~env input; out })
+  | ECmakeStringHex { input; out } ->
+    C.String_cmd (C.Sc_hex { string = arg ~env input; out })
+  | ECmakeStringUuid { out; namespace; name; type_; upper } ->
+    let t = match type_ with
+      | "MD5" -> `Md5 | "SHA1" -> `Sha1
+      | _ -> fail "emit_ast: unknown uuid type %S" type_
+    in
+    C.String_cmd (C.Sc_uuid { out; namespace; name; type_ = t; upper })
   | ECmakeStringCompare { op; string1; string2; out } ->
     let cop = match op with
       | "LESS" -> C.Sco_less | "GREATER" -> C.Sco_greater

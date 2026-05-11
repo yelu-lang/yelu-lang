@@ -19,6 +19,17 @@ Three breadth milestones, in order of attempt:
   (block / return / while / break / continue / foreach_range /
   separate_arguments / macro) bridge through a probe-verified
   env-frame-stack model — see `../cmake/scope_and_control_flow.md`.
+- **Retirement Phase 1 (done 2026-05-11).** Production lowering routes
+  through `Yelu1 → emit_ast → Lang_cmake.exp → lang_cmake_pp → text`.
+  Byte-equality oracle in `test_yelu_compile.ml` reports 194/194
+  programs byte-identical with legacy `Lang_yelu_compile`. The
+  `runcmake-yelu` suite (50 pairs) routes through the AST path.
+  Three tiny IR extensions closed all bridge information-loss cases
+  (`ECmakeForeachInList`; `before/system` fields on target_*; full
+  `find_package` attribute set). Direct-text emit
+  (`yelu_tiny_cmake_emit.ml`) is demoted to a diagnostic aid — kept
+  callable for human inspection but not on the production path.
+  Details: `retirement_plan.md`.
 
 ## What's open
 

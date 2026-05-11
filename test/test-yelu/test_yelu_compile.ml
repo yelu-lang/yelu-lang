@@ -27,7 +27,7 @@ let assert_bridge_succeeds name yelu_ast =
     | exception Yelu_langs.Yelu_cmake_to_yelu1.Bridge_error msg ->
       Alcotest.failf "%s: tiny bridge raised Bridge_error: %s" name msg
     | yelu1 ->
-      let cmake_text = Yelu_langs.Yelu_tiny_cmake_emit.emit_script yelu1 in
+      let cmake_text = Yelu_langs.Yelu_tiny_cmake_emit_ast.emit_script yelu1 in
       Alcotest.(check bool)
         (Printf.sprintf "%s: tiny bridge produced non-empty cmake" name)
         true

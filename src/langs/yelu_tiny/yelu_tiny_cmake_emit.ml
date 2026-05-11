@@ -1,3 +1,16 @@
+(* Direct-text emit for Yelu1 IR.
+
+   As of Phase 1.5 (retirement plan), this module is no longer on the
+   production path — production emits via
+   [yelu_tiny_cmake_emit_ast] -> [lang_cmake_pp]. The direct-text emit
+   stays callable as a *diagnostic aid*: useful for human inspection of
+   the bridge output without going through the cmake AST, and as a
+   regression target for the step-level bridge tests in
+   [test_yelu_tiny_steps] and [test_yelu_tiny_emit] that document
+   specific bridge format conventions.
+
+   Removal is gated on AST parity holding through at least one R3 /
+   Y17 milestone — see [doc/yelu_tiny/retirement_plan.md]. *)
 open Base
 open Yelu_tiny
 open Yelu_surface_cmake_store

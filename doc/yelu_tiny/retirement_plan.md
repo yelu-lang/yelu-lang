@@ -150,6 +150,16 @@ item.
 `Yelu1 → cmake AST → lang_cmake_pp → text`. All tests green. Direct
 text emit kept around but not on the critical path.
 
+**Phase 1 status (as of 2026-05-11): done.** The byte-equality oracle
+in [test_yelu_compile.ml] reports 194/194 programs byte-identical
+between `legacy_compile → pp` and `bridge → emit_ast → pp`. The
+runcmake-yelu suite (50 pairs) routes through the AST path and matches
+reference cmake stdout byte-for-byte. The direct-text emit module
+stays in source as a diagnostic aid; production callers
+(test_yelu_compile, test_runcmake_yelu) use emit_ast, while the
+step-level bridge tests (test_yelu_tiny_steps, test_yelu_tiny_emit)
+exercise the diagnostic module to keep it from rotting.
+
 ### Phase 2 — Parser produces Yelu1
 
 8. **Survey `lang_yelu_parse.ml` → AST production rules.** ~50 rules per
