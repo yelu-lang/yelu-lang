@@ -528,6 +528,39 @@ let rec emit_exp ~env (e : expr) : C.exp =
   | ECmakeFileRelativePath { var; base; file } ->
     C.File_relative_path
       { var; base = target_arg ~env base; file = target_arg ~env file }
+  | ECmakeFileReadFull { path; out; offset; limit; hex } ->
+    C.File_read
+      { var = out; file = arg ~env path; offset; limit; hex }
+  | ECmakeFileStrings { out; path; regex; encoding; limit_count } ->
+    C.File_strings
+      { var = out; file = arg ~env path; regex; encoding; limit_count }
+  | ECmakeFileTouch { files; nocreate } ->
+    C.File_touch
+      { files = List.map files ~f:(arg ~env); nocreate }
+  | ECmakeFileMakeDirectory { dirs } ->
+    C.File_make_directory { dirs = List.map dirs ~f:(arg ~env) }
+  | ECmakeFileRename { old_; new_; result; no_replace } ->
+    C.File_rename
+      { old_ = arg ~env old_; new_ = arg ~env new_; result; no_replace }
+  | ECmakeFileRemove { files; recurse } ->
+    C.File_remove
+      { files = List.map files ~f:(arg ~env); recurse }
+  | ECmakeFileCopy { input; output; result; only_if_different } ->
+    C.File_copy_file
+      { input = arg ~env input; output = arg ~env output;
+        result; only_if_different }
+  | ECmakeFileRealPath { out; path; base_dir; expand_tilde } ->
+    C.File_real_path
+      { var = out; path = arg ~env path;
+        base_dir = Option.map base_dir ~f:(arg ~env);
+        expand_tilde }
+  | ECmakeFileSize { out; path } ->
+    C.File_size { var = out; file = arg ~env path }
+  | ECmakeFileReadSymlink { out; link } ->
+    C.File_read_symlink { var = out; link = arg ~env link }
+  | ECmakeFileTimestamp { out; path; format; utc } ->
+    C.File_timestamp
+      { var = out; file = arg ~env path; format; utc }
 
   (* Install *)
   | Yelu_surface_cmake_install.ECmakeInstallTargets { targets; destination; export } ->
@@ -762,6 +795,150 @@ let rec emit_exp ~env (e : expr) : C.exp =
   (* Add dependencies *)
   | ECmakeAddDependencies { target; dep } ->
     C.Project_cmd (C.Add_dependencies { target; dep })
+
+  (* Try *)
+  | Yelu_surface_cmake_try.ECmakeTryCompile { result_var; sources } ->
+    C.Project_cmd
+      (C.Try_compile
+         { tc_result_var = result_var;
+           tc_sources = List.map sources ~f:(arg ~env);
+           tc_compile_definitions = []; tc_link_libraries = [];
+           tc_link_options = []; tc_cmake_flags = [];
+           tc_output_variable = None; tc_copy_file = None;
+           tc_no_cache = false;
+           tc_c_standard = None; tc_cxx_standard = None })
+  | Yelu_surface_cmake_try.ECmakeTryCompileEx r ->
+    C.Project_cmd
+      (C.Try_compile
+         { tc_result_var = r.result_var;
+           tc_sources = List.map r.sources ~f:(arg ~env);
+           tc_compile_definitions = List.map r.compile_definitions ~f:(arg ~env);
+           tc_link_libraries = List.map r.link_libraries ~f:(arg ~env);
+           tc_link_options = List.map r.link_options ~f:(arg ~env);
+           tc_cmake_flags = [];
+           tc_output_variable = r.output_variable;
+           tc_copy_file = None;
+           tc_no_cache = r.no_cache;
+           tc_c_standard = r.c_standard;
+           tc_cxx_standard = r.cxx_standard })
+  | Yelu_surface_cmake_try.ECmakeTryRun r ->
+    C.Project_cmd
+      (C.Try_run
+         { tr_run_result_var = r.run_result_var;
+           tr_compile_result_var = r.compile_result_var;
+           tr_sources = List.map r.sources ~f:(arg ~env);
+           tr_compile_definitions = List.map r.compile_definitions ~f:(arg ~env);
+           tr_link_libraries = List.map r.link_libraries ~f:(arg ~env);
+           tr_compile_output_variable = r.compile_output_variable;
+           tr_run_output_variable = r.run_output_variable;
+           tr_args = List.map r.args ~f:(arg ~env) })
+
+  (* cmake_op long tail *)
+  | ECmakeIncludeGuard { scope } ->
+    let s = match scope with
+      | "DIRECTORY" -> C.Ig_directory
+      | "GLOBAL" -> C.Ig_global
+      | _ -> fail "emit_ast: unknown include_guard scope %S" scope
+    in
+    C.Include_guard { scope = s }
+  | ECmakeLanguageCall { cmd; args = call_args } ->
+    (* Legacy compile maps cmake_language(CALL cmd args...) to a flat
+       [Meta_call { cmd = Var_exp cmd; arg = [exp...] }] where each arg
+       becomes a Var_exp / Quote exp directly. EVar in this position
+       renders as the bare name (cmake_language CALL passes the var by
+       name; the cmake-side dereferences). *)
+    let arg_to_exp e : C.exp =
+      match e with
+      | EVar name -> C.Var_exp (target_arg ~env e |> fun _ -> name)
+      | _ ->
+        match arg ~env e with
+        | C.Bare s -> C.Var_exp s
+        | C.Quoted s -> C.Quote (Fmt.str "\"%s\"" s)
+        | C.Bracket s -> C.Var_exp (Fmt.str "[=[%s]=]" s)
+    in
+    C.Cmake_cmd
+      (C.Cmake_meta_lang
+         (C.Meta_call
+            { cmd = C.Var_exp cmd;
+              arg = List.map call_args ~f:arg_to_exp }))
+  | ECmakeLanguageEval { code } ->
+    C.Cmake_cmd (C.Cmake_meta_lang (C.Meta_eval { code }))
+  | ECmakeLanguageGetLogLevel { out } ->
+    C.Cmake_cmd (C.Cmake_meta_lang (C.Meta_get_msg_log_level { var = out }))
+  | ECmakeSeparateArguments { var; mode; input } ->
+    let m = match mode with
+      | "PLAIN" -> C.Sa_plain
+      | "UNIX_COMMAND" -> C.Sa_unix_command
+      | "WINDOWS_COMMAND" -> C.Sa_windows_command
+      | "NATIVE_COMMAND" -> C.Sa_native_command
+      | _ -> fail "emit_ast: unknown separate_arguments mode %S" mode
+    in
+    C.Separete_arguments
+      { var; mode = m; input = Option.map input ~f:(arg ~env) }
+
+  (* String long tail *)
+  | ECmakeStringPrepend { cvar; inputs } ->
+    (* Legacy compile splits the first input into [prefix] and rest into
+       [inputs] — pp emits "string(PREPEND var prefix inputs...)". *)
+    let prefix, rest = match inputs with
+      | [] -> C.Bare "", []
+      | hd :: tl -> arg ~env hd, List.map tl ~f:(arg ~env)
+    in
+    C.String_cmd (C.Sc_prepend { var = cvar; prefix; inputs = rest })
+  | ECmakeStringRegexQuote { out; inputs } ->
+    C.String_cmd
+      (C.Sc_regex
+         (C.Sr_quote { out; inputs = List.map inputs ~f:(arg ~env) }))
+  | ECmakeStringTimestamp { out; format; utc } ->
+    C.String_cmd (C.Sc_timestamp { out; format; utc })
+  | ECmakeStringGenexStrip { input; out } ->
+    C.String_cmd (C.Sc_genex_strip { string = arg ~env input; out })
+  | ECmakeStringMakeCIdentifier { input; out } ->
+    C.String_cmd
+      (C.Sc_make_c_identifier { string = arg ~env input; out })
+  | ECmakeStringCompare { op; string1; string2; out } ->
+    let cop = match op with
+      | "LESS" -> C.Sco_less | "GREATER" -> C.Sco_greater
+      | "EQUAL" -> C.Sco_equal | "NOTEQUAL" -> C.Sco_notequal
+      | "LESS_EQUAL" -> C.Sco_less_equal
+      | "GREATER_EQUAL" -> C.Sco_greater_equal
+      | _ -> fail "emit_ast: unknown string compare op %S" op
+    in
+    C.String_cmd
+      (C.Sc_compare
+         { op = cop;
+           string1 = arg ~env string1;
+           string2 = arg ~env string2;
+           out })
+
+  (* List long tail *)
+  | ECmakeListSublist { list; begin_; length; out } ->
+    C.List_cmd (C.Lc_sublist { var = list; begin_; length; out })
+  | ECmakeListFilter { list; mode; regex } ->
+    let m = match mode with
+      | "INCLUDE" -> C.Lf_include | "EXCLUDE" -> C.Lf_exclude
+      | _ -> fail "emit_ast: unknown list filter mode %S" mode
+    in
+    C.List_cmd (C.Lc_filter { var = list; mode = m; regex })
+  | ECmakeListPopFront { list; out_vars } ->
+    C.List_cmd (C.Lc_pop_front { var = list; out_vars })
+  | ECmakeListPopBack { list; out_vars } ->
+    C.List_cmd (C.Lc_pop_back { var = list; out_vars })
+  | ECmakeListSort { list; order; compare; case } ->
+    let order = Option.map order ~f:(function
+      | "ASCENDING" -> C.Ls_ascending | "DESCENDING" -> C.Ls_descending
+      | _ -> fail "emit_ast: unknown list sort order")
+    in
+    let compare = Option.map compare ~f:(function
+      | "STRING" -> C.Ls_string | "FILE_BASENAME" -> C.Ls_file_basename
+      | "NATURAL" -> C.Ls_natural
+      | _ -> fail "emit_ast: unknown list sort compare")
+    in
+    let case = Option.map case ~f:(function
+      | "SENSITIVE" -> C.Ls_sensitive | "INSENSITIVE" -> C.Ls_insensitive
+      | _ -> fail "emit_ast: unknown list sort case")
+    in
+    C.List_cmd (C.Lc_sort { var = list; order; compare; case })
 
   (* Tests *)
   | ECmakeEnableTesting ->
