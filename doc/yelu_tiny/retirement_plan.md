@@ -1,15 +1,10 @@
 # yelu_tiny — Retirement Plan
 
-The plan for moving the production lowering off `src/langs/yelu/fragments/`
+The plan for moving the production lowering off the legacy `src/langs/yelu_legacy/` (formerly `src/langs/yelu/fragments/`)
 and onto `src/langs/yelu_tiny/`. Companion to `status.md` (open work) and
 `design.md` (the *why*).
 
-**Status (2026-05-11): Phase 1 done, Phase 2 planned.** Production text
-generation routes through `Yelu1 → emit_ast → Lang_cmake.exp → cmake_pp`;
-the byte-equality oracle in `test_yelu_compile.ml` reports 194/194
-programs byte-identical with legacy. See "Phase 1 status" below and
-"Current happy path" for the pipeline diagram + how to run the
-regression check.
+**Status (2026-05-11): Phase 1 done; Phase 2a + 2c structural move done; Phase 2b (R3 genex) and full retirement deferred.** Production text generation routes through `Yelu1 → emit_ast → Lang_cmake.exp → cmake_pp`; the byte-equality oracle in `test_yelu_compile.ml` reports 194/194 programs byte-identical with legacy. New parser `Yelu_parse_y1` covers all 12 families (831 unit tests, 93 pair-wise oracle tests byte-identical). Legacy code (compile / wellform / type / utils / 14 fragments) relocated from `src/langs/yelu/` to `src/langs/yelu_legacy/`; modules remain callable. Legacy parser + lexer stay in `src/langs/yelu/` as the still-production entry point.
 
 ## Vocabulary
 
@@ -60,17 +55,24 @@ one cmake pretty-printer in the codebase.
 
 | Module                                                | LOC   | Today                                  | After retirement                                                                  |
 | ----------------------------------------------------- | ----: | -------------------------------------- | --------------------------------------------------------------------------------- |
-| `lang_yelu_parse.ml`                                  |   955 | concrete syntax → `Lang_yelu_cmake` AST | **refactored** to produce Yelu1 IR directly (Phase 2). Reuses lexer.              |
-| `lang_yelu_lexer.ml`                                  |   197 | tokens                                 | unchanged                                                                         |
-| `lang_yelu_cmake.ml` (AST type)                       |   348 | production AST type                    | moved to `yelu_legacy` once parser no longer targets it                           |
-| `lang_yelu_utils.ml`                                  |   561 | AST constructors used by step files    | moved to `yelu_legacy`; step files migrate to Yelu1 constructors                  |
-| `lang_yelu_compile.ml`                                | 1,125 | production AST → cmake AST             | moved to `yelu_legacy.compile`; off the production path, kept as oracle           |
-| `lang_yelu_wellform.ml`                               |   761 | name binding                           | moved to `yelu_legacy.wellform`; Y17 builds tiny's own                            |
-| `lang_yelu_type.ml` + `fragments/*_check.ml`          |  ~700 | per-theory typecheck                   | moved to `yelu_legacy`; Y17 builds tiny's own                                     |
-| `fragments/lang_yelu_*.ml` (14 `Make_*_op`)           | ~1.2k | typed constructors + checking functors | moved to `yelu_legacy`; not called in production                                  |
-| `yelu_cmake_to_yelu1.ml` (bridge)                     | 1,056 | production AST → Yelu1 IR              | retires alongside `lang_yelu_cmake` (Phase 2)                                     |
-| `yelu_tiny_cmake_emit.ml` (direct text)               |   964 | Yelu1 IR → cmake text                  | **replaced** by `yelu_tiny_cmake_emit_ast.ml` going through cmake AST (Phase 1)   |
-| `lang_cmake.ml` + `lang_cmake_pp.ml` + `_utils.ml`    | 2,715 | cmake AST + pp + ctors                 | unchanged — sole canonical text-generation path                                   |
+| `src/langs/yelu/lang_yelu_parse.ml`                   |   955 | concrete syntax → `Lang_yelu_cmake` AST | still production parser; new `Yelu_parse_y1` covers all 12 families in parallel (Phase 2a done) |
+| `src/langs/yelu/lang_yelu_lexer.ml`                   |   197 | tokens                                 | unchanged; shared by both parsers                                                 |
+| `src/langs/yelu_legacy/lang_yelu_cmake.ml` (AST type) |   348 | production AST type                    | **moved to `yelu_legacy/` (Phase 2c)**; still callable from same library          |
+| `src/langs/yelu_legacy/lang_yelu_utils.ml`            |   561 | AST constructors used by step files    | **moved to `yelu_legacy/`**; step files still use it until Phase 2-final          |
+| `src/langs/yelu_legacy/lang_yelu_compile.ml`          | 1,125 | production AST → cmake AST             | **moved to `yelu_legacy/`**; off the production text-generation path; serves the byte oracle |
+| `src/langs/yelu_legacy/lang_yelu_wellform.ml`         |   761 | name binding                           | **moved to `yelu_legacy/`**; Y17 builds tiny's own                                |
+| `src/langs/yelu_legacy/lang_yelu_type.ml` + `fragments/*_check.ml` | ~700 | per-theory typecheck             | **moved to `yelu_legacy/`**; Y17 builds tiny's own                                |
+| `src/langs/yelu_legacy/fragments/lang_yelu_*.ml` (15) | ~1.2k | typed constructors + checking functors | **moved to `yelu_legacy/fragments/`**; not called in production                   |
+| `src/langs/yelu_tiny/yelu_cmake_to_yelu1.ml` (bridge) | 1,056 | production AST → Yelu1 IR              | stays in `yelu_tiny/`; retires alongside `lang_yelu_cmake` once production callers stop using legacy AST |
+| `src/langs/yelu_tiny/yelu_parse_y1.ml`                | ~1.9k | concrete syntax → Yelu1 IR (Phase 2a)  | new parser; covers all 12 families with byte-identical pair-wise oracle           |
+| `src/langs/yelu_tiny/yelu_tiny_cmake_emit.ml` (direct text) | 964 | Yelu1 IR → cmake text             | **replaced** by `yelu_tiny_cmake_emit_ast.ml` going through cmake AST (Phase 1)   |
+| `src/langs/cmake/lang_cmake.ml` + `lang_cmake_pp.ml` + `_utils.ml` | 2,715 | cmake AST + pp + ctors          | unchanged — sole canonical text-generation path                                   |
+
+Note: dune's `(include_subdirs unqualified)` keeps module names the
+same after directory relocation, so the Phase 2c move did not require
+any source-import updates. Tests, step files, and the bridge all still
+reference `Lang_yelu_compile.compile`, `Lang_yelu_cmake.yelu_stmt`,
+etc., as before.
 
 ## Two phases
 

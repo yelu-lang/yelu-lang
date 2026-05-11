@@ -58,14 +58,16 @@ make step1 .. step12     # generate → cmake configure → build → run
 
 | File                                   | Purpose                                                          |
 | -------------------------------------- | ---------------------------------------------------------------- |
-| `src/langs/yelu/lang_yelu.ml`          | Core: `LANG_TYPES`, `Make_stmt` functor bundle                   |
-| `src/langs/yelu/lang_yelu_type.ml`     | Type universe, `checking_stage`, `CHECKER_BASE`                  |
-| `src/langs/yelu/lang_yelu_cmake.ml`    | Cmake-pack: `yelu_stmt`, `Cmake_check`, 14 theory instantiations |
-| `src/langs/yelu/lang_yelu_compile.ml`  | Compiler: type erasure yelu → cmake AST (`stage = Stage_lower`)  |
-| `src/langs/yelu/lang_yelu_utils.ml`    | Ergonomic constructors for building yelu AST                     |
-| `src/langs/yelu/lang_yelu_wellform.ml` | Wellform pass: whole-program cvar/target name binding check      |
+| `src/langs/yelu/lang_yelu_parse.ml`            | Concrete-syntax parser → `Lang_yelu_cmake` AST (still production entry; new `Yelu_parse_y1` runs in parallel) |
+| `src/langs/yelu/lang_yelu_lexer.ml`            | Tokens; shared by both parsers                                   |
+| `src/langs/yelu_legacy/lang_yelu.ml`           | Core: `LANG_TYPES`, `Make_stmt` functor bundle (relocated to legacy 2026-05-11) |
+| `src/langs/yelu_legacy/lang_yelu_type.ml`      | Type universe, `checking_stage`, `CHECKER_BASE`                  |
+| `src/langs/yelu_legacy/lang_yelu_cmake.ml`     | Cmake-pack: `yelu_stmt`, `Cmake_check`, 14 theory instantiations |
+| `src/langs/yelu_legacy/lang_yelu_compile.ml`   | Compiler: type erasure yelu → cmake AST (legacy ref for byte oracle) |
+| `src/langs/yelu_legacy/lang_yelu_utils.ml`     | Ergonomic constructors for building yelu AST                     |
+| `src/langs/yelu_legacy/lang_yelu_wellform.ml`  | Wellform pass: whole-program cvar/target name binding check      |
 
-### Fragments (per-theory functors, `src/langs/yelu/fragments/`)
+### Fragments (per-theory functors, `src/langs/yelu_legacy/fragments/`)
 
 Each fragment defines a `Make_*_op (T)` / `Make_*_check (T)` functor pair over `LANG_TYPES`.
 All 14 `Make_*_check` modules expose `let stage = Stage_typecheck`, enforced by `CHECKER_BASE`.
