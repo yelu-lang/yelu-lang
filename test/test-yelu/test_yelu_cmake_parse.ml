@@ -500,6 +500,60 @@ let tier8_misc_y1 = ("t8-misc-y1", [
     "( set_property Target Foo )";
 ])
 
+(* Phase 2a pair-wise oracle for the try family. Legacy parser only
+   recognizes the bare command forms; bridge folds them into
+   [ECmakeTryCompile] (simple, all defaults) and [ECmakeTryRun]. The
+   direct parser produces the same shape, so both sides must emit
+   byte-identical [try_compile(...)] / [try_run(...)] text. *)
+let tier7_try_y1 = ("t7-try-y1", [
+  assert_parse_y1_equiv "y1: try_compile" "( try_compile RESULT )";
+  assert_parse_y1_equiv "y1: try_run"     "( try_run RUN_RES COMPILE_RES )";
+])
+
+(* Phase 2a pair-wise oracle for the previously legacy-only cases in
+   [tier_remaining]. These commands are all supported by both parsers;
+   promoting them into the byte oracle closes most of the
+   "representative-only" gap for retirement item A. Three cases stay
+   legacy-only because the direct parser does not yet handle them:
+   string_json_get, set_env, unset_env. *)
+let tier_remaining_y1 = ("t-remaining-y1", [
+  assert_parse_y1_equiv "y1: string_regex_replace"   "( string_regex_replace 'p' 'r' 'in' ~out:OUT )";
+  assert_parse_y1_equiv "y1: string_regex_matchall"  "( string_regex_matchall 'p' 'in' ~out:OUT )";
+  assert_parse_y1_equiv "y1: string_append"          "( string_append MYVAR 'suffix' )";
+  assert_parse_y1_equiv "y1: string_prepend"         "( string_prepend MYVAR 'prefix' )";
+  assert_parse_y1_equiv "y1: string_substring"       "( string_substring 'hello' '1' '3' ~out:OUT )";
+  assert_parse_y1_equiv "y1: string_compare"         "( string_compare 'a' 'b' ~out:OUT )";
+  assert_parse_y1_equiv "y1: string_uuid"            "( string_uuid ~out:OUT )";
+  assert_parse_y1_equiv "y1: path_remove_filename"   "( path_remove_filename PV )";
+  assert_parse_y1_equiv "y1: path_replace_filename"  "( path_replace_filename PV \"new\" )";
+  assert_parse_y1_equiv "y1: path_normal_path"       "( path_normal_path PV ~out:OUT )";
+  assert_parse_y1_equiv "y1: path_absolute_path"     "( path_absolute_path PV )";
+  assert_parse_y1_equiv "y1: path_native_path"       "( path_native_path PV ~out:OUT )";
+  assert_parse_y1_equiv "y1: path_convert_to_cmake"  "( path_convert_to_cmake \"/tmp\" ~out:OUT )";
+  assert_parse_y1_equiv "y1: get_directory_property" "( get_directory_property ~out:OUT )";
+  assert_parse_y1_equiv "y1: set_global_property"    "( set_global_property )";
+  assert_parse_y1_equiv "y1: set_source_property"    "( set_source_property \"file.c\" )";
+  assert_parse_y1_equiv "y1: list_sublist"           "( list_sublist MYLIST '1' '3' ~out:OUT )";
+  assert_parse_y1_equiv "y1: list_filter"            "( list_filter MYLIST 'pat' )";
+  assert_parse_y1_equiv "y1: list_transform"         "( list_transform MYLIST ~append )";
+  assert_parse_y1_equiv "y1: unset_cache"            "( unset_cache MYVAR )";
+  assert_parse_y1_equiv "y1: file_strings"           "( file_strings \"f.txt\" ~out:OUT )";
+  assert_parse_y1_equiv "y1: file_read_symlink"      "( file_read_symlink \"link\" ~out:OUT )";
+  (* y1: cmake_call — third legacy-parser-bug shape (same as
+     ( set NAME val ) and ( policy_set "CMPxxxx" )): legacy parser
+     only matches Yexpr_string (Ycs_string s) for the cmd argument,
+     so a double-quoted cmd ("myfn" → Ycs_path) falls through and
+     emits an empty CALL name. The new parser handles both via
+     str_of. Omitted from pair-wise oracle until the legacy parser
+     is fixed separately. *)
+  assert_parse_y1_equiv "y1: cmake_get_log_level"    "( cmake_get_log_level ~out:OUT )";
+  assert_parse_y1_equiv "y1: export"                 "( export Target ExpName )";
+  assert_parse_y1_equiv "y1: configure_package_config_file"
+    "( configure_package_config_file \"dest\" \"in\" \"out\" )";
+  assert_parse_y1_equiv "y1: write_basic_package_version_file"
+    "( write_basic_package_version_file \"file\" )";
+])
+
 (* Phase 2a pair-wise oracle for the dir family. *)
 let tier0_dir_y1 = ("t0-dir-y1", [
   assert_parse_y1_equiv "y1: add_subdirectory"        "( add_subdirectory \"MathFunctions\" )";
@@ -601,5 +655,7 @@ let () =
     tier1_target; tier2_string; tier2_string_y1; tier3_list; tier3_list_y1;
     tier4_file; tier4_file_y1; tier5_path; tier5_path_y1;
     tier6_find_install; tier6_find_install_y1;
-    tier7_scripting; tier8_misc; tier8_misc_y1; tier8_misc_cmake_op_y1; tier_remaining; tier9_genex;
+    tier7_scripting; tier7_try_y1;
+    tier8_misc; tier8_misc_y1; tier8_misc_cmake_op_y1;
+    tier_remaining; tier_remaining_y1; tier9_genex;
   ]

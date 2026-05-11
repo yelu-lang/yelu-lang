@@ -53,6 +53,7 @@ open Yelu_surface_cmake_property
 open Yelu_surface_cmake_find
 open Yelu_surface_cmake_install
 open Yelu_surface_cmake_cmake_op
+open Yelu_surface_cmake_try
 
 (* ============================================================
    Combinator primitives — duplicated from Lang_yelu_parse.
@@ -327,9 +328,20 @@ let p_string_command_y1_inner name args kwargs =
   | "string_compare", [ EString op; s1; s2 ]
   | "string_compare", [ EVar op; s1; s2 ] ->
     Some (ECmakeStringCompare { op; string1 = s1; string2 = s2; out })
+  (* Legacy-compat: 2-arg form defaults op = EQUAL (Sco_equal in
+     legacy). Kept for byte-parity with the legacy parser; future
+     direct-language design should drop the implicit default. *)
+  | "string_compare", [ s1; s2 ] ->
+    Some (ECmakeStringCompare
+            { op = "EQUAL"; string1 = s1; string2 = s2; out })
   | "string_uuid", [] ->
+    (* Legacy-compat defaults: the legacy parser hard-codes
+       namespace = "ns" and name = "n" as placeholder values when the
+       command is invoked without keyword args. Mimic the placeholders
+       so the byte oracle matches; future language design replaces
+       this with required keyword args. *)
     Some (ECmakeStringUuid
-            { out; namespace = ""; name = ""; type_ = "MD5"; upper = false })
+            { out; namespace = "ns"; name = "n"; type_ = "MD5"; upper = false })
   | "string_json", op :: rest ->
     let op_name = match op with EString s | EVar s -> s | _ -> "JSON_op" in
     Some (ECmakeStringJson
@@ -919,6 +931,44 @@ let p_install_command_y1 toks =
     | _ -> None
 
 (* ============================================================
+   try family (try_compile / try_run scalar forms).
+
+   The legacy parser only recognizes the bare command forms (no
+   keyword args), mapping them to Ytry_compile / Ytry_run records with
+   default-empty payloads. The bridge then folds default-payload
+   Ytry_compile into [ECmakeTryCompile] (the simple ctor) and
+   non-default into [ECmakeTryCompileEx]. Mirror that here.
+   ============================================================ *)
+
+let p_try_command_y1_inner name args _kwargs =
+  match name, args with
+  | "try_compile", [ result ] ->
+    Some (ECmakeTryCompile
+            { result_var = cvar_name_of_y1 result; sources = [] })
+  | "try_run", [ run_result; compile_result ] ->
+    Some (ECmakeTryRun
+            { run_result_var = cvar_name_of_y1 run_result;
+              compile_result_var = cvar_name_of_y1 compile_result;
+              sources = []; compile_definitions = [];
+              link_libraries = [];
+              compile_output_variable = None;
+              run_output_variable = None;
+              args = [] })
+  | _ -> None
+
+let p_try_command_y1 toks =
+  match toks with
+  | IDENT name :: rest
+      when (match name with
+            | "try_compile" | "try_run" -> true
+            | _ -> false) ->
+      let args, kwargs, rest = collect_command_args [] [] rest in
+      (match p_try_command_y1_inner name args kwargs with
+       | None -> None
+       | Some e -> Some (e, rest))
+    | _ -> None
+
+(* ============================================================
    cmake_op family (scalar commands; control flow deferred).
    project / cmake_minimum_required / message / math / include /
    include_guard / policy_set / enable_language / execute_process /
@@ -1181,6 +1231,7 @@ let rec p_stmt_inner_y1 toks =
   match p_property_command_y1 toks with Some r -> Some r | None ->
   match p_find_command_y1 toks with Some r -> Some r | None ->
   match p_install_command_y1 toks with Some r -> Some r | None ->
+  match p_try_command_y1 toks with Some r -> Some r | None ->
   match p_cmake_op_command_y1 toks with Some r -> Some r | None ->
   match p_var_stmt_y1 toks with Some r -> Some r | None ->
   match p_apply_y1 toks with Some r -> Some r | None ->
