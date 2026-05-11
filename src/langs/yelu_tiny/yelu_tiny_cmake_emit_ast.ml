@@ -12,6 +12,7 @@ open Yelu_surface_cmake_store
 open Yelu_theory_bool
 open Yelu_theory_int
 open Yelu_theory_list
+open Yelu_surface_cmake_list
 open Yelu_surface_cmake_file
 open Yelu_surface_cmake_string
 open Yelu_surface_cmake_target
@@ -377,6 +378,155 @@ let rec emit_exp ~env (e : expr) : C.exp =
            binary_dir = None;
            exclude_from_all = false;
            system = false })
+
+  (* String *)
+  | ECmakeStringConcat { inputs; out } ->
+    C.String_cmd (C.Sc_concat { out; inputs = List.map inputs ~f:(arg ~env) })
+  | ECmakeStringToupper { input; out } ->
+    C.String_cmd (C.Sc_toupper { string = arg ~env input; out })
+  | ECmakeStringTolower { input; out } ->
+    C.String_cmd (C.Sc_tolower { string = arg ~env input; out })
+  | ECmakeStringLength { input; out } ->
+    C.String_cmd (C.Sc_length { string = arg ~env input; out })
+  | ECmakeStringStrip { input; out } ->
+    C.String_cmd (C.Sc_strip { string = arg ~env input; out })
+  | ECmakeStringReplace { match_; replace; input; out } ->
+    C.String_cmd
+      (C.Sc_replace
+         { match_string = arg ~env match_;
+           replace_string = arg ~env replace;
+           out;
+           inputs = [ arg ~env input ] })
+  | ECmakeStringRegexReplace { regex; replace; out; inputs } ->
+    C.String_cmd
+      (C.Sc_regex
+         (C.Sr_replace
+            { regex; replace = arg ~env replace; out;
+              inputs = List.map inputs ~f:(arg ~env) }))
+  | ECmakeStringRegexMatch { regex; out; inputs } ->
+    C.String_cmd
+      (C.Sc_regex
+         (C.Sr_match { regex; out; inputs = List.map inputs ~f:(arg ~env) }))
+  | ECmakeStringRegexMatchAll { regex; out; inputs } ->
+    C.String_cmd
+      (C.Sc_regex
+         (C.Sr_matchall { regex; out; inputs = List.map inputs ~f:(arg ~env) }))
+  | ECmakeStringJoin { glue; out; inputs } ->
+    C.String_cmd
+      (C.Sc_join
+         { glue = arg ~env glue; out; inputs = List.map inputs ~f:(arg ~env) })
+  | ECmakeStringAppend { cvar; inputs } ->
+    C.String_cmd (C.Sc_append { var = cvar; inputs = List.map inputs ~f:(arg ~env) })
+  | ECmakeStringSubstring { string; begin_; length; out } ->
+    C.String_cmd
+      (C.Sc_substring { string = arg ~env string; begin_; length; out })
+  | ECmakeStringRepeat { string; count; out } ->
+    C.String_cmd (C.Sc_repeat { string = arg ~env string; count; out })
+  | ECmakeStringFind { string; substring; out; reverse } ->
+    C.String_cmd
+      (C.Sc_find
+         { string = arg ~env string;
+           substring = arg ~env substring;
+           out; reverse })
+
+  (* List *)
+  | ECmakeListAppend { list; items } ->
+    C.List_cmd (C.Lc_append { var = list; values = List.map items ~f:(arg ~env) })
+  | ECmakeListPrepend { list; items } ->
+    C.List_cmd (C.Lc_prepend { var = list; values = List.map items ~f:(arg ~env) })
+  | ECmakeListInsert { list; index; items } ->
+    C.List_cmd
+      (C.Lc_insert { var = list; index; values = List.map items ~f:(arg ~env) })
+  | ECmakeListLength { list; out } ->
+    C.List_cmd (C.Lc_length { var = list; out })
+  | ECmakeListGet { list; index; out } ->
+    let i = match index with
+      | EInt n -> n
+      | _ -> fail "emit_ast: list(GET) index must be a literal integer"
+    in
+    C.List_cmd (C.Lc_get { var = list; indices = [ i ]; out })
+  | ECmakeListJoin { list; glue; out } ->
+    C.List_cmd (C.Lc_join { var = list; glue = arg ~env glue; out })
+  | ECmakeListRemoveItem { list; items } ->
+    C.List_cmd
+      (C.Lc_remove_item { var = list; values = List.map items ~f:(arg ~env) })
+  | ECmakeListRemoveAt { list; indices } ->
+    C.List_cmd (C.Lc_remove_at { var = list; indices })
+  | ECmakeListRemoveDuplicates { list } ->
+    C.List_cmd (C.Lc_remove_duplicates { var = list })
+  | ECmakeListReverse { list } ->
+    C.List_cmd (C.Lc_reverse { var = list })
+  | ECmakeListFind { list; value; out } ->
+    C.List_cmd (C.Lc_find { var = list; value = arg ~env value; out })
+
+  (* File I/O — small first slice *)
+  | ECmakeFileWrite { path; content } ->
+    C.File_write
+      { file = arg ~env path;
+        append = false;
+        content = List.map content ~f:(arg ~env) }
+  | ECmakeFileWriteAppend { path; content } ->
+    C.File_write
+      { file = arg ~env path;
+        append = true;
+        content = List.map content ~f:(arg ~env) }
+  | ECmakeFileRead { path; out } ->
+    C.File_read
+      { var = out; file = arg ~env path;
+        offset = None; limit = None; hex = false }
+  | ECmakeConfigureFile { input; output } ->
+    C.Cmake_cmd
+      (C.Configure_file
+         { input = target_arg ~env input;
+           output = target_arg ~env output;
+           permission_level = None;
+           permissions = [];
+           copy_only = None;
+           escape_quotes = None;
+           only = None;
+           newline_style = None })
+  | ECmakeFileRelativePath { var; base; file } ->
+    C.File_relative_path
+      { var; base = target_arg ~env base; file = target_arg ~env file }
+
+  (* Install *)
+  | Yelu_surface_cmake_install.ECmakeInstallTargets { targets; destination; export } ->
+    C.Project_cmd
+      (C.Install_targets
+         { targets = List.map targets ~f:(target_arg ~env);
+           destination = arg ~env destination;
+           component = None;
+           rename = None;
+           export = Option.map export ~f:(target_arg ~env);
+           permissions = [] })
+  | Yelu_surface_cmake_install.ECmakeInstallFiles { files; destination } ->
+    C.Project_cmd
+      (C.Install_files
+         { files = List.map files ~f:(arg ~env);
+           destination = arg ~env destination;
+           component = None;
+           rename = None;
+           permissions = [] })
+
+  (* Property — target subset *)
+  | Yelu_surface_cmake_property.ECmakeSetTargetProperty { target; property; value } ->
+    C.Project_cmd
+      (C.Set_target_properties
+         { target = target_arg ~env target;
+           properties = [ { prop = property; value = arg ~env value } ] })
+  | Yelu_surface_cmake_property.ECmakeGetTargetProperty { var; target; property } ->
+    C.Project_cmd
+      (C.Get_target_property
+         { var; target = target_arg ~env target;
+           property = { prop = property; value = C.Bare "" } })
+
+  (* Find *)
+  | Yelu_surface_cmake_find.ECmakeFindPackage { package_name; required } ->
+    C.Find_package
+      { name = package_name; required;
+        version = None; exact = false; quiet = false;
+        config_mode = false;
+        components = []; optional_components = [] }
 
   (* Tests *)
   | ECmakeEnableTesting ->

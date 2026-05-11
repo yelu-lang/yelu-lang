@@ -57,6 +57,16 @@ let oracle_skip = [
   (* Tiny surface [ECmakeTargetLinkOptions] drops the [before] flag the
      production AST carries. Add it to the surface ctor to round-trip. *)
   "target_link_options before";
+  (* [ECmakeFindPackage { package_name; required }] drops version /
+     exact / components / optional_components / quiet / config_mode.
+     Extend the tiny ctor to round-trip. *)
+  "find_package version";
+  "find_package required exact";
+  "find_package components";
+  "find_package optional_components";
+  "find_package quiet";
+  "find_package config_mode";
+  "find_package config_mode required components";
 ]
 
 let assert_byte_oracle name yelu_ast =
