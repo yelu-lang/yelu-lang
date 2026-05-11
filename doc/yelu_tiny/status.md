@@ -6,8 +6,10 @@ code-anchored module guide in `structure.md`, history in
 
 **Last verified 2026-05-11:** `dune build && dune test` green
 (738 unit tests); byte-equality oracle covers 194/194 production
-programs with 0 uncovered, 0 skipped. `make runcmake-yelu` green
-(50/50 pairs). Retirement Phase 1 done — see below.
+programs with 0 uncovered, 0 skipped. Parser tests (170) all flow
+through emit_ast without falling back to direct emit.
+`make runcmake-yelu` green (50/50 pairs). Retirement Phase 1 done —
+see below.
 
 ## What's done
 

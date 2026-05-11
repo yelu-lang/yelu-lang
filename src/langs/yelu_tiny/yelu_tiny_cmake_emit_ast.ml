@@ -262,6 +262,19 @@ let rec emit_exp ~env (e : expr) : C.exp =
     C.Unset_env { var = name }
   | ECmakeOption { name; message; value } ->
     C.Cmake_option { var = name; msg = message; value = arg ~env value }
+  | ECmakeSetCache { name; values; cache_type; docstring; force } ->
+    let ct = match cache_type with
+      | "BOOL" -> C.Ct_bool | "FILEPATH" -> C.Ct_filepath
+      | "PATH" -> C.Ct_path | "STRING" -> C.Ct_string
+      | "INTERNAL" -> C.Ct_internal
+      | _ -> fail "emit_ast: unknown set(CACHE) type %S" cache_type
+    in
+    C.Set_cache
+      { var = name;
+        values = List.map values ~f:(arg ~env);
+        cache_type = ct;
+        docstring;
+        force }
 
   (* cmake_op: project metadata *)
   | ECmakeMinimumRequired version_s ->
@@ -410,6 +423,16 @@ let rec emit_exp ~env (e : expr) : C.exp =
          { target = target_arg ~env target;
            items = items_with_kind ~env ~visibility sources })
 
+  (* Target aliases & imported *)
+  | ECmakeAddLibraryAlias { name; target } ->
+    C.Project_cmd (C.Add_library_alias { name; target })
+  | ECmakeAddExecutableAlias { name; target } ->
+    C.Project_cmd (C.Add_executable_alias { name; target })
+  | ECmakeAddLibraryImported { name; lib_type; global } ->
+    C.Project_cmd
+      (C.Add_library_imported
+         { name = target_arg ~env name; lib_type; global })
+
   (* Directory *)
   | ECmakeAddSubdirectory path ->
     C.Project_cmd
@@ -418,6 +441,243 @@ let rec emit_exp ~env (e : expr) : C.exp =
            binary_dir = None;
            exclude_from_all = false;
            system = false })
+
+  (* Dir-level compile / link / include commands.
+     These map to cmake AST shapes that carry one [dir]/[dirs] split
+     (Include_directories, Link_directories) — we put the whole list
+     in [dirs] and leave the head [dir] empty. Add_definitions /
+     Add_compile_definitions use [definition] = Def_var of var; for the
+     simple bridge case we synthesize Def_var from the arg's text. *)
+  | ECmakeIncludeDirectories { dirs; before; system } ->
+    C.Project_cmd
+      (C.Include_directories
+         { before_or_after = (if before then C.Before else C.Default_order);
+           system;
+           dir = "";
+           dirs = List.map dirs ~f:(target_arg ~env) })
+  | ECmakeLinkDirectories { dirs; before } ->
+    C.Project_cmd
+      (C.Link_directories
+         { before_or_after = (if before then C.Before else C.Default_order);
+           directory = "";
+           directories = List.map dirs ~f:(target_arg ~env) })
+  | ECmakeAddCompileOptions opts ->
+    C.Project_cmd
+      (C.Add_compile_options { options_ = List.map opts ~f:(target_arg ~env) })
+  | ECmakeAddLinkOptions opts ->
+    C.Project_cmd
+      (C.Add_link_options { options = List.map opts ~f:(target_arg ~env) })
+  | ECmakeAddCompileDefinitions defs ->
+    C.Project_cmd
+      (C.Add_compile_definitions
+         { defs = List.map defs ~f:(fun d -> C.Def_var (target_arg ~env d)) })
+  | ECmakeAddDefinitions defs ->
+    C.Project_cmd
+      (C.Add_definitions
+         { defs = List.map defs ~f:(fun d -> C.Def_var (target_arg ~env d)) })
+
+  (* Find — non-package variants share [find_var_args]. *)
+  | Yelu_surface_cmake_find.ECmakeFindLibrary { out; names; paths; hints; required } ->
+    let fa : C.find_var_args =
+      { var = out;
+        names = List.map names ~f:(arg ~env);
+        hints = List.map hints ~f:(arg ~env);
+        paths = List.map paths ~f:(arg ~env);
+        path_suffixes = []; doc = None; required;
+        no_cache = false; no_default_path = false;
+        no_package_root_path = false; no_cmake_path = false;
+        no_cmake_environment_path = false; no_system_environment_path = false;
+        no_cmake_system_path = false; no_cmake_install_prefix = false }
+    in
+    C.Find_library fa
+  | Yelu_surface_cmake_find.ECmakeFindPath { out; names; paths; hints; required } ->
+    let fa : C.find_var_args =
+      { var = out;
+        names = List.map names ~f:(arg ~env);
+        hints = List.map hints ~f:(arg ~env);
+        paths = List.map paths ~f:(arg ~env);
+        path_suffixes = []; doc = None; required;
+        no_cache = false; no_default_path = false;
+        no_package_root_path = false; no_cmake_path = false;
+        no_cmake_environment_path = false; no_system_environment_path = false;
+        no_cmake_system_path = false; no_cmake_install_prefix = false }
+    in
+    C.Find_path fa
+  | Yelu_surface_cmake_find.ECmakeFindProgram { out; names; paths; hints; required } ->
+    let fa : C.find_var_args =
+      { var = out;
+        names = List.map names ~f:(arg ~env);
+        hints = List.map hints ~f:(arg ~env);
+        paths = List.map paths ~f:(arg ~env);
+        path_suffixes = []; doc = None; required;
+        no_cache = false; no_default_path = false;
+        no_package_root_path = false; no_cmake_path = false;
+        no_cmake_environment_path = false; no_system_environment_path = false;
+        no_cmake_system_path = false; no_cmake_install_prefix = false }
+    in
+    C.Find_program fa
+  | Yelu_surface_cmake_find.ECmakeFindFile { out; names; paths; hints; required } ->
+    let fa : C.find_var_args =
+      { var = out;
+        names = List.map names ~f:(arg ~env);
+        hints = List.map hints ~f:(arg ~env);
+        paths = List.map paths ~f:(arg ~env);
+        path_suffixes = []; doc = None; required;
+        no_cache = false; no_default_path = false;
+        no_package_root_path = false; no_cmake_path = false;
+        no_cmake_environment_path = false; no_system_environment_path = false;
+        no_cmake_system_path = false; no_cmake_install_prefix = false }
+    in
+    C.Find_file fa
+
+  (* Install / Export / Package config *)
+  | Yelu_surface_cmake_install.ECmakeInstallExport { export; destination; file; namespace } ->
+    C.Project_cmd
+      (C.Install_export
+         { file = Option.map file ~f:(arg ~env);
+           export = arg ~env export;
+           destination = arg ~env destination;
+           namespace;
+           component = None;
+           rename = None;
+           permissions = [] })
+  | Yelu_surface_cmake_install.ECmakeExportExport { name; file } ->
+    C.Project_cmd
+      (C.Export_export
+         { name = target_arg ~env name;
+           file = Option.map file ~f:(arg ~env) })
+  | Yelu_surface_cmake_install.ECmakeConfigurePackageConfigFile
+      { install_dest; input; output;
+        no_set_and_check_macro; no_check_required_components_macro } ->
+    C.Module_cmd
+      (C.Configure_package_config_file
+         { input = arg ~env input;
+           output = arg ~env output;
+           install_dest = arg ~env install_dest;
+           path_vars = [];
+           no_set_and_check_macro;
+           no_check_required_components_macro })
+  | Yelu_surface_cmake_install.ECmakeWriteBasicPackageVersionFile
+      { file; version; compatibility; arch_independent } ->
+    C.Module_cmd
+      (C.Write_basic_package_version_file
+         { file = arg ~env file;
+           version = Option.map version ~f:(arg ~env);
+           compatibility;
+           arch_independent })
+
+  (* Property scopes beyond target *)
+  | Yelu_surface_cmake_property.ECmakeSetProperty { targets; append; properties } ->
+    C.Set_property
+      { global = false;
+        directory = [];
+        targets = List.map targets ~f:(target_arg ~env);
+        sources = [];
+        source_directories = [];
+        source_target_directories = [];
+        installs = [];
+        tests = [];
+        test_directories = [];
+        caches = [];
+        append; append_string = false;
+        properties = List.map properties ~f:(fun (prop, value) ->
+          ({ prop; value = arg ~env value } : C.property)) }
+  | Yelu_surface_cmake_property.ECmakeSetGlobalProperty { properties } ->
+    C.Set_property
+      { global = true;
+        directory = [];
+        targets = [];
+        sources = [];
+        source_directories = [];
+        source_target_directories = [];
+        installs = [];
+        tests = [];
+        test_directories = [];
+        caches = [];
+        append = false; append_string = false;
+        properties = List.map properties ~f:(fun (prop, value) ->
+          ({ prop; value = arg ~env value } : C.property)) }
+  | Yelu_surface_cmake_property.ECmakeGetProperty { var; target; property; set_form } ->
+    C.Get_property
+      { var; global = false;
+        directory = ""; source = ""; source_directory = "";
+        source_target_directory = target_arg ~env target;
+        install = ""; test = ""; test_directory = "";
+        variable = false;
+        property_name = property;
+        set = set_form }
+  | Yelu_surface_cmake_property.ECmakeGetDirectoryProperty { var; property } ->
+    C.Get_directory_property { var; directory = ""; property }
+  | Yelu_surface_cmake_property.ECmakeSetSourceProperty { file; property; values } ->
+    C.Set_source_property
+      { file = target_arg ~env file; property;
+        values = List.map values ~f:(arg ~env) }
+
+  (* cmake_op tail *)
+  | ECmakeEnableLanguage { langs; optional } ->
+    C.Project_cmd (C.Enable_language { langs; optional })
+  | ECmakePolicySet { id; new_ } ->
+    C.Cmake_cmd (C.Cmake_policy_set { id; new_ })
+
+  (* String JSON — dispatch on op_name to construct json_op *)
+  | ECmakeStringJson { out; error_var; op_name; args = json_args } ->
+    let argv n =
+      try List.nth_exn json_args n |> arg ~env
+      with _ -> C.Bare ""
+    in
+    let path_from n = List.drop json_args n |> List.map ~f:(arg ~env) in
+    let op : C.json_op = match op_name with
+      | "GET" -> C.Jop_get { json = argv 0; path = path_from 1 }
+      | "GET_RAW" -> C.Jop_get_raw { json = argv 0; path = path_from 1 }
+      | "TYPE" -> C.Jop_type { json = argv 0; path = path_from 1 }
+      | "LENGTH" -> C.Jop_length { json = argv 0; path = path_from 1 }
+      | "MEMBER" -> C.Jop_member { json = argv 0; path = path_from 1 }
+      | "REMOVE" -> C.Jop_remove { json = argv 0; path = path_from 1 }
+      | "SET" ->
+        let n = List.length json_args in
+        C.Jop_set
+          { json = argv 0;
+            path = List.drop json_args 1 |> List.take_while ~f:(fun _ -> true)
+                   |> (fun xs -> List.take xs (n - 2))
+                   |> List.map ~f:(arg ~env);
+            value = (try List.nth_exn json_args (n - 1) |> arg ~env
+                     with _ -> C.Bare "") }
+      | "EQUAL" -> C.Jop_equal { json1 = argv 0; json2 = argv 1 }
+      | "STRINGIFY" ->
+        C.Jop_string_encode { value = argv 0 }
+      (* The bridge currently stores [op_name = "JSON_op"] for all
+         string(JSON ...) calls — see [yelu_cmake_to_yelu1.ml]
+         [Ystr_json] case: op shape is bridged opaque, args dropped.
+         Synthesize a placeholder Jop_get so emit doesn't crash; the
+         resulting cmake text is not semantically faithful to the
+         original. Tracked as a bridge gap in
+         [doc/yelu_tiny/status.md]. *)
+      | "JSON_op" -> C.Jop_get { json = C.Bare ""; path = [] }
+      | _ -> fail "emit_ast: unknown string(JSON ...) op %S" op_name
+    in
+    C.String_cmd (C.Sc_json { out; error_var; op })
+
+  (* List transform — typed action / selector with payloads dropped by
+     the bridge; we synthesize default payloads for emit. *)
+  | ECmakeListTransform { list; action; selector; output } ->
+    let action : C.list_transform_action = match action with
+      | "APPEND" -> C.Lta_append (C.Bare "")
+      | "PREPEND" -> C.Lta_prepend (C.Bare "")
+      | "TOUPPER" -> C.Lta_toupper
+      | "TOLOWER" -> C.Lta_tolower
+      | "STRIP" -> C.Lta_strip
+      | "GENEX_STRIP" -> C.Lta_genex_strip
+      | "REPLACE" -> C.Lta_replace { match_regex = ""; replace = "" }
+      | _ -> fail "emit_ast: unknown list(TRANSFORM ...) action %S" action
+    in
+    let selector = Option.map selector ~f:(fun s -> match s with
+      | "AT" -> C.Lts_at []
+      | "FOR" -> C.Lts_for { start = 0; stop = 0; step = None }
+      | "REGEX" -> C.Lts_regex ""
+      | _ -> fail "emit_ast: unknown list(TRANSFORM ...) selector %S" s)
+    in
+    C.List_cmd
+      (C.Lc_transform { var = list; action; selector; output })
 
   (* String *)
   | ECmakeStringConcat { inputs; out } ->
