@@ -30,6 +30,11 @@ type expr +=
     }
   | ELibraryAlias of { name : string; target : string }
   | EExecutableAlias of { name : string; target : string }
+  | ELibraryImported of {
+      name : expr;
+      lib_type : string option;
+      global : bool;
+    }
   | EAddDependencies of { target : string; dep : string }
   (* See [tiny_target_sources_item] in [yelu_tiny.ml] for shape. *)
   | ETargetSourcesFs of {

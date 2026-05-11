@@ -17,6 +17,14 @@ type expr +=
     }
   | ECmakeStringLength of { input : expr; out : string }
   | ECmakeStringEqual of expr * expr
+  (* Cmake's version-aware string comparisons: [if(A VERSION_LESS B)] etc.
+     Eval is a no-op (returns VBool false) — proper semver comparison
+     belongs in a dedicated version theory; emit renders the cmake form. *)
+  | ECmakeVersionLess of expr * expr
+  | ECmakeVersionGreater of expr * expr
+  | ECmakeVersionEqual of expr * expr
+  | ECmakeVersionLessEqual of expr * expr
+  | ECmakeVersionGreaterEqual of expr * expr
 
 let replace_all ~match_ ~replace ~input =
   String.substr_replace_all input ~pattern:match_ ~with_:replace
@@ -59,4 +67,10 @@ let eval_case ~eval env = function
     let env, left = eval_string ~eval env left in
     let env, right = eval_string ~eval env right in
     Some (env, VBool (String.equal left right))
+  | ECmakeVersionLess _ | ECmakeVersionGreater _
+  | ECmakeVersionEqual _ | ECmakeVersionLessEqual _
+  | ECmakeVersionGreaterEqual _ ->
+    (* Eval is a no-op stub at this slice; the cond is decided by cmake.
+       A future yelu_theory_version would implement semver compare. *)
+    Some (env, VBool false)
   | _ -> None

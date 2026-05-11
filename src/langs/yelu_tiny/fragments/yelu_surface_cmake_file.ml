@@ -10,6 +10,9 @@ type expr +=
   | ECmakeFileRead of { path : expr; out : string }
   | ECmakeFileExists of expr
   | ECmakeConfigureFile of { input : expr; output : expr }
+  (* [file(RELATIVE_PATH <var> <base> <file>)]. Eval stub: binds var to
+     [file] string (no path-relative computation in tiny). *)
+  | ECmakeFileRelativePath of { var : string; base : expr; file : expr }
 
 let eval_string ~eval env expr =
   let env, value = eval env expr in
@@ -43,4 +46,7 @@ let eval_case ~eval env = function
       | None -> ""
     in
     Some (set_file env ~path:output ~content, VUnit)
+  | ECmakeFileRelativePath { var; base = _; file } ->
+    let env, file = eval_string ~eval env file in
+    Some (set_var env ~key:var ~data:(VString file), VUnit)
   | _ -> None

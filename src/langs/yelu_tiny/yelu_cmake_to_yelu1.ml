@@ -37,6 +37,11 @@ let rec expr : Old.yelu_expr -> Yelu_tiny.expr = function
   | Yexpr_and (left, right) -> EAnd (expr left, expr right)
   | Yexpr_or (left, right) -> EOr (expr left, expr right)
   | Yexpr_str_equal (left, right) -> ECmakeStringEqual (expr left, expr right)
+  | Yexpr_ver_less (a, b) -> ECmakeVersionLess (expr a, expr b)
+  | Yexpr_ver_greater (a, b) -> ECmakeVersionGreater (expr a, expr b)
+  | Yexpr_ver_equal (a, b) -> ECmakeVersionEqual (expr a, expr b)
+  | Yexpr_ver_less_eq (a, b) -> ECmakeVersionLessEqual (expr a, expr b)
+  | Yexpr_ver_greater_eq (a, b) -> ECmakeVersionGreaterEqual (expr a, expr b)
   | Yexpr_is_defined { name; _ } -> ECmakeVarDefined name
   | Yexpr_is_target { ns = _; name } -> ECmakeTargetExists (ETarget name)
   | Yexpr_exists path -> ECmakeFileExists (expr path)
@@ -96,6 +101,8 @@ let var_statement : Old.yelu_var_stmt -> Yelu_tiny.expr = function
     fail "set(PARENT_SCOPE) is outside the first Yelu1 bridge slice"
   | Yvar_option { cvar; msg; value } ->
     ECmakeOption { name = cvar_name cvar; message = msg; value = expr value }
+  | Yvar_unset_cache { cvar } ->
+    ECmakeUnsetVarCache (cvar_name cvar)
   | _ -> fail "unsupported yelu_cmake variable statement for Yelu1 bridge"
 
 let list_index ~indices =
@@ -141,6 +148,16 @@ let file_statement : Old.yelu_file_io_stmt -> Yelu_tiny.expr = function
     fail "file(READ HEX) is outside the current Yelu1 bridge slice"
   | Yfile_configure { input; output } ->
     ECmakeConfigureFile { input = expr input; output = expr output }
+  | Yfile_relative_path { var; base; file } ->
+    let var_name =
+      match var with
+      | Old.Yexpr_name { ns = Ns_var; name } -> name
+      | Old.Yexpr_var (Yvar name) -> name
+      | _ ->
+        fail "file(RELATIVE_PATH) bridge: var must be a cmake variable name"
+    in
+    ECmakeFileRelativePath
+      { var = var_name; base = expr base; file = expr file }
   | _ -> fail "unsupported yelu_cmake file statement for Yelu1 bridge"
 
 let string_of_version (v : Lang_cmake.version) =
@@ -199,6 +216,8 @@ let cmake_op_statement : Old.yelu_cmake_stmt -> Yelu_tiny.expr = function
         texts = List.map texts ~f:(fun s -> EString s);
       }
   | Ycmake_at_var key -> ECmakeAtVar key
+  | Ycmake_math { exp; out; output_format = _ } ->
+    ECmakeMath { exp; out = cvar_name out }
   | _ -> fail "unsupported yelu_cmake cmake_op statement for Yelu1 bridge"
 
 let dir_statement : Old.yelu_dir_stmt -> Yelu_tiny.expr = function
@@ -228,15 +247,22 @@ let property_statement : Old.yelu_property_stmt -> Yelu_tiny.expr = function
   | Yprop_get_target { var; target; property } ->
     ECmakeGetTargetProperty
       { var = cvar_name var; target = ETarget target; property }
+  | Yprop_set { targets; append; properties } ->
+    ECmakeSetProperty
+      {
+        targets = List.map targets ~f:target_name;
+        append;
+        properties = List.map properties ~f:(fun (p, v) -> p, expr v);
+      }
   | _ -> fail "unsupported yelu_cmake property statement for Yelu1 bridge"
 
 let find_statement : Old.yelu_find_stmt -> Yelu_tiny.expr = function
-  | Yfind_package { name; version = None; exact = false; quiet = false;
-                    config_mode = false; required;
-                    components = []; optional_components = [] } ->
+  | Yfind_package { name; required; _ } ->
+    (* The version / exact / quiet / config_mode / components fields are
+       currently dropped at emit; cmake resolves them at configure time
+       from the package name alone in tiny's slice. A future
+       [ECmakeFindPackageEx] could carry them through. *)
     ECmakeFindPackage { package_name = name; required }
-  | Yfind_package _ ->
-    fail "find_package(VERSION/EXACT/COMPONENTS/CONFIG) is outside the current Yelu1 bridge slice"
   | _ -> fail "unsupported yelu_cmake find statement for Yelu1 bridge"
 
 let try_statement : Old.yelu_try_stmt -> Yelu_tiny.expr = function
@@ -402,6 +428,9 @@ let target_statement : Old.yelu_target_stmt -> Yelu_tiny.expr = function
     ECmakeAddLibraryAlias { name; target }
   | Ytgt_add_executable_alias { name; target } ->
     ECmakeAddExecutableAlias { name; target }
+  | Ytgt_add_library_imported { name; lib_type; global } ->
+    ECmakeAddLibraryImported
+      { name = target_name name; lib_type; global }
   | Ytgt_add_dependencies { target; dep } ->
     ECmakeAddDependencies { target; dep }
   | Ytgt_sources_fs { target; items } ->
@@ -502,6 +531,9 @@ let rec stmt : Old.yelu_stmt -> Yelu_tiny.expr = function
   | Yc_extern_cvar _ | Yc_extern_target _ -> EUnit
   | Yc_include { file; optional } ->
     ECmakeInclude { file = expr file; optional }
+  | Yc_macro { name; args; body } ->
+    ECmakeMacro
+      { name = expr name; params = args; body = stmts_to_expr body }
   | Yc_function { name; args; body } ->
     (* In production [Yc_function], [args] is the formal parameter list.
        Using [expr] (rather than a name-collapsing helper) preserves

@@ -77,6 +77,7 @@ let rec lift_yelu1_to_yelu2 = function
 
   (* CMake store surface -> Yelu store theory. *)
   | ECmakeUnsetVar name -> EUnsetVar name
+  | ECmakeUnsetVarCache name -> ECmakeUnsetVarCache name
   | ECmakeVarDefined name -> EVarDefined name
   | ECmakeOption { name; value; _ } ->
     ESetVar (name, lift_yelu1_to_yelu2 value)
@@ -199,6 +200,9 @@ let rec lift_yelu1_to_yelu2 = function
   | ELibraryAlias { name; target } -> ELibraryAlias { name; target }
   | EExecutableAlias { name; target } -> EExecutableAlias { name; target }
   | EAddDependencies { target; dep } -> EAddDependencies { target; dep }
+  | ELibraryImported { name; lib_type; global } ->
+    ELibraryImported
+      { name = lift_yelu1_to_yelu2 name; lib_type; global }
   | ETargetSourcesFs { target; items } ->
     let lift_item = function
       | Tsi_plain { visibility; items } ->
@@ -301,6 +305,16 @@ let rec lift_yelu1_to_yelu2 = function
   | ECmakeConfigureFile { input; output } ->
     EConfigureFile
       { input = lift_yelu1_to_yelu2 input; output = lift_yelu1_to_yelu2 output }
+  | ECmakeFileRelativePath { var; base; file } ->
+    ECmakeFileRelativePath
+      { var;
+        base = lift_yelu1_to_yelu2 base;
+        file = lift_yelu1_to_yelu2 file }
+  | ECmakeMacro { name; params; body } ->
+    ECmakeMacro
+      { name = lift_yelu1_to_yelu2 name;
+        params;
+        body = lift_yelu1_to_yelu2 body }
 
   (* CMake target surface -> Yelu target theory. Keep statement result as unit.
      Phase 2b: surface target-name fields are now [expr], so [lift] just
@@ -436,6 +450,9 @@ let rec lift_yelu1_to_yelu2 = function
     EExecutableAlias { name; target }
   | ECmakeAddDependencies { target; dep } ->
     EAddDependencies { target; dep }
+  | ECmakeAddLibraryImported { name; lib_type; global } ->
+    ELibraryImported
+      { name = lift_yelu1_to_yelu2 name; lib_type; global }
   | ECmakeTargetSourcesFs { target; items } ->
     let lift_item = function
       | Tsi_plain { visibility; items } ->
@@ -507,6 +524,17 @@ let rec lift_yelu1_to_yelu2 = function
   (* CMake string surface -> Yelu string theory. *)
   | ECmakeStringEqual (left, right) ->
     EStringEqual (lift_yelu1_to_yelu2 left, lift_yelu1_to_yelu2 right)
+  | ECmakeVersionLess (a, b) ->
+    ECmakeVersionLess (lift_yelu1_to_yelu2 a, lift_yelu1_to_yelu2 b)
+  | ECmakeVersionGreater (a, b) ->
+    ECmakeVersionGreater (lift_yelu1_to_yelu2 a, lift_yelu1_to_yelu2 b)
+  | ECmakeVersionEqual (a, b) ->
+    ECmakeVersionEqual (lift_yelu1_to_yelu2 a, lift_yelu1_to_yelu2 b)
+  | ECmakeVersionLessEqual (a, b) ->
+    ECmakeVersionLessEqual (lift_yelu1_to_yelu2 a, lift_yelu1_to_yelu2 b)
+  | ECmakeVersionGreaterEqual (a, b) ->
+    ECmakeVersionGreaterEqual (lift_yelu1_to_yelu2 a, lift_yelu1_to_yelu2 b)
+  | ECmakeMath { exp; out } -> ECmakeMath { exp; out }
   | ECmakeStringConcat { inputs; out } ->
     ESetVar (out, EStringConcat (List.map inputs ~f:lift_yelu1_to_yelu2))
   | ECmakeStringToupper { input; out } ->
@@ -588,6 +616,11 @@ let rec lift_yelu1_to_yelu2 = function
           List.map properties ~f:(fun (property, value) ->
             property, lift_yelu1_to_yelu2 value);
       }
+  | ECmakeSetProperty { targets; append; properties } ->
+    ESetProperty
+      { targets = List.map targets ~f:lift_yelu1_to_yelu2;
+        append;
+        properties = List.map properties ~f:(fun (p, v) -> p, lift_yelu1_to_yelu2 v) }
 
   (* CMake find surface -> Yelu find theory. *)
   | ECmakeFindPackage { package_name; required } ->
@@ -605,6 +638,7 @@ let rec lower_yelu2_to_yelu1 = function
   | EInt n -> EInt n
   | EUnit -> EUnit
   | EUnsetVar name -> ECmakeUnsetVar name
+  | ECmakeUnsetVarCache name -> ECmakeUnsetVarCache name
   | EVarDefined name -> ECmakeVarDefined name
 
   (* Shared bool theory. *)
@@ -829,6 +863,9 @@ let rec lower_yelu2_to_yelu1 = function
     ECmakeAddExecutableAlias { name; target }
   | EAddDependencies { target; dep } ->
     ECmakeAddDependencies { target; dep }
+  | ELibraryImported { name; lib_type; global } ->
+    ECmakeAddLibraryImported
+      { name = lower_yelu2_to_yelu1 name; lib_type; global }
   | ETargetSourcesFs { target; items } ->
     let lower_item = function
       | Tsi_plain { visibility; items } ->
@@ -918,6 +955,16 @@ let rec lower_yelu2_to_yelu1 = function
   | EConfigureFile { input; output } ->
     ECmakeConfigureFile
       { input = lower_yelu2_to_yelu1 input; output = lower_yelu2_to_yelu1 output }
+  | ECmakeFileRelativePath { var; base; file } ->
+    ECmakeFileRelativePath
+      { var;
+        base = lower_yelu2_to_yelu1 base;
+        file = lower_yelu2_to_yelu1 file }
+  | ECmakeMacro { name; params; body } ->
+    ECmakeMacro
+      { name = lower_yelu2_to_yelu1 name;
+        params;
+        body = lower_yelu2_to_yelu1 body }
 
   (* Yelu target theory -> CMake target surface. *)
   | ESetVar (var, EExecutable { name = EString target_name; sources }) ->
@@ -941,6 +988,16 @@ let rec lower_yelu2_to_yelu1 = function
   (* Yelu string theory -> CMake string surface. *)
   | EStringEqual (left, right) ->
     ECmakeStringEqual (lower_yelu2_to_yelu1 left, lower_yelu2_to_yelu1 right)
+  | ECmakeVersionLess (a, b) ->
+    ECmakeVersionLess (lower_yelu2_to_yelu1 a, lower_yelu2_to_yelu1 b)
+  | ECmakeVersionGreater (a, b) ->
+    ECmakeVersionGreater (lower_yelu2_to_yelu1 a, lower_yelu2_to_yelu1 b)
+  | ECmakeVersionEqual (a, b) ->
+    ECmakeVersionEqual (lower_yelu2_to_yelu1 a, lower_yelu2_to_yelu1 b)
+  | ECmakeVersionLessEqual (a, b) ->
+    ECmakeVersionLessEqual (lower_yelu2_to_yelu1 a, lower_yelu2_to_yelu1 b)
+  | ECmakeVersionGreaterEqual (a, b) ->
+    ECmakeVersionGreaterEqual (lower_yelu2_to_yelu1 a, lower_yelu2_to_yelu1 b)
   | ESetVar (name, EStringConcat exprs) ->
     ECmakeStringConcat { inputs = List.map exprs ~f:lower_yelu2_to_yelu1; out = name }
   | ESetVar (name, EStringUpper expr) ->
@@ -1034,6 +1091,11 @@ let rec lower_yelu2_to_yelu1 = function
           List.map properties ~f:(fun (property, value) ->
             property, lower_yelu2_to_yelu1 value);
       }
+  | ESetProperty { targets; append; properties } ->
+    ECmakeSetProperty
+      { targets = List.map targets ~f:lower_yelu2_to_yelu1;
+        append;
+        properties = List.map properties ~f:(fun (p, v) -> p, lower_yelu2_to_yelu1 v) }
 
   (* Yelu find theory -> CMake find surface. *)
   | EFindPackage { package_name; required } ->

@@ -26,10 +26,17 @@ type expr +=
   | ECmakeMessage of { mode : string; texts : expr list }
   | ECmakeFunction of { name : expr; params : string list; body : expr }
   | ECmakeApply of { name : expr; args : expr list }
+  (* [macro()] textual substitution. Same shape as [ECmakeFunction] at
+     this slice; differences in scope/ARGN semantics are deferred. *)
+  | ECmakeMacro of { name : expr; params : string list; body : expr }
   | ECmakeInclude of { file : expr; optional : bool }
   (* See [EAtVar] in the theory fragment for semantics. Emit-only literal
      [@key@] injection, no eval effect, no surface-specific behavior. *)
   | ECmakeAtVar of string
+  (* [math(EXPR <out> "<exp>" [OUTPUT_FORMAT ...])] — integer arithmetic
+     evaluated by cmake. Eval is a stub (returns VUnit and leaves [out]
+     unbound); emit faithfully renders the cmake command. *)
+  | ECmakeMath of { exp : string; out : string }
 
 let bind_params env params arg_values =
   match List.zip params arg_values with
@@ -60,6 +67,11 @@ let eval_case ~eval env = function
   | ECmakeFunction { name; params; body } ->
     let env, name = eval_string ~eval env name in
     Some (set_function env name { params; body }, VUnit)
+  | ECmakeMacro { name; params; body } ->
+    let env, name = eval_string ~eval env name in
+    (* At eval time we treat macro as function (function-call scope);
+       cmake's textual-substitution semantics is a refinement. *)
+    Some (set_function env name { params; body }, VUnit)
   | ECmakeApply { name; args } ->
     let env, name = eval_string ~eval env name in
     (match find_function env name with
@@ -80,4 +92,5 @@ let eval_case ~eval env = function
     let env, file = eval_string ~eval env file in
     Some (add_include env file, VUnit)
   | ECmakeAtVar _ -> Some (env, VUnit)
+  | ECmakeMath _ -> Some (env, VUnit)
   | _ -> None

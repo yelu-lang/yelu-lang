@@ -64,6 +64,14 @@ type expr +=
      Eval is a target declaration aliasing an existing target name. *)
   | ECmakeAddLibraryAlias of { name : string; target : string }
   | ECmakeAddExecutableAlias of { name : string; target : string }
+  (* [add_library(name <lib_type> IMPORTED [GLOBAL])]. Eval declares a
+     target with the given type; lib_type is one of STATIC/SHARED/MODULE/
+     OBJECT/UNKNOWN/INTERFACE. *)
+  | ECmakeAddLibraryImported of {
+      name : expr;
+      lib_type : string option;
+      global : bool;
+    }
   (* [add_dependencies(<target> <dep>)]. Eval is a no-op for now —
      dependency graph tracking lives in env.build but no caller yet
      queries it. *)
@@ -145,6 +153,9 @@ let eval_case ~eval env = function
     Some (declare_target ~kind:(TargetLibrary (Some "INTERFACE")) env name, VUnit)
   | ECmakeAddExecutableAlias { name; target = _ } ->
     Some (declare_target ~kind:TargetExecutable env name, VUnit)
+  | ECmakeAddLibraryImported { name; lib_type; global = _ } ->
+    let env, name = eval_string ~eval env name in
+    Some (declare_target ~kind:(TargetLibrary lib_type) env name, VUnit)
   | ECmakeAddDependencies _ ->
     Some (env, VUnit)
   | ECmakeTargetSourcesFs { target; items } ->

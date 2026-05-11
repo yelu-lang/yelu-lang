@@ -76,6 +76,16 @@ let rec cond ?(env = empty_subst) = function
   | EIntEqual (left, right) -> arg ~env left ^ " EQUAL " ^ arg ~env right
   | ECmakeStringEqual (left, right) ->
     arg ~env left ^ " STREQUAL " ^ arg ~env right
+  | ECmakeVersionLess (a, b) ->
+    arg ~env a ^ " VERSION_LESS " ^ arg ~env b
+  | ECmakeVersionGreater (a, b) ->
+    arg ~env a ^ " VERSION_GREATER " ^ arg ~env b
+  | ECmakeVersionEqual (a, b) ->
+    arg ~env a ^ " VERSION_EQUAL " ^ arg ~env b
+  | ECmakeVersionLessEqual (a, b) ->
+    arg ~env a ^ " VERSION_LESS_EQUAL " ^ arg ~env b
+  | ECmakeVersionGreaterEqual (a, b) ->
+    arg ~env a ^ " VERSION_GREATER_EQUAL " ^ arg ~env b
   | ECmakeVarDefined name -> "DEFINED " ^ name
   | ECmakeTargetExists target -> "TARGET " ^ target_arg ~env target
   | ECmakeFileExists path -> "EXISTS " ^ arg ~env path
@@ -116,6 +126,7 @@ let rec emit_expr_impl ~env e =
     [ Fmt.str "set(%s %s)" name (String.concat ~sep:" " (List.map exprs ~f:arg)) ]
   | ESetVar (name, expr) -> [ Fmt.str "set(%s %s)" name (arg expr) ]
   | ECmakeUnsetVar name -> [ Fmt.str "unset(%s)" name ]
+  | ECmakeUnsetVarCache name -> [ Fmt.str "unset(%s CACHE)" name ]
   | ECmakeOption { name; message; value } ->
     [ Fmt.str "option(%s %s %s)" name (quoted message) (arg value) ]
   | ETarget _ -> []
@@ -157,6 +168,8 @@ let rec emit_expr_impl ~env e =
     [ Fmt.str "file(READ %s %s)" (arg path) out ]
   | ECmakeConfigureFile { input; output } ->
     [ Fmt.str "configure_file(%s %s)" (arg input) (arg output) ]
+  | ECmakeFileRelativePath { var; base; file } ->
+    [ Fmt.str "file(RELATIVE_PATH %s %s %s)" var (arg base) (arg file) ]
   | ECmakeAddExecutable { name; sources } ->
     [ Fmt.str "add_executable(%s %s)" (target_arg name) (String.concat ~sep:" " (List.map sources ~f:arg)) ]
   | ECmakeAddLibrary { name; type_; sources } ->
@@ -174,6 +187,10 @@ let rec emit_expr_impl ~env e =
     [ Fmt.str "add_executable(%s ALIAS %s)" name target ]
   | ECmakeAddDependencies { target; dep } ->
     [ Fmt.str "add_dependencies(%s %s)" target dep ]
+  | ECmakeAddLibraryImported { name; lib_type; global } ->
+    let lt = Option.value lib_type ~default:"UNKNOWN" in
+    let g = if global then " GLOBAL" else "" in
+    [ Fmt.str "add_library(%s %s IMPORTED%s)" (target_arg name) lt g ]
   | ECmakeTargetSources { target; visibility; sources } ->
     [ Fmt.str "target_sources(%s %s %s)" (target_arg target) visibility (String.concat ~sep:" " (List.map sources ~f:arg)) ]
   | ECmakeTargetSourcesFs { target; items } ->
@@ -350,6 +367,16 @@ let rec emit_expr_impl ~env e =
     ]
     @ List.map body_lines ~f:(fun line -> "  " ^ line)
     @ [ "endfunction()" ]
+  | ECmakeMacro { name; params; body } ->
+    let body_lines = emit_expr body in
+    [ Fmt.str "macro(%s%s)"
+        (target_arg name)
+        (match params with
+         | [] -> ""
+         | params -> " " ^ String.concat ~sep:" " params)
+    ]
+    @ List.map body_lines ~f:(fun line -> "  " ^ line)
+    @ [ "endmacro()" ]
   | ECmakeApply { name; args } ->
     [ Fmt.str "%s(%s)"
         (target_arg name)
@@ -359,6 +386,8 @@ let rec emit_expr_impl ~env e =
   | ECmakeInclude { file; optional = true } ->
     [ Fmt.str "include(%s OPTIONAL)" (arg file) ]
   | ECmakeAtVar key -> [ Fmt.str "@%s@" key ]
+  | ECmakeMath { exp; out } ->
+    [ Fmt.str "math(EXPR %s %s)" out (quoted exp) ]
   | ECmakeAddSubdirectory path ->
     [ Fmt.str "add_subdirectory(%s)" (arg path) ]
   | ECmakeEnableTesting -> [ "enable_testing()" ]
@@ -373,6 +402,12 @@ let rec emit_expr_impl ~env e =
         (target_arg target) property (arg value) ]
   | ECmakeGetTargetProperty { var; target; property } ->
     [ Fmt.str "get_target_property(%s %s %s)" var (target_arg target) property ]
+  | ECmakeSetProperty { targets; append; properties } ->
+    let ts = String.concat ~sep:" " (List.map targets ~f:target_arg) in
+    let ap = if append then " APPEND" else "" in
+    List.map properties ~f:(fun (property, value) ->
+      Fmt.str "set_property(TARGET %s%s PROPERTY %s %s)"
+        ts ap property (arg value))
   | ECmakeSetTestsProperties { tests; properties } ->
     let property_args =
       properties

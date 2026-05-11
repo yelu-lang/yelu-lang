@@ -1878,6 +1878,188 @@ let fetch_content_bridge =
          yc_apply (ystr "FetchContent_MakeAvailable") [ ystr "googletest" ];
        ])
 
+let target_scope_sub_bridge =
+  let open Yelu_langs.Lang_yelu_utils in
+  cmakeonly_bridge
+    ~name:"target_scope_sub_bridge"
+    ~description:"CMakeOnly/TargetScope/Sub bridges (add_lib_imported)"
+    (ycmd_of_list
+       [ add_lib_imported ~lib_type:"UNKNOWN" (ytval "SubLibLocal");
+         add_lib_imported ~lib_type:"UNKNOWN" ~global:true (ytval "SubLibGlobal");
+         yc_add_subdirectory (ystr "Sub");
+         yifthen (ynot (yis_target (ytval "SubLibLocal")))
+           (ycmd_of_list
+              [ yc_message ~mode:Mm_fatal_error
+                  [ "SubLibLocal not visible in own directory" ] ]);
+         yifthen (ynot (yis_target (ytval "SubLibGlobal")))
+           (ycmd_of_list
+              [ yc_message ~mode:Mm_fatal_error
+                  [ "SubLibGlobal not visible in own directory" ] ]);
+       ])
+
+let target_scope_sub_sub_bridge =
+  let open Yelu_langs.Lang_yelu_utils in
+  cmakeonly_bridge
+    ~name:"target_scope_sub_sub_bridge"
+    ~description:"CMakeOnly/TargetScope/Sub/Sub bridges"
+    (ycmd_of_list
+       [ yifthen (ynot (yis_target (ytval "SubLibLocal")))
+           (ycmd_of_list
+              [ yc_message ~mode:Mm_fatal_error
+                  [ "SubLibLocal not visible in subdirectory" ] ]);
+         yifthen (ynot (yis_target (ytval "SubLibGlobal")))
+           (ycmd_of_list
+              [ yc_message ~mode:Mm_fatal_error
+                  [ "SubLibGlobal not visible in subdirectory" ] ]);
+       ])
+
+let major_version_selection_bridge =
+  let open Yelu_langs.Lang_yelu_utils in
+  let version_check =
+    ycmd_of_list
+      [
+        yc_message ~mode:Mm_status
+          [ "OPENSSL_VERSION_STRING is '${OPENSSL_VERSION_STRING}'" ];
+        yifthen
+          (yversion_less (ycstr "OPENSSL_VERSION_STRING") (ystr "3"))
+          (yc_message ~mode:Mm_send_error
+             [ "Found version ${OPENSSL_VERSION_STRING} is less than \
+                requested major version 3" ]);
+        yc_math "3 + 1" (ycvar "V_PLUS_ONE");
+        yifthen
+          (yversion_greater (ycstr "OPENSSL_VERSION_STRING") (ycstr "V_PLUS_ONE"))
+          (yc_message ~mode:Mm_send_error
+             [ "Found version ${OPENSSL_VERSION_STRING} is greater than \
+                requested major version 3" ]);
+      ]
+  in
+  cmakeonly_bridge
+    ~name:"major_version_selection_bridge"
+    ~description:"CMakeOnly/MajorVersionSelection bridges (find_package version + math)"
+    (ycmd_of_list
+       [ yc_minimum_required_s "3.10.";
+         yc_project ~languages:[ Yelu_langs.Lang_cmake.Lang_none ]
+           "major_detect_OpenSSL_3";
+         yc_find_package ~version:(Some "3") ~quiet:true "OpenSSL";
+         yc_string_toupper (ystr "OpenSSL") (ycvar "MODULE_UPPER");
+         yifthen
+           (yand (ytruthy (ycstr "OPENSSL_FOUND"))
+              (ytruthy (ycstr "OPENSSL_VERSION_STRING")))
+           version_check;
+       ])
+
+(* Smaller slice of select_library_configurations — just the macro + a
+   single test invocation. Full file has multiple `notype_*`/`debug_*`
+   etc. blocks built from the same primitives. *)
+let select_library_configurations_bridge =
+  let open Yelu_langs.Lang_yelu_utils in
+  let check_slc_macro =
+    yc_macro (ystr "check_slc") ~args:[ "basename"; "expect" ]
+      [
+        yc_message ~mode:Mm_status
+          [ "checking select_library_configurations(${basename})" ];
+        yc_apply (ystr "select_library_configurations")
+          [ ystr "${basename}" ];
+        yifthen
+          (ynot
+             (ystrequal
+                (ystr_eval "${${basename}_LIBRARY}")
+                (ystr_eval "${expect}")))
+          (yc_message ~mode:Mm_send_error
+             [ "select_library_configurations(${basename}) returned \
+                '${${basename}_LIBRARY}' but '${expect}' was expected" ]);
+      ]
+  in
+  cmakeonly_bridge
+    ~name:"select_library_configurations_bridge"
+    ~description:"CMakeOnly/SelectLibraryConfigurations bridges (macro + apply)"
+    (ycmd_of_list
+       [ yc_minimum_required_s "3.10.";
+         yc_project ~languages:[ Yelu_langs.Lang_cmake.Lang_none ]
+           "SelectLibraryConfigurations";
+         yc_include (yname "SelectLibraryConfigurations");
+         check_slc_macro;
+         yc_set (ycvar "NOTYPE_RELONLY_LIBRARY_RELEASE") [ ystr "opt" ];
+         yc_apply (ystr "check_slc")
+           [ ystr "NOTYPE_RELONLY"; ystr "opt" ];
+       ])
+
+let find_path_bridge =
+  let open Yelu_langs.Lang_yelu_utils in
+  let inner_if =
+    yif
+      (ynot (ystrequal (ystr_eval "${REL_HDR}") (ystr_eval "${expected}")))
+      (yc_message ~mode:Mm_send_error
+         [ "Header ${expected} found as [${REL_HDR}]" ])
+      (yifthen
+         (ytruthy (ycstr "CMAKE_FIND_DEBUG_MODE"))
+         (yc_message ~mode:Mm_status
+            [ "Header ${expected} found as [${REL_HDR}]" ]))
+  in
+  let outer_if =
+    yif (ytruthy (ycstr "HDR"))
+      (ycmd_of_list
+         [ yc_file_relative_path
+             ~var:(ycstr "REL_HDR")
+             ~base:(ystr_eval "${CMAKE_CURRENT_SOURCE_DIR}")
+             (ystr_eval "${HDR}");
+           inner_if;
+         ])
+      (yc_message ~mode:Mm_send_error [ "Header ${expected} NOT FOUND" ])
+  in
+  let test_macro =
+    yc_macro (ystr "test_find_path") ~args:[ "expected" ]
+      [ yc_unset_cache (ycvar "HDR");
+        yc_apply (ystr "find_path")
+          [ ycstr "HDR"; ystr_eval "${ARGN}";
+            ystr "NO_CMAKE_ENVIRONMENT_PATH";
+            ystr "NO_SYSTEM_ENVIRONMENT_PATH" ];
+        outer_if;
+      ]
+  in
+  cmakeonly_bridge
+    ~name:"find_path_bridge"
+    ~description:"CMakeOnly/find_path bridges (macro + unset_cache + file_relative_path)"
+    (ycmd_of_list
+       [ yc_minimum_required_s "3.10.";
+         yc_project ~languages:[ Yelu_langs.Lang_cmake.Lang_none ] "FindPathTest";
+         yc_set (ycvar "CMAKE_FIND_DEBUG_MODE") [ ystr "1" ];
+         test_macro;
+         yc_set (ycvar "CMAKE_SYSTEM_PREFIX_PATH") [ ycref source_this ];
+         yc_set (ycvar "CMAKE_LIBRARY_ARCHITECTURE") [ ystr "arch" ];
+         yc_apply (ystr "test_find_path")
+           [ ystr "include"; ystr "NAMES"; ystr "test1.h" ];
+       ])
+
+let link_interface_loop_bridge =
+  let open Yelu_langs.Lang_yelu_utils in
+  cmakeonly_bridge
+    ~name:"link_interface_loop_bridge"
+    ~description:"CMakeOnly/LinkInterfaceLoop bridges (set_property + imported lib)"
+    (ycmd_of_list
+       [ yc_minimum_required_s "3.10.";
+         yc_project ~languages:[ Yelu_langs.Lang_cmake.Lang_c ] "LinkInterfaceLoop";
+         add_lib_imported ~lib_type:"SHARED" (ytval "A");
+         yc_set_target_properties (ytval "A")
+           [ ("IMPORTED_LINK_DEPENDENT_LIBRARIES", ytval "A");
+             ("IMPORTED_LOCATION",
+              ystr_eval "${CMAKE_CURRENT_BINARY_DIR}/dirA/A") ];
+         add_lib_imported ~lib_type:"SHARED" (ytval "B");
+         yc_set_target_properties (ytval "B")
+           [ ("IMPORTED_LINK_INTERFACE_LIBRARIES", ytval "B");
+             ("IMPORTED_LOCATION",
+              ystr_eval "${CMAKE_CURRENT_BINARY_DIR}/dirB/B") ];
+         add_lib ~type_:Yelu_langs.Lang_cmake.Lib_shared
+           ~sources:[ yfile "lib.c" ] (ytval "C");
+         yc_set_property ~targets:[ ytval "C" ]
+           [ ("LINK_INTERFACE_LIBRARIES", ystr "") ];
+         link_lib [ ytval "C" ]
+           [ ytarget_def ~kind:Plain [ ytval "B"; ytval "A" ] ];
+         add_exe ~sources:[ yfile "main.c" ] (ytval "main");
+         link_lib [ ytval "main" ]
+           [ ytarget_def ~kind:Plain [ ytval "C" ] ];
+       ])
+
 let () =
   Alcotest.run "yelu_tiny_steps"
     [
@@ -1921,5 +2103,11 @@ let () =
       project_include_before_bridge;
       target_scope_bridge;
       target_scope_sib_bridge;
+      target_scope_sub_bridge;
+      target_scope_sub_sub_bridge;
       fetch_content_bridge;
+      link_interface_loop_bridge;
+      major_version_selection_bridge;
+      find_path_bridge;
+      select_library_configurations_bridge;
     ]
