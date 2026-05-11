@@ -47,6 +47,11 @@ substrate would repeat the previous failure mode.
 
 ## Retirement criterion
 
+> Full plan: `retirement_plan.md`. The summary below states the gate;
+> the plan covers the two-phase sequencing (emit-through-cmake-AST,
+> then parser-produces-Yelu1) and the oracle test that keeps legacy
+> compile callable forever.
+
 Retirement is bridge + emit parity only; typing decisions (Y17) happen
 *after* retirement, on the renamed-yelu codebase. `src/langs/yelu/` is
 retirable when:

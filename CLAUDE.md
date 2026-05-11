@@ -131,6 +131,7 @@ Total unit: 655. Total cmake-backed: 40.
 | `doc/yelu_tiny/design.md`            | Durable design notes for yelu_tiny harness          |
 | `doc/yelu_tiny/structure.md`         | Code-anchored guide to the yelu_tiny modules        |
 | `doc/yelu_tiny/status.md`            | Living tracker: current open work for yelu_tiny     |
+| `doc/yelu_tiny/retirement_plan.md`   | Two-phase plan for moving production off yelu_cmake |
 
 ## Architecture
 
