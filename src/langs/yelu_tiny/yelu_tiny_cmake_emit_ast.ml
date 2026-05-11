@@ -528,6 +528,98 @@ let rec emit_exp ~env (e : expr) : C.exp =
         config_mode = false;
         components = []; optional_components = [] }
 
+  (* Property — non-target scopes *)
+  | Yelu_surface_cmake_property.ECmakeDefineProperty
+      { mode; property_name; inherited; brief_docs; full_docs; initialize_from } ->
+    let dpm = match mode with
+      | "TARGET" -> C.Dp_target | "SOURCE" -> C.Dp_source
+      | "TEST" -> C.Dp_test | "VARIABLE" -> C.Dp_variable
+      | "CACHED_VARIABLE" -> C.Dp_cached_variable
+      | "GLOBAL" -> C.Dp_global | "DIRECTORY" -> C.Dp_directory
+      | _ -> fail "emit_ast: unknown define_property mode %S" mode
+    in
+    C.Project_cmd
+      (C.Define_property
+         { mode = dpm; property_name; inherited; brief_docs; full_docs;
+           initialize_from = Option.value initialize_from ~default:"" })
+
+  (* Path — first slice *)
+  | Yelu_surface_cmake_path.ECmakePathSet { path; input; normalize } ->
+    C.Cmake_cmd
+      (C.Cmake_path
+         (C.Cpp_set { path_var = path; input = arg ~env input; normalize }))
+  | Yelu_surface_cmake_path.ECmakePathNormalPath { path; out } ->
+    C.Cmake_cmd
+      (C.Cmake_path (C.Cpp_normal_path { path_var = path; out_var = out }))
+  | Yelu_surface_cmake_path.ECmakeGetFilenameComponent { var; filename; mode } ->
+    C.Get_filename_component
+      { var; filename = target_arg ~env filename; mode; cache = false }
+
+  (* Variable watch *)
+  | ECmakeVariableWatch { var; command } ->
+    C.Variable_watch
+      { var; command; access = C.Vw_read_access;
+        value = None; current_list_file = None; stack = [] }
+
+  (* Execute process *)
+  | ECmakeExecuteProcess r ->
+    C.Execute_process
+      { commands = List.map r.commands ~f:(List.map ~f:(arg ~env));
+        working_directory = Option.map r.working_directory ~f:(arg ~env);
+        timeout = r.timeout;
+        result_variable = r.result_variable;
+        output_variable = r.output_variable;
+        error_variable = r.error_variable;
+        input_file = Option.map r.input_file ~f:(arg ~env);
+        output_file = Option.map r.output_file ~f:(arg ~env);
+        error_file = Option.map r.error_file ~f:(arg ~env);
+        output_quiet = r.output_quiet;
+        error_quiet = r.error_quiet;
+        output_strip_trailing_whitespace = r.output_strip_trailing_whitespace;
+        error_strip_trailing_whitespace = r.error_strip_trailing_whitespace;
+        command_error_is_fatal = r.command_error_is_fatal }
+
+  (* File glob *)
+  | ECmakeFileGlob { out; recurse; relative; configure_depends; patterns } ->
+    C.File_glob
+      { var = out; recurse;
+        relative = Option.map relative ~f:(target_arg ~env);
+        configure_depends;
+        patterns = List.map patterns ~f:(arg ~env) }
+
+  (* Target precompile headers *)
+  | ECmakeTargetPrecompileHeaders { target; visibility; headers } ->
+    C.Project_cmd
+      (C.Target_precompile_headers
+         { target = target_arg ~env target;
+           items = items_with_kind ~env ~visibility headers })
+
+  (* Custom target / command *)
+  | ECmakeAddCustomTarget { name; all; commands; depends; comment } ->
+    let cc_list =
+      List.map commands ~f:(fun (bc : build_command) ->
+        ({ command = bc.command; args = bc.args } : C.custom_command))
+    in
+    C.Project_cmd
+      (C.Add_custom_target
+         { name = target_arg ~env name;
+           all;
+           commands = cc_list;
+           depends = List.map depends ~f:(target_arg ~env);
+           byproducts = [];
+           working_directory = None;
+           comment;
+           job_pool = [];
+           job_server_aware = false;
+           verbatim = false;
+           uses_terminal = false;
+           command_expand_list = [];
+           sources = [] })
+
+  (* Add dependencies *)
+  | ECmakeAddDependencies { target; dep } ->
+    C.Project_cmd (C.Add_dependencies { target; dep })
+
   (* Tests *)
   | ECmakeEnableTesting ->
     C.Project_cmd C.Enable_testing
@@ -554,7 +646,20 @@ let rec emit_exp ~env (e : expr) : C.exp =
     C.Message { mode = C.Mm_none; texts = [ "RESULT=" ^ (if b then "ON" else "OFF") ] }
   | ETarget _ -> C.Exp_list []
 
-  | _ -> fail "emit_ast: unsupported Yelu1 expression (phase 1 coverage gap)"
+  | _ ->
+    (* Phase 1 coverage gap. The first-field-of-extension trick gets the
+       ctor name as a string so the test oracle can group uncovered
+       programs by their root constructor. *)
+    let r = Stdlib.Obj.repr e in
+    let name =
+      if Stdlib.Obj.is_block r then
+        let head = Stdlib.Obj.field r 0 in
+        if Stdlib.Obj.tag head = Stdlib.Obj.object_tag
+        then (Stdlib.Obj.magic (Stdlib.Obj.field head 0) : string)
+        else "?"
+      else "?"
+    in
+    fail "emit_ast gap: %s" name
 
 (* Public API. *)
 

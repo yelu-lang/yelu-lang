@@ -46,6 +46,8 @@ let assert_bridge_succeeds name yelu_ast =
    The skip list should shrink to empty before Phase 1 is declared done. *)
 let oracle_covered = ref 0
 let oracle_uncovered = ref 0
+let oracle_uncovered_msgs : (string, string) Stdlib.Hashtbl.t =
+  Stdlib.Hashtbl.create 32
 
 let oracle_skip = [
   (* Bridge flattens [Yc_foreach_in { loop_var; lists; items }] to a plain
@@ -82,8 +84,10 @@ let assert_byte_oracle name yelu_ast =
         let yelu1 = Yelu_langs.Yelu_cmake_to_yelu1.stmt yelu_ast in
         Some (Yelu_langs.Yelu_tiny_cmake_emit_ast.emit_script yelu1)
       with
-      | Yelu_langs.Yelu_tiny.Eval_error _ -> None
-      | Yelu_langs.Yelu_cmake_to_yelu1.Bridge_error _ -> None
+      | Yelu_langs.Yelu_tiny.Eval_error msg ->
+        Stdlib.Hashtbl.replace oracle_uncovered_msgs name msg; None
+      | Yelu_langs.Yelu_cmake_to_yelu1.Bridge_error msg ->
+        Stdlib.Hashtbl.replace oracle_uncovered_msgs name msg; None
     in
     match tiny_attempt with
     | None -> Stdlib.incr oracle_uncovered
@@ -840,7 +844,19 @@ let () =
     Stdlib.Printf.eprintf
       "[emit_ast oracle] covered=%d  uncovered=%d  (%d total)\n%!"
       !oracle_covered !oracle_uncovered
-      (!oracle_covered + !oracle_uncovered))
+      (!oracle_covered + !oracle_uncovered);
+    let counts : (string, int) Stdlib.Hashtbl.t = Stdlib.Hashtbl.create 16 in
+    Stdlib.Hashtbl.iter (fun _ msg ->
+      let n = try Stdlib.Hashtbl.find counts msg with Not_found -> 0 in
+      Stdlib.Hashtbl.replace counts msg (n + 1)
+    ) oracle_uncovered_msgs;
+    let by_count =
+      Stdlib.Hashtbl.fold (fun k v acc -> (v, k) :: acc) counts []
+      |> Base.List.sort ~compare:(fun (a, _) (b, _) -> compare b a)
+    in
+    Stdlib.Printf.eprintf "[emit_ast oracle] top uncovered errors:\n%!";
+    Base.List.iter (Base.List.take by_count 10) ~f:(fun (n, msg) ->
+      Stdlib.Printf.eprintf "  %3d × %s\n%!" n msg))
 
 let () =
   Alcotest.run "Yelu Compile"
