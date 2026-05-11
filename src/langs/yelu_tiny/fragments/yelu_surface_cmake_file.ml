@@ -13,6 +13,16 @@ type expr +=
   (* [file(RELATIVE_PATH <var> <base> <file>)]. Eval stub: binds var to
      [file] string (no path-relative computation in tiny). *)
   | ECmakeFileRelativePath of { var : string; base : expr; file : expr }
+  (* [file(GLOB[_RECURSE] <out> [RELATIVE <relative>] [CONFIGURE_DEPENDS]
+     <patterns>...)]. Eval stub: binds [out] to the empty list — actual
+     directory enumeration happens at cmake configure time. *)
+  | ECmakeFileGlob of {
+      out : string;
+      recurse : bool;
+      relative : expr option;
+      configure_depends : bool;
+      patterns : expr list;
+    }
 
 let eval_string ~eval env expr =
   let env, value = eval env expr in
@@ -49,4 +59,6 @@ let eval_case ~eval env = function
   | ECmakeFileRelativePath { var; base = _; file } ->
     let env, file = eval_string ~eval env file in
     Some (set_var env ~key:var ~data:(VString file), VUnit)
+  | ECmakeFileGlob { out; _ } ->
+    Some (set_var env ~key:out ~data:(VString ""), VUnit)
   | _ -> None

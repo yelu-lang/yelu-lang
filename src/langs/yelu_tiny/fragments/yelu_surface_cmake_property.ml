@@ -23,6 +23,11 @@ type expr +=
       append : bool;
       properties : (string * expr) list;
     }
+  (* [set_property(GLOBAL PROPERTY name value)]. Eval stub at this slice
+     (no global-property env). *)
+  | ECmakeSetGlobalProperty of {
+      properties : (string * expr) list;
+    }
 
 let eval_case ~eval env = function
   | ECmakeSetTargetProperty { target; property; value } ->
@@ -47,4 +52,5 @@ let eval_case ~eval env = function
           set_target_property env ~target ~property ~value))
     in
     Some (env, VUnit)
+  | ECmakeSetGlobalProperty _ -> Some (env, VUnit)
   | _ -> None

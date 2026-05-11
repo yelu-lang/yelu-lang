@@ -88,6 +88,12 @@ let string_statement : Old.yelu_string_stmt -> Yelu_tiny.expr = function
     ECmakeStringLength { input = expr string; out = cvar_name out }
   | Ystr_compare { op = Sco_equal; string1; string2; out } ->
     ESetVar (cvar_name out, ECmakeStringEqual (expr string1, expr string2))
+  | Ystr_regex_replace { regex; replace; out; inputs } ->
+    ECmakeStringRegexReplace
+      { regex;
+        replace = expr replace;
+        out = cvar_name out;
+        inputs = List.map inputs ~f:expr }
   | _ -> fail "unsupported yelu_cmake string statement for Yelu1 bridge"
 
 let var_statement : Old.yelu_var_stmt -> Yelu_tiny.expr = function
@@ -131,6 +137,9 @@ let path_statement : Old.yelu_path_stmt -> Yelu_tiny.expr = function
   | Ypath_normal_path { path_var; out } ->
     ECmakePathNormalPath
       { path = cvar_name path_var; out = Option.map out ~f:cvar_name }
+  | Ypath_get_filename_component { var; filename; mode } ->
+    ECmakeGetFilenameComponent
+      { var = cvar_name var; filename = expr filename; mode }
   | _ -> fail "unsupported yelu_cmake path statement for Yelu1 bridge"
 
 let file_statement : Old.yelu_file_io_stmt -> Yelu_tiny.expr = function
@@ -158,6 +167,13 @@ let file_statement : Old.yelu_file_io_stmt -> Yelu_tiny.expr = function
     in
     ECmakeFileRelativePath
       { var = var_name; base = expr base; file = expr file }
+  | Yfile_glob { out; recurse; relative; configure_depends; patterns } ->
+    ECmakeFileGlob
+      { out = cvar_name out;
+        recurse;
+        relative = Option.map relative ~f:expr;
+        configure_depends;
+        patterns = List.map patterns ~f:expr }
   | _ -> fail "unsupported yelu_cmake file statement for Yelu1 bridge"
 
 let string_of_version (v : Lang_cmake.version) =
@@ -254,6 +270,9 @@ let property_statement : Old.yelu_property_stmt -> Yelu_tiny.expr = function
         append;
         properties = List.map properties ~f:(fun (p, v) -> p, expr v);
       }
+  | Yprop_set_global { properties } ->
+    ECmakeSetGlobalProperty
+      { properties = List.map properties ~f:(fun (p, v) -> p, expr v) }
   | _ -> fail "unsupported yelu_cmake property statement for Yelu1 bridge"
 
 let find_statement : Old.yelu_find_stmt -> Yelu_tiny.expr = function
@@ -545,6 +564,24 @@ let rec stmt : Old.yelu_stmt -> Yelu_tiny.expr = function
     (* Same rationale as Yc_function: keep [EVar] / [Yexpr_name] shape
        so the apply target survives ELet substitution. *)
     ECmakeApply { name = expr name; args = List.map args ~f:expr }
+  | Yc_foreach { loop_var; items; commands } ->
+    ECmakeForeach
+      { loop_var = cvar_name loop_var;
+        items = List.map items ~f:expr;
+        body = stmt commands }
+  | Yc_foreach_in { loop_var; lists; items; commands } ->
+    (* foreach(<loop_var> IN LISTS <list-vars>... ITEMS <items>...). At the
+       tiny slice we flatten: dereference each list-var (carry through
+       as ${name}) and append the literal items. cmake itself splits the
+       result back into list elements at configure time. *)
+    let list_refs =
+      List.map lists ~f:(fun lv ->
+        Yelu_tiny.EString (Fmt.str "${%s}" (cvar_name lv)))
+    in
+    ECmakeForeach
+      { loop_var = cvar_name loop_var;
+        items = list_refs @ List.map items ~f:expr;
+        body = stmt commands }
   (* Production [Ylet] is sequence-shaped (its scope is the rest of the
      enclosing list). Tiny's [ELet] is expression-shaped. The conversion
      happens in [stmts_to_expr] when handling [Ystmt_list]; a standalone

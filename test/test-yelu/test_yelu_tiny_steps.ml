@@ -1984,6 +1984,104 @@ let select_library_configurations_bridge =
            [ ystr "NOTYPE_RELONLY"; ystr "opt" ];
        ])
 
+(* Reduced find_library slice: macro definition + a couple of test
+   invocations. Drops the multi-platform foreach blocks at the end of
+   the production file (those are repetitive set + foreach + apply
+   sequences that don't add new constructs once one is bridged). *)
+let find_library_bridge =
+  let open Yelu_langs.Lang_yelu_utils in
+  let inner_if =
+    yif
+      (ynot (ystrequal (ystr_eval "${REL_LIB}") (ystr_eval "${expected}")))
+      (yc_message ~mode:Mm_send_error
+         [ "Library ${expected} found as [${REL_LIB}]${desc}" ])
+      (yifthen (ytruthy (ycstr "CMAKE_FIND_DEBUG_MODE"))
+         (yc_message ~mode:Mm_status
+            [ "Library ${expected} found as [${REL_LIB}]${desc}" ]))
+  in
+  let outer_if =
+    yif (ytruthy (ycstr "LIB"))
+      (ycmd_of_list
+         [ yc_file_relative_path
+             ~var:(ycstr "REL_LIB")
+             ~base:(ystr_eval "${CMAKE_CURRENT_SOURCE_DIR}")
+             (ystr_eval "${LIB}");
+           inner_if;
+         ])
+      (yc_message ~mode:Mm_send_error
+         [ "Library ${expected} NOT FOUND${desc}" ])
+  in
+  let test_find_library_macro =
+    yc_macro (ystr "test_find_library") ~args:[ "desc"; "expected" ]
+      [ yc_unset_cache (ycvar "LIB");
+        yc_apply (ystr "find_library")
+          [ ycstr "LIB"; ystr_eval "${ARGN}"; ystr "NO_DEFAULT_PATH" ];
+        outer_if;
+      ]
+  in
+  let test_find_library_subst_macro =
+    yc_macro (ystr "test_find_library_subst") ~args:[ "expected" ]
+      [ yc_get_filename_component ~mode:"PATH" (ycvar "dir")
+          (ystr_eval "${expected}");
+        yc_get_filename_component ~mode:"NAME" (ycvar "name")
+          (ystr_eval "${expected}");
+        yc_string_regex_replace "lib/?[36Xx][24Y3][Z2]*" (ystr "lib") (ycvar "dir")
+          [ ystr_eval "${dir}" ];
+        yc_apply (ystr "test_find_library")
+          [ ystr_eval ", searched as ${dir}";
+            ystr_eval "${expected}";
+            ystr "NAMES"; ystr_eval "${name}";
+            ystr "PATHS";
+            ystr_eval "${CMAKE_CURRENT_SOURCE_DIR}/${dir}";
+          ];
+      ]
+  in
+  cmakeonly_bridge
+    ~name:"find_library_bridge"
+    ~description:"CMakeOnly/find_library bridges (get_filename_component + regex_replace + foreach)"
+    (ycmd_of_list
+       [ yc_minimum_required_s "3.10.";
+         yc_project ~languages:[ Yelu_langs.Lang_cmake.Lang_none ] "FindLibraryTest";
+         yc_set (ycvar "CMAKE_FIND_DEBUG_MODE") [ ystr "1" ];
+         test_find_library_macro;
+         test_find_library_subst_macro;
+         yc_set (ycvar "CMAKE_FIND_LIBRARY_PREFIXES") [ ystr "lib" ];
+         yc_set (ycvar "CMAKE_FIND_LIBRARY_SUFFIXES") [ ystr ".a" ];
+         yc_set_global_property
+           [ ("FIND_LIBRARY_USE_LIBX32_PATHS", ybool true) ];
+         yc_foreach ~items:[ ystr "lib/libtest1.a"; ystr "lib/libtest2.a" ]
+           (ycvar "lib")
+           (yc_apply (ystr "test_find_library_subst") [ ystr_eval "${lib}" ]);
+       ])
+
+(* Reduced all_find_modules slice: just the do_find macro + a foreach over
+   a literal list. The production file builds the module list via
+   yc_file_glob; we keep one yc_file_glob call to exercise that path. *)
+let all_find_modules_bridge =
+  let open Yelu_langs.Lang_yelu_utils in
+  let do_find_macro =
+    yc_macro (ystr "do_find") ~args:[ "MODULE_NAME" ]
+      [ yc_message ~mode:Mm_status [ "   Checking Find${MODULE_NAME}" ];
+        yc_find_package ~quiet:true "${MODULE_NAME}";
+        yc_set (ycvar "CMAKE_MODULE_PATH")
+          [ ystr_eval "${ORIGINAL_MODULE_PATH}" ];
+      ]
+  in
+  cmakeonly_bridge
+    ~name:"all_find_modules_bridge"
+    ~description:"CMakeOnly/AllFindModules bridges (file_glob + foreach)"
+    (ycmd_of_list
+       [ yc_minimum_required_s "3.10.";
+         yc_project "AllFindModules";
+         yc_set (ycvar "ORIGINAL_MODULE_PATH")
+           [ ystr_eval "${CMAKE_MODULE_PATH}" ];
+         do_find_macro;
+         yc_file_glob (ycvar "FIND_MODULES")
+           [ ystr "Find*.cmake" ];
+         yc_foreach (ycvar "FIND_MODULE") ~items:[ ystr_eval "${FIND_MODULES}" ]
+           (yc_apply (ystr "do_find") [ ystr_eval "${FIND_MODULE}" ]);
+       ])
+
 let find_path_bridge =
   let open Yelu_langs.Lang_yelu_utils in
   let inner_if =
@@ -2088,6 +2186,8 @@ let () =
       step12_bridge;
       step12_math_bridge;
       step12_multi_bridge;
+      find_library_bridge;
+      all_find_modules_bridge;
       v2_root_bridge;
       v2_mathlogger_bridge;
       v2_mathext_bridge;

@@ -37,6 +37,24 @@ type expr +=
      evaluated by cmake. Eval is a stub (returns VUnit and leaves [out]
      unbound); emit faithfully renders the cmake command. *)
   | ECmakeMath of { exp : string; out : string }
+  (* [foreach(<loop_var> <items>...)] — list iteration. On each iteration
+     the [loop_var] is bound to one item in the caller's scope (cmake's
+     "directory-scope" semantics, not function scope). The loop body is
+     evaluated repeatedly.
+
+     Three forms in production:
+     - [Yc_foreach { loop_var; items; commands }] — literal item list
+     - [Yc_foreach_in { loop_var; lists; items; commands }] — IN LISTS / IN ITEMS
+     - [Yc_foreach_range { ... }], [Yc_foreach_zip { ... }] — deferred
+
+     At eval time foreach is unrolled: for each item, bind loop_var
+     and evaluate the body. The previous binding (if any) is restored
+     on exit, matching cmake's behavior. *)
+  | ECmakeForeach of {
+      loop_var : string;
+      items : expr list;
+      body : expr;
+    }
 
 let bind_params env params arg_values =
   match List.zip params arg_values with
@@ -93,4 +111,21 @@ let eval_case ~eval env = function
     Some (add_include env file, VUnit)
   | ECmakeAtVar _ -> Some (env, VUnit)
   | ECmakeMath _ -> Some (env, VUnit)
+  | ECmakeForeach { loop_var; items; body } ->
+    (* Save the prior binding (if any) and restore on loop exit. Each
+       iteration re-binds [loop_var] in the caller's variable scope. *)
+    let prior = find_var env loop_var in
+    let env, item_strings = eval_string_list ~eval env items in
+    let env =
+      List.fold item_strings ~init:env ~f:(fun env item ->
+        let env = set_var env ~key:loop_var ~data:(VString item) in
+        let env, _ = eval env body in
+        env)
+    in
+    let env =
+      match prior with
+      | Some v -> set_var env ~key:loop_var ~data:v
+      | None -> remove_var env loop_var
+    in
+    Some (env, VUnit)
   | _ -> None

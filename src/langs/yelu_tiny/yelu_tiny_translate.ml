@@ -310,10 +310,30 @@ let rec lift_yelu1_to_yelu2 = function
       { var;
         base = lift_yelu1_to_yelu2 base;
         file = lift_yelu1_to_yelu2 file }
+  | ECmakeFileGlob { out; recurse; relative; configure_depends; patterns } ->
+    ECmakeFileGlob
+      { out; recurse;
+        relative = Option.map relative ~f:lift_yelu1_to_yelu2;
+        configure_depends;
+        patterns = List.map patterns ~f:lift_yelu1_to_yelu2 }
+  | ECmakeStringRegexReplace { regex; replace; out; inputs } ->
+    ECmakeStringRegexReplace
+      { regex;
+        replace = lift_yelu1_to_yelu2 replace;
+        out;
+        inputs = List.map inputs ~f:lift_yelu1_to_yelu2 }
+  | ECmakeGetFilenameComponent { var; filename; mode } ->
+    ECmakeGetFilenameComponent
+      { var; filename = lift_yelu1_to_yelu2 filename; mode }
   | ECmakeMacro { name; params; body } ->
     ECmakeMacro
       { name = lift_yelu1_to_yelu2 name;
         params;
+        body = lift_yelu1_to_yelu2 body }
+  | ECmakeForeach { loop_var; items; body } ->
+    ECmakeForeach
+      { loop_var;
+        items = List.map items ~f:lift_yelu1_to_yelu2;
         body = lift_yelu1_to_yelu2 body }
 
   (* CMake target surface -> Yelu target theory. Keep statement result as unit.
@@ -621,6 +641,9 @@ let rec lift_yelu1_to_yelu2 = function
       { targets = List.map targets ~f:lift_yelu1_to_yelu2;
         append;
         properties = List.map properties ~f:(fun (p, v) -> p, lift_yelu1_to_yelu2 v) }
+  | ECmakeSetGlobalProperty { properties } ->
+    ECmakeSetGlobalProperty
+      { properties = List.map properties ~f:(fun (p, v) -> p, lift_yelu1_to_yelu2 v) }
 
   (* CMake find surface -> Yelu find theory. *)
   | ECmakeFindPackage { package_name; required } ->
@@ -960,10 +983,30 @@ let rec lower_yelu2_to_yelu1 = function
       { var;
         base = lower_yelu2_to_yelu1 base;
         file = lower_yelu2_to_yelu1 file }
+  | ECmakeFileGlob { out; recurse; relative; configure_depends; patterns } ->
+    ECmakeFileGlob
+      { out; recurse;
+        relative = Option.map relative ~f:lower_yelu2_to_yelu1;
+        configure_depends;
+        patterns = List.map patterns ~f:lower_yelu2_to_yelu1 }
+  | ECmakeStringRegexReplace { regex; replace; out; inputs } ->
+    ECmakeStringRegexReplace
+      { regex;
+        replace = lower_yelu2_to_yelu1 replace;
+        out;
+        inputs = List.map inputs ~f:lower_yelu2_to_yelu1 }
+  | ECmakeGetFilenameComponent { var; filename; mode } ->
+    ECmakeGetFilenameComponent
+      { var; filename = lower_yelu2_to_yelu1 filename; mode }
   | ECmakeMacro { name; params; body } ->
     ECmakeMacro
       { name = lower_yelu2_to_yelu1 name;
         params;
+        body = lower_yelu2_to_yelu1 body }
+  | ECmakeForeach { loop_var; items; body } ->
+    ECmakeForeach
+      { loop_var;
+        items = List.map items ~f:lower_yelu2_to_yelu1;
         body = lower_yelu2_to_yelu1 body }
 
   (* Yelu target theory -> CMake target surface. *)
@@ -1096,6 +1139,9 @@ let rec lower_yelu2_to_yelu1 = function
       { targets = List.map targets ~f:lower_yelu2_to_yelu1;
         append;
         properties = List.map properties ~f:(fun (p, v) -> p, lower_yelu2_to_yelu1 v) }
+  | ECmakeSetGlobalProperty { properties } ->
+    ECmakeSetGlobalProperty
+      { properties = List.map properties ~f:(fun (p, v) -> p, lower_yelu2_to_yelu1 v) }
 
   (* Yelu find theory -> CMake find surface. *)
   | EFindPackage { package_name; required } ->

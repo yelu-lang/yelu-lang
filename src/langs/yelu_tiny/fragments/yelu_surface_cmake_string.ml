@@ -25,6 +25,15 @@ type expr +=
   | ECmakeVersionEqual of expr * expr
   | ECmakeVersionLessEqual of expr * expr
   | ECmakeVersionGreaterEqual of expr * expr
+  (* [string(REGEX REPLACE <regex> <replace> <out> <input>...)]. Eval stub:
+     concat the inputs and bind to out (no regex matching performed in
+     tiny — cmake handles it at configure time). *)
+  | ECmakeStringRegexReplace of {
+      regex : string;
+      replace : expr;
+      out : string;
+      inputs : expr list;
+    }
 
 let replace_all ~match_ ~replace ~input =
   String.substr_replace_all input ~pattern:match_ ~with_:replace
@@ -73,4 +82,8 @@ let eval_case ~eval env = function
     (* Eval is a no-op stub at this slice; the cond is decided by cmake.
        A future yelu_theory_version would implement semver compare. *)
     Some (env, VBool false)
+  | ECmakeStringRegexReplace { regex = _; replace = _; out; inputs } ->
+    let env, strings = eval_strings ~eval env inputs in
+    Some
+      (set_var env ~key:out ~data:(VString (String.concat strings)), VUnit)
   | _ -> None

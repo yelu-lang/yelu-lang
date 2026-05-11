@@ -9,6 +9,15 @@ type expr +=
   | ECmakePathSet of { path : string; input : expr; normalize : bool }
   | ECmakePathGetFilename of { path : string; out : string }
   | ECmakePathNormalPath of { path : string; out : string option }
+  (* [get_filename_component(<var> <filename> <mode>)] — older cmake API.
+     Mode is PATH / NAME / EXT / NAME_WE / DIRECTORY / ABSOLUTE / REALPATH.
+     Eval stub: binds [var] to [filename] string (no actual path
+     decomposition); cmake handles the real semantics at configure time. *)
+  | ECmakeGetFilenameComponent of {
+      var : string;
+      filename : expr;
+      mode : string;
+    }
 
 let eval_string ~eval env expr =
   let env, value = eval env expr in
@@ -34,4 +43,7 @@ let eval_case ~eval env = function
     let normalized = VString (Yelu_theory_path.normalize (path_value env path)) in
     let key = Option.value out ~default:path in
     Some (set_var env ~key ~data:normalized, VUnit)
+  | ECmakeGetFilenameComponent { var; filename; mode = _ } ->
+    let env, filename = eval_string ~eval env filename in
+    Some (set_var env ~key:var ~data:(VString filename), VUnit)
   | _ -> None

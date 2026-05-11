@@ -140,6 +140,10 @@ let rec emit_expr_impl ~env e =
     [ Fmt.str "string(TOUPPER %s %s)" (arg input) out ]
   | ECmakeStringReplace { match_; replace; input; out } ->
     [ Fmt.str "string(REPLACE %s %s %s %s)" (arg match_) (arg replace) out (arg input) ]
+  | ECmakeStringRegexReplace { regex; replace; out; inputs } ->
+    [ Fmt.str "string(REGEX REPLACE %s %s %s %s)"
+        (quoted regex) (arg replace) out
+        (String.concat ~sep:" " (List.map inputs ~f:arg)) ]
   | ECmakeStringLength { input; out } ->
     [ Fmt.str "string(LENGTH %s %s)" (arg input) out ]
   | ECmakeListAppend { list; items } ->
@@ -159,6 +163,8 @@ let rec emit_expr_impl ~env e =
         path
         (Option.value_map out ~default:"" ~f:(fun out -> " OUTPUT_VARIABLE " ^ out))
     ]
+  | ECmakeGetFilenameComponent { var; filename; mode } ->
+    [ Fmt.str "get_filename_component(%s %s %s)" var (arg filename) mode ]
   | ECmakeFileWrite { path; content } ->
     [ Fmt.str "file(WRITE %s %s)"
         (arg path)
@@ -170,6 +176,13 @@ let rec emit_expr_impl ~env e =
     [ Fmt.str "configure_file(%s %s)" (arg input) (arg output) ]
   | ECmakeFileRelativePath { var; base; file } ->
     [ Fmt.str "file(RELATIVE_PATH %s %s %s)" var (arg base) (arg file) ]
+  | ECmakeFileGlob { out; recurse; relative; configure_depends; patterns } ->
+    let cmd = if recurse then "GLOB_RECURSE" else "GLOB" in
+    let rel = Option.value_map relative ~default:""
+      ~f:(fun e -> Fmt.str " RELATIVE %s" (arg e)) in
+    let cd = if configure_depends then " CONFIGURE_DEPENDS" else "" in
+    [ Fmt.str "file(%s %s%s%s %s)" cmd out rel cd
+        (String.concat ~sep:" " (List.map patterns ~f:arg)) ]
   | ECmakeAddExecutable { name; sources } ->
     [ Fmt.str "add_executable(%s %s)" (target_arg name) (String.concat ~sep:" " (List.map sources ~f:arg)) ]
   | ECmakeAddLibrary { name; type_; sources } ->
@@ -377,6 +390,12 @@ let rec emit_expr_impl ~env e =
     ]
     @ List.map body_lines ~f:(fun line -> "  " ^ line)
     @ [ "endmacro()" ]
+  | ECmakeForeach { loop_var; items; body } ->
+    let body_lines = emit_expr body in
+    [ Fmt.str "foreach(%s %s)" loop_var
+        (String.concat ~sep:" " (List.map items ~f:arg)) ]
+    @ List.map body_lines ~f:(fun line -> "  " ^ line)
+    @ [ "endforeach()" ]
   | ECmakeApply { name; args } ->
     [ Fmt.str "%s(%s)"
         (target_arg name)
@@ -408,6 +427,9 @@ let rec emit_expr_impl ~env e =
     List.map properties ~f:(fun (property, value) ->
       Fmt.str "set_property(TARGET %s%s PROPERTY %s %s)"
         ts ap property (arg value))
+  | ECmakeSetGlobalProperty { properties } ->
+    List.map properties ~f:(fun (property, value) ->
+      Fmt.str "set_property(GLOBAL PROPERTY %s %s)" property (arg value))
   | ECmakeSetTestsProperties { tests; properties } ->
     let property_args =
       properties
