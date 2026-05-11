@@ -1,7 +1,7 @@
-# cmake `block()` / `return()` / `PARENT_SCOPE` Semantics
+# cmake `block()` / `return()` / `PARENT_SCOPE` / `macro()` Semantics
 
-> Verified against cmake 4.3.1 with 21 probe scripts run via `cmake -P`.
-> Probes preserved at `/tmp/block_return_probes/p1_*.cmake` … `p21_*.cmake`.
+> Verified against cmake 4.3.1 with 24 probe scripts run via `cmake -P`.
+> Probes preserved at `/tmp/block_return_probes/p1_*.cmake` … `p24_*.cmake`.
 >
 > Purpose: pin the exact semantic model for tiny's `ECmakeBlock`,
 > `ECmakeReturn`, and `set(PARENT_SCOPE)` *before* writing the eval. The
@@ -76,11 +76,46 @@ continue()    → unwinds the current loop iteration; error if none
 ```
 
 `block()` is **not** a return target — `return()` inside a block inside a
-function exits the function, not the block (P11). `endblock` *is* still
-honored on the way out — any block-level PROPAGATE list is *skipped*
-because the frame is being unwound, not exited normally. (TODO: confirm
-PROPAGATE-on-return-unwind behavior with a separate probe — not yet
-tested.)
+function exits the function, not the block (P11). On the unwind path the
+block-level PROPAGATE list is **skipped** (P22): only the `return()`'s
+own PROPAGATE list takes effect at the function-frame exit.
+
+### `function()` normal-fallthrough (no explicit `return`)
+
+When a function body falls through to `endfunction()` without `return()`:
+
+- No implicit PROPAGATE happens. Any var the function changed *locally*
+  is dropped with the frame.
+- Vars only leak to the caller via writes that explicitly used
+  `set(VAR v PARENT_SCOPE)` *during* the body (P14, P17). Those are
+  one-shot writes to the parent's actual map; the function's local
+  view never sees them (P15 / P20).
+
+This is the asymmetry to internalize: PARENT_SCOPE is the *only* way
+to escape from a function without `return(PROPAGATE …)`. PROPAGATE is
+sugar for "do these PARENT_SCOPE writes at the return site."
+
+### `macro()` has no frame at all — textual substitution
+
+Probes P23 and P24 confirm cmake's docs: `macro()` is *not* a frame.
+On call, the macro body is conceptually inlined at the call site, with
+`${ARG}` / `${ARGN}` etc. being expanded textually.
+
+Concrete consequences:
+
+| Inside macro `M` | Cmake behavior |
+| --- | --- |
+| `set(X v)` | Writes to the *macro caller's* frame (the textual location of the macro call). |
+| `set(X v PARENT_SCOPE)` | Writes to the *parent of the macro caller* (one frame above the textual call site). |
+| `return()` | Returns from the *function that called the macro*, not from the macro. |
+| Free var read | Resolves in the macro caller's scope (no shadow / snapshot of its own). |
+
+So a macro acts as "inline this body at the call site." `function()` and
+`block()` push frames; `macro()` does not. This means tiny's current
+`ECmakeMacro` constructor — which just stores the body in `env.functions`
+like a function and pushes-binds-evals-restores like F2 — is **incorrect
+for true cmake macros**. See "Implications for current `ECmakeMacro`"
+below.
 
 ## Probe enumeration (verified)
 
@@ -107,6 +142,9 @@ tested.)
 | P19 | chained PROPAGATE block-in-block   | Does PROPAGATE chain?              | Yes when both blocks PROPAGATE the same var — innermost value reaches top |
 | P20 | PARENT_SCOPE + later reads in fn   | Does function see its own PARENT_SCOPE writes? | No — snapshot model |
 | P21 | block inner PARENT_SCOPE + later reads | Does block see its own PARENT_SCOPE writes? | No — same snapshot model |
+| P22 | return(PROPAGATE B) inside block(PROPAGATE A) inside function | Does block's PROPAGATE list run when the block is unwound by return? | No — A stays as parent's outer; only return's PROPAGATE for B reaches the caller |
+| P23 | `set(X PARENT_SCOPE)` inside macro, macro called from function | Where does X land? | The function's caller (one frame above the macro's textual call site) — confirms macro = textual substitution |
+| P24 | `set(Y)` (no PARENT_SCOPE) inside macro, macro called from function | Does Y leak past the function? | No — Y is written to the function frame and dropped on function exit; macro is frame-less so the function frame is the relevant target |
 
 ### P15 (the snapshot probe)
 
@@ -240,41 +278,78 @@ Each test exists *because* it would distinguish wrong-model implementations
 model with no PROPAGATE would fail P2/P9; an "exit innermost" return would
 fail P10/P11).
 
-## Open questions to resolve before code
+## Resolved decisions (formerly open questions)
 
-1. **Should `set(X v PARENT_SCOPE)` at the root frame fail or silently no-op?**
-   cmake silently no-ops (no error, the write goes nowhere). I propose we
-   `fail` in tiny eval to surface unintentional uses — but that's a
-   correctness/strictness judgment, not a cmake-fidelity one.
+1. **`set(X v PARENT_SCOPE)` at the root frame: dedicated tiny-only error.**
+   cmake silently no-ops. Tiny raises `Eval_error
+   "tiny: PARENT_SCOPE at root frame (has no parent); this is a
+   tiny-only diagnostic (cmake silently no-ops)"`. Rationale: surface
+   accidental top-level uses that would otherwise be invisible bugs;
+   the wording makes the strictness divergence explicit so users
+   reading the error know it is *not* a faithful cmake error message.
 
-2. **PROPAGATE during `return` from inside an unwinding block.** Does the
-   block's own PROPAGATE list run? P13 result says yes-the-return wins;
-   the block's PROPAGATE list is bypassed on unwind. The proposed model
-   matches; needs a dedicated probe to verify with cmake.
+2. **`return(PROPAGATE)` inside an unwinding block: verified by P22.**
+   The block's own PROPAGATE list is **skipped** on unwind; only the
+   `return`'s PROPAGATE list takes effect at the function-frame exit.
+   The proposed model (block / loop bodies re-raise the
+   `Return_function` exception unchanged, no PROPAGATE merge on the
+   unwind path) matches.
 
-3. **`endfunction()` semantics if the body falls through without `return()`.**
-   No PROPAGATE happens automatically — vars only leak via PARENT_SCOPE
-   writes performed during execution. The frame is popped cleanly.
-   Already implicit in F2; spell out here.
+3. **Function fallthrough.** Documented in the "Frame model" section
+   above and in the decision tree's frame-exit branch: no implicit
+   PROPAGATE; only PARENT_SCOPE writes during execution leak.
 
-4. **Interaction with macros.** `macro()` is textual substitution, no
-   frame. PARENT_SCOPE inside a macro body writes to the caller's caller
-   (one frame up from the macro's own callsite). Probably worth a probe.
+4. **`macro()`: verified by P23 / P24.** Macros are textual substitution
+   with no frame. Tiny's current `ECmakeMacro` (which behaves like
+   a function with save/bind/eval/restore) is incorrect; see next
+   section.
+
+### Implications for current `ECmakeMacro`
+
+In commit abb501f, `ECmakeMacro` was added with the same eval as
+`ECmakeFunction` (save vars, bind params, eval body, restore vars). The
+verified probes show that's wrong: macros should be inlined textually,
+which in our model is equivalent to substituting params into the body
+and evaluating in the *caller's* current frame — no frame push, no
+restore.
+
+Concrete fix proposed alongside R4-b.3:
+
+- Rename current `ECmakeMacro` → `ECmakeMacroFunctionScoped` (a label
+  preserving its current wrong-but-useful behavior) or just delete it.
+- New `ECmakeMacro` evaluator: on apply, substitute `${ARGN}` /
+  `${ARG0}` / `${ARG<n>}` / parameter names through the body; evaluate
+  the substituted body in the caller's frame.
+- Param substitution is value-level: at call time we have the arg
+  values; we walk the body replacing matching `EVar name` or
+  `EString` content containing `${name}` with the argument expression.
+
+This is **R4-b.4** — separate from R4-b.3's frame stack work. The
+current tests for `ECmakeMacro` would need updating (they test
+function-like behavior).
 
 ## Implementation phasing
 
 1. **R4-b.3a — frame stack refactor.** Replace `env.vars` with a frames
    list. Existing code that reads `env.vars` updates to use a `find_var`
    that walks `locals` then `parent_snapshot`. F2 function eval updates
-   to push/pop frames.
+   to push/pop frames. Reject PARENT_SCOPE-at-root with the tiny-only
+   `Eval_error` message specified in resolved-decisions #1.
 2. **R4-b.3b — block.** `ECmakeBlock` + bridge from `Yc_block`.
 3. **R4-b.3c — PARENT_SCOPE.** Add to `Yvar_set` bridge to produce a
    distinct `ECmakeSetParentScope` rather than the current silent-drop.
 4. **R4-b.3d — return + PROPAGATE.** New exception `Return_function`;
-   thread the propagate values through the unwind.
-5. **R4-b.3e — tests.** Port all 21 probes into `test_yelu_tiny_block_return.ml`.
+   thread the propagate values through the unwind. Block / loop bodies
+   re-raise; only function-call eval catches.
+5. **R4-b.3e — tests.** Port all 24 probes into `test_yelu_tiny_block_return.ml`.
+6. **R4-b.4 (separate) — fix `ECmakeMacro` to be textual.** Independent
+   of R4-b.3; can land before or after. Rewrites the macro evaluator
+   to substitute params into the body and evaluate in the caller's
+   frame, not push a new frame. Updates / removes the function-scoped
+   tests that asserted the wrong semantics.
 
-R4-b.3a is the load-bearing change. After it, b/c/d are local additions.
+R4-b.3a is the load-bearing change. After it, b/c/d are local additions
+that compose cleanly.
 
 ## What this enables
 
