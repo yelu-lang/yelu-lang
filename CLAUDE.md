@@ -87,13 +87,23 @@ All 14 `Make_*_check` modules expose `let stage = Stage_typecheck`, enforced by 
 
 ### Tests
 
-| File                                  | Tests | Purpose                                                    |
-| ------------------------------------- | ----- | ---------------------------------------------------------- |
-| `test/test-cmake/test_cmake_pp.ml`    | 70    | cmake pretty-printer                                       |
-| `test/test-yelu/test_yelu_compile.ml` | 194   | yelu → cmake compilation                                   |
-| `test/test-yelu/test_yelu_check.ml`   | 58    | per-theory type checking (17) + wellform name binding (41) |
-| `test/test-runcmake/`                 | 37    | cmake -P compat + yelu scripts                             |
-| `test/test-file-api/`                 | —     | codemodel-v2 JSON diff                                     |
+| File                                       | Tests | Purpose                                                    |
+| ------------------------------------------ | ----- | ---------------------------------------------------------- |
+| `test/test-cmake/test_cmake_pp.ml`         | 72    | cmake pretty-printer                                       |
+| `test/test-yelu/test_yelu_compile.ml`      | 194   | yelu → cmake compilation                                   |
+| `test/test-yelu/test_yelu_check.ml`        | 57    | per-theory type checking + wellform name binding           |
+| `test/test-yelu/test_yelu_lexer.ml`        | 25    | concrete-syntax lexer                                      |
+| `test/test-yelu/test_yelu_parse.ml`        | 170   | concrete-syntax parser                                     |
+| `test/test-yelu/test_yelu_tiny_bridge.ml`  | 43    | production yelu_cmake AST → tiny Yelu1                     |
+| `test/test-yelu/test_yelu_tiny_emit.ml`    | 3     | tiny IR → cmake text                                       |
+| `test/test-yelu/test_yelu_tiny_lift_lower.ml` | 65 | Yelu1 ↔ Yelu2 roundtrip                                    |
+| `test/test-yelu/test_yelu_tiny_steps.ml`   | 19    | tutorial v1 step1–step12 + 8_table + 11_config + ctest     |
+| `test/test-yelu/test_yelu_tiny_function.ml`| 14    | F2: dynamic scope / shallow binding                        |
+| `test/test-runcmake/test_yelu_tiny_cmake.ml`| 40   | tiny lowerings configure through real cmake                |
+| `test/test-runcmake/` (other)              | 37    | cmake -P compat + yelu scripts                             |
+| `test/test-file-api/`                      | —     | codemodel-v2 JSON diff                                     |
+
+Total unit: 655. Total cmake-backed: 40.
 
 ### Documentation
 
@@ -115,6 +125,9 @@ All 14 `Make_*_check` modules expose `let stage = Stage_typecheck`, enforced by 
 | `doc/yelu_research_framing.md`       | Benchmark design, contamination-aware eval          |
 | `doc/yelu_infra_test.md`             | Test harness, dune aliases, gotchas                 |
 | `doc/worklog_2026_04.md`             | Completed items (Y1, Y9, Y10)                       |
+| `doc/worklog_2026_05.md`             | yelu_tiny harness Tier A–F (Bar #1 + Bar #2)        |
+| `doc/yelu_theory_composition_design.md` | Durable design notes for yelu_tiny harness       |
+| `THEORY_COMPOSITION_PLAN.md`         | Short-lived tracker for yelu_tiny TODO              |
 
 ## Architecture
 
@@ -135,6 +148,16 @@ pairs over a shared `LANG_TYPES` substrate. Each theory defines typed constructo
 for one cmake command family and validates expression-level types independently.
 Theories compose via `Make_stmt` in `lang_yelu.ml`; the cmake-pack (`lang_yelu_cmake.ml`)
 is the integration point where all 14 theories are instantiated against `Cmake_types`.
+
+### Parallel harness: yelu_tiny
+
+A separate composition harness in `src/langs/yelu_tiny/` re-shapes the
+production AST into two axles (Yelu1 = tiny core + cmake-shaped surfaces;
+Yelu2 = tiny core + idealized theories) and bridges from production
+`yelu_cmake` AST → Yelu1 → cmake. Each fragment provides a matched
+`yelu_theory_*` / `yelu_surface_cmake_*` pair. As of 2026-05-10:
+v1 step1–step12 all bridge through tiny; six configure through real cmake.
+Details in `doc/worklog_2026_05.md` and `THEORY_COMPOSITION_PLAN.md`.
 
 ### Type system (key types in `lang_yelu_cmake.ml`)
 

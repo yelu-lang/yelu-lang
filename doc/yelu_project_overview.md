@@ -56,6 +56,33 @@ system.
 Each theory's `Make_*_check` exposes `let stage = Stage_typecheck` and is
 enforced via `CHECKER_BASE` module signature in `Cmake_check`.
 
+### Parallel harness: yelu_tiny
+
+Since 2026-05-01 a second implementation track has been growing
+alongside the production layers: `src/langs/yelu_tiny/`. It re-shapes
+the production AST into two axles:
+
+```
+Yelu1 = tiny core + cmake-shaped surfaces  (production-compatible)
+Yelu2 = tiny core + idealized theories     (refinement target)
+```
+
+The bridge `yelu_cmake_to_yelu1.ml` maps production `yelu_cmake` AST →
+Yelu1; `yelu_tiny_translate.ml` lifts Yelu1 ↔ Yelu2; `yelu_tiny_cmake_emit.ml`
+renders Yelu1 back to cmake. Each fragment provides a matched
+`yelu_theory_*` (Yelu2 ideal) and `yelu_surface_cmake_*` (Yelu1
+cmake-shaped) pair.
+
+Milestone status (as of 2026-05-10):
+
+- **Bar #1 — tutorial v1 step1–step12 (root)** ✅ all bridge through tiny;
+  step1, 2, 3, 4, 5, 6, 7, 8_table, 10, 12 also configure through real cmake.
+- **Bar #2 — every production theory has at least a first slice** ✅ all 14.
+- **Bar #3 — real-world cmake rewrites (z3, llvm, torch)** ⏳ not started.
+
+Full implementation history → `doc/worklog_2026_05.md`.
+Current TODO → `THEORY_COMPOSITION_PLAN.md`.
+
 ## Current State
 
 ### Code inventory
@@ -65,23 +92,28 @@ enforced via `CHECKER_BASE` module signature in `Cmake_check`.
 | cmake AST + PP      | 3     | 2,715 | All 133 cmake commands, stringly-typed |
 | yelu core           | 5     | 2,080 | Types, compiler, utils, cmake-pack   |
 | fragments (theories)| 15    | 1,194 | Per-theory functors, 14 theories     |
+| yelu_tiny harness   | ~25   | 4,001 | Two-axle composition harness (May 2026) |
 | cmake step files    | 36    | 1,560 | Tutorial v1/v2 + CMakeOnly           |
 | yelu step files     | 36    | 1,332 | Same, in yelu DSL                    |
-| **Total**           | **95**| **8,881** |                                     |
+| **Total**           | ~120  | ~12,900 |                                    |
 
 ### Test infrastructure
 
 | Suite                 | Count  | What it verifies                           |
 | --------------------- | ------ | ------------------------------------------ |
-| `test_cmake_pp`       | 70     | cmake pretty-printer output                |
+| `test_cmake_pp`       | 72     | cmake pretty-printer output                |
 | `test_yelu_compile`   | 194    | yelu → cmake compilation correctness       |
-| `test_yelu_check`     | 17     | per-theory type checking (positive + negative) |
-| **Unit tests total**  | **324**|                                           |
+| `test_yelu_check`     | 57     | per-theory type checking + wellform        |
+| `test_yelu_lexer`     | 25     | lexer for concrete syntax                  |
+| `test_yelu_parser`    | 170    | parser for concrete syntax                 |
+| `test_yelu_tiny_*`    | 137    | bridge / emit / lift_lower / steps / function |
+| **Unit tests total**  | **655**|                                           |
 | RunCMake compat       | 61     | yelu scripts vs cmake reference output     |
 | cmake-check (v1+v2)   | 35     | structural equivalence via gersemi         |
 | CMakeOnly check       | 12     | structural equivalence for CMakeOnly suite |
 | file-api-test         | 12     | codemodel-v2 JSON diff (steps 1–12)        |
 | end-to-end (`stepN`)  | 12     | Generate → configure → build → run         |
+| `test_yelu_tiny_cmake`| 40     | tiny lowerings configure through real cmake |
 
 ### 14 Theories
 
