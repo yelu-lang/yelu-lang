@@ -17,6 +17,8 @@ open Yelu_surface_cmake_string
 open Yelu_surface_cmake_target
 open Yelu_surface_cmake_if
 open Yelu_surface_cmake_cmake_op
+open Yelu_surface_cmake_dir
+open Yelu_surface_cmake_test
 open Yelu_theory_target
 
 (* Many other surface modules are opened transitively via [expr] match
@@ -154,6 +156,16 @@ let version_of_string s : C.version =
     { major = Int.of_string maj; minor = Int.of_string min; patch }
   | _ -> { major = 3; minor = 20; patch = "" }
 
+(* Wrap a tiny [visibility : string] + [expr list] into the cmake AST's
+   [items_with_kind list] shape. cmake's PUBLIC/PRIVATE/INTERFACE keyword
+   separates groups; the bridge always collapses to a single group. *)
+let items_with_kind ~env ~visibility (items : expr list) : C.items_with_kind list =
+  [ { kind = visibility; items = List.map items ~f:(arg ~env) } ]
+
+let target_feature_of_expr ~env (feature : expr) : C.target_feature =
+  (* tiny stores features as plain strings; assume PRIVATE kind by default. *)
+  { kind = "PRIVATE"; feature = target_arg ~env feature }
+
 let rec emit_exp ~env (e : expr) : C.exp =
   match e with
   | EUnit -> C.Exp_list []
@@ -191,6 +203,29 @@ let rec emit_exp ~env (e : expr) : C.exp =
     C.Message
       { mode = message_mode_of_string mode;
         texts = List.map texts ~f:(target_arg ~env) }
+  | ECmakeProject { name; languages; version } ->
+    C.Project_cmd
+      (C.Project
+         { name;
+           version = Option.map version ~f:version_of_string;
+           description = None;
+           homepage_url = None;
+           languages })
+  | ECmakeInclude { file; optional } ->
+    C.Include
+      { file = arg ~env file;
+        optional;
+        result_var = None;
+        no_policy_scope = None }
+  | ECmakeAtVar key ->
+    (* @key@ literal: no first-class cmake AST ctor — render via Quote
+       so it lands as a bare top-level line. *)
+    C.Quote ("@" ^ key ^ "@")
+  | ECmakeMath { exp; out } ->
+    C.Math_lib
+      { var = out;
+        exp = C.Quote (Fmt.str "\"%s\"" exp);
+        output_format = C.Decical }
 
   (* Control flow *)
   | ECmakeIfStmt { cond; then_; else_ } ->
@@ -198,6 +233,129 @@ let rec emit_exp ~env (e : expr) : C.exp =
       { cond = cond_tokens ~env cond;
         then_ = emit_exp ~env then_;
         else_ = Option.map else_ ~f:(emit_exp ~env) }
+  | ECmakeWhile { cond; body } ->
+    C.While { cond = cond_tokens ~env cond; commands = emit_exp ~env body }
+  | ECmakeBreak -> C.Break
+  | ECmakeContinue -> C.Continue
+  | ECmakeReturn { propagate_vars } ->
+    C.Return { propogate_vars = propagate_vars }
+  | ECmakeBlock { scope_vars; propagate; body } ->
+    C.Block
+      { scope_policy = [];
+        scope_var = scope_vars;
+        propagate;
+        body = [ emit_exp ~env body ] }
+  | ECmakeForeach { loop_var; items; body } ->
+    C.Foreach
+      { loop_var;
+        items = List.map items ~f:(arg ~env);
+        commands = emit_exp ~env body }
+  | ECmakeForeachRange { loop_var; start; stop; step; body } ->
+    C.Foreach_range
+      { loop_var;
+        start = Option.map start ~f:Int.to_string;
+        stop = Int.to_string stop;
+        step = Option.map step ~f:Int.to_string;
+        commands = emit_exp ~env body }
+  | ECmakeForeachZip { loop_vars; lists; body } ->
+    C.Foreach_zip
+      { loop_vars; lists; commands = emit_exp ~env body }
+  | ECmakeFunction { name; params; body } ->
+    (* cmake_pp's Function expects [cmds : cmd list] where [cmd = exp].
+       Wrap our single [exp] as a one-element command list. *)
+    C.Function
+      { name = target_arg ~env name;
+        args = params;
+        cmds = [ emit_exp ~env body ] }
+  | ECmakeMacro { name; params; body } ->
+    C.Macro
+      { name = target_arg ~env name;
+        args = params;
+        commands = emit_exp ~env body }
+  | ECmakeApply { name; args = call_args } ->
+    C.Apply
+      { name = target_arg ~env name;
+        args = List.map call_args ~f:(arg ~env) }
+
+  (* Target / build graph *)
+  | ECmakeAddExecutable { name; sources } ->
+    C.Project_cmd
+      (C.Add_executable
+         { name = target_arg ~env name;
+           options = [];
+           sources = List.map sources ~f:(target_arg ~env) })
+  | ECmakeAddLibrary { name; type_; sources } ->
+    C.Project_cmd
+      (C.Add_library
+         { name = target_arg ~env name;
+           exclude_from_all = false;
+           type_;
+           sources = List.map sources ~f:(target_arg ~env) })
+  | ECmakeTargetLinkLibraries { target; visibility; items } ->
+    C.Project_cmd
+      (C.Target_link_libraries
+         { targets = [ target_arg ~env target ];
+           items = items_with_kind ~env ~visibility items })
+  | ECmakeTargetIncludeDirectories { target; visibility; dirs } ->
+    C.Project_cmd
+      (C.Target_include_directories
+         { target = target_arg ~env target;
+           system = None;
+           before_or_after = None;
+           items = items_with_kind ~env ~visibility dirs })
+  | ECmakeTargetCompileDefinitions { target; visibility; definitions } ->
+    C.Project_cmd
+      (C.Target_compile_definitions
+         { target = target_arg ~env target;
+           items = items_with_kind ~env ~visibility definitions })
+  | ECmakeTargetCompileOptions { target; visibility; options_ } ->
+    C.Project_cmd
+      (C.Target_compile_options
+         { target = target_arg ~env target;
+           before = false;
+           items = items_with_kind ~env ~visibility options_ })
+  | ECmakeTargetLinkOptions { target; visibility; options_ } ->
+    C.Project_cmd
+      (C.Target_link_options
+         { target = target_arg ~env target;
+           before = false;
+           items = items_with_kind ~env ~visibility options_ })
+  | ECmakeTargetLinkDirectories { target; visibility; dirs } ->
+    C.Project_cmd
+      (C.Target_link_directories
+         { target = target_arg ~env target;
+           before = false;
+           items = items_with_kind ~env ~visibility dirs })
+  | ECmakeTargetCompileFeatures { target; visibility = _; features } ->
+    C.Project_cmd
+      (C.Target_compile_features
+         { target = target_arg ~env target;
+           features = List.map features ~f:(target_feature_of_expr ~env) })
+  | ECmakeTargetSources { target; visibility; sources } ->
+    C.Project_cmd
+      (C.Target_sources
+         { target = target_arg ~env target;
+           items = items_with_kind ~env ~visibility sources })
+
+  (* Directory *)
+  | ECmakeAddSubdirectory path ->
+    C.Project_cmd
+      (C.Add_subdirectory
+         { source_dir = target_arg ~env path;
+           binary_dir = None;
+           exclude_from_all = false;
+           system = false })
+
+  (* Tests *)
+  | ECmakeEnableTesting ->
+    C.Project_cmd C.Enable_testing
+  | ECmakeAddTest { name; command; args = call_args } ->
+    C.Project_cmd
+      (C.Add_test
+         { name = target_arg ~env name;
+           command = target_arg ~env command;
+           args = List.map call_args ~f:(target_arg ~env);
+           dir = None })
 
   (* Diagnostic / result-message fallthroughs (kept compatible with
      [yelu_tiny_cmake_emit]: a bare value at statement position renders

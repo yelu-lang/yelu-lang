@@ -15,6 +15,7 @@
 
 open Base
 open Yelu_langs.Yelu_tiny
+open Yelu_langs.Yelu_theory_target
 
 module E = Yelu_langs.Yelu_tiny_cmake_emit
 module A = Yelu_langs.Yelu_tiny_cmake_emit_ast
@@ -81,6 +82,60 @@ let parity =
             true (contains ast ~substring:"hello");
           Alcotest.(check bool) "ast: ${msg} not present"
             false (contains ast ~substring:"${msg}"));
+
+      Alcotest.test_case "project(Foo VERSION 1.0 LANGUAGES CXX) — both emit"
+        `Quick (fun () ->
+          let prog =
+            Yelu_langs.Yelu_surface_cmake_cmake_op.ECmakeProject
+              { name = "Foo"; languages = [ "CXX" ]; version = Some "1.0" }
+          in
+          let direct, ast = both prog in
+          Alcotest.(check bool) "direct project" true (contains direct ~substring:"project(");
+          Alcotest.(check bool) "ast project"    true (contains ast    ~substring:"project(");
+          Alcotest.(check bool) "ast Foo"        true (contains ast    ~substring:"Foo");
+          Alcotest.(check bool) "ast CXX"        true (contains ast    ~substring:"CXX"));
+
+      Alcotest.test_case "add_executable + target_link_libraries — both emit"
+        `Quick (fun () ->
+          let prog =
+            ESeq [
+              Yelu_langs.Yelu_surface_cmake_target.ECmakeAddExecutable
+                { name = ETarget "Tutorial";
+                  sources = [ EString "tutorial.cxx" ] };
+              Yelu_langs.Yelu_surface_cmake_target.ECmakeTargetLinkLibraries
+                { target = ETarget "Tutorial";
+                  visibility = "PUBLIC";
+                  items = [ ETarget "MathFunctions" ] };
+            ]
+          in
+          let _direct, ast = both prog in
+          Alcotest.(check bool) "ast add_executable" true (contains ast ~substring:"add_executable");
+          Alcotest.(check bool) "ast Tutorial"       true (contains ast ~substring:"Tutorial");
+          Alcotest.(check bool) "ast target_link"    true (contains ast ~substring:"target_link_libraries");
+          Alcotest.(check bool) "ast PUBLIC"         true (contains ast ~substring:"PUBLIC"));
+
+      Alcotest.test_case "foreach(x IN ITEMS ...) — AST emits foreach/endforeach"
+        `Quick (fun () ->
+          let prog =
+            Yelu_langs.Yelu_surface_cmake_cmake_op.ECmakeForeach
+              { loop_var = "x";
+                items = [ EString "a"; EString "b" ];
+                body = Yelu_langs.Yelu_surface_cmake_cmake_op.ECmakeMessage
+                         { mode = "STATUS"; texts = [ EVar "x" ] } }
+          in
+          let _direct, ast = both prog in
+          Alcotest.(check bool) "ast foreach"    true (contains ast ~substring:"foreach");
+          Alcotest.(check bool) "ast endforeach" true (contains ast ~substring:"endforeach"));
+
+      Alcotest.test_case "add_subdirectory(path) — both emit"
+        `Quick (fun () ->
+          let prog =
+            Yelu_langs.Yelu_surface_cmake_dir.ECmakeAddSubdirectory (EString "sub")
+          in
+          let direct, ast = both prog in
+          Alcotest.(check bool) "direct" true (contains direct ~substring:"add_subdirectory");
+          Alcotest.(check bool) "ast"    true (contains ast    ~substring:"add_subdirectory");
+          Alcotest.(check bool) "ast sub" true (contains ast   ~substring:"sub"));
 
       Alcotest.test_case "if(COND) then body — AST emits if/endif"
         `Quick (fun () ->
