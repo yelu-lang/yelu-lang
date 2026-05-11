@@ -1,11 +1,8 @@
 # Yelu Theory Composition Design Notes
 
-This is the durable reference snapshot for the `yelu_tiny` theory-composition
-experiment. The short per-step tracker lives at `../THEORY_COMPOSITION_PLAN.md`.
-Prefer updating the tracker during normal implementation work; update this file
-only when the underlying design changes.
-
-Status: tiny composition experiment in progress.
+This is the durable reference for the `yelu_tiny` theory-composition harness.
+For current open work see `status.md`; for the file-by-file module guide see
+`structure.md`. Update this file only when the underlying design changes.
 
 The next theory-composition experiment should not refactor the current
 `yelu_cmake` pack first. That pack already contains CMake-specific behavior:
@@ -420,7 +417,7 @@ surfaces are intentionally later.
    only for cache/env (`Yvar_unset_cache`, `Yvar_unset_env`). Tiny Yelu keeps
    normal unset explicit with `EUnsetVar`/`ECmakeUnsetVar`; cache/env are
    intentionally postponed. The existing cache behavior report is
-   `doc/cmake_cache_semantics.md`.
+   `doc/cmake/cache_semantics.md`.
 
 2. Bool / condition theory
 

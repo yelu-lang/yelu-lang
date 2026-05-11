@@ -16,7 +16,7 @@ that surface only in production.
 Modern configuration languages are patchwork systems. cmake is the exemplar:
 three decades of accumulated layers (scripting → modules → generator
 expressions → presets → policy stack) with no cleanup between them. The
-result ([cmake_painpoints.md](cmake_painpoints.md)):
+result ([cmake/painpoints.md](cmake/painpoints.md)):
 
 - **Irregular syntax**: commands and keywords are both bare strings,
   indistinguishable to the parser

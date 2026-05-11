@@ -143,6 +143,6 @@ type yelu_program_shape =
   the configure stage running without a project. The staged-typing design would
   unify these shapes under a single `@stage` annotation rather than separate
   shape types.
-- **`cmake_policy.md`**: policy stack applies in configure mode; in `-P` script
+- **`policy.md`**: policy stack applies in configure mode; in `-P` script
   mode the policy stack starts empty (no `cmake_minimum_required` inheritance).
   Policies still work in `-P` but must be set explicitly.

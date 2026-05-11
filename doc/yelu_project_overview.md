@@ -81,7 +81,7 @@ Milestone status (as of 2026-05-10):
 - **Bar #3 — real-world cmake rewrites (z3, llvm, torch)** ⏳ not started.
 
 Full implementation history → `doc/worklog_2026_05.md`.
-Current TODO → `THEORY_COMPOSITION_PLAN.md`.
+Current TODO → `doc/yelu_tiny/status.md`.
 
 ## Current State
 
@@ -167,6 +167,9 @@ Current TODO → `THEORY_COMPOSITION_PLAN.md`.
 | Y11  | Policy-aware compiler                   | Auto-emit policy preamble per construct      |
 | Y13  | Persistent value primitive              | `@cached` with content-addressed store       |
 | Y14  | Reserved keyword validation             | Enumerate cmake keywords, warn on clashes    |
+| Y15  | Binding feature library                 | Design space (lexical vs global, mutable vs immutable, expr vs stmt). Current: `let` + `set` |
+| Y16  | Real-world cmake rewrite                | z3 / llvm / torch builds in yelu, prove structural equivalence |
+| Y17  | Types on yelu_tiny                      | Post-retirement: fresh typing pass over tiny once yelu1↔cmake / yelu2↔yelu1 are stable |
 
 ### Research (likely papers/material)
 
@@ -191,12 +194,17 @@ Current TODO → `THEORY_COMPOSITION_PLAN.md`.
 | `yelu_typed_design.md`          | Type system, compositional checking architecture |
 | `yelu_lang_coverage.md`         | cmake command coverage, 4-tier roadmap           |
 | `yelu_concrete_syntax_parser.md`| Menhir grammar design for concrete syntax        |
-| `cmake_comparison.md`           | cmake PL properties, equivalence levels          |
-| `cmake_painpoints.md`           | 27 documented cmake pain points                  |
-| `cmake_policy.md`               | cmake policy system, CMP* history                |
-| `cmake_genex.md`                | Generator expressions design                     |
-| `cmake_script.md`               | cmake -P script vs configure mode                |
-| `cmake_equiv_research.md`       | Z3 / e-graph equivalence research prompts        |
+| `cmake/comparison.md`           | cmake PL properties, equivalence levels          |
+| `cmake/painpoints.md`           | 27 documented cmake pain points                  |
+| `cmake/policy.md`               | cmake policy system, CMP* history                |
+| `cmake/genex.md`                | Generator expressions design                     |
+| `cmake/script.md`               | cmake -P script vs configure mode                |
+| `cmake/cache_semantics.md`      | Cache vs normal variable namespace               |
+| `cmake/scope_and_control_flow.md` | block / return / PARENT_SCOPE / macro          |
+| `cmake/equiv_research.md`       | Z3 / e-graph equivalence research prompts        |
+| `yelu_tiny/design.md`           | yelu_tiny harness design notes                   |
+| `yelu_tiny/structure.md`        | yelu_tiny module guide                           |
+| `yelu_tiny/status.md`           | yelu_tiny current open work                      |
 | `yelu_beyond.md`                | Multi-pack architecture, AI language stacks      |
 | `yelu_research_framing.md`      | Benchmark design, contamination-aware eval       |
 | `yelu_infra_test.md`            | Test harness, dune aliases, gotchas              |

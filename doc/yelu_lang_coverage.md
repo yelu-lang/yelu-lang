@@ -128,7 +128,7 @@ Pipeline layers and checkpoints:
 | **yelu AST**  | `lang_yelu.ml` + `lang_yelu_compile.ml` | Typed yelu node + type-erasing compile case           |
 | **tests**     | see level key below                     | Highest testing level reached                         |
 
-Testing levels — see [`cmake_comparison.md`](cmake_comparison.md) for full definitions and PL vocabulary.
+Testing levels — see [`cmake/comparison.md`](cmake/comparison.md) for full definitions and PL vocabulary.
 
 `—` = absent, `✓` = complete, `~` = partial, `stub` = bare constructor no fields.
 
@@ -179,7 +179,7 @@ All commands covered by the typed yelu API. No `yc_quote_cmd` needed.
 | --------------------- | ----- | ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `CompileOptions`      | 108   | compile options + policy guards       | ✓ done — new nodes: `Yc_enable_language`, `Yc_set_source_property`, `append` on `Yc_set_property`; `cmake_quote_cond` fix for `()`                                                                                                                                |
 | `CompileFeatures`     | 445   | `target_compile_features` + standards | ✓ covered by `Tests/CMakeCommands/target_compile_features/`; `Tests/CompileFeatures/` is cmake's compiler-DB validation (`try_compile` intensive) — out of scope                                                                                                  |
-| `GeneratorExpression` | 504   | comprehensive genex testing           | ⊘ skipped — cmake's own genex regression suite; `file(GENERATE)` missing; see `doc/cmake_genex.md`                                                                                                                                                               |
+| `GeneratorExpression` | 504   | comprehensive genex testing           | ⊘ skipped — cmake's own genex regression suite; `file(GENERATE)` missing; see `doc/cmake/genex.md`                                                                                                                                                               |
 | `CustomCommand`       | 609   | `add_custom_command` full coverage    | ✓ done — yelu-only (`check_build_yelu`); upstream uses generator-exe subdirs, shell operators, genex, `COMMAND_EXPAND_LISTS` — not tractable as reference. New fields: `verbatim`/`comment` on `Yc_add_custom_command`, `all`/`depends` on `Yc_add_custom_target` |
 
 #### Group 6 — Blocked / tractable

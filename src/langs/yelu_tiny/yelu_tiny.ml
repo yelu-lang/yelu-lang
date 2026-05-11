@@ -200,7 +200,7 @@ type function_decl = {
      they execute in the caller's frame, with param + ARGN / ARGV /
      ARGC / ARGVn temporarily bound in the caller's locals and
      restored on exit. Functions push their own frame. See R4-b.4 and
-     doc/cmake_scope_and_control_flow.md macro section. *)
+     doc/cmake/scope_and_control_flow.md macro section. *)
   is_macro : bool;
 }
 
@@ -263,7 +263,7 @@ let fail fmt = Fmt.kstr (fun msg -> raise (Eval_error msg)) fmt
    selected [locals] entries into the parent on frame exit. The
    snapshot is taken once at push-time and never updated mid-frame —
    this is the cmake quirk that probes P15/P20/P21 verified. See
-   doc/cmake_scope_and_control_flow.md for the full model. *)
+   doc/cmake/scope_and_control_flow.md for the full model. *)
 type frame = {
   locals : value Map.M(String).t;
   parent_snapshot : value Map.M(String).t;

@@ -1,7 +1,7 @@
 # Yelu Worklog — May 2026
 
 Implementation history for the `yelu_tiny` composition harness.
-For current TODO see `THEORY_COMPOSITION_PLAN.md`; for project-wide
+For current TODO see `yelu_tiny/status.md`; for project-wide
 context see `yelu_project_overview.md`.
 
 ---
@@ -139,7 +139,7 @@ namespace; `set_property(TARGET ...)` as the older sibling of
   in let-value position) were correct under narrower assumptions
   that earlier steps happened not to exercise. The third (lenient
   `ECmakeApply` on unknown function) was a realism gap — cmake's
-  permissive lookup wasn't modeled. See `THEORY_COMPOSITION_PLAN.md`
+  permissive lookup wasn't modeled. See `yelu_tiny/design.md`
   Tier B for the full rationale.
 
 - **Step coverage rarely needed new fragments.** Tiers C and D
@@ -158,6 +158,7 @@ namespace; `set_property(TARGET ...)` as the older sibling of
 
 ## Linked artifacts
 
-- `THEORY_COMPOSITION_PLAN.md` — short-lived tracker (current TODO, tier list state).
-- `doc/yelu_theory_composition_design.md` — durable design notes.
+- `doc/yelu_tiny/status.md` — current open work (the slim living tracker).
+- `doc/yelu_tiny/design.md` — durable design notes.
+- `doc/yelu_tiny/structure.md` — code-anchored module guide.
 - `src/langs/yelu_tiny/` — the harness itself.

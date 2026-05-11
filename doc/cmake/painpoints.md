@@ -280,7 +280,7 @@ persistent source of debugging confusion.
 are distinct types; a command expecting a variable will not accept a cache key,
 and vice versa. The `wellform` pass already checks that all references resolve
 to declarations in the correct namespace. The `cache` theory (see
-[cmake_cache_semantics.md](cmake_cache_semantics.md)) owns the read/write
+[cache_semantics.md](cache_semantics.md)) owns the read/write
 rules — including the fallback chain and DEFINED inconsistency — as
 verifiable invariants.
 
@@ -346,7 +346,7 @@ The Cache namespace is currently conflated with Variable in `yelu_cvar`:
 `Ycvar of cmake_name` covers both `set(FOO val)` (Variable) and `set(FOO val
 CACHE STRING "")` (Cache). These are distinct — cache entries survive cmake
 re-runs, can be overridden from the command line (`-DFOO=val`), and have
-different invalidation semantics (see `cmake_policy.md` for the interaction
+different invalidation semantics (see `policy.md` for the interaction
 with `cmake_minimum_required`). Separating them is deferred; the `Ns_unknown`
 tag above plays an analogous role as a reminder that the namespace is known to
 be distinct but not yet typed.

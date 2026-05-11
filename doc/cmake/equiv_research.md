@@ -11,7 +11,7 @@ mismatch with CMake's semantics.
 independent namespaces, finite iteration, a few opaque side-effectful commands).
 The key PL vocabulary — `src`, `input`, `env`, `build_spec`, `artifact`, and the
 actions `eval`, `compile`, `inspect`, `run` — is defined in
-`doc/cmake_comparison.md`, which also covers the equivalence levels (`src`,
+`comparison.md`, which also covers the equivalence levels (`src`,
 `interp`, `run`) and the test harness that operationalizes them. Read that first.
 
 The research gap: the test harness proves equivalence at one concrete input `i`.

@@ -115,19 +115,22 @@ Total unit: 655. Total cmake-backed: 40.
 | `doc/yelu_lang_design.md`            | Language design: staging, types, surface syntax     |
 | `doc/yelu_lang_coverage.md`          | cmake command coverage, 4-tier roadmap              |
 | `doc/yelu_concrete_syntax_parser.md` | Menhir grammar design for concrete syntax           |
-| `doc/cmake_painpoints.md`            | 27 documented cmake pain points                     |
-| `doc/cmake_comparison.md`            | cmake PL properties, equivalence levels             |
-| `doc/cmake_policy.md`                | cmake policy system, CMP* history                   |
-| `doc/cmake_genex.md`                 | Generator expressions design                        |
-| `doc/cmake_script.md`                | cmake -P script vs configure mode                   |
-| `doc/cmake_equiv_research.md`        | Z3 / e-graph equivalence research prompts           |
+| `doc/cmake/painpoints.md`            | 27 documented cmake pain points                     |
+| `doc/cmake/comparison.md`            | cmake PL properties, equivalence levels             |
+| `doc/cmake/policy.md`                | cmake policy system, CMP* history                   |
+| `doc/cmake/genex.md`                 | Generator expressions design                        |
+| `doc/cmake/script.md`                | cmake -P script vs configure mode                   |
+| `doc/cmake/cache_semantics.md`       | Cmake cache vs normal variable namespace            |
+| `doc/cmake/scope_and_control_flow.md` | Block / return / PARENT_SCOPE / macro semantics    |
+| `doc/cmake/equiv_research.md`        | Z3 / e-graph equivalence research prompts           |
 | `doc/yelu_beyond.md`                 | Multi-pack architecture, AI language stacks         |
 | `doc/yelu_research_framing.md`       | Benchmark design, contamination-aware eval          |
 | `doc/yelu_infra_test.md`             | Test harness, dune aliases, gotchas                 |
 | `doc/worklog_2026_04.md`             | Completed items (Y1, Y9, Y10)                       |
 | `doc/worklog_2026_05.md`             | yelu_tiny harness Tier A–F (Bar #1 + Bar #2)        |
-| `doc/yelu_theory_composition_design.md` | Durable design notes for yelu_tiny harness       |
-| `THEORY_COMPOSITION_PLAN.md`         | Short-lived tracker for yelu_tiny TODO              |
+| `doc/yelu_tiny/design.md`            | Durable design notes for yelu_tiny harness          |
+| `doc/yelu_tiny/structure.md`         | Code-anchored guide to the yelu_tiny modules        |
+| `doc/yelu_tiny/status.md`            | Living tracker: current open work for yelu_tiny     |
 
 ## Architecture
 
@@ -256,6 +259,7 @@ Numbers are stable (never renumbered). Priority order tracks `yelu_project_overv
 | Y14 | Reserved keyword validation   | Enumerate cmake keywords, warn on clashes                                                                                                                                                                                                                          |
 | Y15 | Binding feature library       | Design space of binding mechanisms — lexical vs global, immutable vs mutable, expression vs statement, name-as-syntax vs name-as-data. Current: `let` (lexical/immutable/expression) + `set` (global/mutable/statement). Future: named choices selectable per pack |
 | Y16 | Real-world cmake rewrite      | Rewrite z3/llvm/torch build in yelu, prove structural equivalence. Optimize yelu_cmake, prove optimized ≡ original |
+| Y17 | Types on yelu_tiny            | Post-retirement: retrofit a fresh typing pass onto tiny once yelu1↔cmake and yelu2↔yelu1 are stable. Replaces the abandoned R7 "carry production checker over" plan — the theory split gives type design real semantic ground (namespace separation, set-once vs mutable, identity per theory) instead of the shallow per-fragment Stage_typecheck. |
 
 ### Research (likely papers/material)
 

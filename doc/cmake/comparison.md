@@ -4,7 +4,7 @@ This document is the theory companion to `yelu_infra_test.md`. It grounds the
 yelu equivalence question in the properties of cmake as a language, defines the
 PL vocabulary, states what each equivalence level proves, and maps each level to
 the concrete test observations in the harness. For symbolic/SMT approaches to
-full equivalence see `cmake_equiv_research.md`.
+full equivalence see `equiv_research.md`.
 
 ---
 
@@ -84,7 +84,7 @@ test observable behavior, not text.
 **The fundamental gap**: both `interp` and `run` hold for a given concrete `i`.
 With n option variables there are 2^n inputs; none of these levels can prove
 equivalence for all configurations. Closing that gap requires symbolic methods;
-see `cmake_equiv_research.md`.
+see `equiv_research.md`.
 
 ---
 

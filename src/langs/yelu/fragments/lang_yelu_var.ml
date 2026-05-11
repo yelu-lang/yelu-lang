@@ -48,7 +48,7 @@ open Lang_yelu_type
    Future split.  The six constructors below mix three namespaces.  A clean
    split would move Yvar_option / Yvar_set_cache / Yvar_unset_cache into a
    separate `cache` theory owning the write-once semantics, the dual-write
-   behavior, and the persistence model.  See doc/cmake_cache_semantics.md.
+   behavior, and the persistence model.  See doc/cmake/cache_semantics.md.
    ============================================================ *)
 
 module Make_var_op (T : LANG_TYPES) = struct

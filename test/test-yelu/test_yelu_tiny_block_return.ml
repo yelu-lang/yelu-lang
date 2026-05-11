@@ -1,6 +1,6 @@
 (* Tests for cmake's block() / return() / set(PARENT_SCOPE) / macro
    semantics in yelu_tiny. Ports of the 24 probes documented in
-   doc/cmake_scope_and_control_flow.md.
+   doc/cmake/scope_and_control_flow.md.
 
    Each test constructs tiny IR directly (no bridge) and asserts the
    observable env state matches the verified cmake output. The tests

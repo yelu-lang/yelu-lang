@@ -340,7 +340,7 @@ let eval_case ~eval env = function
     in
     raise (Return_function { env_at_return = env; propagated })
   | ECmakeBlock { propagate; body; scope_vars = _ } ->
-    (* Per doc/cmake_scope_and_control_flow.md: push a frame; evaluate
+    (* Per doc/cmake/scope_and_control_flow.md: push a frame; evaluate
        body; on normal exit, [pop_frame ~propagate] merges the named
        var into the parent's locals (also handles the unset case via
        absence in the popped frame's locals). On unwinding via

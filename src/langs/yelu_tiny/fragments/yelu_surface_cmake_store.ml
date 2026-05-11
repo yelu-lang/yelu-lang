@@ -9,7 +9,7 @@ type expr +=
   (* [set(<var> <value>... PARENT_SCOPE)] — writes the value to the
      parent frame's locals, not the current frame. Tiny raises a
      dedicated [Eval_error] at the root frame (cmake silently no-ops).
-     See doc/cmake_scope_and_control_flow.md "Resolved decisions #1". *)
+     See doc/cmake/scope_and_control_flow.md "Resolved decisions #1". *)
   | ECmakeSetParentScope of { name : string; value : expr }
   (* Environment-variable namespace: [set(ENV{VAR} value)] /
      [unset(ENV{VAR})]. Tiny eval treats env vars as a no-op (we don't
@@ -18,7 +18,7 @@ type expr +=
   | ECmakeSetEnvVar of { name : string; value : expr }
   | ECmakeUnsetEnvVar of string
   (* [set(<var> <value>... CACHE <type> "<doc>" [FORCE])] — cache namespace
-     write. See doc/cmake_cache_semantics.md for the dual-write trap; tiny
+     write. See doc/cmake/cache_semantics.md for the dual-write trap; tiny
      emits faithfully but does not model the cache vs normal split (yet).
      Eval writes to the current frame's locals so subsequent reads work. *)
   | ECmakeSetCache of {
@@ -55,7 +55,7 @@ let eval_case env = function
     (* Cache write: store the value(s) in the current frame's locals
        so subsequent reads work. The dual-write semantics (first-write-
        wins across runs) is not modelled at this slice — see
-       doc/cmake_cache_semantics.md. *)
+       doc/cmake/cache_semantics.md. *)
     let data = match values with
       | [ EString s ] -> VString s
       | [ EBool b ] -> VBool b
