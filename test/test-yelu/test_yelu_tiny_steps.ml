@@ -1782,6 +1782,102 @@ let v2_tests_bridge =
                ~substring:"simpletest_discover_tests("))
     ] )
 
+(* R1c — CMakeOnly top-level programs. Each one comes from
+   [src/bin/yelu/<name>.ml]. The point of these tests is breadth:
+   does the program bridge at all, and does emit produce something
+   non-empty? Specific construct assertions are added when the test
+   surfaces a new constructor that R2 then needs to handle. *)
+
+let cmakeonly_bridge ~name ~description cmd =
+  ( name,
+    [
+      Alcotest.test_case description `Quick
+        (fun () ->
+          let yelu1 = Yelu_langs.Yelu_cmake_to_yelu1.stmt cmd in
+          let cmake_text =
+            Yelu_langs.Yelu_tiny_cmake_emit.emit_script yelu1
+          in
+          Alcotest.(check bool) "non-empty cmake output" true
+            (String.length cmake_text > 0))
+    ] )
+
+let project_include_bridge =
+  let open Yelu_langs.Lang_yelu_utils in
+  cmakeonly_bridge
+    ~name:"project_include_bridge"
+    ~description:"CMakeOnly/ProjectInclude bridges"
+    (ycmd_of_list
+       [ yc_project ~languages:[ Yelu_langs.Lang_cmake.Lang_none ] "ProjectInclude";
+         yifthen (ynot (ytruthy (ycstr "AUTO_INCLUDE")))
+           (yc_message ~mode:Mm_fatal_error [ "include file not found" ]);
+       ])
+
+let project_include_before_bridge =
+  let open Yelu_langs.Lang_yelu_utils in
+  cmakeonly_bridge
+    ~name:"project_include_before_bridge"
+    ~description:"CMakeOnly/ProjectIncludeBefore bridges"
+    (ycmd_of_list
+       [ yc_set (ycvar "FOO") [ ybool true ];
+         yc_project ~languages:[ Yelu_langs.Lang_cmake.Lang_none ] "ProjectInclude";
+         yifthen (ynot (ytruthy (ycstr "AUTO_INCLUDE")))
+           (yc_message ~mode:Mm_fatal_error [ "include file not found" ]);
+       ])
+
+let target_scope_bridge =
+  let open Yelu_langs.Lang_yelu_utils in
+  cmakeonly_bridge
+    ~name:"target_scope_bridge"
+    ~description:"CMakeOnly/TargetScope (top) bridges"
+    (ycmd_of_list
+       [ yc_minimum_required_s "3.10.";
+         yc_project "TargetScope";
+         yc_add_subdirectory (ystr "Sub");
+         yifthen (yis_target (ytval "SubLibLocal"))
+           (ycmd_of_list
+              [ yc_message ~mode:Mm_fatal_error
+                  [ "SubLibLocal visible in top directory" ] ]);
+         yifthen (ynot (yis_target (ytval "SubLibGlobal")))
+           (ycmd_of_list
+              [ yc_message ~mode:Mm_fatal_error
+                  [ "SubLibGlobal not visible in top directory" ] ]);
+         yc_add_subdirectory (ystr "Sib");
+       ])
+
+let target_scope_sib_bridge =
+  let open Yelu_langs.Lang_yelu_utils in
+  cmakeonly_bridge
+    ~name:"target_scope_sib_bridge"
+    ~description:"CMakeOnly/TargetScope/Sib bridges"
+    (ycmd_of_list
+       [ yifthen (yis_target (ytval "SubLibLocal"))
+           (ycmd_of_list
+              [ yc_message ~mode:Mm_fatal_error
+                  [ "SubLibLocal visible in sibling directory" ] ]);
+         yifthen (ynot (yis_target (ytval "SubLibGlobal")))
+           (ycmd_of_list
+              [ yc_message ~mode:Mm_fatal_error
+                  [ "SubLibGlobal not visible in sibling directory" ] ]);
+       ])
+
+let fetch_content_bridge =
+  let open Yelu_langs.Lang_yelu_utils in
+  cmakeonly_bridge
+    ~name:"fetch_content_bridge"
+    ~description:"CMakeOnly/FetchContent (apply-based) bridges"
+    (ycmd_of_list
+       [ yc_minimum_required_s "3.14.";
+         yc_project "FetchContentExample";
+         yc_include (yfile "FetchContent");
+         yc_apply (ystr "FetchContent_Declare")
+           [ ystr "googletest";
+             ykeyword "GIT_REPOSITORY";
+             ystr "https://github.com/google/googletest.git";
+             ykeyword "GIT_TAG"; ystr "v1.14.0";
+             ykeyword "EXCLUDE_FROM_ALL" ];
+         yc_apply (ystr "FetchContent_MakeAvailable") [ ystr "googletest" ];
+       ])
+
 let () =
   Alcotest.run "yelu_tiny_steps"
     [
@@ -1821,4 +1917,9 @@ let () =
       v2_simpletest_bridge;
       v2_tutorial_exe_bridge;
       v2_tests_bridge;
+      project_include_bridge;
+      project_include_before_bridge;
+      target_scope_bridge;
+      target_scope_sib_bridge;
+      fetch_content_bridge;
     ]
