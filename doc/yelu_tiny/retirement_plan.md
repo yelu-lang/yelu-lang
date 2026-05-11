@@ -293,11 +293,28 @@ has two active producers of `Lang_yelu_cmake` AST:
 
 To retire the bridge, exactly one of these has to go:
 
-- **Option E-utils** — rewrite `Lang_yelu_utils` (in
-  `yelu_legacy/`) so its constructors produce Yelu1 IR directly
-  instead of `Lang_yelu_cmake` AST. Step files keep their
-  ergonomic shape; only the back-end of `Lang_yelu_utils`
-  changes. Sized at ~50 helper functions to repoint.
+- **Option E-utils** — write a new `Yelu_cmake_ir_utils` module in
+  `src/langs/yelu/` whose helpers produce Yelu1 IR (`expr`) directly,
+  parallel to `Lang_yelu_utils` (in `yelu_legacy/`) which produces
+  legacy AST. Step files swap `open Yelu_langs.Lang_yelu_utils` for
+  `open Yelu_langs.Yelu_cmake_ir_utils` and emit directly without
+  the bridge. Sized at ~70 helpers + `step_common.ml` re-typing.
+  **Initial pilot attempt (2026-05-11) rolled back** — the
+  "mimicking" was less 1:1 than expected because the IR uses
+  string-encoded enums where the legacy AST uses typed enums
+  (`Lang_cmake.message_mode` → `string`, `command_error_if` already
+  `string option`, `Sa_unix_command` not `Sa_unix`,
+  `Mm_configure_log` doesn't exist, etc.) and several IR field
+  names differ subtly from the legacy ones (`var` → `loop_var`,
+  property/test ctors organized differently). Lesson: each helper
+  needs a per-ctor lookup against fragment files and the bridge's
+  string-conversion helpers (`string_of_version`,
+  `string_of_message_mode`, `string_of_supported_lang`); none of
+  this is hard, but ~70 helpers × per-ctor lookup adds up. Re-use
+  the bridge's enum→string helpers (they're top-level lets, public
+  via `Yelu_cmake_legacy_bridge`) rather than re-implementing each.
+  Plan for a focused session: read the bridge's per-family case
+  expressions first, write each helper as the inverse mapping.
 - **Option E-source** — rewrite step files as `.ye` source
   consumed by `Yelu_parse` (the renamed `Yelu_parse_y1`). More
   invasive but ends with one production parser as the source of
