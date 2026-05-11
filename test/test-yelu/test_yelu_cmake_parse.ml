@@ -434,10 +434,33 @@ let tier0_var_y1 = ("t0-var-y1", [
   assert_parse_y1_equiv "y1: multi-value :="   "( FLAGS := \"-Wall\", \"-Wextra\" )";
 ])
 
+(* Phase 2a pair-wise oracle for the string family. Mirrors tier2_string
+   inputs (~17 cases) through both parser paths. Where the parser
+   matches the legacy, both sides should produce byte-identical text. *)
+let tier2_string_y1 = ("t2-string-y1", [
+  assert_parse_y1_equiv "y1: concat"            "( string_concat ~out:out_var 'a' 'b' )";
+  assert_parse_y1_equiv "y1: join"              "( string_join ';' ~out:out_var 'a' 'b' )";
+  assert_parse_y1_equiv "y1: toupper"           "( string_toupper 'hello' )";
+  assert_parse_y1_equiv "y1: tolower"           "( string_tolower 'HELLO' )";
+  assert_parse_y1_equiv "y1: length"            "( string_length 'hello' )";
+  assert_parse_y1_equiv "y1: replace"           "( string_replace 'old' 'new' 'input' )";
+  assert_parse_y1_equiv "y1: regex_match"       "( string_regex_match 'p.*' 'input' )";
+  assert_parse_y1_equiv "y1: find"              "( string_find 'sub' 'haystack' )";
+  assert_parse_y1_equiv "y1: timestamp"         "( string_timestamp )";
+  assert_parse_y1_equiv "y1: hex"               "( string_hex 'abc' )";
+  assert_parse_y1_equiv "y1: make_c_identifier" "( string_make_c_identifier 'my var' )";
+  assert_parse_y1_equiv "y1: toupper ~out"       "( string_toupper 'hello' ~out:OUT )";
+  assert_parse_y1_equiv "y1: toupper ~out first" "( string_toupper ~out:OUT 'hello' )";
+  assert_parse_y1_equiv "y1: concat ~out only"   "( string_concat ~out:OUT )";
+  assert_parse_y1_equiv "y1: tolower ~out"       "( string_tolower 'HELLO' ~out:OUT )";
+  assert_parse_y1_equiv "y1: hex ~out"           "( string_hex 'abc' ~out:OUT )";
+  assert_parse_y1_equiv "y1: length ~out"        "( string_length 'hello' ~out:OUT )";
+])
+
 let () =
   Alcotest.run "Yelu Parser" [
     tier0_control; tier0_cond; tier0_var; tier0_var_y1; tier0_cmake_op;
     tier0_target; tier0_dir; tier0_file; tier0_scripting; tier0_full;
-    tier1_target; tier2_string; tier3_list; tier4_file; tier5_path;
+    tier1_target; tier2_string; tier2_string_y1; tier3_list; tier4_file; tier5_path;
     tier6_find_install; tier7_scripting; tier8_misc; tier_remaining; tier9_genex;
   ]

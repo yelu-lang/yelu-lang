@@ -197,15 +197,155 @@ let p_var_stmt_y1 toks =
   match p_option_command_y1 toks with Some r -> Some r | None ->
   p_unset_cache_command_y1 toks
 
+(* ============================================================
+   Command + kwargs collector — duplicated from
+   [Lang_yelu_parse.p_command]'s argument-loop. Collects positional
+   args (as Yelu1 expr) and `~name:value` kwargs (as a name → expr
+   alist) until it hits a parser-stopping token.
+   ============================================================ *)
+
+let rec collect_command_args args kwargs toks =
+  match toks with
+  | TILDE :: IDENT kw :: COLON :: rest ->
+    (match p_expr_y1 rest with
+     | Some (v, r) -> collect_command_args args ((kw, v) :: kwargs) r
+     | None -> (List.rev args, List.rev kwargs, toks))
+  | TILDE :: IDENT kw :: KEYWORD v :: rest ->
+    collect_command_args args ((kw, EVar v) :: kwargs) rest
+  | TILDE :: IDENT kw :: rest ->
+    collect_command_args args ((kw, EBool true) :: kwargs) rest
+  | (RPAREN :: _) | (SEMI :: _) | [] ->
+    (List.rev args, List.rev kwargs, toks)
+  | _ ->
+    (match p_expr_y1 toks with
+     | Some (e, r) -> collect_command_args (e :: args) kwargs r
+     | None -> (List.rev args, List.rev kwargs, toks))
+
+(* Match legacy [Lang_yelu_parse.out_var] sentinel: "?" when ~out
+   missing. Some parser tests omit ~out and rely on this fallback;
+   the pair-wise oracle requires byte-identical text. *)
+let out_var_y1 kwargs =
+  match List.Assoc.find kwargs ~equal:String.equal "out" with
+  | Some (EVar name) -> name
+  | Some (EString name) -> name
+  | _ -> "?"
+
+(* ============================================================
+   String-family statement parsers. The legacy parser dispatches a
+   single [p_command] on the command name into [Ys_string (Ystr_*
+   { ... })]; the bridge then maps each Ystr_* to ECmakeString*.
+   Here we collapse both steps: dispatch in the new parser straight
+   to ECmakeString*.
+
+   For commands that take an integer arg (substring, repeat), the
+   parser extracts the int from an EString value (since p_expr_y1
+   currently converts INT to EString — matching the legacy behavior).
+   ============================================================ *)
+
+let expr_to_int_y1 e =
+  match e with
+  | EString s -> (try Int.of_string s with _ -> 0)
+  | EInt n -> n
+  | _ -> 0
+
+let p_string_command_y1_inner name args kwargs =
+  let out = out_var_y1 kwargs in
+  match name, args with
+  | "string_toupper", [ s ] ->
+    Some (ECmakeStringToupper { input = s; out })
+  | "string_tolower", [ s ] ->
+    Some (ECmakeStringTolower { input = s; out })
+  | "string_length", [ s ] ->
+    Some (ECmakeStringLength { input = s; out })
+  | "string_strip", [ s ] ->
+    Some (ECmakeStringStrip { input = s; out })
+  | "string_concat", inputs ->
+    Some (ECmakeStringConcat { inputs; out })
+  | "string_replace", [ m; r; input ] ->
+    Some (ECmakeStringReplace { match_ = m; replace = r; input; out })
+  | "string_regex_match", [ EString re; input ]
+  | "string_regex_match", [ EVar re; input ] ->
+    Some (ECmakeStringRegexMatch { regex = re; out; inputs = [ input ] })
+  | "string_regex_matchall", [ EString re; input ]
+  | "string_regex_matchall", [ EVar re; input ] ->
+    Some (ECmakeStringRegexMatchAll { regex = re; out; inputs = [ input ] })
+  | "string_regex_replace", [ EString re; repl; input ]
+  | "string_regex_replace", [ EVar re; repl; input ] ->
+    Some (ECmakeStringRegexReplace
+            { regex = re; replace = repl; out; inputs = [ input ] })
+  | "string_regex_quote", inputs ->
+    Some (ECmakeStringRegexQuote { out; inputs })
+  | "string_join", glue :: inputs ->
+    Some (ECmakeStringJoin { glue; out; inputs })
+  | "string_find", [ sub; s ] ->
+    Some (ECmakeStringFind
+            { string = s; substring = sub; out; reverse = false })
+  | "string_timestamp", [] ->
+    Some (ECmakeStringTimestamp { out; format = None; utc = false })
+  | "string_hex", [ s ] ->
+    Some (ECmakeStringHex { input = s; out })
+  | "string_make_c_identifier", [ s ] ->
+    Some (ECmakeStringMakeCIdentifier { input = s; out })
+  | "string_genex_strip", [ s ] ->
+    Some (ECmakeStringGenexStrip { input = s; out })
+  | "string_substring", [ s; b; l ] ->
+    let begin_ = expr_to_int_y1 b in
+    let length = match l with
+      | EString "-1" | EInt -1 -> None
+      | _ -> Some (expr_to_int_y1 l)
+    in
+    Some (ECmakeStringSubstring { string = s; begin_; length; out })
+  | "string_repeat", [ s; c ] ->
+    Some (ECmakeStringRepeat { string = s; count = expr_to_int_y1 c; out })
+  | "string_append", EVar cvar :: inputs
+  | "string_append", EString cvar :: inputs ->
+    Some (ECmakeStringAppend { cvar; inputs })
+  | "string_prepend", EVar cvar :: inputs
+  | "string_prepend", EString cvar :: inputs ->
+    Some (ECmakeStringPrepend { cvar; inputs })
+  | "string_compare", [ EString op; s1; s2 ]
+  | "string_compare", [ EVar op; s1; s2 ] ->
+    Some (ECmakeStringCompare { op; string1 = s1; string2 = s2; out })
+  | "string_uuid", [] ->
+    Some (ECmakeStringUuid
+            { out; namespace = ""; name = ""; type_ = "MD5"; upper = false })
+  | "string_json", op :: rest ->
+    let op_name = match op with EString s | EVar s -> s | _ -> "JSON_op" in
+    Some (ECmakeStringJson
+            { out; error_var = None; op_name; args = rest })
+  | _ -> None
+
+let p_string_command_y1 toks =
+  match lparen toks with
+  | None -> None
+  | Some ((), toks) ->
+    match toks with
+    | IDENT name :: rest when String.is_prefix name ~prefix:"string_" ->
+      let args, kwargs, rest = collect_command_args [] [] rest in
+      (match p_string_command_y1_inner name args kwargs with
+       | None -> None
+       | Some e ->
+         (match rparen rest with
+          | Some ((), rest) -> Some (e, rest)
+          | None -> None))
+    | _ -> None
+
 (* Outer block: `( <stmt> ... )`. Mirrors [Lang_yelu_parse.p_block]
-   semicolon-separated semantics and the single-stmt collapse. For the
-   pilot, only var-family stmts are recognized inside the block. *)
-let p_block_y1 toks =
+   semicolon-separated semantics and the single-stmt collapse. As
+   Phase 2a families are migrated, the block accepts any family-
+   recognized statement; non-recognized inputs make the parser fail
+   (the legacy parser handles them via its full grammar). *)
+let rec p_stmt_inner_y1 toks =
+  match p_string_command_y1 toks with Some r -> Some r | None ->
+  match p_var_stmt_y1 toks with Some r -> Some r | None ->
+  p_block_y1 toks
+
+and p_block_y1 toks =
   match lparen toks with
   | None -> None
   | Some ((), toks) ->
     let rec collect toks =
-      match p_var_stmt_y1 toks with
+      match p_stmt_inner_y1 toks with
       | None -> Some ([], toks)
       | Some (s, rest) ->
         let rest = match rest with SEMI :: r -> r | _ -> rest in
@@ -222,9 +362,7 @@ let p_block_y1 toks =
        Some (result, rest)
      | _ -> None)
 
-let p_stmt_y1 toks =
-  match p_block_y1 toks with Some r -> Some r | None ->
-  p_var_stmt_y1 toks
+let p_stmt_y1 = p_stmt_inner_y1
 
 (* ============================================================
    Entry points
