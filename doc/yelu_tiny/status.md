@@ -5,18 +5,18 @@ code-anchored module guide in `structure.md`, history in
 `../worklog_2026_04.md` / `../worklog_2026_05.md`.
 
 **Last verified 2026-05-11:** `dune build && dune test` green
-(806 unit tests); byte-equality oracle covers 194/194 production
-programs with 0 uncovered, 0 skipped. Parser tests (238 incl. 68
+(816 unit tests); byte-equality oracle covers 194/194 production
+programs with 0 uncovered, 0 skipped. Parser tests (248 incl. 78
 Phase 2a pair-wise: 3 var + 17 string + 14 list + 9 path + 11 file
-+ 8 target + 6 dir) all flow through emit_ast without falling back
-to direct emit. `make runcmake-yelu` green (50/50 pairs).
-Retirement Phase 1 done. Phase 2 warm-up trio landed. Phase 2a
-covers var + string + list + path + file + target + dir via separate
-Yelu1 parser (`Yelu_parse_y1`); pair-wise oracle agrees byte-for-byte
-on all 68 covered tests. Legacy-parser bug surfaced for
-`( set NAME val )` form (omitted from oracle; deferred). Remaining
-families: cmake_op, property, find, install, test (+ test parser
-covered but no oracle yet).
++ 8 target + 6 dir + 7 find/install + 3 property) all flow through
+emit_ast without falling back to direct emit. `make runcmake-yelu`
+green (50/50 pairs). Retirement Phase 1 done. Phase 2 warm-up trio
+landed. Phase 2a covers var + string + list + path + file + target +
+dir + property + find + install via separate Yelu1 parser
+(`Yelu_parse_y1`); pair-wise oracle agrees byte-for-byte on all 78
+covered tests. Legacy-parser bug surfaced for `( set NAME val )` form
+(omitted from oracle; deferred). Remaining family: cmake_op
+(project, message, control flow, function/macro/apply, math, etc.).
 
 ## What's done
 

@@ -44,6 +44,9 @@ open Yelu_theory_target
 open Yelu_surface_cmake_target
 open Yelu_surface_cmake_dir
 open Yelu_surface_cmake_test
+open Yelu_surface_cmake_property
+open Yelu_surface_cmake_find
+open Yelu_surface_cmake_install
 
 (* ============================================================
    Combinator primitives — duplicated from Lang_yelu_parse.
@@ -792,6 +795,179 @@ let p_test_command_y1 toks =
           | None -> None))
     | _ -> None
 
+(* ============================================================
+   Property family — get/set_target_property, set_property,
+   {get,set}_{directory,global,source,tests}_property.
+
+   Legacy parser defaults the property name to "PROP" when not
+   parsed; mirror this for byte-equality.
+   ============================================================ *)
+
+let p_property_command_y1_inner name args kwargs =
+  let out = out_var_y1 kwargs in
+  match name, args with
+  | "get_target_property", [ tgt ] ->
+    Some (ECmakeGetProperty
+            { var = out; target = tgt; property = "PROP"; set_form = false })
+  | "set_target_properties", [ _tgt ] ->
+    (* Legacy parser produces empty properties; bridge emits
+       [ESeq []] which renders as empty text. *)
+    Some (ESeq [])
+  | "set_property", targets ->
+    Some (ECmakeSetProperty
+            { targets; append = false; properties = [] })
+  | "get_directory_property", [] ->
+    Some (ECmakeGetDirectoryProperty { var = out; property = "PROP" })
+  | "set_directory_property", [] ->
+    Some (ECmakeSetDirectoryProperty
+            { property = "PROP"; append = false; values = [] })
+  | "set_test_properties", [ test ] ->
+    Some (ECmakeSetTestsProperties
+            { tests = [ test ]; properties = [] })
+  | "set_source_property", [ file ] ->
+    Some (ECmakeSetSourceProperty
+            { file; property = "PROP"; values = [] })
+  | "set_global_property", [] ->
+    Some (ECmakeSetGlobalProperty { properties = [] })
+  | "get_global_property", [] ->
+    Some (ECmakeGetGlobalProperty { var = out; property = "PROP" })
+  | _ -> None
+
+let p_property_command_y1 toks =
+  match lparen toks with
+  | None -> None
+  | Some ((), toks) ->
+    match toks with
+    | IDENT name :: rest
+      when (match name with
+            | "get_target_property" | "set_target_properties"
+            | "set_property"
+            | "get_directory_property" | "set_directory_property"
+            | "set_test_properties"
+            | "set_source_property"
+            | "set_global_property" | "get_global_property" -> true
+            | _ -> false) ->
+      let args, kwargs, rest = collect_command_args [] [] rest in
+      (match p_property_command_y1_inner name args kwargs with
+       | None -> None
+       | Some e ->
+         (match rparen rest with
+          | Some ((), rest) -> Some (e, rest)
+          | None -> None))
+    | _ -> None
+
+(* ============================================================
+   Find family — find_package, find_library/path/program/file.
+   Legacy parser defaults names/paths/hints lists to empty.
+   ============================================================ *)
+
+let p_find_command_y1_inner name args _kwargs =
+  let cvar_name = function
+    | EVar n -> n
+    | EString n -> n
+    | ETarget n -> n
+    | _ -> "?"
+  in
+  let str_name = function
+    | EString s | EVar s -> s
+    | _ -> ""
+  in
+  match name, args with
+  | "find_package", [ pkg ] ->
+    Some (ECmakeFindPackage
+            { package_name = str_name pkg;
+              version = None; exact = false; quiet = false;
+              config_mode = false; required = false;
+              components = []; optional_components = [] })
+  | "find_library", [ cvar ] ->
+    Some (ECmakeFindLibrary
+            { out = cvar_name cvar;
+              names = []; paths = []; hints = []; required = false })
+  | "find_path", [ cvar ] ->
+    Some (ECmakeFindPath
+            { out = cvar_name cvar;
+              names = []; paths = []; hints = []; required = false })
+  | "find_program", [ cvar ] ->
+    Some (ECmakeFindProgram
+            { out = cvar_name cvar;
+              names = []; paths = []; hints = []; required = false })
+  | "find_file", [ cvar ] ->
+    Some (ECmakeFindFile
+            { out = cvar_name cvar;
+              names = []; paths = []; hints = []; required = false })
+  | _ -> None
+
+let p_find_command_y1 toks =
+  match lparen toks with
+  | None -> None
+  | Some ((), toks) ->
+    match toks with
+    | IDENT name :: rest
+      when String.is_prefix name ~prefix:"find_" ->
+      let args, kwargs, rest = collect_command_args [] [] rest in
+      (match p_find_command_y1_inner name args kwargs with
+       | None -> None
+       | Some e ->
+         (match rparen rest with
+          | Some ((), rest) -> Some (e, rest)
+          | None -> None))
+    | _ -> None
+
+(* ============================================================
+   Install family — install_targets / install_files / install_export
+   / export / configure_package_config_file /
+   write_basic_package_version_file.
+
+   For install_targets and install_files the legacy parser uses
+   [record_args] (from a `{ ... }` brace form) for the targets/files
+   list. Without a brace form (the common case in parser tests),
+   that's empty.
+   ============================================================ *)
+
+let p_install_command_y1_inner name args _kwargs =
+  match name, args with
+  | "install_targets", [ destination ] ->
+    Some (ECmakeInstallTargets
+            { targets = []; destination; export = None })
+  | "install_files", [ destination ] ->
+    Some (ECmakeInstallFiles { files = []; destination })
+  | "install_export", [ export; destination ] ->
+    Some (ECmakeInstallExport
+            { file = None; export; destination; namespace = None })
+  | "export", [ name_arg ] ->
+    Some (ECmakeExportExport { name = name_arg; file = None })
+  | "configure_package_config_file", [ dest; input; output ] ->
+    Some (ECmakeConfigurePackageConfigFile
+            { install_dest = dest; input; output;
+              no_set_and_check_macro = false;
+              no_check_required_components_macro = false })
+  | "write_basic_package_version_file", [ file ] ->
+    Some (ECmakeWriteBasicPackageVersionFile
+            { file; version = None;
+              compatibility = "AnyNewerVersion";
+              arch_independent = false })
+  | _ -> None
+
+let p_install_command_y1 toks =
+  match lparen toks with
+  | None -> None
+  | Some ((), toks) ->
+    match toks with
+    | IDENT name :: rest
+      when (match name with
+            | "install_targets" | "install_files" | "install_export"
+            | "export" | "configure_package_config_file"
+            | "write_basic_package_version_file" -> true
+            | _ -> false) ->
+      let args, kwargs, rest = collect_command_args [] [] rest in
+      (match p_install_command_y1_inner name args kwargs with
+       | None -> None
+       | Some e ->
+         (match rparen rest with
+          | Some ((), rest) -> Some (e, rest)
+          | None -> None))
+    | _ -> None
+
 (* Outer block: `( <stmt> ... )`. Mirrors [Lang_yelu_parse.p_block]
    semicolon-separated semantics and the single-stmt collapse. As
    Phase 2a families are migrated, the block accepts any family-
@@ -805,6 +981,9 @@ let rec p_stmt_inner_y1 toks =
   match p_target_command_y1 toks with Some r -> Some r | None ->
   match p_dir_command_y1 toks with Some r -> Some r | None ->
   match p_test_command_y1 toks with Some r -> Some r | None ->
+  match p_property_command_y1 toks with Some r -> Some r | None ->
+  match p_find_command_y1 toks with Some r -> Some r | None ->
+  match p_install_command_y1 toks with Some r -> Some r | None ->
   match p_var_stmt_y1 toks with Some r -> Some r | None ->
   p_block_y1 toks
 

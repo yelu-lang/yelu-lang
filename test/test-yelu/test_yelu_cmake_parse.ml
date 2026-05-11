@@ -434,6 +434,26 @@ let tier0_var_y1 = ("t0-var-y1", [
   assert_parse_y1_equiv "y1: multi-value :="   "( FLAGS := \"-Wall\", \"-Wextra\" )";
 ])
 
+(* Phase 2a pair-wise oracle for find / install / property families. *)
+let tier6_find_install_y1 = ("t6-find-install-y1", [
+  assert_parse_y1_equiv "y1: find_library" "( find_library VAR ~names:\"m\" ~paths:\"/usr/lib\" )";
+  assert_parse_y1_equiv "y1: find_path"    "( find_path VAR ~names:\"foo.h\" )";
+  assert_parse_y1_equiv "y1: find_program" "( find_program VAR ~names:\"git\" )";
+  assert_parse_y1_equiv "y1: find_file"    "( find_file VAR ~names:\"config\" )";
+  assert_parse_y1_equiv "y1: install_targets" "( install_targets \"lib\" )";
+  assert_parse_y1_equiv "y1: install_files"   "( install_files \"include\" )";
+  assert_parse_y1_equiv "y1: install_export"  "( install_export EXP \"lib/cmake\" )";
+])
+
+let tier8_misc_y1 = ("t8-misc-y1", [
+  assert_parse_y1_equiv "y1: get_target_property"
+    "( get_target_property Target Foo ~out:VAR )";
+  assert_parse_y1_equiv "y1: set_target_properties"
+    "( set_target_properties Target Foo )";
+  assert_parse_y1_equiv "y1: set_property"
+    "( set_property Target Foo )";
+])
+
 (* Phase 2a pair-wise oracle for the dir family. *)
 let tier0_dir_y1 = ("t0-dir-y1", [
   assert_parse_y1_equiv "y1: add_subdirectory"        "( add_subdirectory \"MathFunctions\" )";
@@ -533,5 +553,6 @@ let () =
     tier0_target; tier0_target_y1; tier0_dir; tier0_dir_y1; tier0_file; tier0_scripting; tier0_full;
     tier1_target; tier2_string; tier2_string_y1; tier3_list; tier3_list_y1;
     tier4_file; tier4_file_y1; tier5_path; tier5_path_y1;
-    tier6_find_install; tier7_scripting; tier8_misc; tier_remaining; tier9_genex;
+    tier6_find_install; tier6_find_install_y1;
+    tier7_scripting; tier8_misc; tier8_misc_y1; tier_remaining; tier9_genex;
   ]
