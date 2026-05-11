@@ -7,8 +7,8 @@ The plan for moving production lowering off the legacy
 
 ## Status (2026-05-11)
 
-**Phase 1 done; Phase 2a + 2c structural move done; remaining open work
-renumbered A–E below.**
+**Phase 1 done; Phase 2a + 2c structural move done; item A done;
+items B–E open.**
 
 - Production text generation routes through
   `Yelu1 → emit_ast → Lang_cmake.exp → cmake_pp`.
@@ -209,36 +209,22 @@ Consolidated history; commit refs in parens.
   `src/langs/yelu_legacy/`. dune `(include_subdirs unqualified)` kept
   module names stable, so no source-import updates. Parser + lexer
   remain in `src/langs/yelu/` as the production entry.
+- **Item A — direct-parser gap list closed (d6b26e9).** `try_compile`
+  / `try_run` added with `t7-try-y1` pair-wise oracle. 27 previously
+  legacy-only cases promoted into `t-remaining-y1` pair-wise group
+  (parser tests 263 → 291). Four bridge shape gaps explicitly
+  deferred — no production caller hits them today (string
+  comparison conds beyond equality, `EXCLUDE_FROM_ALL`,
+  multi-target `target_link_libraries`,
+  `add_custom_command(TARGET ...)`). Legacy-compat defaults in
+  `Yelu_parse_y1` documented in the file-level comment. Three legacy
+  parser bug shapes (`set NAME val`, `policy_set "CMPxxxx"`,
+  `cmake_call "myfn"`) omitted from oracle with explanatory
+  comments; legacy fix deferred.
 
 ## Open
 
 Letter scheme so future additions don't disturb existing numbering.
-
-### A — Close the direct-parser gap list
-
-`Yelu_parse_y1` is broad enough to cover all 12 families, but it is
-still a parallel parser. Before flipping the production switch onto it,
-either close or explicitly defer each gap below:
-
-- Add direct parser + pair-wise oracle cases for `try_compile` /
-  `try_run` (surface, bridge, eval, and emit already exist).
-- Keep opaque `$<...>` as `ECmakeGenex` for now; first-class genex
-  constructors are item B.
-- Decide support-or-defer for each remaining bridge shape gap:
-  - string comparison conds beyond equality (`STRLESS`, `STRGREATER`,
-    `STRLESS_EQUAL`, `STRGREATER_EQUAL`),
-  - `EXCLUDE_FROM_ALL` on `add_executable` / `add_library`,
-  - multi-target `target_link_libraries`,
-  - `add_custom_command(TARGET ...)`.
-- Make the pair-wise oracle cover every direct-parser family intended
-  for the production switch (not only representative examples).
-- Document legacy-compatible defaults embedded in `Yelu_parse_y1`
-  (`"?"` out-var fallback, integer fallback to `0`, empty property /
-  find / install defaults) so they are not mistaken for final language
-  semantics.
-- Two legacy parser bugs surfaced by the oracle (`( set NAME val )`
-  and `( policy_set "CMPxxxx" )`): fix in legacy parser or accept the
-  gap explicitly.
 
 ### B — R3 genex theory (first-class)
 
@@ -347,8 +333,7 @@ equivalence claim stays byte-level.
 ## Sequencing summary
 
 ```
-done:       warm-up trio  →  Phase 1 (emit_ast)  →  Phase 2a (Yelu_parse_y1, 12 families)  →  Phase 2c (legacy move)
-open A:     close direct-parser gap list (try_compile coverage, oracle completeness, defaults documented)
+done:       warm-up trio  →  Phase 1 (emit_ast)  →  Phase 2a (Yelu_parse_y1, 12 families)  →  Phase 2c (legacy move)  →  A (direct-parser gap list closed)
 open B:     R3 genex first slice (parser owns it; constructors graduate from opaque strings)
 open C:     repoint binary callers in src/bin/yelu/* off Lang_yelu_compile
 open D:     naming honesty rename — yelu_tiny → yelu, naming aligned with surface vs cmake vs legacy

@@ -32,7 +32,37 @@
 
    Helpers are duplicated from [Lang_yelu_parse] rather than imported,
    to keep the migration unit self-contained and to make the eventual
-   retirement of the legacy parser straightforward. *)
+   retirement of the legacy parser straightforward.
+
+   === Legacy-compatible defaults ===
+
+   Several helpers in this file hard-code placeholder values to keep
+   the pair-wise oracle byte-identical against the legacy parser. They
+   are intentional retention of legacy behavior, not final language
+   design. A post-retirement pass should replace each with either a
+   required keyword arg or an explicit syntactic form.
+
+   - [out_var_y1]              → "?" sentinel when ~out missing.
+   - [cvar_name_of_y1]         → "?" sentinel for non-name positions.
+   - [expr_to_int_y1]          → 0 on parse failure (math, list index).
+   - [string_uuid]             → namespace="ns", name="n" placeholders
+                                 when keyword args missing.
+   - [string_compare] (2-arg)  → op="EQUAL" default (legacy Sco_equal).
+   - [cmake_minimum_required]  → "3.20" version fallback.
+   - [project]                 → "Project" name fallback.
+   - [policy_set]              → "" id fallback (also a legacy bug
+                                 shape: only Ycs_string matches the
+                                 id field).
+   - find_*/install_*          → empty list defaults for unsupplied
+                                 keyword args (paths, hints, etc.).
+
+   The legacy-parser bug shapes — `( set NAME val )`, `( policy_set
+   "CMPxxxx" )`, `( cmake_call "myfn" )` — narrow the matched
+   constructor to [Yexpr_string (Ycs_string _)] and fall through for
+   double-quoted / Ycs_path inputs, emitting "" or "?". The new
+   parser handles all three via [str_of]; the cases are documented
+   inline and omitted from the pair-wise oracle until the legacy
+   parser is fixed separately. *)
 
 open Base
 open Lang_yelu_lexer
