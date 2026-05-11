@@ -434,6 +434,52 @@ let tier0_var_y1 = ("t0-var-y1", [
   assert_parse_y1_equiv "y1: multi-value :="   "( FLAGS := \"-Wall\", \"-Wextra\" )";
 ])
 
+(* Phase 2a pair-wise oracle for the file family. *)
+let tier4_file_y1 = ("t4-file-y1", [
+  assert_parse_y1_equiv "y1: read"              "( file_read \"f.txt\" ~out:OUT )";
+  assert_parse_y1_equiv "y1: write"             "( file_write \"f.txt\" 'content' )";
+  assert_parse_y1_equiv "y1: glob"              "( file_glob ~out:OUT \"*.cxx\" )";
+  assert_parse_y1_equiv "y1: copy"              "( file_copy \"src\" \"dst\" )";
+  assert_parse_y1_equiv "y1: rename"            "( file_rename \"old\" \"new\" )";
+  assert_parse_y1_equiv "y1: remove"            "( file_remove \"f.txt\" )";
+  assert_parse_y1_equiv "y1: real_path"         "( file_real_path \"f.txt\" ~out:OUT )";
+  assert_parse_y1_equiv "y1: size"              "( file_size \"f.txt\" ~out:OUT )";
+  assert_parse_y1_equiv "y1: timestamp"         "( file_timestamp \"f.txt\" ~out:OUT )";
+  assert_parse_y1_equiv "y1: make_directory"    "( file_make_directory \"dir\" )";
+  assert_parse_y1_equiv "y1: touch"             "( file_touch \"f.txt\" )";
+])
+
+(* Phase 2a pair-wise oracle for the path family. *)
+let tier5_path_y1 = ("t5-path-y1", [
+  assert_parse_y1_equiv "y1: get"                     "( path_get PV ~out:OUT )";
+  assert_parse_y1_equiv "y1: has"                     "( path_has PV ~out:OUT )";
+  assert_parse_y1_equiv "y1: is_absolute"             "( path_is_absolute PV ~out:OUT )";
+  assert_parse_y1_equiv "y1: is_relative"             "( path_is_relative PV ~out:OUT )";
+  assert_parse_y1_equiv "y1: set"                     "( path_set PV \"/tmp\" )";
+  assert_parse_y1_equiv "y1: append"                  "( path_append PV \"sub\" )";
+  assert_parse_y1_equiv "y1: compare"                 "( path_compare P1 P2 ~out:OUT )";
+  assert_parse_y1_equiv "y1: hash"                    "( path_hash PV ~out:OUT )";
+  assert_parse_y1_equiv "y1: get_filename_component"  "( get_filename_component \"file.txt\" ~out:OUT )";
+])
+
+(* Phase 2a pair-wise oracle for the list family. *)
+let tier3_list_y1 = ("t3-list-y1", [
+  assert_parse_y1_equiv "y1: append"             "( list_append MYLIST 'a' 'b' )";
+  assert_parse_y1_equiv "y1: length"             "( list_length MYLIST ~out:LEN )";
+  assert_parse_y1_equiv "y1: get"                "( list_get MYLIST 1 ~out:VAL )";
+  assert_parse_y1_equiv "y1: remove_item"        "( list_remove_item MYLIST 'a' )";
+  assert_parse_y1_equiv "y1: remove_duplicates"  "( list_remove_duplicates MYLIST )";
+  assert_parse_y1_equiv "y1: reverse"            "( list_reverse MYLIST )";
+  assert_parse_y1_equiv "y1: sort"               "( list_sort MYLIST )";
+  assert_parse_y1_equiv "y1: join"               "( list_join MYLIST ';' ~out:RESULT )";
+  assert_parse_y1_equiv "y1: find"               "( list_find MYLIST 'needle' ~out:IDX )";
+  assert_parse_y1_equiv "y1: prepend"            "( list_prepend MYLIST 'first' )";
+  assert_parse_y1_equiv "y1: insert"             "( list_insert MYLIST )";
+  assert_parse_y1_equiv "y1: remove_at"          "( list_remove_at MYLIST )";
+  assert_parse_y1_equiv "y1: pop_back"           "( list_pop_back MYLIST )";
+  assert_parse_y1_equiv "y1: pop_front"          "( list_pop_front MYLIST )";
+])
+
 (* Phase 2a pair-wise oracle for the string family. Mirrors tier2_string
    inputs (~17 cases) through both parser paths. Where the parser
    matches the legacy, both sides should produce byte-identical text. *)
@@ -461,6 +507,7 @@ let () =
   Alcotest.run "Yelu Parser" [
     tier0_control; tier0_cond; tier0_var; tier0_var_y1; tier0_cmake_op;
     tier0_target; tier0_dir; tier0_file; tier0_scripting; tier0_full;
-    tier1_target; tier2_string; tier2_string_y1; tier3_list; tier4_file; tier5_path;
+    tier1_target; tier2_string; tier2_string_y1; tier3_list; tier3_list_y1;
+    tier4_file; tier4_file_y1; tier5_path; tier5_path_y1;
     tier6_find_install; tier7_scripting; tier8_misc; tier_remaining; tier9_genex;
   ]

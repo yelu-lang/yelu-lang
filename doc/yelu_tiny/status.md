@@ -5,15 +5,16 @@ code-anchored module guide in `structure.md`, history in
 `../worklog_2026_04.md` / `../worklog_2026_05.md`.
 
 **Last verified 2026-05-11:** `dune build && dune test` green
-(758 unit tests); byte-equality oracle covers 194/194 production
-programs with 0 uncovered, 0 skipped. Parser tests (190 incl. 20
-Phase 2a pair-wise: 3 var + 17 string) all flow through emit_ast
-without falling back to direct emit. `make runcmake-yelu` green
-(50/50 pairs). Retirement Phase 1 done. Phase 2 warm-up trio
-landed. Phase 2a pilot landed for var + string families: separate
-Yelu1 parser (`Yelu_parse_y1`); pair-wise oracle agrees byte-for-byte
-on all 20 covered tests. Legacy-parser bug surfaced for
-`( set NAME val )` form (omitted from oracle; deferred).
+(792 unit tests); byte-equality oracle covers 194/194 production
+programs with 0 uncovered, 0 skipped. Parser tests (224 incl. 54
+Phase 2a pair-wise: 3 var + 17 string + 14 list + 9 path + 11 file)
+all flow through emit_ast without falling back to direct emit.
+`make runcmake-yelu` green (50/50 pairs). Retirement Phase 1 done.
+Phase 2 warm-up trio landed. Phase 2a covering var + string + list +
+path + file via separate Yelu1 parser (`Yelu_parse_y1`); pair-wise
+oracle agrees byte-for-byte on all 54 covered tests. Legacy-parser
+bug surfaced for `( set NAME val )` form (omitted from oracle;
+deferred).
 
 ## What's done
 
