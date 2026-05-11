@@ -54,8 +54,9 @@ let assert_parses name input =
                           → Yelu_tiny_cmake_emit_ast.emit_script
 
    Same emit_ast lowering on both sides, so any divergence is parser-
-   level. The new parser currently handles only the var family
-   (Phase 2a pilot); other inputs return Error and the oracle skips. *)
+   level. The new parser currently covers the Phase 2a direct-parser
+   families exercised by the *_y1 groups below; unsupported inputs fail
+   here instead of silently falling back to the legacy parser. *)
 let assert_parse_y1_equiv name source =
   Alcotest.test_case name `Quick (fun () ->
     let legacy_text =

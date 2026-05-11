@@ -1,4 +1,4 @@
-(* Phase 2a — parser-direct-to-Yelu1, var family.
+(* Phase 2a — parser-direct-to-Yelu1.
 
    Pilot for the eventual replacement of [Lang_yelu_parse.parse_program]
    (which builds the production [Lang_yelu_cmake] AST) with a parser
@@ -11,7 +11,10 @@
    statement family from the legacy parser; when all families are
    covered, the legacy parser retires.
 
-   Pilot scope: variable assignment statements.
+   Current scope: broad CMake-family coverage used by the parser
+   pair-wise oracle, including variable assignment plus control, cond,
+   string, list, path, file, target, dir, test, property, find,
+   install, cmake_op, function/macro/while/foreach/apply shapes.
 
      - `IDENT := value`              → ESetVar
      - `IDENT := v1, v2, v3`         → ESetVar (… EList …)
@@ -21,8 +24,8 @@
      - `( unset_cache IDENT )`       → ECmakeUnsetVarCache
 
    The exposed entry point [parse_program_y1] returns a single
-   [Yelu_tiny.expr] for a single var-family statement; non-var inputs
-   produce [Error _]. The pair-wise oracle in
+   [Yelu_tiny.expr] for the covered syntax. Unsupported inputs produce
+   [Error _]. The pair-wise oracle in
    [test_yelu_cmake_parse.ml] compares this against the legacy path
    ([Lang_yelu_parse.parse_program] → [Yelu_cmake_to_yelu1.stmt] →
    [Yelu_tiny_cmake_emit_ast.emit_script]) at the cmake-text level.
@@ -87,11 +90,13 @@ let eq_tok = delim EQ
 let dotdot = delim DOTDOT
 
 (* ============================================================
-   Expression parsing — minimal subset for var-family values.
+   Expression parsing — currently the common literal/name subset used
+   by the covered statement families.
 
    yelu_cmake's expression grammar is richer than what var values
-   actually use; for the pilot we cover the literal forms plus a
-   bare-identifier deref. Add more cases as needed by later families.
+   originally needed; Phase 2a has widened this helper for the direct
+   parser, while preserving legacy-compatible token choices where the
+   byte oracle depends on them.
    ============================================================ *)
 
 let p_expr_y1 toks =
@@ -1433,7 +1438,7 @@ let parse_tokens_y1 toks =
     in
     Error ("unexpected trailing tokens" ^ ctx)
   | None ->
-    Error "parse error (var family only; non-var statements not yet supported)"
+    Error "parse error (unsupported Yelu1 direct-parser syntax)"
 
 let parse_program_y1 input =
   match Angstrom.parse_string ~consume:All token_list input with
