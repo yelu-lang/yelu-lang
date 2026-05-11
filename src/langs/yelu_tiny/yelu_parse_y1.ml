@@ -47,6 +47,7 @@ open Yelu_surface_cmake_test
 open Yelu_surface_cmake_property
 open Yelu_surface_cmake_find
 open Yelu_surface_cmake_install
+open Yelu_surface_cmake_cmake_op
 
 (* ============================================================
    Combinator primitives — duplicated from Lang_yelu_parse.
@@ -968,6 +969,98 @@ let p_install_command_y1 toks =
           | None -> None))
     | _ -> None
 
+(* ============================================================
+   cmake_op family (scalar commands; control flow deferred).
+   project / cmake_minimum_required / message / math / include /
+   include_guard / policy_set / enable_language / execute_process /
+   separate_arguments / cmake_call / cmake_eval /
+   cmake_get_log_level / at_var.
+
+   Many of these accept STRING / PATH args that the legacy parser
+   extracts directly. Tiny mostly stores them as raw strings (not
+   exprs), so we extract a string from EString / EVar.
+   ============================================================ *)
+
+let str_of e =
+  match e with EString s | EVar s -> s | _ -> ""
+
+let p_cmake_op_command_y1_inner name args kwargs =
+  let out = out_var_y1 kwargs in
+  match name, args with
+  | "cmake_minimum_required", [ v ] ->
+    let s = match v with EString s | EVar s -> s | _ -> "3.20" in
+    Some (ECmakeMinimumRequired s)
+  | "project", [ name_e ] ->
+    let s = match name_e with
+      | EString s | EVar s -> s
+      | _ -> "Project"
+    in
+    Some (ECmakeProject { name = s; languages = []; version = None })
+  | "message", _ ->
+    (* Legacy: texts list, each STRING/PATH → s, else "" *)
+    let texts =
+      List.map args ~f:(fun e ->
+        match e with EString s -> EString s | _ -> EString "")
+    in
+    Some (ECmakeMessage { mode = "STATUS"; texts })
+  | "math", [ exp ] ->
+    let s = match exp with EString s -> s | _ -> "" in
+    Some (ECmakeMath { exp = s; out })
+  | "include", [ file ] ->
+    let optional =
+      List.Assoc.mem kwargs ~equal:String.equal "optional"
+    in
+    Some (ECmakeInclude { file; optional })
+  | "include_guard", [] ->
+    Some (ECmakeIncludeGuard { scope = "GLOBAL" })
+  | "policy_set", [ id ] ->
+    Some (ECmakePolicySet { id = str_of id; new_ = true })
+  | "enable_language", _ ->
+    Some (ECmakeEnableLanguage { langs = []; optional = false })
+  | "execute_process", _ ->
+    Some (ECmakeExecuteProcess
+            { commands = [];
+              working_directory = None; timeout = None;
+              result_variable = None;
+              output_variable = None; error_variable = None;
+              input_file = None; output_file = None; error_file = None;
+              output_quiet = false; error_quiet = false;
+              output_strip_trailing_whitespace = false;
+              error_strip_trailing_whitespace = false;
+              command_error_is_fatal = None })
+  | "separate_arguments", [ cvar ] ->
+    Some (ECmakeSeparateArguments
+            { var = str_of cvar; mode = "PLAIN"; input = None })
+  | "cmake_call", cmd :: rest_args ->
+    Some (ECmakeLanguageCall { cmd = str_of cmd; args = rest_args })
+  | "cmake_eval", [ code ] ->
+    Some (ECmakeLanguageEval { code = str_of code })
+  | "cmake_get_log_level", [] ->
+    Some (ECmakeLanguageGetLogLevel { out })
+  | _ -> None
+
+let p_cmake_op_command_y1 toks =
+  match lparen toks with
+  | None -> None
+  | Some ((), toks) ->
+    match toks with
+    | IDENT name :: rest
+      when (match name with
+            | "cmake_minimum_required" | "project" | "message"
+            | "math" | "include" | "include_guard" | "policy_set"
+            | "enable_language" | "execute_process"
+            | "separate_arguments"
+            | "cmake_call" | "cmake_eval" | "cmake_get_log_level" -> true
+            | _ -> false) ->
+      let args, kwargs, rest = collect_command_args [] [] rest in
+      (match p_cmake_op_command_y1_inner name args kwargs with
+       | None -> None
+       | Some e ->
+         (match rparen rest with
+          | Some ((), rest) -> Some (e, rest)
+          | None -> None))
+    | _ -> None
+
 (* Outer block: `( <stmt> ... )`. Mirrors [Lang_yelu_parse.p_block]
    semicolon-separated semantics and the single-stmt collapse. As
    Phase 2a families are migrated, the block accepts any family-
@@ -984,6 +1077,7 @@ let rec p_stmt_inner_y1 toks =
   match p_property_command_y1 toks with Some r -> Some r | None ->
   match p_find_command_y1 toks with Some r -> Some r | None ->
   match p_install_command_y1 toks with Some r -> Some r | None ->
+  match p_cmake_op_command_y1 toks with Some r -> Some r | None ->
   match p_var_stmt_y1 toks with Some r -> Some r | None ->
   p_block_y1 toks
 

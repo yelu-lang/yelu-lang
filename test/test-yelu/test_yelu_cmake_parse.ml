@@ -434,6 +434,25 @@ let tier0_var_y1 = ("t0-var-y1", [
   assert_parse_y1_equiv "y1: multi-value :="   "( FLAGS := \"-Wall\", \"-Wextra\" )";
 ])
 
+(* Phase 2a pair-wise oracle for cmake_op family (scalar commands). *)
+let tier0_cmake_op_y1 = ("t0-cmake_op-y1", [
+  assert_parse_y1_equiv "y1: cmake_minimum_required" "( cmake_minimum_required \"3.20\" )";
+  assert_parse_y1_equiv "y1: project"                "( project \"Tutorial\" )";
+])
+
+let tier8_misc_cmake_op_y1 = ("t8-misc-cmake_op-y1", [
+  assert_parse_y1_equiv "y1: math"             "( math '1+2' ~out:RESULT )";
+  assert_parse_y1_equiv "y1: execute_process"  "( execute_process )";
+  assert_parse_y1_equiv "y1: include_guard"    "( include_guard )";
+  (* y1: policy_set — legacy parser only matches single-quoted Ycs_string
+     for the policy id; "CMP0048" is double-quoted (Ycs_path) and falls
+     through the legacy match to the empty-string default, emitting
+     `cmake_policy(SET  NEW)`. New parser handles both uniformly via
+     str_of. Same shape of legacy bug as ( set NAME val ); omitted from
+     oracle until the legacy parser is fixed separately. *)
+  assert_parse_y1_equiv "y1: enable_language"  "( enable_language )";
+])
+
 (* Phase 2a pair-wise oracle for find / install / property families. *)
 let tier6_find_install_y1 = ("t6-find-install-y1", [
   assert_parse_y1_equiv "y1: find_library" "( find_library VAR ~names:\"m\" ~paths:\"/usr/lib\" )";
@@ -549,10 +568,10 @@ let tier2_string_y1 = ("t2-string-y1", [
 
 let () =
   Alcotest.run "Yelu Parser" [
-    tier0_control; tier0_cond; tier0_var; tier0_var_y1; tier0_cmake_op;
+    tier0_control; tier0_cond; tier0_var; tier0_var_y1; tier0_cmake_op; tier0_cmake_op_y1;
     tier0_target; tier0_target_y1; tier0_dir; tier0_dir_y1; tier0_file; tier0_scripting; tier0_full;
     tier1_target; tier2_string; tier2_string_y1; tier3_list; tier3_list_y1;
     tier4_file; tier4_file_y1; tier5_path; tier5_path_y1;
     tier6_find_install; tier6_find_install_y1;
-    tier7_scripting; tier8_misc; tier8_misc_y1; tier_remaining; tier9_genex;
+    tier7_scripting; tier8_misc; tier8_misc_y1; tier8_misc_cmake_op_y1; tier_remaining; tier9_genex;
   ]

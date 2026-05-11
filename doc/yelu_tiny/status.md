@@ -5,18 +5,23 @@ code-anchored module guide in `structure.md`, history in
 `../worklog_2026_04.md` / `../worklog_2026_05.md`.
 
 **Last verified 2026-05-11:** `dune build && dune test` green
-(816 unit tests); byte-equality oracle covers 194/194 production
-programs with 0 uncovered, 0 skipped. Parser tests (248 incl. 78
+(822 unit tests); byte-equality oracle covers 194/194 production
+programs with 0 uncovered, 0 skipped. Parser tests (254 incl. 84
 Phase 2a pair-wise: 3 var + 17 string + 14 list + 9 path + 11 file
-+ 8 target + 6 dir + 7 find/install + 3 property) all flow through
-emit_ast without falling back to direct emit. `make runcmake-yelu`
-green (50/50 pairs). Retirement Phase 1 done. Phase 2 warm-up trio
-landed. Phase 2a covers var + string + list + path + file + target +
-dir + property + find + install via separate Yelu1 parser
-(`Yelu_parse_y1`); pair-wise oracle agrees byte-for-byte on all 78
-covered tests. Legacy-parser bug surfaced for `( set NAME val )` form
-(omitted from oracle; deferred). Remaining family: cmake_op
-(project, message, control flow, function/macro/apply, math, etc.).
++ 8 target + 6 dir + 7 find/install + 3 property + 6 cmake_op
+scalar) all flow through emit_ast without falling back to direct
+emit. `make runcmake-yelu` green (50/50 pairs). Retirement Phase 1
+done. Phase 2 warm-up trio landed. Phase 2a covers var + string +
+list + path + file + target + dir + property + find + install +
+cmake_op scalar commands via separate Yelu1 parser
+(`Yelu_parse_y1`); pair-wise oracle agrees byte-for-byte on 84
+covered tests. Two legacy-parser bugs surfaced (same shape: command
+that only matches Ycs_string but receives Ycs_path / EVar fallback):
+- `( set NAME val )` form
+- `( policy_set "CMPxxxx" )` form
+Both omitted from oracle; deferred. Remaining work: cmake_op control
+flow (foreach, function, macro, apply, block, while, return, break,
+continue, if) — needs recursive body parsing in p_stmt_y1.
 
 ## What's done
 
