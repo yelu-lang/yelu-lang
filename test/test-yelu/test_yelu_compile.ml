@@ -33,17 +33,69 @@ let assert_bridge_succeeds name yelu_ast =
         true
         (String.length cmake_text > 0)
 
+(* Phase 1 byte-equality oracle: for every program covered by [emit_ast],
+   assert that the tiny path produces byte-identical cmake text to the
+   legacy path. Programs not yet covered raise [Eval_error] inside
+   [emit_ast]; we catch and skip, logging coverage via a side channel.
+
+   Tests in [oracle_skip] are *known* mismatches caused by bridge
+   information loss — places where the production AST carries more
+   detail than tiny's surface constructor and the round-trip cannot
+   reconstruct the source form. Each entry should cite the gap; fix is
+   typically a new tiny constructor that preserves the source shape.
+   The skip list should shrink to empty before Phase 1 is declared done. *)
+let oracle_covered = ref 0
+let oracle_uncovered = ref 0
+
+let oracle_skip = [
+  (* Bridge flattens [Yc_foreach_in { loop_var; lists; items }] to a plain
+     [ECmakeForeach { items = [EVar lv; …] }]. Tiny needs a dedicated
+     [ECmakeForeachInList] constructor to round-trip the IN LISTS / IN ITEMS
+     form. *)
+  "foreach_in lists";
+  "foreach_in items";
+  (* Tiny surface [ECmakeTargetLinkOptions] drops the [before] flag the
+     production AST carries. Add it to the surface ctor to round-trip. *)
+  "target_link_options before";
+]
+
+let assert_byte_oracle name yelu_ast =
+  if Base.List.mem bridge_skip name ~equal:Base.String.equal then ()
+  else if Base.List.mem oracle_skip name ~equal:Base.String.equal then ()
+  else
+    let legacy_text =
+      let cmake_ast = compile empty_env yelu_ast |> snd in
+      pp_to_string cmake_ast
+    in
+    let tiny_attempt =
+      try
+        let yelu1 = Yelu_langs.Yelu_cmake_to_yelu1.stmt yelu_ast in
+        Some (Yelu_langs.Yelu_tiny_cmake_emit_ast.emit_script yelu1)
+      with
+      | Yelu_langs.Yelu_tiny.Eval_error _ -> None
+      | Yelu_langs.Yelu_cmake_to_yelu1.Bridge_error _ -> None
+    in
+    match tiny_attempt with
+    | None -> Stdlib.incr oracle_uncovered
+    | Some tiny_text ->
+      Stdlib.incr oracle_covered;
+      Alcotest.(check string)
+        (Printf.sprintf "%s: byte-equal legacy vs tiny via AST" name)
+        legacy_text tiny_text
+
 let check name expected yelu_ast =
   Alcotest.test_case name `Quick (fun () ->
       let cmake_ast = compile empty_env yelu_ast |> snd in
       Alcotest.(check string) name expected (pp_to_string cmake_ast);
-      assert_bridge_succeeds name yelu_ast)
+      assert_bridge_succeeds name yelu_ast;
+      assert_byte_oracle name yelu_ast)
 
 let check_vbox name expected yelu_ast =
   Alcotest.test_case name `Quick (fun () ->
       let cmake_ast = compile empty_env yelu_ast |> snd in
       Alcotest.(check string) name expected (pp_vbox_to_string cmake_ast);
-      assert_bridge_succeeds name yelu_ast)
+      assert_bridge_succeeds name yelu_ast;
+      assert_byte_oracle name yelu_ast)
 
 (* --- Test groups --- *)
 
@@ -770,6 +822,15 @@ let define_property_tests =
         "define_property(TARGET\nPROPERTY INIT_PROP\nINITIALIZE_FROM_VARIABLE MY_VAR)"
         (yc_define_property ~initialize_from:(Some "MY_VAR") Dp_target "INIT_PROP");
     ] )
+
+(* Phase 1 progress report: oracle coverage. Printed even on success so
+   you can watch the covered count climb toward 194 as Phase 1.3 lands. *)
+let () =
+  at_exit (fun () ->
+    Stdlib.Printf.eprintf
+      "[emit_ast oracle] covered=%d  uncovered=%d  (%d total)\n%!"
+      !oracle_covered !oracle_uncovered
+      (!oracle_covered + !oracle_uncovered))
 
 let () =
   Alcotest.run "Yelu Compile"

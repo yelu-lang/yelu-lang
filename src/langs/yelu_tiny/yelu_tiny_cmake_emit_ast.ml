@@ -53,9 +53,15 @@ let rec arg ?(env = empty_subst) (e : expr) : C.arg =
      | Some replacement -> arg ~env replacement
      | None -> C.Bare ("${" ^ name ^ "}"))
   | EString s ->
+    (* Quoting policy mirrors legacy [lang_yelu_compile.erase_arg]: quote
+       when cmake would otherwise mis-tokenize. The ${...} substring rule
+       matches the legacy [Ycs_eval] case (configure-time deref forms are
+       always quoted in arg position; cond position is different and
+       handled by [cond_text]). *)
     if String.is_empty s
     || String.exists s ~f:Char.is_whitespace
     || String.is_substring s ~substring:"$<"
+    || String.is_substring s ~substring:"${"
     || String.exists s ~f:(Char.equal '\\')
     then C.Quoted s
     else C.Bare s
@@ -79,47 +85,73 @@ let rec target_arg ?(env = empty_subst) (e : expr) : string =
 
 (* Tokens for cond-position rendering. cmake [cond = string list] composes
    into the parenthesized argument list of [if(...)]. Token rendering
-   mirrors [yelu_tiny_cmake_emit.cond] but emits a list rather than a
-   joined string. *)
-let arg_token ?(env = empty_subst) e : string =
-  match arg ~env e with
-  | C.Bare s -> s
-  | C.Quoted s -> "\"" ^ s ^ "\""
-  | C.Bracket s -> s
+   mirrors the legacy [lang_yelu_compile.cmake_quote_cond] policy: emit
+   bare names (cmake's if() auto-derefs unquoted identifiers), quote only
+   when the value has whitespace / parens / ${} / etc. *)
+let quote_cond_text s : string =
+  if String.is_empty s
+  || String.exists s ~f:(Char.equal ';')
+  || String.exists s ~f:Char.is_whitespace
+  || String.is_substring s ~substring:"${"
+  || String.exists s ~f:(Char.equal '(')
+  || String.exists s ~f:(Char.equal ')')
+  then Fmt.str "\"%s\"" s
+  else s
+
+(* Cond position: render expression to a raw string (no ${...} wrap for
+   unresolved EVar — cmake's if() auto-dereferences identifiers). Then
+   apply quote_cond_text. *)
+let rec cond_text ?(env = empty_subst) (e : expr) : string =
+  match e with
+  | EVar name ->
+    (match Map.find env name with
+     | Some replacement -> cond_text ~env replacement
+     | None -> name)
+  | EString s -> s
+  | EInt n -> Int.to_string n
+  | EBool true -> "ON"
+  | EBool false -> "OFF"
+  | ETarget name -> name
+  | _ -> fail "emit_ast: cannot erase expression for cond position"
+
+let cond_token ?(env = empty_subst) e : string =
+  quote_cond_text (cond_text ~env e)
 
 let rec cond_tokens ?(env = empty_subst) (e : expr) : string list =
   match e with
   | EBool true -> [ "TRUE" ]
   | EBool false -> [ "FALSE" ]
-  | ENot e -> "NOT" :: cond_atom ~env e
-  | EAnd (l, r) -> cond_atom ~env l @ [ "AND" ] @ cond_atom ~env r
-  | EOr (l, r) -> cond_atom ~env l @ [ "OR" ] @ cond_atom ~env r
-  | EIntLess (l, r) -> [ arg_token ~env l; "LESS"; arg_token ~env r ]
-  | EIntEqual (l, r) -> [ arg_token ~env l; "EQUAL"; arg_token ~env r ]
-  | EIntGreater (l, r) -> [ arg_token ~env l; "GREATER"; arg_token ~env r ]
-  | EIntLessEqual (l, r) -> [ arg_token ~env l; "LESS_EQUAL"; arg_token ~env r ]
-  | EIntGreaterEqual (l, r) -> [ arg_token ~env l; "GREATER_EQUAL"; arg_token ~env r ]
-  | ECmakeStringEqual (l, r) -> [ arg_token ~env l; "STREQUAL"; arg_token ~env r ]
-  | ECmakeVersionLess (a, b) -> [ arg_token ~env a; "VERSION_LESS"; arg_token ~env b ]
-  | ECmakeVersionGreater (a, b) -> [ arg_token ~env a; "VERSION_GREATER"; arg_token ~env b ]
-  | ECmakeVersionEqual (a, b) -> [ arg_token ~env a; "VERSION_EQUAL"; arg_token ~env b ]
-  | ECmakeVersionLessEqual (a, b) -> [ arg_token ~env a; "VERSION_LESS_EQUAL"; arg_token ~env b ]
-  | ECmakeVersionGreaterEqual (a, b) -> [ arg_token ~env a; "VERSION_GREATER_EQUAL"; arg_token ~env b ]
+  | ENot e -> "NOT" :: cond_tokens ~env e
+  (* AND/OR always wraps in [(...)] — mirrors legacy [erase_bool] policy
+     and makes operator precedence explicit. *)
+  | EAnd (l, r) ->
+    [ "(" ] @ cond_tokens ~env l @ [ "AND" ] @ cond_tokens ~env r @ [ ")" ]
+  | EOr (l, r) ->
+    [ "(" ] @ cond_tokens ~env l @ [ "OR" ] @ cond_tokens ~env r @ [ ")" ]
+  | EIntLess (l, r) -> [ cond_token ~env l; "LESS"; cond_token ~env r ]
+  | EIntEqual (l, r) -> [ cond_token ~env l; "EQUAL"; cond_token ~env r ]
+  | EIntGreater (l, r) -> [ cond_token ~env l; "GREATER"; cond_token ~env r ]
+  | EIntLessEqual (l, r) -> [ cond_token ~env l; "LESS_EQUAL"; cond_token ~env r ]
+  | EIntGreaterEqual (l, r) -> [ cond_token ~env l; "GREATER_EQUAL"; cond_token ~env r ]
+  | ECmakeStringEqual (l, r) -> [ cond_token ~env l; "STREQUAL"; cond_token ~env r ]
+  | ECmakeVersionLess (a, b) -> [ cond_token ~env a; "VERSION_LESS"; cond_token ~env b ]
+  | ECmakeVersionGreater (a, b) -> [ cond_token ~env a; "VERSION_GREATER"; cond_token ~env b ]
+  | ECmakeVersionEqual (a, b) -> [ cond_token ~env a; "VERSION_EQUAL"; cond_token ~env b ]
+  | ECmakeVersionLessEqual (a, b) -> [ cond_token ~env a; "VERSION_LESS_EQUAL"; cond_token ~env b ]
+  | ECmakeVersionGreaterEqual (a, b) -> [ cond_token ~env a; "VERSION_GREATER_EQUAL"; cond_token ~env b ]
   | ECmakeVarDefined name -> [ "DEFINED"; name ]
   | ECmakeTargetExists t -> [ "TARGET"; target_arg ~env t ]
-  | ECmakeFileExists p -> [ "EXISTS"; arg_token ~env p ]
-  | ECmakeMatches { expr_; regex } -> [ arg_token ~env expr_; "MATCHES"; "\"" ^ regex ^ "\"" ]
-  | ECmakeInList { item; list_ } -> [ arg_token ~env item; "IN_LIST"; arg_token ~env list_ ]
-  | ECmakeIsDirectory p -> [ "IS_DIRECTORY"; arg_token ~env p ]
+  | ECmakeFileExists p -> [ "EXISTS"; cond_token ~env p ]
+  | ECmakeMatches { expr_; regex } -> [ cond_token ~env expr_; "MATCHES"; "\"" ^ regex ^ "\"" ]
+  | ECmakeInList { item; list_ } -> [ cond_token ~env item; "IN_LIST"; cond_token ~env list_ ]
+  | ECmakeIsDirectory p -> [ "IS_DIRECTORY"; cond_token ~env p ]
   | ECmakePolicyCheck p -> [ "POLICY"; p ]
-  | _ -> [ arg_token ~env e ]
+  | _ -> [ cond_token ~env e ]
 
-(* Parenthesize And/Or sub-conditions so that operator precedence stays
-   explicit when nested inside a higher-level AND/OR. *)
+(* [cond_atom] kept as an alias for compatibility; AND/OR now self-wraps
+   in [cond_tokens] so all callers get explicit parens. *)
 and cond_atom ?(env = empty_subst) (e : expr) : string list =
-  match e with
-  | EAnd _ | EOr _ -> ("(" :: cond_tokens ~env e) @ [ ")" ]
-  | _ -> cond_tokens ~env e
+  cond_tokens ~env e
 
 (* ========================================================================
    Top-level emit: Yelu1 expr → cmake AST [exp].
@@ -380,4 +412,4 @@ let emit_ast ?(env = empty_subst) (e : expr) : C.exp = emit_exp ~env e
 
 let emit_script (e : expr) : string =
   let ast = emit_ast e in
-  Fmt.str "%a\n" Lang_cmake_pp.pp ast
+  Fmt.str "%a" Lang_cmake_pp.pp ast
