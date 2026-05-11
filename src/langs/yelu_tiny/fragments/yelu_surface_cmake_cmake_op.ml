@@ -84,6 +84,32 @@ type expr +=
       items : expr list;
       body : expr;
     }
+  (* [foreach(<var> RANGE [start] stop [step])] — integer iteration. Same
+     scope discipline as ECmakeForeach (no restore on exit). *)
+  | ECmakeForeachRange of {
+      loop_var : string;
+      start : int option;
+      stop : int;
+      step : int option;
+      body : expr;
+    }
+  (* [separate_arguments(<var> <mode> [PROGRAM] [SEPARATE_ARGS] [<input>])]
+     — string tokenization into a list. Eval stub: bind [var] to the
+     input string (no actual tokenization in tiny). *)
+  | ECmakeSeparateArguments of {
+      var : string;
+      mode : string;
+      input : expr option;
+    }
+  (* [while(cond) ... endwhile()] — condition loop. No new scope; the
+     body re-evaluates the condition each iteration. break / continue
+     are caught by the surrounding loop. Bounded by [while_max_iter] to
+     keep eval terminating on accidental infinite loops. *)
+  | ECmakeWhile of { cond : expr; body : expr }
+  (* [break()] / [continue()] — raise [Break_loop] / [Continue_loop] at
+     eval, caught by the innermost surrounding loop. *)
+  | ECmakeBreak
+  | ECmakeContinue
 
 let bind_params env params arg_values =
   match List.zip params arg_values with
@@ -161,16 +187,73 @@ let eval_case ~eval env = function
       | None -> env
     in
     Some (env, VUnit)
+  | ECmakeForeachRange { loop_var; start; stop; step; body } ->
+    let s = Option.value start ~default:0 in
+    let step = Option.value step ~default:1 in
+    let rec loop env i =
+      if (step > 0 && i > stop) || (step < 0 && i < stop) || step = 0 then env
+      else
+        let env = set_var env ~key:loop_var ~data:(VInt i) in
+        let env =
+          try
+            let env, _ = eval env body in
+            env
+          with Continue_loop -> env
+        in
+        loop env (i + step)
+    in
+    let env = try loop env s with Break_loop -> env in
+    Some (env, VUnit)
+  | ECmakeWhile { cond; body } ->
+    (* Bounded condition loop. Re-evaluate [cond] each iteration; if
+       truthy, evaluate [body]. break / continue caught here. The
+       bound is a tiny safety net — real cmake doesn't enforce one. *)
+    let max_iter = 10_000 in
+    let rec loop env n =
+      if n >= max_iter then
+        fail "while: exceeded %d iterations (tiny eval safety bound)" max_iter
+      else
+        let env, cond_v = eval env cond in
+        if expect_bool cond_v then
+          let env =
+            try
+              let env, _ = eval env body in
+              env
+            with Continue_loop -> env
+          in
+          loop env (n + 1)
+        else env
+    in
+    let env = try loop env 0 with Break_loop -> env in
+    Some (env, VUnit)
+  | ECmakeBreak -> raise Break_loop
+  | ECmakeContinue -> raise Continue_loop
+  | ECmakeSeparateArguments { var; input; _ } ->
+    let env, value = match input with
+      | Some e ->
+        let env, s = eval_string ~eval env e in
+        env, VString s
+      | None ->
+        (match find_var env var with
+         | Some v -> env, v
+         | None -> env, VString "")
+    in
+    Some (set_var env ~key:var ~data:value, VUnit)
   | ECmakeForeach { loop_var; items; body } ->
     (* No-restore semantics, matching cmake: [loop_var] leaks past
        [endforeach] with its final iteration value. Empty [items]
-       leaves any prior binding untouched. *)
+       leaves any prior binding untouched. [break()] / [continue()]
+       inside [body] are caught here. *)
     let env, item_strings = eval_string_list ~eval env items in
     let env =
-      List.fold item_strings ~init:env ~f:(fun env item ->
-        let env = set_var env ~key:loop_var ~data:(VString item) in
-        let env, _ = eval env body in
-        env)
+      try
+        List.fold item_strings ~init:env ~f:(fun env item ->
+          let env = set_var env ~key:loop_var ~data:(VString item) in
+          try
+            let env, _ = eval env body in
+            env
+          with Continue_loop -> env)
+      with Break_loop -> env
     in
     Some (env, VUnit)
   | _ -> None

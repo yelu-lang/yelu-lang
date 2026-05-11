@@ -903,6 +903,26 @@ let rec stmt : Old.yelu_stmt -> Yelu_tiny.expr = function
       { loop_var = cvar_name loop_var;
         items = List.map items ~f:expr;
         body = stmt commands }
+  | Yc_while { cond; commands } ->
+    ECmakeWhile { cond = expr cond; body = stmt commands }
+  | Yc_break -> ECmakeBreak
+  | Yc_continue -> ECmakeContinue
+  | Yc_foreach_range { loop_var; start; stop; step; commands } ->
+    ECmakeForeachRange
+      { loop_var = cvar_name loop_var; start; stop; step;
+        body = stmt commands }
+  | Yc_separate_arguments { cvar; mode; input } ->
+    let mode_s = match mode with
+      | Lang_cmake.Sa_plain -> "PLAIN"
+      | Lang_cmake.Sa_unix_command -> "UNIX_COMMAND"
+      | Lang_cmake.Sa_windows_command -> "WINDOWS_COMMAND"
+      | Lang_cmake.Sa_native_command -> "NATIVE_COMMAND"
+      | Lang_cmake.Sa_program -> "PROGRAM"
+      | Lang_cmake.Sa_args -> "ARGS"
+    in
+    ECmakeSeparateArguments
+      { var = cvar_name cvar; mode = mode_s;
+        input = Option.map input ~f:expr }
   | Yc_foreach_in { loop_var; lists; items; commands } ->
     (* foreach(<loop_var> IN LISTS <list-vars>... ITEMS <items>...). At the
        tiny slice we flatten: dereference each list-var (carry through

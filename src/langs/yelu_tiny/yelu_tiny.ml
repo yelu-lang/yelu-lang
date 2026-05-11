@@ -376,6 +376,14 @@ let set_custom_target env (custom_target : custom_target) =
 
 exception Eval_error of string
 
+(* Control-flow exceptions for cmake's break/continue/return. Each is
+   raised at the corresponding [ECmakeBreak] / [ECmakeContinue] /
+   [ECmakeReturn] eval site and caught by the surrounding loop or
+   function body. They are NOT [Eval_error]: they represent normal
+   control flow, not failures. *)
+exception Break_loop
+exception Continue_loop
+
 let fail fmt = Fmt.kstr (fun msg -> raise (Eval_error msg)) fmt
 
 let find_custom_command env primary_output =
@@ -456,6 +464,26 @@ let expect_string = function
 let expect_int = function
   | VInt n -> n
   | v -> fail "expected int, got %s" (Sexp.to_string ([%sexp_of: value] v))
+
+(* Cmake-style truthiness: cmake's if() treats empty string, "OFF",
+   "NO", "FALSE", "0", "N", "IGNORE", "NOTFOUND", and suffix "-NOTFOUND"
+   as false; non-empty otherwise true. For tiny we keep it lightweight:
+   VBool b -> b; VString s with cmake's false-spelling table -> false;
+   any non-empty otherwise -> true; VInt 0 -> false; other VInt -> true. *)
+let expect_bool = function
+  | VBool b -> b
+  | VInt 0 -> false
+  | VInt _ -> true
+  | VString s ->
+    let upper = String.uppercase s in
+    not (String.is_empty s)
+    && not (List.mem [
+      "OFF"; "NO"; "FALSE"; "0"; "N"; "IGNORE"; "NOTFOUND" ] upper
+        ~equal:String.equal)
+    && not (String.is_suffix upper ~suffix:"-NOTFOUND")
+  | VTarget _ -> true
+  | VList _ -> true
+  | _ -> false
 
 let expect_list = function
   | VList values -> values

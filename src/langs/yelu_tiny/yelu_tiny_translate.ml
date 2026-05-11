@@ -457,6 +457,19 @@ let rec lift_yelu1_to_yelu2 = function
       { loop_var;
         items = List.map items ~f:lift_yelu1_to_yelu2;
         body = lift_yelu1_to_yelu2 body }
+  | ECmakeForeachRange { loop_var; start; stop; step; body } ->
+    ECmakeForeachRange
+      { loop_var; start; stop; step;
+        body = lift_yelu1_to_yelu2 body }
+  | ECmakeSeparateArguments { var; mode; input } ->
+    ECmakeSeparateArguments
+      { var; mode; input = Option.map input ~f:lift_yelu1_to_yelu2 }
+  | ECmakeWhile { cond; body } ->
+    ECmakeWhile
+      { cond = lift_yelu1_to_yelu2 cond;
+        body = lift_yelu1_to_yelu2 body }
+  | ECmakeBreak -> ECmakeBreak
+  | ECmakeContinue -> ECmakeContinue
 
   (* CMake target surface -> Yelu target theory. Keep statement result as unit.
      Phase 2b: surface target-name fields are now [expr], so [lift] just
@@ -1317,6 +1330,19 @@ let rec lower_yelu2_to_yelu1 = function
       { loop_var;
         items = List.map items ~f:lower_yelu2_to_yelu1;
         body = lower_yelu2_to_yelu1 body }
+  | ECmakeForeachRange { loop_var; start; stop; step; body } ->
+    ECmakeForeachRange
+      { loop_var; start; stop; step;
+        body = lower_yelu2_to_yelu1 body }
+  | ECmakeSeparateArguments { var; mode; input } ->
+    ECmakeSeparateArguments
+      { var; mode; input = Option.map input ~f:lower_yelu2_to_yelu1 }
+  | ECmakeWhile { cond; body } ->
+    ECmakeWhile
+      { cond = lower_yelu2_to_yelu1 cond;
+        body = lower_yelu2_to_yelu1 body }
+  | ECmakeBreak -> ECmakeBreak
+  | ECmakeContinue -> ECmakeContinue
 
   (* Yelu target theory -> CMake target surface. *)
   | ESetVar (var, EExecutable { name = EString target_name; sources }) ->

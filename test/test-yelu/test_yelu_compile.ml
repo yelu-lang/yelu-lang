@@ -17,9 +17,7 @@ let pp_vbox_to_string ast = Fmt.str "%a" (Fmt.vbox pp) ast
    pending. CI stays green; revisit each skip when R4-b lands. *)
 let bridge_skip = [
   "empty_block"; "block_with_body"; "block_with_vars"; "block_with_propagate";
-  "foreach_range stop only"; "foreach_range start stop";
-  "break"; "continue"; "return empty"; "return propagate"; "while empty body";
-  "separate_arguments unix";
+  "return empty"; "return propagate";
 ]
 
 let assert_bridge_succeeds name yelu_ast =

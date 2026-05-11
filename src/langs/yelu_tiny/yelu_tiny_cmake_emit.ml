@@ -625,6 +625,28 @@ let rec emit_expr_impl ~env e =
         (String.concat ~sep:" " (List.map items ~f:arg)) ]
     @ List.map body_lines ~f:(fun line -> "  " ^ line)
     @ [ "endforeach()" ]
+  | ECmakeForeachRange { loop_var; start; stop; step; body } ->
+    let body_lines = emit_expr body in
+    let args = match start, step with
+      | None, None -> Fmt.str "%d" stop
+      | Some s, None -> Fmt.str "%d %d" s stop
+      | Some s, Some t -> Fmt.str "%d %d %d" s stop t
+      | None, Some t -> Fmt.str "0 %d %d" stop t
+    in
+    [ Fmt.str "foreach(%s RANGE %s)" loop_var args ]
+    @ List.map body_lines ~f:(fun line -> "  " ^ line)
+    @ [ "endforeach()" ]
+  | ECmakeSeparateArguments { var; mode; input } ->
+    let inp = Option.value_map input ~default:""
+        ~f:(fun e -> " " ^ arg e) in
+    [ Fmt.str "separate_arguments(%s %s%s)" var mode inp ]
+  | ECmakeWhile { cond = c; body } ->
+    let body_lines = emit_expr body in
+    [ Fmt.str "while(%s)" (cond c) ]
+    @ List.map body_lines ~f:(fun line -> "  " ^ line)
+    @ [ "endwhile()" ]
+  | ECmakeBreak -> [ "break()" ]
+  | ECmakeContinue -> [ "continue()" ]
   | ECmakeApply { name; args } ->
     [ Fmt.str "%s(%s)"
         (target_arg name)
