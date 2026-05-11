@@ -22,12 +22,12 @@ Three breadth milestones, in order of attempt:
 
 ## What's open
 
-| ID  | Title                            | Notes                                                                                                                                  |
-| --- | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| R3  | Genex theory                     | 0 / 34 production constructors mirrored. First slice should be the few generator expressions v2 / CMakeOnly steps actually use.        |
+| ID  | Title                            | Notes                                                                                                                                                                                           |
+| --- | -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| R3  | Genex theory                     | 0 / 16 production constructors mirrored (`lang_yelu_genex.ml:8-31`). First slice: `raw`, `config`, `not`, `and`, `if`, `bool`, `build_interface`, `install_interface`, `compile_language`, `target_property`, `target_file`, `target_file_dir`. |
 | R7  | (postponed) typecheck + wellform | Re-framed as **Y17** (see below). Carrying the production checker over straight is no longer the plan; tiny's theories deserve a fresh typing pass once yelu1↔cmake and yelu2↔yelu1 are stable. |
-| —   | Macro elimination                | Deferred. Gated on R5 data + Bar #3 (real-world rewrites). Memo: `.claude/memory/project_macro_elimination.md`.                        |
-| —   | Bar #3 — real-world cmake        | Rewrite z3 / llvm / torch builds in yelu; prove structural equivalence. Not started.                                                   |
+| —   | Macro elimination                | Deferred. Gated on R5 data + Bar #3 (real-world rewrites). Memo: `.claude/memory/project_macro_elimination.md`.                                                                                 |
+| —   | Bar #3 — real-world cmake        | Rewrite z3 / llvm / torch builds in yelu; prove structural equivalence. Not started.                                                                                                            |
 
 ## Y17 — types-on-tiny (post-retirement)
 
@@ -45,17 +45,24 @@ substrate would repeat the previous failure mode.
 
 ## Retirement criterion
 
-`src/langs/yelu/fragments/` is retirable when:
+Retirement is bridge + emit parity only; typing decisions (Y17) happen
+*after* retirement, on the renamed-yelu codebase. `src/langs/yelu/` is
+retirable when:
 
 - Every step file bridges (done at R1).
-- Zero `_ -> fail` cases remain in the bridge (held at R2 for current scope).
+- Zero unguarded `_ -> fail` cases remain in the bridge (R2 — three
+  catch-alls still document attrition-surface gaps; production tests do
+  not hit them today).
 - Production tests run through tiny with equivalent cmake output
   (done at R4 + R5 + R6).
-- A workable typing pass exists in tiny (Y17, post-retirement).
+- R3 (genex first slice) lands so v2 / CMakeOnly genex usage is
+  bridge-faithful, not catch-all-stubbed.
 
 At that point `src/langs/yelu_tiny/` becomes the production code and the
 old `src/langs/yelu/` (sans parser / lexer / post-bridge stages) becomes
-`src/langs/yelu_legacy/`.
+`src/langs/yelu_legacy/`. Legacy deletion is a separate later decision
+gated on Y17 — keep `yelu_legacy` around as a comparison baseline until
+the typing model is settled.
 
 ## Deferred
 

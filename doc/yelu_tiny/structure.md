@@ -25,12 +25,12 @@ fragment.
 The env carries four conceptually distinct kinds of state (kept flat for
 eval simplicity, grouped by comment):
 
-| Group               | Fields                                                                                                                                       |
-| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| Configure script    | `frames` (stack of `{ locals; parent_snapshot; touched }`), `files`                                                                          |
-| Declarations / logs | `project`, `cmake_min_version`, `messages`, `subdirectories`, `includes`, `find_packages`, `try_compiles`                                    |
-| Build / test graph  | `targets`, `custom_targets`, `custom_commands`, `target_properties`, `testing_enabled`, `tests`                                              |
-| Install             | `install_rules`                                                                                                                              |
+| Group               | Fields                                                                                                    |
+| ------------------- | --------------------------------------------------------------------------------------------------------- |
+| Configure script    | `frames` (stack of `{ locals; parent_snapshot; touched }`), `files`                                       |
+| Declarations / logs | `project`, `cmake_min_version`, `messages`, `subdirectories`, `includes`, `find_packages`, `try_compiles` |
+| Build / test graph  | `targets`, `custom_targets`, `custom_commands`, `target_properties`, `testing_enabled`, `tests`           |
+| Install             | `install_rules`                                                                                           |
 
 The frame stack models cmake's hybrid lexical-feel-with-dynamic-back-door
 scope: snapshots on push, plus a `touched` set to distinguish "never
@@ -87,32 +87,32 @@ defines a small, value-oriented set of constructors; the surface module
 defines the cmake-shaped equivalents (often with output-variable side
 effects). `translate.ml` maps between them. A few asymmetries by design:
 
-- `yelu_theory_bool` / `yelu_theory_int` / `yelu_theory_list` — pure,
-  shared between Yelu1 and Yelu2; no matched cmake-surface module because
-  cmake's bool/int/list ops *are* the pure ops.
+- `yelu_theory_bool` / `yelu_theory_int` — pure, shared between Yelu1
+  and Yelu2; no matched cmake-surface module because cmake's bool / int
+  ops *are* the pure ops.
 - `yelu_surface_cmake_if` — cmake-only statement-if shape; the theory
   side uses tiny's core `EIf` expression form.
 
 ### Theory list
 
-| Theory     | Surface lines | Theory lines | Notes                                                                                          |
-| ---------- | ------------: | -----------: | ---------------------------------------------------------------------------------------------- |
-| `store`    |            81 |           11 | var set / unset / cache / PARENT_SCOPE / env / option                                          |
-| `string`   |           224 |           61 | concat, replace, regex, length, version compare, json, IN_LIST cond, MATCHES cond, POLICY cond |
-| `list`     |           105 |           31 | append, get, length, join, sort, filter, transform                                             |
-| `path`     |           130 |           44 | set, normalize, get-filename, native/cmake conversion                                          |
-| `file`     |           131 |           41 | write, read, exists, glob, copy, configure_file                                                |
-| `target`   |           181 |          275 | add_executable, add_library, target_* visibility-aware                                         |
-| `install`  |           105 |          102 | install(TARGETS / FILES / EXPORT) + package-config writer                                      |
-| `property` |            80 |           47 | set_target_properties, get_target_property, set_property scopes                                |
-| `find`     |            37 |           13 | find_package / library / path / program / file                                                 |
-| `try`      |            60 |           20 | try_compile + try_run                                                                          |
+| Theory     | Surface lines | Theory lines | Notes                                                                                                     |
+| ---------- | ------------: | -----------: | --------------------------------------------------------------------------------------------------------- |
+| `store`    |            81 |           11 | var set / unset / cache / PARENT_SCOPE / env / option                                                     |
+| `string`   |           224 |           61 | concat, replace, regex, length, version compare, json, IN_LIST cond, MATCHES cond, POLICY cond            |
+| `list`     |           105 |           31 | append, get, length, join, sort, filter, transform                                                        |
+| `path`     |           130 |           44 | set, normalize, get-filename, native/cmake conversion                                                     |
+| `file`     |           131 |           41 | write, read, exists, glob, copy, configure_file                                                           |
+| `target`   |           181 |          275 | add_executable, add_library, target_* visibility-aware                                                    |
+| `install`  |           105 |          102 | install(TARGETS / FILES / EXPORT) + package-config writer                                                 |
+| `property` |            80 |           47 | set_target_properties, get_target_property, set_property scopes                                           |
+| `find`     |            37 |           13 | find_package / library / path / program / file                                                            |
+| `try`      |            60 |           20 | try_compile + try_run                                                                                     |
 | `cmake_op` |           390 |          103 | project, minimum_required, message, math, execute_process, block, return, while, foreach, function, macro |
-| `dir`      |            31 |           15 | add_subdirectory + dir-level include/compile/link commands                                     |
-| `test`     |            19 |           19 | enable_testing, add_test                                                                       |
-| `if`       |            31 |           23 | cmake statement-if vs tiny expression-if                                                       |
-| `bool`     |             — |           37 | shared: and / or / not                                                                         |
-| `int`      |             — |           45 | shared: add / less / equal                                                                     |
+| `dir`      |            31 |           15 | add_subdirectory + dir-level include/compile/link commands                                                |
+| `test`     |            19 |           19 | enable_testing, add_test                                                                                  |
+| `if`       |            31 |           23 | cmake statement-if vs tiny expression-if                                                                  |
+| `bool`     |             — |           37 | shared: and / or / not                                                                                    |
+| `int`      |             — |           45 | shared: add / less / equal                                                                                |
 
 Shared theories (no surface module) are used directly by both evaluators.
 
@@ -178,6 +178,7 @@ test/test-yelu/
 ├── test_yelu_tiny_steps.ml           tutorial v1 step1–12 + extras      (19)
 ├── test_yelu_tiny_emit.ml            Yelu1 IR → cmake text              (3)
 ├── test_yelu_tiny_function.ml        F2 dynamic-scope function          (14)
+├── test_yelu_tiny_foreach.ml         foreach scope + loop variants       (5)
 └── test_yelu_tiny_block_return.ml    block / return / PARENT_SCOPE      (26 probes)
 ```
 

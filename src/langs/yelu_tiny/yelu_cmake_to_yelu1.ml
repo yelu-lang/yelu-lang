@@ -61,7 +61,13 @@ let rec expr : Old.yelu_expr -> Yelu_tiny.expr = function
        degrade to a false-valued stub for now (no test in compile or
        parse exercises it as a meaningful predicate). *)
   | Yexpr_policy id -> ECmakePolicyCheck id
-  | _ -> fail "unsupported yelu_cmake expression for Yelu1 bridge"
+  (* String-comparison cond ops (STRLESS / STRGREATER / STRLESS_EQUAL /
+     STRGREATER_EQUAL): not yet mirrored in tiny. Listed explicitly so
+     OCaml warning 8 fires when a new [Yexpr_*] variant is added in
+     production. *)
+  | Yexpr_str_less _ | Yexpr_str_greater _
+  | Yexpr_str_less_eq _ | Yexpr_str_greater_eq _ ->
+    fail "bridge: string-comparison cond not yet supported in tiny"
 
 (* After phase 2b, target-name positions in tiny surface are typed [expr]
    (so that [EVar] / [ETarget] survive into emit and can be substituted by
@@ -897,7 +903,11 @@ let target_statement : Old.yelu_target_stmt -> Yelu_tiny.expr = function
           visibility = visibility_of_kind kind;
           headers = List.map items ~f:expr })
     |> ESeq
-  | _ -> fail "unsupported yelu_cmake target statement for Yelu1 bridge"
+  (* TARGET-form custom-command (deferred — production tests use the
+     OUTPUT-form via [Ytgt_add_custom_command]). Listed explicitly so
+     OCaml warning 8 fires when [yelu_target_stmt] grows new variants. *)
+  | Ytgt_add_custom_command_target _ ->
+    fail "bridge: TARGET-form add_custom_command not yet supported in tiny"
 
 let string_of_compatibility : Lang_cmake.compatibility -> string = function
   | Any_newer_version -> "AnyNewerVersion"

@@ -80,35 +80,12 @@ evaluation equivalence
 The initial experiment can omit per-fragment checking. Evaluation and
 equivalence are enough to validate the composition pipeline.
 
-## Proposed Layout
+## Layout
 
-```text
-src/langs/yelu_tiny/
-  yelu_tiny.ml
-  yelu_tiny_eval.ml
-  fragments/
-    yelu_theory_bool.ml
-    yelu_theory_store.ml
-    yelu_theory_int.ml
-    yelu_theory_list.ml
-    yelu_theory_path.ml
-    yelu_theory_target.ml
-    yelu_theory_string.ml
-    yelu_theory_if.ml
-    yelu_surface_cmake_list.ml
-    yelu_surface_cmake_path.ml
-    yelu_surface_cmake_store.ml
-    yelu_surface_cmake_target.ml
-    yelu_surface_cmake_string.ml
-    yelu_surface_cmake_if.ml
-
-test/test-yelu/
-  yelu_tiny_test_helpers.ml
-  test_yelu_tiny_lift_lower.ml
-  test_yelu_tiny_bridge.ml
-  test_yelu_tiny_steps.ml
-  test_yelu_tiny_emit.ml
-```
+The current file layout is in `structure.md`. The original prototype
+sketch listed `yelu_tiny_eval.ml` as a single evaluator; that has since
+split into `yelu_tiny_yelu1.ml`, `yelu_tiny_yelu2.ml`, and
+`yelu_tiny_translate.ml` once the combined module passed 900 lines.
 
 ## Tiny Core
 
