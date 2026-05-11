@@ -10,6 +10,7 @@ let provides =
     "cmake_op.message";
     "cmake_op.function";
     "cmake_op.apply";
+    "cmake_op.include";
   ]
 
 (* [EDynFunction] registers a named, dynamically-scoped callable with
@@ -37,6 +38,12 @@ type expr +=
   | EProject of { name : string; languages : string list; version : string option }
   | EMinVersion of string
   | EMessage of { mode : string; texts : expr list }
+  (* [EInclude] records a file-or-module name to be evaluated in cmake.
+     First slice: record the declaration in [env.includes]; do not
+     recursively evaluate the included body. Real cmake handles built-in
+     modules (CTest / CPack / CMakePackageConfigHelpers / ...) plus
+     local module files. *)
+  | EInclude of { file : expr; optional : bool }
 
 let bind_params env params arg_values =
   match List.zip params arg_values with
@@ -77,4 +84,7 @@ let eval_case ~eval env = function
        let env = bind_params env params arg_values in
        let env, result = eval env body in
        Some ({ env with vars = saved_vars }, result))
+  | EInclude { file; optional = _ } ->
+    let env, file = eval_string ~eval env file in
+    Some (add_include env file, VUnit)
   | _ -> None

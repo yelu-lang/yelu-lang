@@ -289,6 +289,10 @@ let rec emit_expr_impl ~env e =
     [ Fmt.str "%s(%s)"
         (target_arg name)
         (String.concat ~sep:" " (List.map args ~f:arg)) ]
+  | ECmakeInclude { file; optional = false } ->
+    [ Fmt.str "include(%s)" (arg file) ]
+  | ECmakeInclude { file; optional = true } ->
+    [ Fmt.str "include(%s OPTIONAL)" (arg file) ]
   | ECmakeAddSubdirectory path ->
     [ Fmt.str "add_subdirectory(%s)" (arg path) ]
   | ECmakeEnableTesting -> [ "enable_testing()" ]

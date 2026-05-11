@@ -459,6 +459,8 @@ let rec lift_yelu1_to_yelu2 = function
         name = lift_yelu1_to_yelu2 name;
         args = List.map args ~f:lift_yelu1_to_yelu2;
       }
+  | ECmakeInclude { file; optional } ->
+    EInclude { file = lift_yelu1_to_yelu2 file; optional }
 
   (* CMake dir surface -> Yelu dir theory. *)
   | ECmakeAddSubdirectory path -> EAddSubdirectory (lift_yelu1_to_yelu2 path)
@@ -852,6 +854,8 @@ let rec lower_yelu2_to_yelu1 = function
         name = lower_yelu2_to_yelu1 name;
         args = List.map args ~f:lower_yelu2_to_yelu1;
       }
+  | EInclude { file; optional } ->
+    ECmakeInclude { file = lower_yelu2_to_yelu1 file; optional }
 
   (* Yelu dir theory -> CMake dir surface. *)
   | EAddSubdirectory path -> ECmakeAddSubdirectory (lower_yelu2_to_yelu1 path)

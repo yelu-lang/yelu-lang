@@ -419,6 +419,8 @@ let rec stmt : Old.yelu_stmt -> Yelu_tiny.expr = function
   | Ys_find find_stmt -> find_statement find_stmt
   | Ys_try try_stmt -> try_statement try_stmt
   | Yc_extern_cvar _ | Yc_extern_target _ -> EUnit
+  | Yc_include { file; optional } ->
+    ECmakeInclude { file = expr file; optional }
   | Yc_function { name; args; body } ->
     (* In production [Yc_function], [args] is the formal parameter list. *)
     ECmakeFunction

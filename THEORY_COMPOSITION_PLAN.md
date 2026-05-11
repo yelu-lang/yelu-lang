@@ -2,8 +2,9 @@
 
 Status: tiny composition harness in progress. **Bar #2 (theory breadth lite)
 reached** — all 14 production theories have at least a first slice.
-**Bar #1 progress:** tutorial v1 step1 through step5 bridge through tiny
-and configure through real cmake. Constructs covered include project +
+**Bar #1 progress:** tutorial v1 step1 through step6 (root) bridge through
+tiny and configure through real cmake; step6_ctest bridges (no
+configure test — it's just `set()`s). Constructs covered include project +
 cxx_standard + configure_file + add_executable + add_subdirectory +
 target_link_libraries + target_include_directories + option +
 statement-if + compile definitions + target_compile_features +
@@ -206,9 +207,9 @@ eval $(opam env) && dune exec test/test-runcmake/test_yelu_tiny_cmake.exe
 Last verified state:
 
 ```text
-test/test-yelu/ passed (tiny split suites: 132 tests
-  = 43 bridge + 65 lift_lower + 3 emit + 8 steps + 13 function)
-test_yelu_tiny_cmake passed with 35 tests
+test/test-yelu/ passed (tiny split suites: 134 tests
+  = 43 bridge + 65 lift_lower + 3 emit + 10 steps + 13 function)
+test_yelu_tiny_cmake passed with 36 tests
 ```
 
 Verification tracks:
@@ -260,6 +261,11 @@ env.messages:
 env.subdirectories:
   declaration-order log of add_subdirectory(path) calls. Subdir scope
   semantics not yet enforced.
+
+env.includes:
+  declaration-order log of include(FILE_OR_MODULE) calls. Tiny does
+  not recursively evaluate included content; real cmake handles the
+  module / file loading at configure time.
 
 env.find_packages:
   declaration-order log of find_package(Name [REQUIRED]) calls.
@@ -465,7 +471,7 @@ strengthen eval as needed.
 
 | Tier | Target step(s) | New work |
 | --- | --- | --- |
-| **A** | step6, step6_ctest | `include(FILE_OR_MODULE)` — first slice: record name in env, emit faithfully. Used for `include(CTest)`, `include(CPack)`, local module files. |
+| **A** ✓ | step6, step6_ctest | `include(FILE_OR_MODULE)` — first slice: records name in `env.includes`, emits `include("FILE")` (with `OPTIONAL` suffix when set). Step6 root + step6_ctest now bridge; step6 root also configures through real cmake. |
 | **B** | step7, step7_math | Already covered by stub `yc_apply` to non-defined names (cmake built-in modules like `check_cxx_source_compiles`). May need eval-side fix when F2 lands. |
 | **C** | step8_table | `add_custom_command(TARGET ...)` — pre/post-build hook variant. Distinct from the existing `OUTPUT` form. |
 | **D** | step9, step10 | `cpack_basic` extras + `shared_libs_output_dirs` — mostly `yc_set` to cache vars (already works) plus the Tier A `include()`. |

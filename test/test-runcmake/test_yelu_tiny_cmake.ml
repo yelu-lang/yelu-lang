@@ -767,6 +767,48 @@ let yelu2_configure_lowering =
           ESetVar ("OUT", EStringUpper (EString "yes"));
           EVar "OUT";
         ]);
+      check_yelu2_lowering_configure "step6 root program configures via tiny bridge"
+        ~files:
+          [
+            "tutorial.cxx",
+              "int main(int argc, char**) { return argc - 1; }\n";
+            "TutorialConfig.h.in", "#define TUTORIAL_VERSION_MAJOR 1\n";
+            "MathFunctions/CMakeLists.txt",
+              "add_library(MathFunctions MathFunctions.cxx)\n";
+            "MathFunctions/MathFunctions.cxx",
+              "int mathfunctions_dummy(void) { return 0; }\n";
+          ]
+        (ESeq [
+          (let module Old = Yelu_langs.Lang_yelu_cmake in
+           let open Yelu_langs.Lang_yelu_utils in
+           let cmd : Old.yelu_stmt =
+             ycmd_of_list
+               (Step_common.project_preamble
+                @ [
+                    ylet "tut" (ytval "Tutorial");
+                    ylet "flags" (ytval "tutorial_compiler_flags");
+                    ylet "do_test" (ycstr "do_test");
+                  ]
+                @ Step_common.compiler_flags_lib
+                @ Step_common.compiler_warning_options
+                @ [
+                    Step_common.configure_tutorial_header;
+                    yc_add_subdirectory (ydir "MathFunctions");
+                    add_exe ~sources:[ yfile "tutorial.cxx" ] (yvar "tut");
+                    link_lib [ yvar "tut" ]
+                      [ ytarget_def [ ytval "MathFunctions"; yvar "flags" ] ];
+                    include_dirs (yvar "tut")
+                      [ ytarget_def
+                          [ dir Yelu_langs.Lang_yelu_utils.output_root ] ];
+                  ]
+                @ Step_common.install_tutorial
+                @ Step_common.test_suite ~ctest:true)
+           in
+           Yelu_langs.Yelu_cmake_to_yelu1.stmt cmd
+           |> lift_yelu1_to_yelu2);
+          ESetVar ("OUT", EStringUpper (EString "yes"));
+          EVar "OUT";
+        ]);
     ] )
 
 let yelu2_build_lowering =

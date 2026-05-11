@@ -200,6 +200,7 @@ type env = {
   cmake_min_version : string option;
   messages : log_entry list;
   subdirectories : string list;
+  includes : string list;
   find_packages : find_package_decl list;
   try_compiles : try_compile_decl list;
 
@@ -227,6 +228,7 @@ let empty_env : env =
     cmake_min_version = None;
     messages = [];
     subdirectories = [];
+    includes = [];
     find_packages = [];
     try_compiles = [];
 
@@ -252,6 +254,7 @@ let equal_env left right =
   && Option.equal String.equal left.cmake_min_version right.cmake_min_version
   && List.equal equal_log_entry left.messages right.messages
   && List.equal String.equal left.subdirectories right.subdirectories
+  && List.equal String.equal left.includes right.includes
   && List.equal equal_find_package_decl left.find_packages right.find_packages
   && List.equal equal_try_compile_decl left.try_compiles right.try_compiles
   (* Build-time: target graph + test graph. *)
@@ -352,6 +355,9 @@ let add_message env mode texts =
 
 let add_subdirectory env path =
   { env with subdirectories = env.subdirectories @ [ path ] }
+
+let add_include env file =
+  { env with includes = env.includes @ [ file ] }
 
 let enable_testing env =
   { env with testing_enabled = true }
