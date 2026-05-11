@@ -7,8 +7,8 @@ The plan for moving production lowering off the legacy
 
 ## Status (2026-05-11)
 
-**Phase 1 done; Phase 2a + 2c structural move done; item A done;
-items B–E open.**
+**Phase 1 done; Phase 2a + 2c structural move done; items A and B
+(reframed) done; items C–E open.**
 
 - Production text generation routes through
   `Yelu1 → emit_ast → Lang_cmake.exp → cmake_pp`.
@@ -221,20 +221,18 @@ Consolidated history; commit refs in parens.
   parser bug shapes (`set NAME val`, `policy_set "CMPxxxx"`,
   `cmake_call "myfn"`) omitted from oracle with explanatory
   comments; legacy fix deferred.
+- **Item B — genex (reframed).** The production switch does not need
+  first-class typed genex ctors; both legacy and tiny carry generator
+  expressions as opaque strings end-to-end. Added `t9-genex-y1`
+  pair-wise oracle group (5 cases, 4 byte-identical, 1 deferred as
+  the fourth legacy `Ycs_eval` bug-shape on `message`). Direct
+  parser now also handles `~public:[items]` / `~private:[...]` /
+  `~interface:[...]` kwarg-lists by consuming-and-discarding items
+  (matches legacy semantics). Typed genex theory deferred to Y17.
 
 ## Open
 
 Letter scheme so future additions don't disturb existing numbering.
-
-### B — R3 genex theory (first-class)
-
-With the parser owning genex directly (post-A), generator expressions
-graduate from opaque `ECmakeGenex of string` to typed constructors. ~17
-typed `Yge_*` variants exist in legacy; pick the first slice and add
-matching Yelu1 / Yelu2 nodes plus eval / emit / pair-wise tests. Full
-theory with eval semantics is deferred — first slice unblocks the
-production switch by letting genex-heavy families parse without
-catch-all stubbing.
 
 ### C — Repoint binary callers
 
@@ -333,12 +331,11 @@ equivalence claim stays byte-level.
 ## Sequencing summary
 
 ```
-done:       warm-up trio  →  Phase 1 (emit_ast)  →  Phase 2a (Yelu_parse_y1, 12 families)  →  Phase 2c (legacy move)  →  A (direct-parser gap list closed)
-open B:     R3 genex first slice (parser owns it; constructors graduate from opaque strings)
+done:       warm-up trio  →  Phase 1 (emit_ast)  →  Phase 2a (Yelu_parse_y1, 12 families)  →  Phase 2c (legacy move)  →  A (direct-parser gap list closed)  →  B (genex opaque-string handling sufficient; typed theory deferred to Y17)
 open C:     repoint binary callers in src/bin/yelu/* off Lang_yelu_compile
 open D:     naming honesty rename — yelu_tiny → yelu, naming aligned with surface vs cmake vs legacy
 open E:     bridge retirement — delete yelu_cmake_to_yelu1.ml; oracle shifts to source-fed shape
-y17:        post-retirement typing pass on tiny
+y17:        post-retirement typing pass on tiny (incl. typed genex)
 delete?:    separate decision, gated on Y17 + production stability
 ```
 

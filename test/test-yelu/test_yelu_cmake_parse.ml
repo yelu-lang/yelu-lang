@@ -417,6 +417,29 @@ let tier9_genex = ("t9-genex", [
   assert_parses "$<BUILD_INTERFACE>" "( compile_opts Target Tutorial ~public:[$<BUILD_INTERFACE:-Wall>] )";
 ])
 
+(* Phase 2a pair-wise oracle for generator expressions.
+
+   Both parsers route $<...> Ycs_eval tokens through ECmakeGenex of
+   string (no typed Yge_* ctors in tiny — full theory deferred per
+   retirement item B). The pair-wise oracle confirms the opaque
+   round-trip matches byte-for-byte. ${VAR} stays as EString in both
+   paths. *)
+let tier9_genex_y1 = ("t9-genex-y1", [
+  assert_parse_y1_equiv "y1: $<CONFIG> in message"
+    "( message $<CONFIG> )";
+  assert_parse_y1_equiv "y1: $<TARGET_FILE> in message"
+    "( message $<TARGET_FILE:tgt> )";
+  assert_parse_y1_equiv "y1: nested genex in compile_opts"
+    "( compile_opts Target Tutorial ~private:[$<IF:$<CONFIG:Debug>,debug,release>] )";
+  (* y1: ${VAR} eval — fourth legacy-parser-bug shape: legacy [message]
+     maps args via [Yexpr_string (Ycs_path s | Ycs_string s) -> s | _ -> ""]
+     so a [Ycs_eval] string (which is what ${VAR} becomes) falls through
+     to the empty default. The new parser preserves the ${VAR} string.
+     Omitted from oracle alongside set/policy_set/cmake_call. *)
+  assert_parse_y1_equiv "y1: $<BUILD_INTERFACE>"
+    "( compile_opts Target Tutorial ~public:[$<BUILD_INTERFACE:-Wall>] )";
+])
+
 (* Phase 2a pair-wise oracle for the var family.
    Mirrors tier0_var inputs through both parser paths and asserts
    byte-identical cmake text.
@@ -657,5 +680,5 @@ let () =
     tier6_find_install; tier6_find_install_y1;
     tier7_scripting; tier7_try_y1;
     tier8_misc; tier8_misc_y1; tier8_misc_cmake_op_y1;
-    tier_remaining; tier_remaining_y1; tier9_genex;
+    tier_remaining; tier_remaining_y1; tier9_genex; tier9_genex_y1;
   ]

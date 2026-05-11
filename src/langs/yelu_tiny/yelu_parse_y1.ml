@@ -258,6 +258,26 @@ let p_var_stmt_y1 toks =
 
 let rec collect_command_args args kwargs toks =
   match toks with
+  (* `~public:[items]`, `~private:[items]`, `~interface:[items]` —
+     kind-scoped lists. Legacy parser stores the kwarg as
+     (kw, Yexpr_bool true) and discards the inner items. Mirror that:
+     consume tokens through the matching RBRACK and record the
+     boolean flag only. Items are not yet plumbed end-to-end through
+     the target_groups_to_y1 path; tracked as a follow-up. *)
+  | TILDE :: IDENT kw :: COLON :: LBRACK :: rest
+    when String.equal kw "public"
+      || String.equal kw "private"
+      || String.equal kw "interface" ->
+    let rec skip_items = function
+      | RBRACK :: r -> r
+      | COMMA :: r -> skip_items r
+      | toks' ->
+        (match p_expr_y1 toks' with
+         | Some (_, r) -> skip_items r
+         | None -> toks')
+    in
+    let rest = skip_items rest in
+    collect_command_args args ((kw, EBool true) :: kwargs) rest
   | TILDE :: IDENT kw :: COLON :: rest ->
     (match p_expr_y1 rest with
      | Some (v, r) -> collect_command_args args ((kw, v) :: kwargs) r

@@ -6,8 +6,8 @@ code-anchored module guide in `structure.md`, history in
 
 **Last verified 2026-05-11:** `dune build && dune test` green;
 byte-equality oracle covers 194/194 production programs with 0
-uncovered, 0 skipped. Parser tests now 291 (incl. 121 pair-wise
-oracle cases across all direct-parser families).
+uncovered, 0 skipped. Parser tests now 295 (incl. 125 pair-wise
+oracle cases across all direct-parser families including genex).
 `make runcmake-yelu` green (50/50 pairs). Retirement Phase 1
 done. Phase 2 warm-up trio landed. Phase 2a covers all 12 families
 via separate Yelu1 parser (`Yelu_parse_y1`); pair-wise oracle agrees
@@ -19,13 +19,14 @@ as the still-production entry. Module names unchanged (dune
 needed. **Item A (direct-parser gap list) closed:** try_compile /
 try_run added; 27 tier_remaining cases promoted into the pair-wise
 oracle; four bridge shape gaps explicitly deferred (no production
-caller hits them today). Three legacy-parser bugs surfaced (same
-shape: command that only matches Ycs_string but receives Ycs_path
-fallback):
+caller hits them today). Four legacy-parser bugs surfaced (same
+shape: handler only matches narrow Yexpr_string variant and falls
+through to "" / "?" for the rest):
 - `( set NAME val )` form
 - `( policy_set "CMPxxxx" )` form
 - `( cmake_call "myfn" )` form
-All three omitted from the pair-wise oracle; legacy parser fix
+- `( message ${VAR} )` form (drops Ycs_eval)
+All four omitted from the pair-wise oracle; legacy parser fix
 deferred (one-line edit per case).
 
 ## What's done
