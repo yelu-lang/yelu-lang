@@ -104,6 +104,41 @@ type install_rule =
       files : string list;
       destination : string;
     }
+  (* [install(EXPORT name FILE file DESTINATION dest NAMESPACE ns)] —
+     emit-time install rule that writes out an export set declared via
+     [Yinstall_targets ~export]. *)
+  | InstallExport of {
+      export : string;
+      destination : string;
+      file : string option;
+      namespace : string option;
+    }
+  (* [export(EXPORT name FILE file)] — eager export of the in-tree
+     targets to a file usable by sibling projects. Stored alongside
+     install rules because cmake treats them as the same family of
+     packaging artefacts. *)
+  | ExportExport of {
+      name : string;
+      file : string option;
+    }
+  (* [configure_package_config_file(INPUT OUTPUT INSTALL_DESTINATION ...)]
+     from CMakePackageConfigHelpers. Runs as part of the package-config
+     emit slice; recorded eagerly so the env can be inspected later. *)
+  | ConfigurePackageConfigFile of {
+      install_dest : string;
+      input : string;
+      output : string;
+      no_set_and_check_macro : bool;
+      no_check_required_components_macro : bool;
+    }
+  (* [write_basic_package_version_file(file VERSION v COMPATIBILITY c)]
+     from CMakePackageConfigHelpers. *)
+  | WriteBasicPackageVersionFile of {
+      file : string;
+      version : string option;
+      compatibility : string;
+      arch_independent : bool;
+    }
 [@@deriving equal, sexp_of]
 
 type project_info = {

@@ -248,6 +248,45 @@ let rec emit_expr_impl ~env e =
         (String.concat ~sep:" " (List.map files ~f:arg))
         (arg destination)
     ]
+  | ECmakeInstallExport { export; destination; file; namespace } ->
+    let file_part =
+      Option.value_map file ~default:"" ~f:(fun f -> Fmt.str " FILE %s" (arg f))
+    in
+    let ns_part =
+      Option.value_map namespace ~default:""
+        ~f:(fun ns -> Fmt.str " NAMESPACE %s" ns)
+    in
+    [ Fmt.str "install(EXPORT %s%s DESTINATION %s%s)"
+        (arg export) file_part (arg destination) ns_part ]
+  | ECmakeExportExport { name; file } ->
+    let file_part =
+      Option.value_map file ~default:"" ~f:(fun f -> Fmt.str " FILE %s" (arg f))
+    in
+    [ Fmt.str "export(EXPORT %s%s)" (arg name) file_part ]
+  | ECmakeConfigurePackageConfigFile
+      { install_dest; input; output;
+        no_set_and_check_macro; no_check_required_components_macro } ->
+    let flag = function
+      | true, kw -> " " ^ kw
+      | false, _ -> ""
+    in
+    [ Fmt.str
+        "configure_package_config_file(%s %s INSTALL_DESTINATION %s%s%s)"
+        (arg input) (arg output) (arg install_dest)
+        (flag (no_set_and_check_macro, "NO_SET_AND_CHECK_MACRO"))
+        (flag (no_check_required_components_macro,
+               "NO_CHECK_REQUIRED_COMPONENTS_MACRO"))
+    ]
+  | ECmakeWriteBasicPackageVersionFile
+      { file; version; compatibility; arch_independent } ->
+    let version_part =
+      Option.value_map version ~default:""
+        ~f:(fun v -> Fmt.str " VERSION %s" (arg v))
+    in
+    let arch_part = if arch_independent then " ARCH_INDEPENDENT" else "" in
+    [ Fmt.str
+        "write_basic_package_version_file(%s%s COMPATIBILITY %s%s)"
+        (arg file) version_part compatibility arch_part ]
   | ECmakeIfStmt { cond = c; then_; else_ } ->
     let then_lines = emit_expr then_ in
     let else_lines = Option.value_map else_ ~default:[] ~f:emit_expr in

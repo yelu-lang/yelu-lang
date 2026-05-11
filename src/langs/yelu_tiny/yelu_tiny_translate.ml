@@ -211,6 +211,29 @@ let rec lift_yelu1_to_yelu2 = function
         files = List.map files ~f:lift_yelu1_to_yelu2;
         destination = lift_yelu1_to_yelu2 destination;
       }
+  | EInstallExport { export; destination; file; namespace } ->
+    EInstallExport
+      {
+        export = lift_yelu1_to_yelu2 export;
+        destination = lift_yelu1_to_yelu2 destination;
+        file = Option.map file ~f:lift_yelu1_to_yelu2;
+        namespace;
+      }
+  | EExportExport { name; file } ->
+    EExportExport
+      { name = lift_yelu1_to_yelu2 name;
+        file = Option.map file ~f:lift_yelu1_to_yelu2 }
+  | EConfigurePackageConfigFile r ->
+    EConfigurePackageConfigFile
+      { r with
+        install_dest = lift_yelu1_to_yelu2 r.install_dest;
+        input = lift_yelu1_to_yelu2 r.input;
+        output = lift_yelu1_to_yelu2 r.output }
+  | EWriteBasicPackageVersionFile r ->
+    EWriteBasicPackageVersionFile
+      { r with
+        file = lift_yelu1_to_yelu2 r.file;
+        version = Option.map r.version ~f:lift_yelu1_to_yelu2 }
 
   (* CMake list surface -> Yelu list/string theories. *)
   | ECmakeListAppend { list; items } ->
@@ -406,6 +429,31 @@ let rec lift_yelu1_to_yelu2 = function
           };
         EUnit;
       ]
+  | ECmakeInstallExport { export; destination; file; namespace } ->
+    EInstallExport
+      {
+        export = lift_yelu1_to_yelu2 export;
+        destination = lift_yelu1_to_yelu2 destination;
+        file = Option.map file ~f:lift_yelu1_to_yelu2;
+        namespace;
+      }
+  | ECmakeExportExport { name; file } ->
+    EExportExport
+      { name = lift_yelu1_to_yelu2 name;
+        file = Option.map file ~f:lift_yelu1_to_yelu2 }
+  | ECmakeConfigurePackageConfigFile r ->
+    EConfigurePackageConfigFile
+      { install_dest = lift_yelu1_to_yelu2 r.install_dest;
+        input = lift_yelu1_to_yelu2 r.input;
+        output = lift_yelu1_to_yelu2 r.output;
+        no_set_and_check_macro = r.no_set_and_check_macro;
+        no_check_required_components_macro = r.no_check_required_components_macro }
+  | ECmakeWriteBasicPackageVersionFile r ->
+    EWriteBasicPackageVersionFile
+      { file = lift_yelu1_to_yelu2 r.file;
+        version = Option.map r.version ~f:lift_yelu1_to_yelu2;
+        compatibility = r.compatibility;
+        arch_independent = r.arch_independent }
   | ECmakeTargetExists target ->
     ETargetExists (lift_yelu1_to_yelu2 target)
 
@@ -741,6 +789,31 @@ let rec lower_yelu2_to_yelu1 = function
         files = List.map files ~f:lower_yelu2_to_yelu1;
         destination = lower_yelu2_to_yelu1 destination;
       }
+  | EInstallExport { export; destination; file; namespace } ->
+    ECmakeInstallExport
+      {
+        export = lower_yelu2_to_yelu1 export;
+        destination = lower_yelu2_to_yelu1 destination;
+        file = Option.map file ~f:lower_yelu2_to_yelu1;
+        namespace;
+      }
+  | EExportExport { name; file } ->
+    ECmakeExportExport
+      { name = lower_yelu2_to_yelu1 name;
+        file = Option.map file ~f:lower_yelu2_to_yelu1 }
+  | EConfigurePackageConfigFile r ->
+    ECmakeConfigurePackageConfigFile
+      { install_dest = lower_yelu2_to_yelu1 r.install_dest;
+        input = lower_yelu2_to_yelu1 r.input;
+        output = lower_yelu2_to_yelu1 r.output;
+        no_set_and_check_macro = r.no_set_and_check_macro;
+        no_check_required_components_macro = r.no_check_required_components_macro }
+  | EWriteBasicPackageVersionFile r ->
+    ECmakeWriteBasicPackageVersionFile
+      { file = lower_yelu2_to_yelu1 r.file;
+        version = Option.map r.version ~f:lower_yelu2_to_yelu1;
+        compatibility = r.compatibility;
+        arch_independent = r.arch_independent }
 
   (* Yelu list/string theories -> CMake list surface. *)
   | ESetVar (name, EListAppend (EVar list, item)) when String.equal name list ->

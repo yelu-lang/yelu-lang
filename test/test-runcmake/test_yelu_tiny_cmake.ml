@@ -896,6 +896,92 @@ let yelu2_configure_lowering =
           ESetVar ("OUT", EStringUpper (EString "yes"));
           EVar "OUT";
         ]);
+      check_yelu2_lowering_configure "step12 root program configures via tiny bridge"
+        ~files:
+          [
+            "tutorial.cxx",
+              "int main(int argc, char**) { return argc - 1; }\n";
+            "TutorialConfig.h.in", "#define TUTORIAL_VERSION_MAJOR 1\n";
+            "License.txt", "Tutorial license\n";
+            "Config.cmake.in",
+              "@PACKAGE_INIT@\ninclude(\"${CMAKE_CURRENT_LIST_DIR}/MathFunctionsTargets.cmake\")\n";
+            (* MathFunctions/CMakeLists.txt for step12 must declare the
+               MathFunctionsTargets export set, since the root's
+               install(EXPORT ...) below references it. *)
+            "MathFunctions/CMakeLists.txt",
+              "add_library(MathFunctions MathFunctions.cxx)\n\
+               install(TARGETS MathFunctions EXPORT MathFunctionsTargets DESTINATION lib)\n";
+            "MathFunctions/MathFunctions.cxx",
+              "int mathfunctions_dummy(void) { return 0; }\n";
+          ]
+        (ESeq [
+          (let module Old = Yelu_langs.Lang_yelu_cmake in
+           let open Yelu_langs.Lang_yelu_utils in
+           let cmd : Old.yelu_stmt =
+             ycmd_of_list
+               (Step_common.project_preamble
+                @ [
+                    ylet "tut" (ytval "Tutorial");
+                    ylet "flags" (ytval "tutorial_compiler_flags");
+                    ylet "do_test" (ycstr "do_test");
+                  ]
+                @ Step_common.shared_libs_output_dirs
+                @ [ yc_set (ycvar "CMAKE_DEBUG_POSTFIX") [ ystr "d" ] ]
+                @ Step_common.compiler_flags_lib
+                @ Step_common.compiler_warning_options
+                @ [
+                    Step_common.configure_tutorial_header;
+                    yc_add_subdirectory (ydir "MathFunctions");
+                    add_exe ~sources:[ yfile "tutorial.cxx" ] (yvar "tut");
+                    yc_set_target_properties (yvar "tut")
+                      [ ("DEBUG_POSTFIX", ystr "${CMAKE_DEBUG_POSTFIX}") ];
+                    link_lib [ yvar "tut" ]
+                      [ ytarget_def [ ytval "MathFunctions"; yvar "flags" ] ];
+                    include_dirs (yvar "tut")
+                      [ ytarget_def
+                          [ dir Yelu_langs.Lang_yelu_utils.output_root ] ];
+                  ]
+                @ Step_common.install_tutorial
+                @ Step_common.test_suite ~ctest:true
+                @ Step_common.cpack_basic
+                @ [
+                    yc_install_export
+                      ~file:(yfile "MathFunctionsTargets.cmake")
+                      (ystr "MathFunctionsTargets")
+                      (ydir "lib/cmake/MathFunctions");
+                    yc_include (yfile "CMakePackageConfigHelpers");
+                    yc_configure_package_config_file ~no_set_and_check_macro:true
+                      ~no_check_required_components_macro:true
+                      (ydir "lib/cmake/MathFunctions")
+                      (yfile "${CMAKE_CURRENT_SOURCE_DIR}/Config.cmake.in")
+                      (dir_concat Yelu_langs.Lang_yelu_utils.output_this
+                         "MathFunctionsConfig.cmake");
+                    yc_write_basic_package_version_file
+                      ~compatibility:Yelu_langs.Lang_cmake.Same_major_version
+                      ~version:(ystr_eval
+                                  "${Tutorial_VERSION_MAJOR}.${Tutorial_VERSION_MINOR}")
+                      (dir_concat Yelu_langs.Lang_yelu_utils.output_this
+                         "MathFunctionsConfigVersion.cmake");
+                    yc_install_files
+                      [
+                        yfile "${CMAKE_CURRENT_BINARY_DIR}/MathFunctionsConfig.cmake";
+                        yfile "${CMAKE_CURRENT_BINARY_DIR}/MathFunctionsConfigVersion.cmake";
+                      ]
+                      (ydir "lib/cmake/MathFunctions");
+                    yc_install_export
+                      ~file:(yfile "MathFunctionsTargets.cmake")
+                      (ystr "MathFunctionsTargets")
+                      (ydir "lib/cmake/MathFunctions");
+                    yc_export_export (ystr "MathFunctionsTargets")
+                      ~file:(dir_concat Yelu_langs.Lang_yelu_utils.output_this
+                               "MathFunctionsTargets.cmake");
+                  ])
+           in
+           Yelu_langs.Yelu_cmake_to_yelu1.stmt cmd
+           |> lift_yelu1_to_yelu2);
+          ESetVar ("OUT", EStringUpper (EString "yes"));
+          EVar "OUT";
+        ]);
       (* Slim configure test for step8_table's distinguishing piece — the
          custom_command(OUTPUT ...) rule. The full v1 step8_table also
          links MakeTable against [tutorial_compiler_flags], which would

@@ -2,10 +2,11 @@
 
 Status: tiny composition harness in progress. **Bar #2 (theory breadth lite)
 reached** — all 14 production theories have at least a first slice.
-**Bar #1 progress:** tutorial v1 step1 through step10 (root) plus step8_table
-bridge through tiny; step1, 2, 3, 4, 5, 6, 7, 8_table, 10 configure through
-real cmake. step6_ctest, step7_math, step8_math, step9, step10 also bridge
-(no separate configure tests — covered cumulatively or trivial). Constructs covered include project +
+**Bar #1 reached for the tutorial:** v1 step1–step12 (root) plus step8_table,
+step11_config bridge through tiny; step1, 2, 3, 4, 5, 6, 7, 8_table, 10, 12
+configure through real cmake. step6_ctest, step7_math, step8_math, step9,
+step11 also bridge (separate cmake tests subsumed by the cumulative step10 /
+step12 fixtures). Tier G (orthogonal cleanup) remains. Constructs covered include project +
 cxx_standard + configure_file + add_executable + add_subdirectory +
 target_link_libraries + target_include_directories + option +
 statement-if + compile definitions + target_compile_features +
@@ -477,7 +478,7 @@ strengthen eval as needed.
 | **C** ✓ | step8_table, step8_math | step8_table uses the OUTPUT form of `add_custom_command` (already bridged via `Ytgt_add_custom_command`); the TARGET-form sibling `Ytgt_add_custom_command_target` remains deferred (no v1 step uses it). step8_math composes Tier A's `include()` with a generated source path. Both bridge with no new fragment work; step8_table also configures through real cmake. |
 | **D** ✓ | step9, step10 | `cpack_basic` (sequence of `yc_set` + `include(CPack)` + `include(InstallRequiredSystemLibraries)`) and `shared_libs_output_dirs` (three `CMAKE_*_OUTPUT_DIRECTORY` sets + `BUILD_SHARED_LIBS` option) compose from already-bridged pieces. No new fragment work; step10 configures through real cmake. |
 | **E** ✓ | step11_config | `yc_at_var key` added: theory `EAtVar of string` + surface `ECmakeAtVar`, eval is a no-op (literal is substituted later by `configure_package_config_file` over a `.cmake.in` template), emit renders `@key@` as a bare line. Bridge + lift/lower wired. step11_config bridges. (step11 full root waits on Tier F.) |
-| **F** | step12, step12_math | The package-config family: `install(EXPORT)`, `export(EXPORT)`, `configure_package_config_file`, `write_basic_package_version_file`. Each is a single keyword-arg command with a dedicated surface constructor; emit faithfully; stub eval initially. |
+| **F** ✓ | step11, step12 | Package-config family: theory + surface constructors `EInstallExport` / `EExportExport` / `EConfigurePackageConfigFile` / `EWriteBasicPackageVersionFile` plus matching env install_rule variants. Bridge wired (production AST now exhaustively matched — no catch-all). Lift/lower paired on both axes. Emit follows the production cmake pretty-printer (FILE / NAMESPACE / NO_SET_AND_CHECK_MACRO / NO_CHECK_REQUIRED_COMPONENTS_MACRO / VERSION / COMPATIBILITY / ARCH_INDEPENDENT). step11 + step12 bridge; step12 also configures through real cmake (the configure test's fixture adds `install(TARGETS MathFunctions EXPORT MathFunctionsTargets ...)` so the export set is declared). |
 | **G** | orthogonal cleanup | `ECmakeOption` eval through `eval` (currently ad-hoc match); `ECmakeSetTestsProperties` eval through a new env namespace; `set_property(TARGET ...)` as older sibling of `set_target_properties`. |
 
 Total: roughly 7–10 incremental slices, each 30–100 lines. None large

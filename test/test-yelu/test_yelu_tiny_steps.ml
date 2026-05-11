@@ -843,6 +843,184 @@ let step11_config_bridge =
                ~substring:"MathFunctionsTargets.cmake"))
     ] )
 
+(* step11 root composes the package-config family on top of step10:
+   install(EXPORT), include(CMakePackageConfigHelpers),
+   configure_package_config_file, write_basic_package_version_file,
+   install(FILES ...), a second install(EXPORT), and an export(EXPORT).
+   All four constructs are Tier F additions. *)
+let step11_bridge =
+  let module Old = Yelu_langs.Lang_yelu_cmake in
+  let open Yelu_langs.Lang_yelu_utils in
+  let cmd : Old.yelu_stmt =
+    ycmd_of_list
+      (Step_common.project_preamble
+       @ [
+           ylet "tut" (ytval "Tutorial");
+           ylet "flags" (ytval "tutorial_compiler_flags");
+           ylet "do_test" (ycstr "do_test");
+         ]
+       @ Step_common.shared_libs_output_dirs
+       @ Step_common.compiler_flags_lib
+       @ Step_common.compiler_warning_options
+       @ [
+           Step_common.configure_tutorial_header;
+           yc_add_subdirectory (ydir "MathFunctions");
+           add_exe ~sources:[ yfile "tutorial.cxx" ] (yvar "tut");
+           link_lib [ yvar "tut" ]
+             [ ytarget_def [ ytval "MathFunctions"; yvar "flags" ] ];
+           include_dirs (yvar "tut")
+             [ ytarget_def [ dir Yelu_langs.Lang_yelu_utils.output_root ] ];
+         ]
+       @ Step_common.install_tutorial
+       @ Step_common.test_suite ~ctest:true
+       @ Step_common.cpack_basic
+       @ [
+           yc_install_export
+             ~file:(yfile "MathFunctionsTargets.cmake")
+             (ystr "MathFunctionsTargets")
+             (ydir "lib/cmake/MathFunctions");
+           yc_include (yfile "CMakePackageConfigHelpers");
+           yc_configure_package_config_file ~no_set_and_check_macro:true
+             ~no_check_required_components_macro:true
+             (ydir "lib/cmake/MathFunctions")
+             (yfile "${CMAKE_CURRENT_SOURCE_DIR}/Config.cmake.in")
+             (dir_concat Yelu_langs.Lang_yelu_utils.output_this
+                "MathFunctionsConfig.cmake");
+           yc_write_basic_package_version_file
+             ~compatibility:Yelu_langs.Lang_cmake.Any_newer_version
+             ~version:(ystr_eval
+                         "${Tutorial_VERSION_MAJOR}.${Tutorial_VERSION_MINOR}")
+             (dir_concat Yelu_langs.Lang_yelu_utils.output_this
+                "MathFunctionsConfigVersion.cmake");
+           yc_install_files
+             [
+               yfile "${CMAKE_CURRENT_BINARY_DIR}/MathFunctionsConfig.cmake";
+               yfile "${CMAKE_CURRENT_BINARY_DIR}/MathFunctionsConfigVersion.cmake";
+             ]
+             (ydir "lib/cmake/MathFunctions");
+           yc_install_export
+             ~file:(yfile "MathFunctionsTargets.cmake")
+             (ystr "MathFunctionsTargets")
+             (ydir "lib/cmake/MathFunctions");
+           yc_export_export (ystr "MathFunctionsTargets")
+             ~file:(dir_concat Yelu_langs.Lang_yelu_utils.output_this
+                      "MathFunctionsTargets.cmake");
+         ])
+  in
+  ( "step11_bridge",
+    [
+      Alcotest.test_case "v1 step11 root bridges package-config family"
+        `Quick
+        (fun () ->
+          let yelu1 = Yelu_langs.Yelu_cmake_to_yelu1.stmt cmd in
+          let cmake_text =
+            Yelu_langs.Yelu_tiny_cmake_emit.emit_script yelu1
+          in
+          Alcotest.(check bool) "emits install(EXPORT MathFunctionsTargets ...)" true
+            (String.is_substring cmake_text
+               ~substring:"install(EXPORT \"MathFunctionsTargets\"");
+          Alcotest.(check bool) "emits include(CMakePackageConfigHelpers)" true
+            (String.is_substring cmake_text
+               ~substring:"include(\"CMakePackageConfigHelpers\")");
+          Alcotest.(check bool) "emits configure_package_config_file(" true
+            (String.is_substring cmake_text
+               ~substring:"configure_package_config_file(");
+          Alcotest.(check bool) "emits NO_SET_AND_CHECK_MACRO" true
+            (String.is_substring cmake_text
+               ~substring:"NO_SET_AND_CHECK_MACRO");
+          Alcotest.(check bool) "emits write_basic_package_version_file(" true
+            (String.is_substring cmake_text
+               ~substring:"write_basic_package_version_file(");
+          Alcotest.(check bool) "emits COMPATIBILITY AnyNewerVersion" true
+            (String.is_substring cmake_text
+               ~substring:"COMPATIBILITY AnyNewerVersion");
+          Alcotest.(check bool) "emits export(EXPORT MathFunctionsTargets ...)" true
+            (String.is_substring cmake_text
+               ~substring:"export(EXPORT \"MathFunctionsTargets\""))
+    ] )
+
+(* step12 adds set_target_properties(DEBUG_POSTFIX) and an extra
+   CMAKE_DEBUG_POSTFIX set on top of step11. Same package-config family. *)
+let step12_bridge =
+  let module Old = Yelu_langs.Lang_yelu_cmake in
+  let open Yelu_langs.Lang_yelu_utils in
+  let cmd : Old.yelu_stmt =
+    ycmd_of_list
+      (Step_common.project_preamble
+       @ [
+           ylet "tut" (ytval "Tutorial");
+           ylet "flags" (ytval "tutorial_compiler_flags");
+           ylet "do_test" (ycstr "do_test");
+         ]
+       @ Step_common.shared_libs_output_dirs
+       @ [ yc_set (ycvar "CMAKE_DEBUG_POSTFIX") [ ystr "d" ] ]
+       @ Step_common.compiler_flags_lib
+       @ Step_common.compiler_warning_options
+       @ [
+           Step_common.configure_tutorial_header;
+           yc_add_subdirectory (ydir "MathFunctions");
+           add_exe ~sources:[ yfile "tutorial.cxx" ] (yvar "tut");
+           yc_set_target_properties (yvar "tut")
+             [ ("DEBUG_POSTFIX", ystr "${CMAKE_DEBUG_POSTFIX}") ];
+           link_lib [ yvar "tut" ]
+             [ ytarget_def [ ytval "MathFunctions"; yvar "flags" ] ];
+           include_dirs (yvar "tut")
+             [ ytarget_def [ dir Yelu_langs.Lang_yelu_utils.output_root ] ];
+         ]
+       @ Step_common.install_tutorial
+       @ Step_common.test_suite ~ctest:true
+       @ Step_common.cpack_basic
+       @ [
+           yc_install_export
+             ~file:(yfile "MathFunctionsTargets.cmake")
+             (ystr "MathFunctionsTargets")
+             (ydir "lib/cmake/MathFunctions");
+           yc_include (yfile "CMakePackageConfigHelpers");
+           yc_configure_package_config_file ~no_set_and_check_macro:true
+             ~no_check_required_components_macro:true
+             (ydir "lib/cmake/MathFunctions")
+             (yfile "${CMAKE_CURRENT_SOURCE_DIR}/Config.cmake.in")
+             (dir_concat Yelu_langs.Lang_yelu_utils.output_this
+                "MathFunctionsConfig.cmake");
+           yc_write_basic_package_version_file
+             ~compatibility:Yelu_langs.Lang_cmake.Same_major_version
+             ~version:(ystr_eval
+                         "${Tutorial_VERSION_MAJOR}.${Tutorial_VERSION_MINOR}")
+             (dir_concat Yelu_langs.Lang_yelu_utils.output_this
+                "MathFunctionsConfigVersion.cmake");
+           yc_install_files
+             [
+               yfile "${CMAKE_CURRENT_BINARY_DIR}/MathFunctionsConfig.cmake";
+               yfile "${CMAKE_CURRENT_BINARY_DIR}/MathFunctionsConfigVersion.cmake";
+             ]
+             (ydir "lib/cmake/MathFunctions");
+           yc_install_export
+             ~file:(yfile "MathFunctionsTargets.cmake")
+             (ystr "MathFunctionsTargets")
+             (ydir "lib/cmake/MathFunctions");
+           yc_export_export (ystr "MathFunctionsTargets")
+             ~file:(dir_concat Yelu_langs.Lang_yelu_utils.output_this
+                      "MathFunctionsTargets.cmake");
+         ])
+  in
+  ( "step12_bridge",
+    [
+      Alcotest.test_case "v1 step12 root bridges (adds DEBUG_POSTFIX)"
+        `Quick
+        (fun () ->
+          let yelu1 = Yelu_langs.Yelu_cmake_to_yelu1.stmt cmd in
+          let cmake_text =
+            Yelu_langs.Yelu_tiny_cmake_emit.emit_script yelu1
+          in
+          Alcotest.(check bool) "emits set(CMAKE_DEBUG_POSTFIX " true
+            (String.is_substring cmake_text
+               ~substring:"set(CMAKE_DEBUG_POSTFIX");
+          Alcotest.(check bool) "emits set_target_properties DEBUG_POSTFIX" true
+            (String.is_substring cmake_text ~substring:"DEBUG_POSTFIX");
+          Alcotest.(check bool) "emits SameMajorVersion compatibility" true
+            (String.is_substring cmake_text ~substring:"SameMajorVersion"))
+    ] )
+
 let () =
   Alcotest.run "yelu_tiny_steps"
     [
@@ -863,4 +1041,6 @@ let () =
       step9_bridge;
       step10_bridge;
       step11_config_bridge;
+      step11_bridge;
+      step12_bridge;
     ]

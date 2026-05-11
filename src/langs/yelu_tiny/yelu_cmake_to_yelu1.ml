@@ -400,6 +400,12 @@ let target_statement : Old.yelu_target_stmt -> Yelu_tiny.expr = function
       }
   | _ -> fail "unsupported yelu_cmake target statement for Yelu1 bridge"
 
+let string_of_compatibility : Lang_cmake.compatibility -> string = function
+  | Any_newer_version -> "AnyNewerVersion"
+  | Same_major_version -> "SameMajorVersion"
+  | Same_minor_version -> "SameMinorVersion"
+  | Exact_version -> "ExactVersion"
+
 let install_statement : Old.yelu_install_stmt -> Yelu_tiny.expr = function
   | Yinstall_targets { targets; destination; export } ->
     ECmakeInstallTargets
@@ -410,7 +416,36 @@ let install_statement : Old.yelu_install_stmt -> Yelu_tiny.expr = function
       }
   | Yinstall_files { files; destination } ->
     ECmakeInstallFiles { files = List.map files ~f:expr; destination = expr destination }
-  | _ -> fail "unsupported yelu_cmake install statement for Yelu1 bridge"
+  | Yinstall_export { file; export; destination; namespace } ->
+    ECmakeInstallExport
+      {
+        export = expr export;
+        destination = expr destination;
+        file = Option.map file ~f:expr;
+        namespace;
+      }
+  | Yinstall_export_export { name; file } ->
+    ECmakeExportExport { name = expr name; file = Option.map file ~f:expr }
+  | Yinstall_configure_package_config_file
+      { install_dest; input; output;
+        no_set_and_check_macro; no_check_required_components_macro } ->
+    ECmakeConfigurePackageConfigFile
+      {
+        install_dest = expr install_dest;
+        input = expr input;
+        output = expr output;
+        no_set_and_check_macro;
+        no_check_required_components_macro;
+      }
+  | Yinstall_write_basic_package_version_file
+      { file; version; compatibility; arch_independent } ->
+    ECmakeWriteBasicPackageVersionFile
+      {
+        file = expr file;
+        version = Option.map version ~f:expr;
+        compatibility = string_of_compatibility compatibility;
+        arch_independent;
+      }
 
 let rec stmt : Old.yelu_stmt -> Yelu_tiny.expr = function
   | Ys_string string_stmt -> string_statement string_stmt
