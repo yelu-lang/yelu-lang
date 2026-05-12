@@ -1,22 +1,22 @@
 open Base
 open Yelu_cmake
-open Yelu_theory_int
-open Yelu_surface_cmake_store
-open Yelu_theory_bool
-open Yelu_theory_target
-open Yelu_surface_cmake_install
-open Yelu_theory_list
-open Yelu_surface_cmake_list
-open Yelu_surface_cmake_path
-open Yelu_surface_cmake_file
-open Yelu_surface_cmake_string
-open Yelu_surface_cmake_target
-open Yelu_surface_cmake_cmake_op
-open Yelu_surface_cmake_dir
-open Yelu_surface_cmake_test
-open Yelu_surface_cmake_property
-open Yelu_surface_cmake_find
-open Yelu_surface_cmake_try
+open Yelu_cmake_normal_int
+open Yelu_cmake_store
+open Yelu_cmake_normal_bool
+open Yelu_cmake_normal_target
+open Yelu_cmake_install
+open Yelu_cmake_normal_list
+open Yelu_cmake_list
+open Yelu_cmake_path
+open Yelu_cmake_file
+open Yelu_cmake_string
+open Yelu_cmake_target
+open Yelu_cmake_cmake_op
+open Yelu_cmake_dir
+open Yelu_cmake_test
+open Yelu_cmake_property
+open Yelu_cmake_find
+open Yelu_cmake_try
 
 module Old = Lang_yelu_cmake
 
@@ -980,7 +980,7 @@ let rec stmt : Old.yelu_stmt -> Yelu_cmake.expr = function
   | Ylet { var = Yvar name; value } ->
     ELet { var = name; value = let_value value; body = EUnit }
   | Yif { cond; then_; else_ } ->
-    Yelu_surface_cmake_if.ECmakeIfStmt
+    Yelu_cmake_if.ECmakeIfStmt
       {
         cond = expr cond;
         then_ = stmt then_;

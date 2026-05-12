@@ -1,5 +1,5 @@
 open Yelu_cmake
-open Yelu_theory_target
+open Yelu_cmake_normal_target
 
 let name = "tiny_dir"
 let requires = [ "core.string"; "path" ]

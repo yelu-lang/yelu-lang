@@ -1,6 +1,7 @@
-(* Yelu2 evaluator: interpret an IR built from theory-side *idealized*
-   constructors (the [E*] forms in the [Yelu_theory_*] modules, plus the
-   shared core nodes from [yelu_tiny.ml]).
+(* yelu_cmake_normal evaluator: interpret an IR built from the
+   normalized-form constructors (the [E*] forms in the
+   [Yelu_cmake_normal_*] fragment modules, plus the shared core nodes
+   from [yelu_cmake.ml]).
 
    Yelu2 is the "cleaner" form that doesn't carry cmake-specific
    shape (no output-var sugar; mutations are explicit via [ESetVar]).
@@ -11,7 +12,7 @@
 
 open Base
 open Yelu_cmake
-open Yelu_theory_store
+open Yelu_cmake_normal_store
 
 let rec eval_expr env = function
   | EVar name ->
@@ -44,48 +45,48 @@ let rec eval_expr env = function
     in
     env, result
   | expr ->
-    (match Yelu_theory_bool.eval_case ~eval:eval_expr env expr with
+    (match Yelu_cmake_normal_bool.eval_case ~eval:eval_expr env expr with
      | Some value -> value
      | None ->
-    match Yelu_theory_int.eval_case ~eval:eval_expr env expr with
+    match Yelu_cmake_normal_int.eval_case ~eval:eval_expr env expr with
      | Some value -> value
      | None ->
-    match Yelu_theory_list.eval_case ~eval:eval_expr env expr with
+    match Yelu_cmake_normal_list.eval_case ~eval:eval_expr env expr with
      | Some value -> value
      | None ->
-    match Yelu_theory_path.eval_case ~eval:eval_expr env expr with
+    match Yelu_cmake_normal_path.eval_case ~eval:eval_expr env expr with
      | Some value -> value
      | None ->
-    match Yelu_theory_file.eval_case ~eval:eval_expr env expr with
+    match Yelu_cmake_normal_file.eval_case ~eval:eval_expr env expr with
      | Some value -> value
      | None ->
-    match Yelu_theory_target.eval_case ~eval:eval_expr env expr with
+    match Yelu_cmake_normal_target.eval_case ~eval:eval_expr env expr with
      | Some value -> value
      | None ->
-    match Yelu_theory_install.eval_case ~eval:eval_expr env expr with
+    match Yelu_cmake_normal_install.eval_case ~eval:eval_expr env expr with
      | Some value -> value
      | None ->
-    match Yelu_theory_if.eval_case ~eval:eval_expr env expr with
+    match Yelu_cmake_normal_if.eval_case ~eval:eval_expr env expr with
      | Some value -> value
      | None ->
-    match Yelu_theory_string.eval_case ~eval:eval_expr env expr with
+    match Yelu_cmake_normal_string.eval_case ~eval:eval_expr env expr with
      | Some value -> value
      | None ->
-    match Yelu_theory_cmake_op.eval_case ~eval:eval_expr env expr with
+    match Yelu_cmake_normal_cmake_op.eval_case ~eval:eval_expr env expr with
      | Some value -> value
      | None ->
-    match Yelu_theory_dir.eval_case ~eval:eval_expr env expr with
+    match Yelu_cmake_normal_dir.eval_case ~eval:eval_expr env expr with
      | Some value -> value
      | None ->
-    match Yelu_theory_test.eval_case ~eval:eval_expr env expr with
+    match Yelu_cmake_normal_test.eval_case ~eval:eval_expr env expr with
      | Some value -> value
      | None ->
-    match Yelu_theory_property.eval_case ~eval:eval_expr env expr with
+    match Yelu_cmake_normal_property.eval_case ~eval:eval_expr env expr with
      | Some value -> value
      | None ->
-    match Yelu_theory_find.eval_case ~eval:eval_expr env expr with
+    match Yelu_cmake_normal_find.eval_case ~eval:eval_expr env expr with
      | Some value -> value
      | None ->
-    match Yelu_theory_try.eval_case ~eval:eval_expr env expr with
+    match Yelu_cmake_normal_try.eval_case ~eval:eval_expr env expr with
      | Some value -> value
      | None -> fail "unknown expression in Yelu2")

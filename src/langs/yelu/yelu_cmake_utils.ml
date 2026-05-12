@@ -15,7 +15,7 @@
 
 open Base
 open Yelu_cmake
-open Yelu_theory_target  (* ETarget *)
+open Yelu_cmake_normal_target  (* ETarget *)
 
 (* ============================================================
    Expression helpers — return [expr]. Mirror legacy 1:1.
@@ -42,7 +42,7 @@ let ybool b = EBool b
    [ECmakeGenex]. Mirrors [Yelu_parse.p_expr_y1]. *)
 let ystr_eval s =
   if String.is_substring s ~substring:"$<" then
-    Yelu_surface_cmake_string.ECmakeGenex s
+    Yelu_cmake_string.ECmakeGenex s
   else
     EString s
 
@@ -83,14 +83,14 @@ let rec ycmd_of_list = function
    Mirrors [yelu_cmake_legacy_bridge.var_statement] case-by-case.
    ============================================================ *)
 
-open Yelu_surface_cmake_store
+open Yelu_cmake_store
 
 let yc_set ?(parent_scope = false) cvar values =
   let value =
     match values with
     | [] -> EString ""
     | [ v ] -> v
-    | vs -> Yelu_theory_list.EList vs
+    | vs -> Yelu_cmake_normal_list.EList vs
   in
   if parent_scope then ECmakeSetParentScope { name = cvar; value }
   else ESetVar (cvar, value)
@@ -124,7 +124,7 @@ let yc_set_cache
    Reuse bridge's [string_of_*] for enum→string conversion.
    ============================================================ *)
 
-open Yelu_surface_cmake_cmake_op
+open Yelu_cmake_cmake_op
 
 let yc_minimum_required_s ?max:_ min_ =
   let v = Lang_cmake_utils.version_of_string min_ in
@@ -205,7 +205,7 @@ let yc_return ?(propogate_vars = []) () =
    [ECmakeVarDefined]).
    ============================================================ *)
 
-open Yelu_surface_cmake_if
+open Yelu_cmake_if
 
 let yif cond then_ else_ =
   ECmakeIfStmt { cond; then_; else_ = Some else_ }
@@ -214,15 +214,15 @@ let yifthen cond then_ =
 
 (* Boolean / atom helpers used inside conds. *)
 let ytruthy e = e
-let ynot c = Yelu_theory_bool.ENot c
-let yand a b = Yelu_theory_bool.EAnd (a, b)
-let yor a b = Yelu_theory_bool.EOr (a, b)
-let ystrequal a b = Yelu_surface_cmake_string.ECmakeStringEqual (a, b)
+let ynot c = Yelu_cmake_normal_bool.ENot c
+let yand a b = Yelu_cmake_normal_bool.EAnd (a, b)
+let yor a b = Yelu_cmake_normal_bool.EOr (a, b)
+let ystrequal a b = Yelu_cmake_string.ECmakeStringEqual (a, b)
 let yis_target e =
   match e with
-  | ETarget _ -> Yelu_surface_cmake_target.ECmakeTargetExists e
+  | ETarget _ -> Yelu_cmake_target.ECmakeTargetExists e
   | EVar s | EString s ->
-    Yelu_surface_cmake_target.ECmakeTargetExists (ETarget s)
+    Yelu_cmake_target.ECmakeTargetExists (ETarget s)
   | _ -> failwith "yis_target: expected target name"
 let yis_defined e =
   match e with
@@ -235,7 +235,7 @@ let yis_defined e =
    groups). We mirror that for byte equality.
    ============================================================ *)
 
-open Yelu_surface_cmake_target
+open Yelu_cmake_target
 
 let visibility_of_kind = function
   | Lang_cmake.Public -> "PUBLIC"
@@ -400,7 +400,7 @@ let yc_target_sources_fs target items =
    Directory family
    ============================================================ *)
 
-open Yelu_surface_cmake_dir
+open Yelu_cmake_dir
 
 let yc_add_subdirectory source_dir = ECmakeAddSubdirectory source_dir
 
@@ -418,7 +418,7 @@ let yc_link_directories ?(before = false) dirs =
    Test family
    ============================================================ *)
 
-open Yelu_surface_cmake_test
+open Yelu_cmake_test
 
 let yc_enable_testing = ECmakeEnableTesting
 let yc_add_test name command args =
@@ -428,7 +428,7 @@ let yc_add_test name command args =
    Property family — mirrors bridge's [property_statement].
    ============================================================ *)
 
-open Yelu_surface_cmake_property
+open Yelu_cmake_property
 
 let yc_set_tests_properties tests properties =
   ECmakeSetTestsProperties { tests; properties }
@@ -465,7 +465,7 @@ let yc_get_global_property ~property var =
    File family
    ============================================================ *)
 
-open Yelu_surface_cmake_file
+open Yelu_cmake_file
 
 let yc_configure_file ~input output =
   ECmakeConfigureFile { input; output }
@@ -520,14 +520,14 @@ let yc_file_relative_path ~var ~base file =
 (* Legacy [Ypath_get_filename_component] carries [mode] as a string
    already; pass through. *)
 let yc_get_filename_component ~mode var filename =
-  Yelu_surface_cmake_path.ECmakeGetFilenameComponent
+  Yelu_cmake_path.ECmakeGetFilenameComponent
     { var; filename; mode }
 
 (* ============================================================
    Install family
    ============================================================ *)
 
-open Yelu_surface_cmake_install
+open Yelu_cmake_install
 
 let yc_install_targets ?export targets destination =
   ECmakeInstallTargets { targets; destination; export }
@@ -566,7 +566,7 @@ let yc_write_basic_package_version_file
    IR ctors drop them at this slice.
    ============================================================ *)
 
-open Yelu_surface_cmake_find
+open Yelu_cmake_find
 
 let yc_find_library
     ?(names = []) ?(paths = []) ?(hints = [])
@@ -611,7 +611,7 @@ let yc_find_package
    List family
    ============================================================ *)
 
-open Yelu_surface_cmake_list
+open Yelu_cmake_list
 
 let yc_list_append cvar values = ECmakeListAppend { list = cvar; items = values }
 let yc_list_length cvar out = ECmakeListLength { list = cvar; out }
@@ -637,7 +637,7 @@ let yc_list_pop_front ?(out_vars = []) cvar =
    String family — only the helpers step files actually use.
    ============================================================ *)
 
-open Yelu_surface_cmake_string
+open Yelu_cmake_string
 
 let yc_string_toupper input out = ECmakeStringToupper { input; out }
 let yc_string_tolower input out = ECmakeStringTolower { input; out }
@@ -648,7 +648,7 @@ let yc_string_regex_replace regex replace out inputs =
    try_compile / try_run — minimal forms.
    ============================================================ *)
 
-open Yelu_surface_cmake_try
+open Yelu_cmake_try
 
 let yc_try_compile result_var =
   ECmakeTryCompile { result_var; sources = [] }
@@ -689,7 +689,7 @@ let ymatches value (regex : string) =
 
 let yin_list value list_ = ECmakeInList { item = value; list_ }
 let yexists path =
-  Yelu_surface_cmake_file.ECmakeFileExists path
+  Yelu_cmake_file.ECmakeFileExists path
 let yis_directory path = ECmakeIsDirectory path
 let yis_absolute path = ECmakeIsAbsolute path
 let ypolicy_defined id = ECmakePolicyCheck id

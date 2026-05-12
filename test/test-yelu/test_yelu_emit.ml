@@ -15,7 +15,7 @@
 
 open Base
 open Yelu_langs.Yelu_cmake
-open Yelu_langs.Yelu_theory_target
+open Yelu_langs.Yelu_cmake_normal_target
 
 module E = Yelu_langs.Yelu_cmake_emit_debug
 module A = Yelu_langs.Yelu_cmake_emit
@@ -43,7 +43,7 @@ let parity =
 
       Alcotest.test_case "unset(VAR) — both paths emit the command"
         `Quick (fun () ->
-          let prog = Yelu_langs.Yelu_surface_cmake_store.ECmakeUnsetVar "FOO" in
+          let prog = Yelu_langs.Yelu_cmake_store.ECmakeUnsetVar "FOO" in
           let direct, ast = both prog in
           Alcotest.(check bool) "direct" true (contains direct ~substring:"unset(FOO");
           Alcotest.(check bool) "ast"    true (contains ast    ~substring:"unset(FOO"));
@@ -51,7 +51,7 @@ let parity =
       Alcotest.test_case "message(STATUS \"hi\") — both paths emit"
         `Quick (fun () ->
           let prog =
-            Yelu_langs.Yelu_surface_cmake_cmake_op.ECmakeMessage
+            Yelu_langs.Yelu_cmake_cmake_op.ECmakeMessage
               { mode = "STATUS"; texts = [ EString "hi" ] }
           in
           let direct, ast = both prog in
@@ -63,7 +63,7 @@ let parity =
       Alcotest.test_case "cmake_minimum_required — both paths emit version"
         `Quick (fun () ->
           let prog =
-            Yelu_langs.Yelu_surface_cmake_cmake_op.ECmakeMinimumRequired "3.20"
+            Yelu_langs.Yelu_cmake_cmake_op.ECmakeMinimumRequired "3.20"
           in
           let direct, ast = both prog in
           Alcotest.(check bool) "direct" true (contains direct ~substring:"cmake_minimum_required");
@@ -86,7 +86,7 @@ let parity =
       Alcotest.test_case "project(Foo VERSION 1.0 LANGUAGES CXX) — both emit"
         `Quick (fun () ->
           let prog =
-            Yelu_langs.Yelu_surface_cmake_cmake_op.ECmakeProject
+            Yelu_langs.Yelu_cmake_cmake_op.ECmakeProject
               { name = "Foo"; languages = [ "CXX" ]; version = Some "1.0" }
           in
           let direct, ast = both prog in
@@ -99,10 +99,10 @@ let parity =
         `Quick (fun () ->
           let prog =
             ESeq [
-              Yelu_langs.Yelu_surface_cmake_target.ECmakeAddExecutable
+              Yelu_langs.Yelu_cmake_target.ECmakeAddExecutable
                 { name = ETarget "Tutorial";
                   sources = [ EString "tutorial.cxx" ] };
-              Yelu_langs.Yelu_surface_cmake_target.ECmakeTargetLinkLibraries
+              Yelu_langs.Yelu_cmake_target.ECmakeTargetLinkLibraries
                 { target = ETarget "Tutorial";
                   visibility = "PUBLIC";
                   items = [ ETarget "MathFunctions" ] };
@@ -117,10 +117,10 @@ let parity =
       Alcotest.test_case "foreach(x IN ITEMS ...) — AST emits foreach/endforeach"
         `Quick (fun () ->
           let prog =
-            Yelu_langs.Yelu_surface_cmake_cmake_op.ECmakeForeach
+            Yelu_langs.Yelu_cmake_cmake_op.ECmakeForeach
               { loop_var = "x";
                 items = [ EString "a"; EString "b" ];
-                body = Yelu_langs.Yelu_surface_cmake_cmake_op.ECmakeMessage
+                body = Yelu_langs.Yelu_cmake_cmake_op.ECmakeMessage
                          { mode = "STATUS"; texts = [ EVar "x" ] } }
           in
           let _direct, ast = both prog in
@@ -130,7 +130,7 @@ let parity =
       Alcotest.test_case "add_subdirectory(path) — both emit"
         `Quick (fun () ->
           let prog =
-            Yelu_langs.Yelu_surface_cmake_dir.ECmakeAddSubdirectory (EString "sub")
+            Yelu_langs.Yelu_cmake_dir.ECmakeAddSubdirectory (EString "sub")
           in
           let direct, ast = both prog in
           Alcotest.(check bool) "direct" true (contains direct ~substring:"add_subdirectory");
@@ -140,7 +140,7 @@ let parity =
       Alcotest.test_case "if(COND) then body — AST emits if/endif"
         `Quick (fun () ->
           let prog =
-            Yelu_langs.Yelu_surface_cmake_if.ECmakeIfStmt
+            Yelu_langs.Yelu_cmake_if.ECmakeIfStmt
               { cond = EBool true;
                 then_ = ESetVar ("X", EString "y");
                 else_ = None }

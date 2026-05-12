@@ -8,19 +8,19 @@
 
 open Base
 open Yelu_cmake
-open Yelu_surface_cmake_store
-open Yelu_theory_bool
-open Yelu_theory_int
-open Yelu_theory_list
-open Yelu_surface_cmake_list
-open Yelu_surface_cmake_file
-open Yelu_surface_cmake_string
-open Yelu_surface_cmake_target
-open Yelu_surface_cmake_if
-open Yelu_surface_cmake_cmake_op
-open Yelu_surface_cmake_dir
-open Yelu_surface_cmake_test
-open Yelu_theory_target
+open Yelu_cmake_store
+open Yelu_cmake_normal_bool
+open Yelu_cmake_normal_int
+open Yelu_cmake_normal_list
+open Yelu_cmake_list
+open Yelu_cmake_file
+open Yelu_cmake_string
+open Yelu_cmake_target
+open Yelu_cmake_if
+open Yelu_cmake_cmake_op
+open Yelu_cmake_dir
+open Yelu_cmake_test
+open Yelu_cmake_normal_target
 
 (* Many other surface modules are opened transitively via [expr] match
    arms as Phase 1.3 expands coverage; keep [open]s narrow for now to
@@ -482,7 +482,7 @@ let rec emit_exp ~env (e : expr) : C.exp =
          { defs = List.map defs ~f:(fun d -> C.Def_var (target_arg ~env d)) })
 
   (* Find — non-package variants share [find_var_args]. *)
-  | Yelu_surface_cmake_find.ECmakeFindLibrary { out; names; paths; hints; required } ->
+  | Yelu_cmake_find.ECmakeFindLibrary { out; names; paths; hints; required } ->
     let fa : C.find_var_args =
       { var = out;
         names = List.map names ~f:(arg ~env);
@@ -495,7 +495,7 @@ let rec emit_exp ~env (e : expr) : C.exp =
         no_cmake_system_path = false; no_cmake_install_prefix = false }
     in
     C.Find_library fa
-  | Yelu_surface_cmake_find.ECmakeFindPath { out; names; paths; hints; required } ->
+  | Yelu_cmake_find.ECmakeFindPath { out; names; paths; hints; required } ->
     let fa : C.find_var_args =
       { var = out;
         names = List.map names ~f:(arg ~env);
@@ -508,7 +508,7 @@ let rec emit_exp ~env (e : expr) : C.exp =
         no_cmake_system_path = false; no_cmake_install_prefix = false }
     in
     C.Find_path fa
-  | Yelu_surface_cmake_find.ECmakeFindProgram { out; names; paths; hints; required } ->
+  | Yelu_cmake_find.ECmakeFindProgram { out; names; paths; hints; required } ->
     let fa : C.find_var_args =
       { var = out;
         names = List.map names ~f:(arg ~env);
@@ -521,7 +521,7 @@ let rec emit_exp ~env (e : expr) : C.exp =
         no_cmake_system_path = false; no_cmake_install_prefix = false }
     in
     C.Find_program fa
-  | Yelu_surface_cmake_find.ECmakeFindFile { out; names; paths; hints; required } ->
+  | Yelu_cmake_find.ECmakeFindFile { out; names; paths; hints; required } ->
     let fa : C.find_var_args =
       { var = out;
         names = List.map names ~f:(arg ~env);
@@ -536,7 +536,7 @@ let rec emit_exp ~env (e : expr) : C.exp =
     C.Find_file fa
 
   (* Install / Export / Package config *)
-  | Yelu_surface_cmake_install.ECmakeInstallExport { export; destination; file; namespace } ->
+  | Yelu_cmake_install.ECmakeInstallExport { export; destination; file; namespace } ->
     C.Project_cmd
       (C.Install_export
          { file = Option.map file ~f:(arg ~env);
@@ -546,12 +546,12 @@ let rec emit_exp ~env (e : expr) : C.exp =
            component = None;
            rename = None;
            permissions = [] })
-  | Yelu_surface_cmake_install.ECmakeExportExport { name; file } ->
+  | Yelu_cmake_install.ECmakeExportExport { name; file } ->
     C.Project_cmd
       (C.Export_export
          { name = target_arg ~env name;
            file = Option.map file ~f:(arg ~env) })
-  | Yelu_surface_cmake_install.ECmakeConfigurePackageConfigFile
+  | Yelu_cmake_install.ECmakeConfigurePackageConfigFile
       { install_dest; input; output;
         no_set_and_check_macro; no_check_required_components_macro } ->
     C.Module_cmd
@@ -562,7 +562,7 @@ let rec emit_exp ~env (e : expr) : C.exp =
            path_vars = [];
            no_set_and_check_macro;
            no_check_required_components_macro })
-  | Yelu_surface_cmake_install.ECmakeWriteBasicPackageVersionFile
+  | Yelu_cmake_install.ECmakeWriteBasicPackageVersionFile
       { file; version; compatibility; arch_independent } ->
     C.Module_cmd
       (C.Write_basic_package_version_file
@@ -572,7 +572,7 @@ let rec emit_exp ~env (e : expr) : C.exp =
            arch_independent })
 
   (* Property scopes beyond target *)
-  | Yelu_surface_cmake_property.ECmakeSetProperty { targets; append; properties } ->
+  | Yelu_cmake_property.ECmakeSetProperty { targets; append; properties } ->
     C.Set_property
       { global = false;
         directory = [];
@@ -587,7 +587,7 @@ let rec emit_exp ~env (e : expr) : C.exp =
         append; append_string = false;
         properties = List.map properties ~f:(fun (prop, value) ->
           ({ prop; value = arg ~env value } : C.property)) }
-  | Yelu_surface_cmake_property.ECmakeSetGlobalProperty { properties } ->
+  | Yelu_cmake_property.ECmakeSetGlobalProperty { properties } ->
     C.Set_property
       { global = true;
         directory = [];
@@ -602,7 +602,7 @@ let rec emit_exp ~env (e : expr) : C.exp =
         append = false; append_string = false;
         properties = List.map properties ~f:(fun (prop, value) ->
           ({ prop; value = arg ~env value } : C.property)) }
-  | Yelu_surface_cmake_property.ECmakeGetProperty { var; target; property; set_form } ->
+  | Yelu_cmake_property.ECmakeGetProperty { var; target; property; set_form } ->
     C.Get_property
       { var; global = false;
         directory = ""; source = ""; source_directory = "";
@@ -611,9 +611,9 @@ let rec emit_exp ~env (e : expr) : C.exp =
         variable = false;
         property_name = property;
         set = set_form }
-  | Yelu_surface_cmake_property.ECmakeGetDirectoryProperty { var; property } ->
+  | Yelu_cmake_property.ECmakeGetDirectoryProperty { var; property } ->
     C.Get_directory_property { var; directory = ""; property }
-  | Yelu_surface_cmake_property.ECmakeSetSourceProperty { file; property; values } ->
+  | Yelu_cmake_property.ECmakeSetSourceProperty { file; property; values } ->
     C.Set_source_property
       { file = target_arg ~env file; property;
         values = List.map values ~f:(arg ~env) }
@@ -824,7 +824,7 @@ let rec emit_exp ~env (e : expr) : C.exp =
       { var = out; file = arg ~env path; format; utc }
 
   (* Install *)
-  | Yelu_surface_cmake_install.ECmakeInstallTargets { targets; destination; export } ->
+  | Yelu_cmake_install.ECmakeInstallTargets { targets; destination; export } ->
     C.Project_cmd
       (C.Install_targets
          { targets = List.map targets ~f:(target_arg ~env);
@@ -833,7 +833,7 @@ let rec emit_exp ~env (e : expr) : C.exp =
            rename = None;
            export = Option.map export ~f:(target_arg ~env);
            permissions = [] })
-  | Yelu_surface_cmake_install.ECmakeInstallFiles { files; destination } ->
+  | Yelu_cmake_install.ECmakeInstallFiles { files; destination } ->
     C.Project_cmd
       (C.Install_files
          { files = List.map files ~f:(arg ~env);
@@ -843,19 +843,19 @@ let rec emit_exp ~env (e : expr) : C.exp =
            permissions = [] })
 
   (* Property — target subset *)
-  | Yelu_surface_cmake_property.ECmakeSetTargetProperty { target; property; value } ->
+  | Yelu_cmake_property.ECmakeSetTargetProperty { target; property; value } ->
     C.Project_cmd
       (C.Set_target_properties
          { target = target_arg ~env target;
            properties = [ { prop = property; value = arg ~env value } ] })
-  | Yelu_surface_cmake_property.ECmakeGetTargetProperty { var; target; property } ->
+  | Yelu_cmake_property.ECmakeGetTargetProperty { var; target; property } ->
     C.Project_cmd
       (C.Get_target_property
          { var; target = target_arg ~env target;
            property = { prop = property; value = C.Bare "" } })
 
   (* Find *)
-  | Yelu_surface_cmake_find.ECmakeFindPackage
+  | Yelu_cmake_find.ECmakeFindPackage
       { package_name; version; exact; quiet; config_mode;
         required; components; optional_components } ->
     C.Find_package
@@ -864,7 +864,7 @@ let rec emit_exp ~env (e : expr) : C.exp =
         components; optional_components }
 
   (* Property — non-target scopes *)
-  | Yelu_surface_cmake_property.ECmakeDefineProperty
+  | Yelu_cmake_property.ECmakeDefineProperty
       { mode; property_name; inherited; brief_docs; full_docs; initialize_from } ->
     let dpm = match mode with
       | "TARGET" -> C.Dp_target | "SOURCE" -> C.Dp_source
@@ -880,43 +880,43 @@ let rec emit_exp ~env (e : expr) : C.exp =
 
   (* Path — full family. cmake_path(...) wraps in Cmake_cmd / Cmake_path;
      get_filename_component is its own top-level ctor. *)
-  | Yelu_surface_cmake_path.ECmakePathSet { path; input; normalize } ->
+  | Yelu_cmake_path.ECmakePathSet { path; input; normalize } ->
     C.Cmake_cmd
       (C.Cmake_path
          (C.Cpp_set { path_var = path; input = arg ~env input; normalize }))
-  | Yelu_surface_cmake_path.ECmakePathNormalPath { path; out } ->
+  | Yelu_cmake_path.ECmakePathNormalPath { path; out } ->
     C.Cmake_cmd
       (C.Cmake_path (C.Cpp_normal_path { path_var = path; out_var = out }))
-  | Yelu_surface_cmake_path.ECmakePathGetFilename { path; out } ->
+  | Yelu_cmake_path.ECmakePathGetFilename { path; out } ->
     C.Cmake_cmd
       (C.Cmake_path
          (C.Cpp_get
             { path_var = path; field = C.Cpf_filename; out_var = out }))
-  | Yelu_surface_cmake_path.ECmakePathGet { path; field; out } ->
+  | Yelu_cmake_path.ECmakePathGet { path; field; out } ->
     C.Cmake_cmd
       (C.Cmake_path
          (C.Cpp_get
             { path_var = path;
               field = cmake_path_get_field_of_string field;
               out_var = out }))
-  | Yelu_surface_cmake_path.ECmakePathHas { path; field; out } ->
+  | Yelu_cmake_path.ECmakePathHas { path; field; out } ->
     C.Cmake_cmd
       (C.Cmake_path
          (C.Cpp_has
             { path_var = path;
               field = cmake_path_has_field_of_string field;
               out_var = out }))
-  | Yelu_surface_cmake_path.ECmakePathIsAbsolute { path; out } ->
+  | Yelu_cmake_path.ECmakePathIsAbsolute { path; out } ->
     C.Cmake_cmd (C.Cmake_path (C.Cpp_is_absolute { path_var = path; out_var = out }))
-  | Yelu_surface_cmake_path.ECmakePathIsRelative { path; out } ->
+  | Yelu_cmake_path.ECmakePathIsRelative { path; out } ->
     C.Cmake_cmd (C.Cmake_path (C.Cpp_is_relative { path_var = path; out_var = out }))
-  | Yelu_surface_cmake_path.ECmakePathIsPrefix { path; input; normalize; out } ->
+  | Yelu_cmake_path.ECmakePathIsPrefix { path; input; normalize; out } ->
     C.Cmake_cmd
       (C.Cmake_path
          (C.Cpp_is_prefix
             { path_var = path; input = arg ~env input; normalize;
               out_var = out }))
-  | Yelu_surface_cmake_path.ECmakePathCompare { input1; op; input2; out } ->
+  | Yelu_cmake_path.ECmakePathCompare { input1; op; input2; out } ->
     C.Cmake_cmd
       (C.Cmake_path
          (C.Cpp_compare
@@ -924,46 +924,46 @@ let rec emit_exp ~env (e : expr) : C.exp =
               op = cmake_path_compare_op_of_string op;
               input2 = arg ~env input2;
               out_var = out }))
-  | Yelu_surface_cmake_path.ECmakePathAppend { path; inputs; out } ->
+  | Yelu_cmake_path.ECmakePathAppend { path; inputs; out } ->
     C.Cmake_cmd
       (C.Cmake_path
          (C.Cpp_append
             { path_var = path;
               inputs = List.map inputs ~f:(arg ~env);
               out_var = out }))
-  | Yelu_surface_cmake_path.ECmakePathAppendString { path; inputs; out } ->
+  | Yelu_cmake_path.ECmakePathAppendString { path; inputs; out } ->
     C.Cmake_cmd
       (C.Cmake_path
          (C.Cpp_append_string
             { path_var = path;
               inputs = List.map inputs ~f:(arg ~env);
               out_var = out }))
-  | Yelu_surface_cmake_path.ECmakePathRemoveFilename { path; out } ->
+  | Yelu_cmake_path.ECmakePathRemoveFilename { path; out } ->
     C.Cmake_cmd
       (C.Cmake_path (C.Cpp_remove_filename { path_var = path; out_var = out }))
-  | Yelu_surface_cmake_path.ECmakePathReplaceFilename { path; input; out } ->
+  | Yelu_cmake_path.ECmakePathReplaceFilename { path; input; out } ->
     C.Cmake_cmd
       (C.Cmake_path
          (C.Cpp_replace_filename
             { path_var = path; input = arg ~env input; out_var = out }))
-  | Yelu_surface_cmake_path.ECmakePathRemoveExtension { path; last_only; out } ->
+  | Yelu_cmake_path.ECmakePathRemoveExtension { path; last_only; out } ->
     C.Cmake_cmd
       (C.Cmake_path
          (C.Cpp_remove_extension { path_var = path; last_only; out_var = out }))
-  | Yelu_surface_cmake_path.ECmakePathReplaceExtension { path; last_only; input; out } ->
+  | Yelu_cmake_path.ECmakePathReplaceExtension { path; last_only; input; out } ->
     C.Cmake_cmd
       (C.Cmake_path
          (C.Cpp_replace_extension
             { path_var = path; last_only;
               input = arg ~env input; out_var = out }))
-  | Yelu_surface_cmake_path.ECmakePathRelativePath { path; base_dir; out } ->
+  | Yelu_cmake_path.ECmakePathRelativePath { path; base_dir; out } ->
     C.Cmake_cmd
       (C.Cmake_path
          (C.Cpp_relative_path
             { path_var = path;
               base_dir = Option.map base_dir ~f:(arg ~env);
               out_var = out }))
-  | Yelu_surface_cmake_path.ECmakePathAbsolutePath { path; base_dir; normalize; out } ->
+  | Yelu_cmake_path.ECmakePathAbsolutePath { path; base_dir; normalize; out } ->
     C.Cmake_cmd
       (C.Cmake_path
          (C.Cpp_absolute_path
@@ -971,24 +971,24 @@ let rec emit_exp ~env (e : expr) : C.exp =
               base_dir = Option.map base_dir ~f:(arg ~env);
               normalize;
               out_var = out }))
-  | Yelu_surface_cmake_path.ECmakePathNativePath { path; normalize; out } ->
+  | Yelu_cmake_path.ECmakePathNativePath { path; normalize; out } ->
     C.Cmake_cmd
       (C.Cmake_path
          (C.Cpp_native_path { path_var = path; normalize; out_var = out }))
-  | Yelu_surface_cmake_path.ECmakePathConvertToCmake { input; normalize; out } ->
+  | Yelu_cmake_path.ECmakePathConvertToCmake { input; normalize; out } ->
     C.Cmake_cmd
       (C.Cmake_path
          (C.Cpp_convert_to_cmake
             { input = arg ~env input; normalize; out_var = out }))
-  | Yelu_surface_cmake_path.ECmakePathConvertToNative { input; normalize; out } ->
+  | Yelu_cmake_path.ECmakePathConvertToNative { input; normalize; out } ->
     C.Cmake_cmd
       (C.Cmake_path
          (C.Cpp_convert_to_native
             { input = arg ~env input; normalize; out_var = out }))
-  | Yelu_surface_cmake_path.ECmakePathHash { path; out } ->
+  | Yelu_cmake_path.ECmakePathHash { path; out } ->
     C.Cmake_cmd
       (C.Cmake_path (C.Cpp_hash { path_var = path; out_var = out }))
-  | Yelu_surface_cmake_path.ECmakeGetFilenameComponent { var; filename; mode } ->
+  | Yelu_cmake_path.ECmakeGetFilenameComponent { var; filename; mode } ->
     C.Get_filename_component
       { var; filename = target_arg ~env filename; mode; cache = false }
 
@@ -1058,7 +1058,7 @@ let rec emit_exp ~env (e : expr) : C.exp =
     C.Project_cmd (C.Add_dependencies { target; dep })
 
   (* Try *)
-  | Yelu_surface_cmake_try.ECmakeTryCompile { result_var; sources } ->
+  | Yelu_cmake_try.ECmakeTryCompile { result_var; sources } ->
     C.Project_cmd
       (C.Try_compile
          { tc_result_var = result_var;
@@ -1068,7 +1068,7 @@ let rec emit_exp ~env (e : expr) : C.exp =
            tc_output_variable = None; tc_copy_file = None;
            tc_no_cache = false;
            tc_c_standard = None; tc_cxx_standard = None })
-  | Yelu_surface_cmake_try.ECmakeTryCompileEx r ->
+  | Yelu_cmake_try.ECmakeTryCompileEx r ->
     C.Project_cmd
       (C.Try_compile
          { tc_result_var = r.result_var;
@@ -1082,7 +1082,7 @@ let rec emit_exp ~env (e : expr) : C.exp =
            tc_no_cache = r.no_cache;
            tc_c_standard = r.c_standard;
            tc_cxx_standard = r.cxx_standard })
-  | Yelu_surface_cmake_try.ECmakeTryRun r ->
+  | Yelu_cmake_try.ECmakeTryRun r ->
     C.Project_cmd
       (C.Try_run
          { tr_run_result_var = r.run_result_var;

@@ -1,6 +1,6 @@
 open Base
 open Yelu_cmake
-open Yelu_theory_target
+open Yelu_cmake_normal_target
 
 type expr +=
   | EInstallTargets of {

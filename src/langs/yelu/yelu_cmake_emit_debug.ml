@@ -13,24 +13,24 @@
    Y17 milestone — see [doc/yelu_tiny/retirement_plan.md]. *)
 open Base
 open Yelu_cmake
-open Yelu_surface_cmake_store
-open Yelu_theory_bool
-open Yelu_theory_int
-open Yelu_theory_list
-open Yelu_surface_cmake_list
-open Yelu_surface_cmake_path
-open Yelu_surface_cmake_file
-open Yelu_theory_target
-open Yelu_surface_cmake_target
-open Yelu_surface_cmake_install
-open Yelu_surface_cmake_string
-open Yelu_surface_cmake_if
-open Yelu_surface_cmake_cmake_op
-open Yelu_surface_cmake_dir
-open Yelu_surface_cmake_test
-open Yelu_surface_cmake_property
-open Yelu_surface_cmake_find
-open Yelu_surface_cmake_try
+open Yelu_cmake_store
+open Yelu_cmake_normal_bool
+open Yelu_cmake_normal_int
+open Yelu_cmake_normal_list
+open Yelu_cmake_list
+open Yelu_cmake_path
+open Yelu_cmake_file
+open Yelu_cmake_normal_target
+open Yelu_cmake_target
+open Yelu_cmake_install
+open Yelu_cmake_string
+open Yelu_cmake_if
+open Yelu_cmake_cmake_op
+open Yelu_cmake_dir
+open Yelu_cmake_test
+open Yelu_cmake_property
+open Yelu_cmake_find
+open Yelu_cmake_try
 
 let escape_quoted s =
   s

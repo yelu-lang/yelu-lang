@@ -67,23 +67,23 @@
 open Base
 open Yelu_lexer
 open Yelu_cmake
-open Yelu_theory_bool
-open Yelu_theory_int
-open Yelu_theory_list
-open Yelu_surface_cmake_store
-open Yelu_surface_cmake_string
-open Yelu_surface_cmake_list
-open Yelu_surface_cmake_path
-open Yelu_surface_cmake_file
-open Yelu_theory_target
-open Yelu_surface_cmake_target
-open Yelu_surface_cmake_dir
-open Yelu_surface_cmake_test
-open Yelu_surface_cmake_property
-open Yelu_surface_cmake_find
-open Yelu_surface_cmake_install
-open Yelu_surface_cmake_cmake_op
-open Yelu_surface_cmake_try
+open Yelu_cmake_normal_bool
+open Yelu_cmake_normal_int
+open Yelu_cmake_normal_list
+open Yelu_cmake_store
+open Yelu_cmake_string
+open Yelu_cmake_list
+open Yelu_cmake_path
+open Yelu_cmake_file
+open Yelu_cmake_normal_target
+open Yelu_cmake_target
+open Yelu_cmake_dir
+open Yelu_cmake_test
+open Yelu_cmake_property
+open Yelu_cmake_find
+open Yelu_cmake_install
+open Yelu_cmake_cmake_op
+open Yelu_cmake_try
 
 (* ============================================================
    Combinator primitives — duplicated from Lang_yelu_parse.
@@ -1345,9 +1345,9 @@ and p_if_y1 toks =
           in
           (match else_opt with
            | Some (else_, rest) ->
-             Some (Yelu_surface_cmake_if.ECmakeIfStmt { cond; then_; else_ }, rest)
+             Some (Yelu_cmake_if.ECmakeIfStmt { cond; then_; else_ }, rest)
            | None ->
-             Some (Yelu_surface_cmake_if.ECmakeIfStmt
+             Some (Yelu_cmake_if.ECmakeIfStmt
                      { cond; then_; else_ = None }, toks))
 
 (* `fun name(args) ( body )` / `function name(args) ( body )` *)

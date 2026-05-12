@@ -1,6 +1,6 @@
 open Base
 open Yelu_cmake
-open Yelu_theory_target
+open Yelu_cmake_normal_target
 
 let name = "tiny_property"
 let requires = [ "core.string"; "target" ]

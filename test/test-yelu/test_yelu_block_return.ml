@@ -11,8 +11,8 @@
 
 open Base
 open Yelu_langs.Yelu_cmake
-open Yelu_langs.Yelu_surface_cmake_cmake_op
-open Yelu_langs.Yelu_surface_cmake_store
+open Yelu_langs.Yelu_cmake_cmake_op
+open Yelu_langs.Yelu_cmake_store
 
 let eval_from_empty expr =
   Yelu_langs.Yelu_cmake_convert.eval_yelu_cmake_expr empty_env expr
@@ -360,9 +360,9 @@ let p10_return_through_foreach =
               { loop_var = "item";
                 items = [ EString "a"; EString "b"; EString "target"; EString "c" ];
                 body =
-                  Yelu_langs.Yelu_surface_cmake_if.ECmakeIfStmt
+                  Yelu_langs.Yelu_cmake_if.ECmakeIfStmt
                     { cond =
-                        Yelu_langs.Yelu_surface_cmake_string.ECmakeStringEqual
+                        Yelu_langs.Yelu_cmake_string.ECmakeStringEqual
                           (EVar "item", EString "target");
                       then_ =
                         ESeq

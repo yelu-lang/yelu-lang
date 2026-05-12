@@ -39,9 +39,9 @@
 
 open Base
 open Yelu_langs.Yelu_cmake
-open Yelu_langs.Yelu_theory_cmake_op
-open Yelu_langs.Yelu_surface_cmake_target
-open Yelu_langs.Yelu_surface_cmake_cmake_op
+open Yelu_langs.Yelu_cmake_normal_cmake_op
+open Yelu_langs.Yelu_cmake_target
+open Yelu_langs.Yelu_cmake_cmake_op
 open Yelu_langs.Yelu_cmake_convert
 
 (* Helper: evaluate a Yelu1 program from empty env and return (env, value). *)

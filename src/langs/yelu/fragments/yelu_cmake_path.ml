@@ -82,15 +82,15 @@ let eval_case ~eval env = function
   | ECmakePathSet { path; input; normalize = should_normalize } ->
     let env, input = eval_string ~eval env input in
     let data =
-      VString (if should_normalize then Yelu_theory_path.normalize input else input)
+      VString (if should_normalize then Yelu_cmake_normal_path.normalize input else input)
     in
     Some (set_var env ~key:path ~data, VUnit)
   | ECmakePathGetFilename { path; out } ->
     Some
-      ( set_var env ~key:out ~data:(VString (Yelu_theory_path.filename (path_value env path))),
+      ( set_var env ~key:out ~data:(VString (Yelu_cmake_normal_path.filename (path_value env path))),
         VUnit )
   | ECmakePathNormalPath { path; out } ->
-    let normalized = VString (Yelu_theory_path.normalize (path_value env path)) in
+    let normalized = VString (Yelu_cmake_normal_path.normalize (path_value env path)) in
     let key = Option.value out ~default:path in
     Some (set_var env ~key ~data:normalized, VUnit)
   | ECmakeGetFilenameComponent { var; filename; mode = _ } ->
