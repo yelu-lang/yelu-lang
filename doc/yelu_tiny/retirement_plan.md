@@ -341,18 +341,6 @@ audit and decide on future optimization (laziness, sharing,
 tagless-final-like derivation) before landing it on the parser.
 Orthogonal to E; can land any time after E-utils.
 
-**Naming nit:** "utils" undersells the module — every helper in
-`yelu_cmake_ir_utils` is purely an AST ctor wrapper. In PL terms
-these are close to **tagless-final** style (parametric over the
-"repr") even though our concrete instance is monomorphic. If the
-helpers were derivable mechanically from the IR ctor definitions,
-the module disappears entirely. Possible better names:
-`yelu_cmake_ir_ctors`, `yelu_cmake_ir_build`, or — if we ever
-introduce a second repr (e.g., for staging/printing) — a real
-tagless-final signature. Defer the rename decision; for now the
-established `_utils` convention (cf. `lang_cmake_utils`) keeps
-discovery predictable.
-
 ### G — Legacy isolation cleanup
 
 **Current state, on disk:**
@@ -393,6 +381,17 @@ discovery predictable.
    instead of `Yelu_cmake_legacy_bridge.string_of_*`.
 4. Verify `src/langs/yelu/` no longer imports any `Lang_yelu_*` or
    `Yelu_cmake_legacy_bridge` module.
+5. **Drop the `_ir` infix.** The `IR` label undermined the selling
+   point — `yelu_cmake` *is* the language, not an "intermediate"
+   thing on the way to something else. Rename:
+   - `yelu_cmake_ir.ml` → `yelu_cmake.ml`
+     (module `Yelu_cmake_ir` → `Yelu_cmake`)
+   - `yelu_cmake_ir_utils.ml` → `yelu_cmake_utils.ml`
+     (module `Yelu_cmake_ir_utils` → `Yelu_cmake_utils`; matches
+     the cmake layer's `Lang_cmake_utils` naming pattern)
+
+   Touches ~50 import sites; same superstring-first sed pass as
+   item D used. Tests must stay byte-identical.
 
 After G, the dependency rule "new yelu does not know about legacy"
 is enforced at the import level. Bridge-testing
