@@ -50,6 +50,24 @@ updated. See the rename mapping in item D below.
 
 ## Vocabulary
 
+**The two language names.** The project hosts two distinct
+cmake-domain languages, named without representation suffixes:
+
+- **`yelu_cmake`** — the improved Yelu CMake language (formerly
+  "Yelu2" in early notes). Idealized; not forced to mirror
+  CMake's statement / output-variable shape. Modules:
+  `Yelu_cmake` (core, post-G; currently `Yelu_cmake_ir`),
+  `Yelu_cmake_eval`, `Yelu_cmake_utils` (post-G).
+- **`yelu_cmake_surface`** — the CMake-faithful surface language
+  (formerly "Yelu1"). Command-shaped; used for byte parity and
+  exact emission. Modules: `Yelu_cmake_surface_eval`,
+  `Yelu_cmake_surface_emit`, `Yelu_cmake_surface_emit_debug`.
+
+Never refer to either layer as `yelu_cmake_ir`, `yelu_cmake_string`,
+or any other representation-suffixed name. These two language
+names — `yelu_cmake` and `yelu_cmake_surface` — are the project
+vocabulary.
+
 **Retirement is repointing, not deletion.** The old `yelu_cmake` AST,
 compile, wellform, and 15 legacy fragment modules stay on disk after
 retirement. What changes is the production call path: it stops going
@@ -336,25 +354,48 @@ would:
 Estimated parser shrinkage: ~10% LOC, but the structural win
 matters more than the line count.
 
+**Scope clarification:** F is a refactor of where ctor *calls*
+live (parser dispatchers shift from inline IR construction to
+calling the existing helpers). The helper function names
+(`yc_set`, `add_exe`, `yvar`, `ystr`, `ycmd_of_list`, …) are
+kept as-is — they're already good.
+
 **Sequencing:** kept as a separate item from retirement so we can
 audit and decide on future optimization (laziness, sharing,
 tagless-final-like derivation) before landing it on the parser.
 Orthogonal to E; can land any time after E-utils.
 
-### G — Legacy isolation cleanup
+### G — Language-name honesty + legacy isolation
 
-**Current state, on disk:**
+**The two language identities** — the project hosts two
+distinct yelu cmake-domain languages, and the file/module names
+must reflect them clearly:
+
+| Identity            | Today's modules                                                           | After G                                             |
+| ------------------- | ------------------------------------------------------------------------- | --------------------------------------------------- |
+| `yelu_cmake`        | `Yelu_cmake_ir` (core types/env), `Yelu_cmake_eval` (Yelu2 idealized eval) | `Yelu_cmake`, `Yelu_cmake_eval`                     |
+| `yelu_cmake_surface` | `Yelu_cmake_surface_eval`, `Yelu_cmake_surface_emit*`                     | (unchanged — already the right name)                |
+
+Neither layer should ever be referred to as `yelu_cmake_ir` (an
+implementation-detail label that undersells the language) or
+`yelu_cmake_string` (or any other representation suffix). The
+two language names are `yelu_cmake` and `yelu_cmake_surface`,
+period.
+
+**Current state, on disk (pre-G):**
 - `src/langs/yelu/yelu_cmake_legacy_bridge.ml` sits inside the
   *new* yelu directory but is semantically a legacy adapter — it
   converts `Lang_yelu_cmake` AST to Yelu1 IR. The new yelu
   shouldn't logically know it exists.
 - `yelu_cmake_ir_utils.ml` calls `Yelu_cmake_legacy_bridge.string_of_*`
   (purely cmake enum→string helpers, not legacy-specific).
+- The core types/env live in `yelu_cmake_ir.ml`. The `_ir` infix
+  hides that this *is* the `yelu_cmake` language.
 
-**End state — "new yelu ignorable about legacy":**
-- `src/langs/yelu/`     ← new yelu only (parser, IR, ctors, emit,
-                          eval, translate). No `Lang_yelu_*`
-                          imports. No legacy bridge.
+**End state — new yelu is legacy-free + names match the languages:**
+- `src/langs/yelu/`     ← new yelu only (parser, language core,
+                          ctors, emit, eval, translate). No
+                          `Lang_yelu_*` imports. No legacy bridge.
 - `src/langs/yelu_legacy/` ← legacy yelu **plus** the bridge.
                           The bridge naturally belongs here since
                           it adapts legacy → new; the *new* code
@@ -366,8 +407,8 @@ Orthogonal to E; can land any time after E-utils.
                           `string_of_compatibility`) here, where
                           they belong — they only depend on
                           `Lang_cmake`. Both the bridge and the
-                          IR ctors then import them from the cmake
-                          layer.
+                          yelu_cmake ctors then import them from
+                          the cmake layer.
 
 **Concrete moves:**
 1. Create `src/langs/cmake/lang_cmake_strings.ml` with the four
@@ -381,20 +422,24 @@ Orthogonal to E; can land any time after E-utils.
    instead of `Yelu_cmake_legacy_bridge.string_of_*`.
 4. Verify `src/langs/yelu/` no longer imports any `Lang_yelu_*` or
    `Yelu_cmake_legacy_bridge` module.
-5. **Drop the `_ir` infix.** The `IR` label undermined the selling
-   point — `yelu_cmake` *is* the language, not an "intermediate"
-   thing on the way to something else. Rename:
+5. **Drop the `_ir` infix; align file names with the two language
+   identities.** Rename:
    - `yelu_cmake_ir.ml` → `yelu_cmake.ml`
-     (module `Yelu_cmake_ir` → `Yelu_cmake`)
+     (module `Yelu_cmake_ir` → `Yelu_cmake` — core of the
+     `yelu_cmake` language)
    - `yelu_cmake_ir_utils.ml` → `yelu_cmake_utils.ml`
      (module `Yelu_cmake_ir_utils` → `Yelu_cmake_utils`; matches
      the cmake layer's `Lang_cmake_utils` naming pattern)
+
+   The `yelu_cmake_surface_*` files keep their names — they
+   already match the surface language identity.
 
    Touches ~50 import sites; same superstring-first sed pass as
    item D used. Tests must stay byte-identical.
 
 After G, the dependency rule "new yelu does not know about legacy"
-is enforced at the import level. Bridge-testing
+is enforced at the import level, and every module path tells you
+which of the two languages it belongs to. Bridge-testing
 (`test_yelu_compile.ml`'s byte oracle and the pair-wise oracle)
 still works — those tests import both new yelu *and* legacy,
 which is appropriate for tests.
