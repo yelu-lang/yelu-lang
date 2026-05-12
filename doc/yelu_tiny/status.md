@@ -156,16 +156,49 @@ Deferred until after the production switch, in order of value:
    (semantics eval, lift, lower, emit, bridge, unit test, cmake-backed
    test) per fragment so coverage gaps stay visible as constructors are
    added.
-3. **Move emit / translate arms closer to each fragment.** Currently
-   `yelu_tiny_translate.ml` (1.7 k lines) and `yelu_tiny_cmake_emit.ml`
-   (964 lines) are central registries — they work, but entropy returns
-   here as constructors land. Per-fragment translate / emit modules
-   reverse the trend. Cosmetic, not load-bearing; defer until after
-   the bigger Y17 typing decisions.
+3. **Move emit / convert arms closer to each fragment.** Currently
+   `yelu_cmake_convert.ml` (~1.7 k lines, formerly
+   `yelu_tiny_translate.ml`) and `yelu_cmake_emit_debug.ml` (~964 lines,
+   formerly `yelu_tiny_cmake_emit.ml`) are central registries — they
+   work, but entropy returns here as constructors land. Per-fragment
+   convert / emit modules reverse the trend. Cosmetic, not load-bearing;
+   defer until after the bigger Y17 typing decisions.
 4. **Y17 — fresh typing pass on tiny** (see below).
 5. **Promote compat surfaces to real theories** where they're worth it
    (genex first, then find / try / cmake_op subsets). This pairs with
    Y17 — typing decisions inform which surfaces deserve the lift.
+6. **Categorize `yelu_cmake_normal_*` theories: general vs
+   cmake-specific.** After the G rename, every fragment on the
+   yelu_cmake_normal side wears the cmake prefix, but several are not
+   cmake-specific at all — `bool`, `int`, `string`, `list`, `store`
+   are general-purpose theories that any future `yelu_*` language
+   (`yelu_shell`, `yelu_c`) would also want. They live next to the
+   genuinely cmake-specific ones (`target`, `install`, `find`,
+   `property`, `try`, etc.) only because the historical
+   `yelu_theory_*` bundle didn't distinguish. Cleanup options:
+   - Move the general theories to a shared location (e.g.,
+     `src/langs/yelu_core/` or similar) callable by any yelu_*
+     language.
+   - Or just rename them to drop the `yelu_cmake_normal_` prefix
+     in-place if they stay co-located (`yelu_theory_bool.ml`? but
+     we just abolished `_theory_`).
+   - Either way, the principle is that the `yelu_cmake_normal_`
+     prefix should mean "specific to the normalized form of cmake",
+     not "happens to live in this directory."
+7. **Split the shared `expr` type between `yelu_cmake` and
+   `yelu_cmake_normal`.** Today both languages use the same
+   extensible `Yelu_cmake.expr` type, with each surface fragment
+   adding ctors via `type expr += ...`. This means `yelu_cmake`'s
+   expr universe technically contains every `yelu_cmake_normal` ctor
+   and vice versa — a soft coupling that hides the language
+   boundary. A clean separation would give each language its own
+   `expr` type, with shared nodes (`EVar`, `EString`, `EBool`,
+   `EInt`, `ESeq`, `ELet`, `ESetVar`, `EUnit`) staying in a small
+   shared core. Some types currently in `yelu_cmake.ml` (e.g.,
+   `target`, `install_rule`, `custom_command`) should likely move
+   into their owning theory fragments at the same time. Pairs
+   naturally with item 6 (general vs cmake-specific theories) and
+   item 4 (Y17 typing).
 
 ## Deferred
 
