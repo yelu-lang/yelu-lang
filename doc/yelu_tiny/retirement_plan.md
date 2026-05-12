@@ -86,20 +86,20 @@ exactly one cmake pretty-printer in the codebase.
 
 ## Where things go
 
-| Module                                                | LOC   | Today                                  | After retirement                                                                  |
-| ----------------------------------------------------- | ----: | -------------------------------------- | --------------------------------------------------------------------------------- |
-| `src/langs/yelu/lang_yelu_parse.ml`                   |   955 | concrete syntax → `Lang_yelu_cmake` AST | still production parser; new `Yelu_parse_y1` covers all 12 families in parallel (Phase 2a done) |
-| `src/langs/yelu/lang_yelu_lexer.ml`                   |   197 | tokens                                 | unchanged; shared by both parsers                                                 |
-| `src/langs/yelu_legacy/lang_yelu_cmake.ml` (AST type) |   348 | production AST type                    | **moved to `yelu_legacy/` (Phase 2c)**; still callable from same library          |
-| `src/langs/yelu_legacy/lang_yelu_utils.ml`            |   561 | AST constructors used by step files    | **moved to `yelu_legacy/`**; step files still use it until item C lands           |
-| `src/langs/yelu_legacy/lang_yelu_compile.ml`          | 1,125 | production AST → cmake AST             | **moved to `yelu_legacy/`**; off the production text-generation path; serves the byte oracle |
-| `src/langs/yelu_legacy/lang_yelu_wellform.ml`         |   761 | name binding                           | **moved to `yelu_legacy/`**; Y17 builds tiny's own                                |
-| `src/langs/yelu_legacy/lang_yelu_type.ml` + `fragments/*_check.ml` | ~700 | per-theory typecheck             | **moved to `yelu_legacy/`**; Y17 builds tiny's own                                |
-| `src/langs/yelu_legacy/fragments/lang_yelu_*.ml` (15) | ~1.2k | typed constructors + checking functors | **moved to `yelu_legacy/fragments/`**; not called in production                   |
-| `src/langs/yelu_tiny/yelu_cmake_to_yelu1.ml` (bridge) | 1,056 | production AST → Yelu1 IR              | stays in `yelu_tiny/`; retires alongside `lang_yelu_cmake` once production callers stop using legacy AST |
-| `src/langs/yelu_tiny/yelu_parse_y1.ml`                | ~1.9k | concrete syntax → Yelu1 IR (Phase 2a)  | new parser; covers all 12 families with byte-identical pair-wise oracle           |
-| `src/langs/yelu_tiny/yelu_tiny_cmake_emit.ml` (direct text) | 964 | Yelu1 IR → cmake text             | **replaced** by `yelu_tiny_cmake_emit_ast.ml` going through cmake AST (Phase 1)   |
-| `src/langs/cmake/lang_cmake.ml` + `lang_cmake_pp.ml` + `_utils.ml` | 2,715 | cmake AST + pp + ctors          | unchanged — sole canonical text-generation path                                   |
+| Module                                                             |   LOC | Today                                   | After retirement                                                                                         |
+| ------------------------------------------------------------------ | ----: | --------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `src/langs/yelu/lang_yelu_parse.ml`                                |   955 | concrete syntax → `Lang_yelu_cmake` AST | still production parser; new `Yelu_parse_y1` covers all 12 families in parallel (Phase 2a done)          |
+| `src/langs/yelu/lang_yelu_lexer.ml`                                |   197 | tokens                                  | unchanged; shared by both parsers                                                                        |
+| `src/langs/yelu_legacy/lang_yelu_cmake.ml` (AST type)              |   348 | production AST type                     | **moved to `yelu_legacy/` (Phase 2c)**; still callable from same library                                 |
+| `src/langs/yelu_legacy/lang_yelu_utils.ml`                         |   561 | AST constructors used by step files     | **moved to `yelu_legacy/`**; step files still use it until item C lands                                  |
+| `src/langs/yelu_legacy/lang_yelu_compile.ml`                       | 1,125 | production AST → cmake AST              | **moved to `yelu_legacy/`**; off the production text-generation path; serves the byte oracle             |
+| `src/langs/yelu_legacy/lang_yelu_wellform.ml`                      |   761 | name binding                            | **moved to `yelu_legacy/`**; Y17 builds tiny's own                                                       |
+| `src/langs/yelu_legacy/lang_yelu_type.ml` + `fragments/*_check.ml` |  ~700 | per-theory typecheck                    | **moved to `yelu_legacy/`**; Y17 builds tiny's own                                                       |
+| `src/langs/yelu_legacy/fragments/lang_yelu_*.ml` (15)              | ~1.2k | typed constructors + checking functors  | **moved to `yelu_legacy/fragments/`**; not called in production                                          |
+| `src/langs/yelu_tiny/yelu_cmake_to_yelu1.ml` (bridge)              | 1,056 | production AST → Yelu1 IR               | stays in `yelu_tiny/`; retires alongside `lang_yelu_cmake` once production callers stop using legacy AST |
+| `src/langs/yelu_tiny/yelu_parse_y1.ml`                             | ~1.9k | concrete syntax → Yelu1 IR (Phase 2a)   | new parser; covers all 12 families with byte-identical pair-wise oracle                                  |
+| `src/langs/yelu_tiny/yelu_tiny_cmake_emit.ml` (direct text)        |   964 | Yelu1 IR → cmake text                   | **replaced** by `yelu_tiny_cmake_emit_ast.ml` going through cmake AST (Phase 1)                          |
+| `src/langs/cmake/lang_cmake.ml` + `lang_cmake_pp.ml` + `_utils.ml` | 2,715 | cmake AST + pp + ctors                  | unchanged — sole canonical text-generation path                                                          |
 
 Note: dune's `(include_subdirs unqualified)` keeps module names the
 same after directory relocation, so the Phase 2c move did not require
@@ -133,12 +133,12 @@ expression shape into cmake's flatter token forms.
 
 Four erasures, each gets a dedicated helper in the new emit module:
 
-| Erasure                              | Target type              | Notes                                                                                                                            |
-| ------------------------------------ | ------------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
-| `expr → Lang_cmake.arg`              | `Bare \| Quoted \| Bracket` | The current `arg : expr → string` helper picks "quoted by default". Choosing `Bare` vs `Quoted` is now structural, not stringified. |
-| `expr → string` (target / name pos)  | plain string             | Target names render unquoted by cmake convention; `target_arg` in the current emit already handles this — port it.                |
-| `bool expr → Lang_cmake.cond`        | `string list`            | `if(A AND B)` becomes `["A"; "AND"; "B"]`. Parens for nested AND/OR need to be inlined as tokens.                                 |
-| `ELet` substitution                  | (in-emit)                | Threaded through every arg / cond / target erasure, exactly as `yelu_tiny_cmake_emit.ml` already does via `subst` env. Same logic, different rendering target. |
+| Erasure                             | Target type                 | Notes                                                                                                                                                          |
+| ----------------------------------- | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `expr → Lang_cmake.arg`             | `Bare \| Quoted \| Bracket` | The current `arg : expr → string` helper picks "quoted by default". Choosing `Bare` vs `Quoted` is now structural, not stringified.                            |
+| `expr → string` (target / name pos) | plain string                | Target names render unquoted by cmake convention; `target_arg` in the current emit already handles this — port it.                                             |
+| `bool expr → Lang_cmake.cond`       | `string list`               | `if(A AND B)` becomes `["A"; "AND"; "B"]`. Parens for nested AND/OR need to be inlined as tokens.                                                              |
+| `ELet` substitution                 | (in-emit)                   | Threaded through every arg / cond / target erasure, exactly as `yelu_tiny_cmake_emit.ml` already does via `subst` env. Same logic, different rendering target. |
 
 These four helpers carry essentially all the complexity Phase 1 has to
 land. The 1 k lines of command lowering arms below them are mostly

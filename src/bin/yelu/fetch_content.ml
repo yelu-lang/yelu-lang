@@ -1,5 +1,5 @@
-open Yelu_langs.Lang_yelu_utils
-open Step_common
+open Yelu_langs.Yelu_cmake_ir_utils
+open Step_common_ir
 
 (* Demonstrates FetchContent_Declare + FetchContent_MakeAvailable.
    These are cmake module functions — no new AST nodes needed, just

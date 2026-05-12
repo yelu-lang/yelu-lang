@@ -1,7 +1,7 @@
 open Yelu_langs.Lang_cmake
 open Yelu_langs.Lang_yelu_cmake
-open Yelu_langs.Lang_yelu_utils
-open Step_common
+open Yelu_langs.Yelu_cmake_ir_utils
+open Step_common_ir
 
 (* SimpleTest/CMakeLists.txt *)
 let cmd =

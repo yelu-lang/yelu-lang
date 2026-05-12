@@ -1,6 +1,6 @@
-open Yelu_langs.Lang_yelu_utils
+open Yelu_langs.Yelu_cmake_ir_utils
 open Yelu_langs.Lang_cmake
-open Step_common
+open Step_common_ir
 
 (* cmake Tests/CMakeOnly/find_path/CMakeLists.txt *)
 
