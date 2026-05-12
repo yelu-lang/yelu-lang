@@ -10,9 +10,18 @@ continuity; the directory name will be revisited once full E lands.
 
 ## Status (2026-05-11)
 
-**Phase 1 done; Phase 2a + 2c structural move done; items A, B
-(reframed), C, and D done; only full E remains open (gated on
-`Lang_yelu_utils` rewrite or step-file `.ye` migration).**
+**Phase 1 + Phase 2a + 2c done; items A, B (reframed), C, D, and
+E-utils done. Bridge is off the binary production path.**
+
+**Remaining open:**
+- **F** — Parser uses the IR constructor module (refactor; ~10%
+  parser LOC; one source of truth for command-shape decisions).
+- **G** — Legacy isolation cleanup (move bridge to `yelu_legacy/`;
+  extract enum-string converters to `cmake/`; new yelu becomes
+  legacy-import-free).
+- **E** (deferred to last) — module-level bridge deletion. Gated
+  on shifting the byte oracle and pair-wise oracle from bridge-
+  fed shape to source-fed shape.
 
 A no-deletion prerequisite ("E-lite") moved the legacy parser
 and lexer into `src/langs/yelu_legacy/`. The yelu_tiny directory
@@ -275,50 +284,148 @@ Consolidated history; commit refs in parens.
   pass (superstring-first order, verified by build). Tests stay
   byte-identical: byte-equality oracle 194/194; parser 295;
   `make cmake-only-check` 12/12; `make runcmake-yelu` 50/50.
+- **E-utils — step files emit Yelu1 IR directly (aa9c703).** New
+  module `src/langs/yelu/yelu_cmake_ir_utils.ml` mirrors
+  `Lang_yelu_utils` but returns `Yelu_cmake_ir.expr` instead of
+  legacy AST. Parallel `src/bin/yelu/common/step_common_ir.ml` is
+  the IR-typed twin of `Step_common`. All ~50 step files in
+  `src/bin/yelu/` swapped their `open` from `Lang_yelu_utils` /
+  `Step_common` to `Yelu_cmake_ir_utils` / `Step_common_ir`;
+  `step_common` library is now `(wrapped false)` so both
+  `Step_common` (legacy, for tests on the bridge side) and
+  `Step_common_ir` (IR, for binaries) are visible. Verified
+  byte-identical: `make cmake-only-check` 12/12,
+  `make runcmake-yelu` 50/50, byte oracle 194/194, parser 295.
+
+  **What "bridge off the binary path" means:** at runtime, when a
+  step binary emits cmake text, no `Yelu_cmake_legacy_bridge.*`
+  function is called. The chain is
+  `step file → Yelu_cmake_ir_utils → Yelu_cmake_ir.expr →
+  Yelu_cmake_surface_emit.emit_ast → Lang_cmake.exp → cmake_pp →
+  text`. The bridge module is still on disk and still imported
+  (the new utils call its `string_of_message_mode` etc. to avoid
+  duplicating enum-string conversion), but no production text-
+  generation flow passes through `Yelu_cmake_legacy_bridge.stmt`.
+  The bridge module remains callable by the byte oracle in
+  `test_yelu_compile.ml` and the legacy side of the pair-wise
+  oracle in `test_yelu_cmake_parse.ml`.
 
 ## Open
 
+### F — Parser uses the IR constructor module
+
+The current parser (`Yelu_parse`) dispatches each command and
+builds the IR ctor inline — duplicating the same shape decisions
+that now live in `Yelu_cmake_ir_utils`. The value-list
+normalization in `yc_set` (`[] / [v] / vs` cases), the visibility-
+group folding in `include_dirs` / `compile_defs` / etc., the
+`Ylet → ELet` body-folding in `ycmd_of_list`, and the
+enum-to-string conversion for `message` mode — all repeated.
+
+Refactoring the parser dispatchers to call the constructor module
+would:
+
+- collapse ~200 lines of repeated case logic;
+- give the project **one** source of truth for "what does this
+  command shape become in IR" — fix a default once, both step
+  files and the parser get it;
+- naturally compose with future fragment-level cleanups
+  (item #3 in `status.md` — moving emit/translate arms closer to
+  each fragment).
+
+Estimated parser shrinkage: ~10% LOC, but the structural win
+matters more than the line count.
+
+**Sequencing:** kept as a separate item from retirement so we can
+audit and decide on future optimization (laziness, sharing,
+tagless-final-like derivation) before landing it on the parser.
+Orthogonal to E; can land any time after E-utils.
+
+**Naming nit:** "utils" undersells the module — every helper in
+`yelu_cmake_ir_utils` is purely an AST ctor wrapper. In PL terms
+these are close to **tagless-final** style (parametric over the
+"repr") even though our concrete instance is monomorphic. If the
+helpers were derivable mechanically from the IR ctor definitions,
+the module disappears entirely. Possible better names:
+`yelu_cmake_ir_ctors`, `yelu_cmake_ir_build`, or — if we ever
+introduce a second repr (e.g., for staging/printing) — a real
+tagless-final signature. Defer the rename decision; for now the
+established `_utils` convention (cf. `lang_cmake_utils`) keeps
+discovery predictable.
+
+### G — Legacy isolation cleanup
+
+**Current state, on disk:**
+- `src/langs/yelu/yelu_cmake_legacy_bridge.ml` sits inside the
+  *new* yelu directory but is semantically a legacy adapter — it
+  converts `Lang_yelu_cmake` AST to Yelu1 IR. The new yelu
+  shouldn't logically know it exists.
+- `yelu_cmake_ir_utils.ml` calls `Yelu_cmake_legacy_bridge.string_of_*`
+  (purely cmake enum→string helpers, not legacy-specific).
+
+**End state — "new yelu ignorable about legacy":**
+- `src/langs/yelu/`     ← new yelu only (parser, IR, ctors, emit,
+                          eval, translate). No `Lang_yelu_*`
+                          imports. No legacy bridge.
+- `src/langs/yelu_legacy/` ← legacy yelu **plus** the bridge.
+                          The bridge naturally belongs here since
+                          it adapts legacy → new; the *new* code
+                          shouldn't import from it.
+- `src/langs/cmake/`    ← extract the enum-to-string converters
+                          (`string_of_message_mode`,
+                          `string_of_version`,
+                          `string_of_supported_lang`,
+                          `string_of_compatibility`) here, where
+                          they belong — they only depend on
+                          `Lang_cmake`. Both the bridge and the
+                          IR ctors then import them from the cmake
+                          layer.
+
+**Concrete moves:**
+1. Create `src/langs/cmake/lang_cmake_strings.ml` with the four
+   enum→string helpers (lifted out of `Yelu_cmake_legacy_bridge`).
+2. `git mv src/langs/yelu/yelu_cmake_legacy_bridge.ml
+   src/langs/yelu_legacy/`. Update the bridge to import enum
+   helpers from `Lang_cmake_strings`. Tests that already use
+   `Yelu_cmake_legacy_bridge.stmt` keep working — module name
+   unchanged (dune `include_subdirs unqualified`).
+3. Update `yelu_cmake_ir_utils.ml` to call `Lang_cmake_strings.*`
+   instead of `Yelu_cmake_legacy_bridge.string_of_*`.
+4. Verify `src/langs/yelu/` no longer imports any `Lang_yelu_*` or
+   `Yelu_cmake_legacy_bridge` module.
+
+After G, the dependency rule "new yelu does not know about legacy"
+is enforced at the import level. Bridge-testing
+(`test_yelu_compile.ml`'s byte oracle and the pair-wise oracle)
+still works — those tests import both new yelu *and* legacy,
+which is appropriate for tests.
+
 ### E — Bridge retirement
 
-After items A, B (reframed), C, E-lite, and D, the bridge
-(`Yelu_cmake_legacy_bridge`, formerly `Yelu_cmake_to_yelu1`) still
-has two active producers of `Lang_yelu_cmake` AST:
+After items A, B (reframed), C, E-lite, D, and E-utils, the bridge
+(`Yelu_cmake_legacy_bridge`, formerly `Yelu_cmake_to_yelu1`) is
+**off the binary production path** but still has consumers:
 
-1. **Step files in `src/bin/yelu/*`**, which build the legacy AST
-   via `Lang_yelu_utils` helpers and feed it through the bridge in
-   `Step_common.print_cmake`.
-2. **The legacy parser** (`Lang_yelu_parse` in `yelu_legacy/`),
-   which is still the source-to-AST front end used by the byte
-   oracle and the pair-wise oracle.
+1. **The byte oracle in `test_yelu_compile.ml`** — feeds programs
+   constructed as legacy AST through both `legacy_compile → pp`
+   and `bridge → emit_ast → pp`, asserting byte equality.
+2. **The pair-wise oracle in `test_yelu_cmake_parse.ml`** — the
+   legacy side of the comparison uses `Lang_yelu_parse → bridge →
+   emit_ast`.
 
-To retire the bridge, exactly one of these has to go:
+Both are test infrastructure; neither is on a binary path. Full
+module-level deletion would require shifting both oracles from
+the bridge-fed shape to a source-fed shape:
 
-- **Option E-utils** — write a new `Yelu_cmake_ir_utils` module in
-  `src/langs/yelu/` whose helpers produce Yelu1 IR (`expr`) directly,
-  parallel to `Lang_yelu_utils` (in `yelu_legacy/`) which produces
-  legacy AST. Step files swap `open Yelu_langs.Lang_yelu_utils` for
-  `open Yelu_langs.Yelu_cmake_ir_utils` and emit directly without
-  the bridge. Sized at ~70 helpers + `step_common.ml` re-typing.
-  **Initial pilot attempt (2026-05-11) rolled back** — the
-  "mimicking" was less 1:1 than expected because the IR uses
-  string-encoded enums where the legacy AST uses typed enums
-  (`Lang_cmake.message_mode` → `string`, `command_error_if` already
-  `string option`, `Sa_unix_command` not `Sa_unix`,
-  `Mm_configure_log` doesn't exist, etc.) and several IR field
-  names differ subtly from the legacy ones (`var` → `loop_var`,
-  property/test ctors organized differently). Lesson: each helper
-  needs a per-ctor lookup against fragment files and the bridge's
-  string-conversion helpers (`string_of_version`,
-  `string_of_message_mode`, `string_of_supported_lang`); none of
-  this is hard, but ~70 helpers × per-ctor lookup adds up. Re-use
-  the bridge's enum→string helpers (they're top-level lets, public
-  via `Yelu_cmake_legacy_bridge`) rather than re-implementing each.
-  Plan for a focused session: read the bridge's per-family case
-  expressions first, write each helper as the inverse mapping.
-- **Option E-source** — rewrite step files as `.ye` source
-  consumed by `Yelu_parse` (the renamed `Yelu_parse_y1`). More
-  invasive but ends with one production parser as the source of
-  truth for both binary and test paths.
+```
+legacy_text = source |> Lang_yelu_parse.parse |> Lang_yelu_compile.compile |> pp
+new_text    = source |> Yelu_parse.parse      |> Yelu_cmake_surface_emit.emit_ast |> pp
+assert byte-identical
+```
+
+That's separable from retirement (the production critical-path
+retirement is already done after E-utils). Defer; revisit after
+item G makes the layering crisp.
 
 Once either lands, the bridge can be deleted and the
 byte-equality oracle in `test_yelu_compile.ml` shifts from the
@@ -376,8 +483,10 @@ equivalence claim stays byte-level.
 ## Sequencing summary
 
 ```
-done:       warm-up trio  →  Phase 1 (emit_ast)  →  Phase 2a (parser-direct-to-Yelu1, 12 families)  →  Phase 2c (legacy fragments relocated)  →  A (direct-parser gap list closed)  →  B (genex opaque-string sufficient; typed theory → Y17)  →  C (binary callers onto bridge + emit_ast)  →  E-lite (legacy parser+lexer to yelu_legacy)  →  D (yelu_tiny renamed to yelu; Yelu_tiny_* → Yelu_cmake_*)
-open E:     full bridge retirement — either Lang_yelu_utils rewrite (E-utils) or step files → .ye source (E-source); then delete yelu_cmake_legacy_bridge.ml; oracle shifts to source-fed shape
+done:       warm-up trio  →  Phase 1 (emit_ast)  →  Phase 2a (parser-direct-to-Yelu1, 12 families)  →  Phase 2c (legacy fragments relocated)  →  A (direct-parser gap list closed)  →  B (genex opaque-string sufficient; typed theory → Y17)  →  C (binary callers onto bridge + emit_ast)  →  E-lite (legacy parser+lexer to yelu_legacy)  →  D (yelu_tiny renamed to yelu)  →  E-utils (step files emit IR directly; bridge off binary path)
+open F:     parser-uses-IR-ctors refactor (one source of truth for command-shape decisions; ~10% parser LOC; orthogonal — audit before landing)
+open G:     legacy isolation cleanup (move bridge to yelu_legacy/; extract enum-string converters to cmake/; new yelu becomes legacy-import-free)
+open E:     module-level bridge deletion — shift byte oracle and pair-wise oracle to source-fed shape; then delete yelu_cmake_legacy_bridge.ml
 y17:        post-retirement typing pass on the renamed harness (incl. typed genex)
 delete?:    separate decision, gated on Y17 + production stability
 ```
