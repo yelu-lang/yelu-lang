@@ -1,5 +1,5 @@
 open Base
-open Yelu_cmake_ir
+open Yelu_cmake
 open Yelu_theory_int
 open Yelu_surface_cmake_store
 open Yelu_theory_bool
@@ -26,7 +26,7 @@ let fail fmt = Fmt.kstr (fun msg -> raise (Bridge_error msg)) fmt
 
 let cvar_name ({ name; _ } : Old.tc_name) = name
 
-let rec expr : Old.yelu_expr -> Yelu_cmake_ir.expr = function
+let rec expr : Old.yelu_expr -> Yelu_cmake.expr = function
   (* Detect generator expressions ($<...>) inside Ycs_eval strings and
      route them through ECmakeGenex so future R3 work has a distinct
      hook. ${...} var-derefs remain plain EString — both render the
@@ -89,7 +89,7 @@ let target_name = expr
    should deref). In let-value position we want a literal name [EString].
    [ytval], [yfile], [ykeyword] etc. (other [Yexpr_name] namespaces) are
    already string-valued via the general fallthrough. *)
-let let_value : Old.yelu_expr -> Yelu_cmake_ir.expr = function
+let let_value : Old.yelu_expr -> Yelu_cmake.expr = function
   | Yexpr_name { ns = Ns_var; name } -> EString name
   | e -> expr e
 
@@ -99,7 +99,7 @@ let one_input ~op = function
     fail "%s bridge currently requires exactly one input, got %d"
       op (List.length inputs)
 
-let string_statement : Old.yelu_string_stmt -> Yelu_cmake_ir.expr = function
+let string_statement : Old.yelu_string_stmt -> Yelu_cmake.expr = function
   | Ystr_concat { out; inputs } ->
     ECmakeStringConcat { out = cvar_name out; inputs = List.map inputs ~f:expr }
   | Ystr_toupper { string; out } ->
@@ -190,7 +190,7 @@ let string_statement : Old.yelu_string_stmt -> Yelu_cmake_ir.expr = function
         op_name = "JSON_op";
         args = [] }
 
-let var_statement : Old.yelu_var_stmt -> Yelu_cmake_ir.expr = function
+let var_statement : Old.yelu_var_stmt -> Yelu_cmake.expr = function
   | Yvar_set { cvar; values = [ value ]; parent_scope = false } ->
     ESetVar (cvar_name cvar, expr value)
   | Yvar_set { cvar; values = []; parent_scope = false } ->
@@ -228,7 +228,7 @@ let var_statement : Old.yelu_var_stmt -> Yelu_cmake_ir.expr = function
         cache_type = cache_type_s;
         docstring; force }
 
-let list_statement : Old.yelu_list_stmt -> Yelu_cmake_ir.expr = function
+let list_statement : Old.yelu_list_stmt -> Yelu_cmake.expr = function
   | Ylist_append { cvar; values } ->
     ECmakeListAppend { list = cvar_name cvar; items = List.map values ~f:expr }
   | Ylist_get { cvar; indices; out } ->
@@ -310,33 +310,10 @@ let list_statement : Old.yelu_list_stmt -> Yelu_cmake_ir.expr = function
         selector = selector_s;
         output = Option.map output ~f:cvar_name }
 
-let string_of_cmake_path_get_field : Lang_cmake.cmake_path_get_field -> string = function
-  | Cpf_root_name -> "ROOT_NAME"
-  | Cpf_root_directory -> "ROOT_DIRECTORY"
-  | Cpf_root_path -> "ROOT_PATH"
-  | Cpf_filename -> "FILENAME"
-  | Cpf_extension last_only ->
-    if last_only then "EXTENSION LAST_ONLY" else "EXTENSION"
-  | Cpf_stem last_only ->
-    if last_only then "STEM LAST_ONLY" else "STEM"
-  | Cpf_relative_part -> "RELATIVE_PART"
-  | Cpf_parent_path -> "PARENT_PATH"
+(* path_get_field / path_has_field / path_compare_op string conversions
+   now live in [Lang_cmake_strings]. *)
 
-let string_of_cmake_path_has_field : Lang_cmake.cmake_path_has_field -> string = function
-  | Cph_root_name -> "HAS_ROOT_NAME"
-  | Cph_root_directory -> "HAS_ROOT_DIRECTORY"
-  | Cph_root_path -> "HAS_ROOT_PATH"
-  | Cph_filename -> "HAS_FILENAME"
-  | Cph_extension -> "HAS_EXTENSION"
-  | Cph_stem -> "HAS_STEM"
-  | Cph_relative_part -> "HAS_RELATIVE_PART"
-  | Cph_parent_path -> "HAS_PARENT_PATH"
-
-let string_of_cmake_path_compare_op : Lang_cmake.cmake_path_compare_op -> string = function
-  | Cpco_equal -> "EQUAL"
-  | Cpco_not_equal -> "NOT_EQUAL"
-
-let path_statement : Old.yelu_path_stmt -> Yelu_cmake_ir.expr = function
+let path_statement : Old.yelu_path_stmt -> Yelu_cmake.expr = function
   | Ypath_set { path_var; input; normalize } ->
     ECmakePathSet { path = cvar_name path_var; input = expr input; normalize }
   | Ypath_get { path_var; field = Cpf_filename; out } ->
@@ -344,12 +321,12 @@ let path_statement : Old.yelu_path_stmt -> Yelu_cmake_ir.expr = function
   | Ypath_get { path_var; field; out } ->
     ECmakePathGet
       { path = cvar_name path_var;
-        field = string_of_cmake_path_get_field field;
+        field = Lang_cmake_strings.of_cmake_path_get_field field;
         out = cvar_name out }
   | Ypath_has { path_var; field; out } ->
     ECmakePathHas
       { path = cvar_name path_var;
-        field = string_of_cmake_path_has_field field;
+        field = Lang_cmake_strings.of_cmake_path_has_field field;
         out = cvar_name out }
   | Ypath_is_absolute { path_var; out } ->
     ECmakePathIsAbsolute { path = cvar_name path_var; out = cvar_name out }
@@ -362,7 +339,7 @@ let path_statement : Old.yelu_path_stmt -> Yelu_cmake_ir.expr = function
   | Ypath_compare { input1; op; input2; out } ->
     ECmakePathCompare
       { input1 = expr input1;
-        op = string_of_cmake_path_compare_op op;
+        op = Lang_cmake_strings.of_cmake_path_compare_op op;
         input2 = expr input2;
         out = cvar_name out }
   | Ypath_append { path_var; inputs; out } ->
@@ -419,7 +396,7 @@ let path_statement : Old.yelu_path_stmt -> Yelu_cmake_ir.expr = function
     ECmakeGetFilenameComponent
       { var = cvar_name var; filename = expr filename; mode }
 
-let file_statement : Old.yelu_file_io_stmt -> Yelu_cmake_ir.expr = function
+let file_statement : Old.yelu_file_io_stmt -> Yelu_cmake.expr = function
   | Yfile_write { file; append = false; content } ->
     ECmakeFileWrite { path = expr file; content = List.map content ~f:expr }
   | Yfile_write { file; append = true; content } ->
@@ -477,59 +454,24 @@ let file_statement : Old.yelu_file_io_stmt -> Yelu_cmake_ir.expr = function
         configure_depends;
         patterns = List.map patterns ~f:expr }
 
-let string_of_version (v : Lang_cmake.version) =
-  let patch = if String.length v.patch = 0 then "" else "." ^ v.patch in
-  Fmt.str "%d.%d%s" v.major v.minor patch
+(* version / supported_lang / message_mode string conversions now
+   live in [Lang_cmake_strings]. *)
 
-let string_of_supported_lang : Lang_cmake.supported_lang -> string = function
-  | Lang_none -> "NONE"
-  | Lang_c -> "C"
-  | Lang_cxx -> "CXX"
-  | Lang_csharp -> "CSharp"
-  | Lang_cuda -> "CUDA"
-  | Lang_objc -> "OBJC"
-  | Lang_objcxx -> "OBJCXX"
-  | Lang_fortran -> "Fortran"
-  | Lang_hipy -> "HIP"
-  | Lang_ispc -> "ISPC"
-  | Lang_swift -> "Swift"
-  | Lang_asm -> "ASM"
-  | Lang_asm_nasm -> "ASM_NASM"
-  | Lang_asm_marmasm -> "ASM_MARMASM"
-  | Lang_asm_masm -> "ASM_MASM"
-  | Lang_asm_att -> "ASM_ATT"
-
-let string_of_message_mode : Lang_cmake.message_mode -> string = function
-  | Mm_none -> ""
-  | Mm_status -> "STATUS"
-  | Mm_notice -> "NOTICE"
-  | Mm_verbose -> "VERBOSE"
-  | Mm_debug -> "DEBUG"
-  | Mm_trace -> "TRACE"
-  | Mm_warning -> "WARNING"
-  | Mm_author_warning -> "AUTHOR_WARNING"
-  | Mm_check_start -> "CHECK_START"
-  | Mm_check_pass -> "CHECK_PASS"
-  | Mm_check_fail -> "CHECK_FAIL"
-  | Mm_send_error -> "SEND_ERROR"
-  | Mm_fatal_error -> "FATAL_ERROR"
-  | Mm_deprecation -> "DEPRECATION"
-
-let cmake_op_statement : Old.yelu_cmake_stmt -> Yelu_cmake_ir.expr = function
+let cmake_op_statement : Old.yelu_cmake_stmt -> Yelu_cmake.expr = function
   | Ycmake_minimum_required { min; max = _ } ->
     (* The optional max is currently dropped; the tiny env only tracks min. *)
-    ECmakeMinimumRequired (string_of_version min)
+    ECmakeMinimumRequired (Lang_cmake_strings.of_version min)
   | Ycmake_project { name; version; languages } ->
     ECmakeProject
       {
         name;
-        languages = List.map languages ~f:string_of_supported_lang;
-        version = Option.map version ~f:string_of_version;
+        languages = List.map languages ~f:Lang_cmake_strings.of_supported_lang;
+        version = Option.map version ~f:Lang_cmake_strings.of_version;
       }
   | Ycmake_message { mode; texts } ->
     ECmakeMessage
       {
-        mode = string_of_message_mode mode;
+        mode = Lang_cmake_strings.of_message_mode mode;
         texts = List.map texts ~f:(fun s -> EString s);
       }
   | Ycmake_at_var key -> ECmakeAtVar key
@@ -572,7 +514,7 @@ let cmake_op_statement : Old.yelu_cmake_stmt -> Yelu_cmake_ir.expr = function
   | Ycmake_quote_cmd s ->
     ECmakeQuoteCmd s
 
-let dir_statement : Old.yelu_dir_stmt -> Yelu_cmake_ir.expr = function
+let dir_statement : Old.yelu_dir_stmt -> Yelu_cmake.expr = function
   | Ydir_add_subdirectory { source_dir } ->
     ECmakeAddSubdirectory (expr source_dir)
   | Ydir_include_directories { dirs; before; system } ->
@@ -593,13 +535,13 @@ let dir_statement : Old.yelu_dir_stmt -> Yelu_cmake_ir.expr = function
        at this slice. *)
     ECmakeAddLinkOptions (List.map items ~f:expr)
 
-let test_statement : Old.yelu_test_stmt -> Yelu_cmake_ir.expr = function
+let test_statement : Old.yelu_test_stmt -> Yelu_cmake.expr = function
   | Ytest_enable_testing -> ECmakeEnableTesting
   | Ytest_add_test { name; command; args } ->
     ECmakeAddTest
       { name = expr name; command = expr command; args = List.map args ~f:expr }
 
-let property_statement : Old.yelu_property_stmt -> Yelu_cmake_ir.expr = function
+let property_statement : Old.yelu_property_stmt -> Yelu_cmake.expr = function
   | Yprop_set_tests { tests; properties } ->
     ECmakeSetTestsProperties
       {
@@ -653,7 +595,7 @@ let property_statement : Old.yelu_property_stmt -> Yelu_cmake_ir.expr = function
       { mode = mode_s; property_name; inherited;
         brief_docs; full_docs; initialize_from }
 
-let find_statement : Old.yelu_find_stmt -> Yelu_cmake_ir.expr = function
+let find_statement : Old.yelu_find_stmt -> Yelu_cmake.expr = function
   | Yfind_package { name; version; exact; quiet; config_mode;
                     required; components; optional_components } ->
     ECmakeFindPackage
@@ -688,7 +630,7 @@ let find_statement : Old.yelu_find_stmt -> Yelu_cmake_ir.expr = function
         hints = List.map hints ~f:expr;
         required }
 
-let try_statement : Old.yelu_try_stmt -> Yelu_cmake_ir.expr = function
+let try_statement : Old.yelu_try_stmt -> Yelu_cmake.expr = function
   | Ytry_compile { result_var; sources;
                    compile_definitions = [];
                    link_libraries = [];
@@ -742,7 +684,7 @@ let library_type_name = function
   | Lang_cmake.Lib_interface -> "INTERFACE"
   | Lang_cmake.Lib_global -> "GLOBAL"
 
-let target_statement : Old.yelu_target_stmt -> Yelu_cmake_ir.expr = function
+let target_statement : Old.yelu_target_stmt -> Yelu_cmake.expr = function
   | Ytgt_add_executable { name; sources; exclude_from_all = false } ->
     ECmakeAddExecutable { name = target_name name; sources = List.map sources ~f:expr }
   | Ytgt_add_executable { exclude_from_all = true; _ } ->
@@ -908,13 +850,9 @@ let target_statement : Old.yelu_target_stmt -> Yelu_cmake_ir.expr = function
   | Ytgt_add_custom_command_target _ ->
     fail "bridge: TARGET-form add_custom_command not yet supported in tiny"
 
-let string_of_compatibility : Lang_cmake.compatibility -> string = function
-  | Any_newer_version -> "AnyNewerVersion"
-  | Same_major_version -> "SameMajorVersion"
-  | Same_minor_version -> "SameMinorVersion"
-  | Exact_version -> "ExactVersion"
+(* compatibility string conversion now lives in [Lang_cmake_strings]. *)
 
-let install_statement : Old.yelu_install_stmt -> Yelu_cmake_ir.expr = function
+let install_statement : Old.yelu_install_stmt -> Yelu_cmake.expr = function
   | Yinstall_targets { targets; destination; export } ->
     ECmakeInstallTargets
       {
@@ -951,11 +889,11 @@ let install_statement : Old.yelu_install_stmt -> Yelu_cmake_ir.expr = function
       {
         file = expr file;
         version = Option.map version ~f:expr;
-        compatibility = string_of_compatibility compatibility;
+        compatibility = Lang_cmake_strings.of_compatibility compatibility;
         arch_independent;
       }
 
-let rec stmt : Old.yelu_stmt -> Yelu_cmake_ir.expr = function
+let rec stmt : Old.yelu_stmt -> Yelu_cmake.expr = function
   | Ys_string string_stmt -> string_statement string_stmt
   | Ys_list list_stmt -> list_statement list_stmt
   | Ys_path path_stmt -> path_statement path_stmt

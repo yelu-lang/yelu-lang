@@ -27,7 +27,7 @@ let assert_bridge_succeeds name yelu_ast =
     | exception Yelu_langs.Yelu_cmake_legacy_bridge.Bridge_error msg ->
       Alcotest.failf "%s: tiny bridge raised Bridge_error: %s" name msg
     | yelu1 ->
-      let cmake_text = Yelu_langs.Yelu_cmake_surface_emit.emit_script yelu1 in
+      let cmake_text = Yelu_langs.Yelu_cmake_emit.emit_script yelu1 in
       Alcotest.(check bool)
         (Printf.sprintf "%s: tiny bridge produced non-empty cmake" name)
         true
@@ -63,9 +63,9 @@ let assert_byte_oracle name yelu_ast =
     let tiny_attempt =
       try
         let yelu1 = Yelu_langs.Yelu_cmake_legacy_bridge.stmt yelu_ast in
-        Some (Yelu_langs.Yelu_cmake_surface_emit.emit_script yelu1)
+        Some (Yelu_langs.Yelu_cmake_emit.emit_script yelu1)
       with
-      | Yelu_langs.Yelu_cmake_ir.Eval_error msg ->
+      | Yelu_langs.Yelu_cmake.Eval_error msg ->
         Stdlib.Hashtbl.replace oracle_uncovered_msgs name msg; None
       | Yelu_langs.Yelu_cmake_legacy_bridge.Bridge_error msg ->
         Stdlib.Hashtbl.replace oracle_uncovered_msgs name msg; None

@@ -34,9 +34,9 @@ let assert_bridge_ok name stmt =
       Alcotest.failf "%s: tiny bridge raised: %s" name msg
     | yelu1 ->
       (try
-         let (_ : string) = Yelu_langs.Yelu_cmake_surface_emit.emit_script yelu1 in
+         let (_ : string) = Yelu_langs.Yelu_cmake_emit.emit_script yelu1 in
          ()
-       with Yelu_langs.Yelu_cmake_ir.Eval_error msg ->
+       with Yelu_langs.Yelu_cmake.Eval_error msg ->
          Alcotest.failf "%s: emit_ast raised: %s" name msg)
 
 let assert_parses name input =
@@ -49,9 +49,9 @@ let assert_parses name input =
 
    - legacy path: source → Lang_yelu_parse.parse_program
                           → Yelu_cmake_legacy_bridge.stmt
-                          → Yelu_cmake_surface_emit.emit_script
+                          → Yelu_cmake_emit.emit_script
    - new path:    source → Yelu_parse.parse_program_y1
-                          → Yelu_cmake_surface_emit.emit_script
+                          → Yelu_cmake_emit.emit_script
 
    Same emit_ast lowering on both sides, so any divergence is parser-
    level. The new parser currently covers the Phase 2a direct-parser
@@ -62,14 +62,14 @@ let assert_parse_y1_equiv name source =
     let legacy_text =
       let stmt = parse source in
       let yelu1 = Yelu_langs.Yelu_cmake_legacy_bridge.stmt stmt in
-      Yelu_langs.Yelu_cmake_surface_emit.emit_script yelu1
+      Yelu_langs.Yelu_cmake_emit.emit_script yelu1
     in
     match Yelu_langs.Yelu_parse.parse_program_y1 source with
     | Error msg ->
       Alcotest.failf "%s: new parser failed: %s" name msg
     | Ok new_yelu1 ->
       let new_text =
-        Yelu_langs.Yelu_cmake_surface_emit.emit_script new_yelu1
+        Yelu_langs.Yelu_cmake_emit.emit_script new_yelu1
       in
       Alcotest.(check string) "legacy parse == new parse via emit_ast"
         legacy_text new_text)

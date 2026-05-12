@@ -1,4 +1,4 @@
-(* Ergonomic constructors that produce Yelu1 IR ([Yelu_cmake_ir.expr])
+(* Ergonomic constructors that produce Yelu1 IR ([Yelu_cmake.expr])
    directly, mirroring the shape of [Lang_yelu_utils] (which builds
    the legacy [Lang_yelu_cmake] AST).
 
@@ -14,7 +14,7 @@
    See doc/yelu_tiny/retirement_plan.md item E for context. *)
 
 open Base
-open Yelu_cmake_ir
+open Yelu_cmake
 open Yelu_theory_target  (* ETarget *)
 
 (* ============================================================
@@ -128,14 +128,14 @@ open Yelu_surface_cmake_cmake_op
 
 let yc_minimum_required_s ?max:_ min_ =
   let v = Lang_cmake_utils.version_of_string min_ in
-  ECmakeMinimumRequired (Yelu_cmake_legacy_bridge.string_of_version v)
+  ECmakeMinimumRequired (Lang_cmake_strings.of_version v)
 
 let yc_project ?version ?(languages = []) name =
   let languages_s =
-    List.map languages ~f:Yelu_cmake_legacy_bridge.string_of_supported_lang
+    List.map languages ~f:Lang_cmake_strings.of_supported_lang
   in
   let version_s =
-    Option.map version ~f:Yelu_cmake_legacy_bridge.string_of_version
+    Option.map version ~f:Lang_cmake_strings.of_version
   in
   ECmakeProject { name; languages = languages_s; version = version_s }
 
@@ -144,7 +144,7 @@ let yc_project ?version ?(languages = []) name =
    (which carries [expr list]). *)
 let yc_message ?(mode = Lang_cmake.Mm_status) texts =
   ECmakeMessage
-    { mode = Yelu_cmake_legacy_bridge.string_of_message_mode mode;
+    { mode = Lang_cmake_strings.of_message_mode mode;
       texts = List.map texts ~f:(fun s -> EString s) }
 
 let yc_include ?(optional = false) file =
@@ -161,7 +161,7 @@ let yc_policy_set ?(new_ = true) id = ECmakePolicySet { id; new_ }
 
 let yc_enable_language ?(optional = false) langs =
   let langs_s =
-    List.map langs ~f:Yelu_cmake_legacy_bridge.string_of_supported_lang
+    List.map langs ~f:Lang_cmake_strings.of_supported_lang
   in
   ECmakeEnableLanguage { langs = langs_s; optional }
 
@@ -238,10 +238,10 @@ let yis_defined e =
 open Yelu_surface_cmake_target
 
 let visibility_of_kind = function
-  | Lang_yelu_cmake.Public -> "PUBLIC"
-  | Lang_yelu_cmake.Private -> "PRIVATE"
-  | Lang_yelu_cmake.Interface -> "INTERFACE"
-  | Lang_yelu_cmake.Plain -> "PRIVATE"
+  | Lang_cmake.Public -> "PUBLIC"
+  | Lang_cmake.Private -> "PRIVATE"
+  | Lang_cmake.Interface -> "INTERFACE"
+  | Lang_cmake.Plain -> "PRIVATE"
 
 let library_type_name = function
   | Lang_cmake.Lib_static -> "STATIC"
@@ -257,19 +257,19 @@ let library_type_name = function
    like [dir] now return [expr]. Same kind enum for source-level
    compatibility (step files write [~kind:Private] etc.). *)
 type items_with_kind = {
-  kind : Lang_yelu_cmake.target_kind;
+  kind : Lang_cmake.target_kind;
   items : expr list;
 }
 
 type target_feature = {
-  kind : Lang_yelu_cmake.target_kind;
+  kind : Lang_cmake.target_kind;
   feature : string;
 }
 
-let ytarget_def ?(kind = Lang_yelu_cmake.Public) items : items_with_kind =
+let ytarget_def ?(kind = Lang_cmake.Public) items : items_with_kind =
   { kind; items }
 
-let ytarget_feature ?(kind = Lang_yelu_cmake.Public) feature : target_feature =
+let ytarget_feature ?(kind = Lang_cmake.Public) feature : target_feature =
   { kind; feature }
 
 let add_exe ?(exclude_from_all = false) ?(sources = []) name =
@@ -557,7 +557,7 @@ let yc_write_basic_package_version_file
   ECmakeWriteBasicPackageVersionFile
     { file;
       version;
-      compatibility = Yelu_cmake_legacy_bridge.string_of_compatibility compatibility;
+      compatibility = Lang_cmake_strings.of_compatibility compatibility;
       arch_independent }
 
 (* ============================================================

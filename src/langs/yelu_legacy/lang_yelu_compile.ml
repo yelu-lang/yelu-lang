@@ -131,29 +131,8 @@ let string_of_library_type = function
   | Lib_interface -> "INTERFACE"
   | Lib_global -> "GLOBAL"
 
-let string_of_supported_lang = function
-  | Lang_none -> "NONE"
-  | Lang_c -> "C"
-  | Lang_cxx -> "CXX"
-  | Lang_csharp -> "CSharp"
-  | Lang_cuda -> "CUDA"
-  | Lang_objc -> "OBJC"
-  | Lang_objcxx -> "OBJCXX"
-  | Lang_fortran -> "Fortran"
-  | Lang_hipy -> "HIP"
-  | Lang_ispc -> "ISPC"
-  | Lang_swift -> "Swift"
-  | Lang_asm -> "ASM"
-  | Lang_asm_nasm -> "ASM_NASM"
-  | Lang_asm_marmasm -> "ASM_MARMASM"
-  | Lang_asm_masm -> "ASM_MASM"
-  | Lang_asm_att -> "ASM-ATT"
-
-let string_of_compatibility = function
-  | Any_newer_version -> "AnyNewerVersion"
-  | Same_major_version -> "SameMajorVersion"
-  | Same_minor_version -> "SameMinorVersion"
-  | Exact_version -> "ExactVersion"
+(* supported_lang / compatibility string conversions now live in
+   [Lang_cmake_strings]; callers below use the module form. *)
 
 let erase_items_with_kind env { kind; items } : Lang_cmake.items_with_kind =
   { kind = string_of_kind kind; items = List.map ~f:(erase_arg env) items }
@@ -469,14 +448,14 @@ let compile_install_stmt env : yelu_install_stmt -> env * Lang_cmake.exp = funct
       (env, Module_cmd (Write_basic_package_version_file {
         file = erase_arg env file;
         version = Option.map ~f:(erase_arg env) version;
-        compatibility = string_of_compatibility compatibility;
+        compatibility = Lang_cmake_strings.of_compatibility compatibility;
         arch_independent }))
 
 let compile_cmake_stmt env : yelu_cmake_stmt -> env * Lang_cmake.exp = function
   | Ycmake_minimum_required { min; max } ->
       (env, Cmake_cmd (Cmake_minimum_required { min; max }))
   | Ycmake_project { name; version; languages } ->
-      let languages = List.map ~f:string_of_supported_lang languages in
+      let languages = List.map ~f:Lang_cmake_strings.of_supported_lang languages in
       (env, Project_cmd (Project {
         name; version; description = None; homepage_url = None; languages }))
   | Ycmake_enable_language { langs; optional } ->

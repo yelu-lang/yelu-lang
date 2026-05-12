@@ -2,10 +2,10 @@
 
    Pilot for the eventual replacement of [Lang_yelu_parse.parse_program]
    (which builds the production [Lang_yelu_cmake] AST) with a parser
-   that builds [Yelu_cmake_ir.expr] (Yelu1 IR) directly.
+   that builds [Yelu_cmake.expr] (Yelu1 IR) directly.
 
    This module is parallel to [Lang_yelu_parse] — it shares the lexer
-   (`Lang_yelu_lexer.token_list`) but constructs Yelu1 nodes during
+   (`Yelu_lexer.token_list`) but constructs Yelu1 nodes during
    parsing instead of going through the legacy yelu_cmake AST. Per the
    retirement plan, family-by-family the new parser absorbs each
    statement family from the legacy parser; when all families are
@@ -24,11 +24,11 @@
      - `( unset_cache IDENT )`       → ECmakeUnsetVarCache
 
    The exposed entry point [parse_program_y1] returns a single
-   [Yelu_cmake_ir.expr] for the covered syntax. Unsupported inputs produce
+   [Yelu_cmake.expr] for the covered syntax. Unsupported inputs produce
    [Error _]. The pair-wise oracle in
    [test_yelu_cmake_parse.ml] compares this against the legacy path
    ([Lang_yelu_parse.parse_program] → [Yelu_cmake_legacy_bridge.stmt] →
-   [Yelu_cmake_surface_emit.emit_script]) at the cmake-text level.
+   [Yelu_cmake_emit.emit_script]) at the cmake-text level.
 
    Helpers are duplicated from [Lang_yelu_parse] rather than imported,
    to keep the migration unit self-contained and to make the eventual
@@ -65,8 +65,8 @@
    parser is fixed separately. *)
 
 open Base
-open Lang_yelu_lexer
-open Yelu_cmake_ir
+open Yelu_lexer
+open Yelu_cmake
 open Yelu_theory_bool
 open Yelu_theory_int
 open Yelu_theory_list
@@ -149,7 +149,7 @@ let p_expr_y1 toks =
   | _ -> None
 
 (* ============================================================
-   Var-family statement parsers. Each produces a Yelu_cmake_ir.expr
+   Var-family statement parsers. Each produces a Yelu_cmake.expr
    (specifically one of: ESetVar, ECmakeSetCache, ECmakeOption,
    ECmakeUnsetVarCache, ECmakeSetEnvVar, ECmakeUnsetEnvVar) without
    going through Lang_yelu_cmake AST.

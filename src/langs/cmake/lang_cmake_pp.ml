@@ -1,6 +1,5 @@
 open Base
 open Lang_cmake
-open Lang_cmake_utils
 
 let list_sp pp = Fmt.list ~sep:Fmt.sp pp
 let list_br pp = Fmt.list ~sep:Stdlib.Format.pp_force_newline pp
@@ -19,7 +18,7 @@ let pp_flag key ff flag = if flag then Fmt.pf ff "@;%s " key else ()
 
 let pp_version_opt ff = function
   | None -> ()
-  | Some ver -> Fmt.pf ff "VERSION %s" (string_of_version ver)
+  | Some ver -> Fmt.pf ff "VERSION %s" (Lang_cmake_strings.of_version ver)
 
 let pp_target ff s = Fmt.string ff s
 let pp_source ff s = Fmt.string ff s
@@ -65,24 +64,8 @@ let string_of_include_guard_scope = function
 let pp_include_guard_scope =
   Fmt.using string_of_include_guard_scope Fmt.string
 
-let string_of_message_mode = function
-  | Mm_none -> ""
-  | Mm_status -> "STATUS"
-  | Mm_notice -> "NOTICE"
-  | Mm_verbose -> "VERBOSE"
-  | Mm_debug -> "DEBUG"
-  | Mm_trace -> "TRACE"
-  | Mm_warning -> "WARNING"
-  | Mm_author_warning -> "AUTHOR_WARNING"
-  | Mm_check_start -> "CHECK_START"
-  | Mm_check_pass -> "CHECK_PASS"
-  | Mm_check_fail -> "CHECK_FAIL"
-  | Mm_send_error -> "SEND_ERROR"
-  | Mm_fatal_error -> "FATAL_ERROR"
-  | Mm_deprecation -> "DEPRECATION"
-
 let pp_message_mode ff mode =
-  let s = string_of_message_mode mode in
+  let s = Lang_cmake_strings.of_message_mode mode in
   if String.length s > 0 then Fmt.pf ff "%s " s
 
 let string_of_message_reporting_state = function
@@ -786,7 +769,7 @@ let rec pp ff e =
 and pp_cmake_cmd ff cmd =
   match cmd with
   | Cmake_minimum_required { min; max = _ } ->
-      Fmt.pf ff "cmake_minimum_required(VERSION %s)" (string_of_version min)
+      Fmt.pf ff "cmake_minimum_required(VERSION %s)" (Lang_cmake_strings.of_version min)
   | Configure_file { input; output; permission_level; copy_only; escape_quotes; only; newline_style; _ } ->
       Fmt.(
         pf ff "configure_file(%a %a%a%a%a%a%a)" string input string output
@@ -837,7 +820,7 @@ and pp_cmake_cmd ff cmd =
   | Cmake_policy_version { min; max } ->
       Fmt.(
         pf ff "cmake_policy(VERSION %a...%a)" string
-          (string_of_version min) string (string_of_version max))
+          (Lang_cmake_strings.of_version min) string (Lang_cmake_strings.of_version max))
   | Cmake_policy_set { id = policy_id; new_ } ->
       Fmt.(pf ff "cmake_policy(SET %s %s)" policy_id (if new_ then "NEW" else "OLD"))
   | Cmake_policy_get { var } ->
@@ -1255,8 +1238,8 @@ and pp_project_cmd ff cmd =
   | Cmake_file_api { api_version; code_model } ->
       Fmt.(
         pf ff "cmake_file_api(QUERY API_VERSION %a CODEMODEL %a)" string
-          (string_of_version api_version)
-          (list_sp (Fmt.using string_of_version string))
+          (Lang_cmake_strings.of_version api_version)
+          (list_sp (Fmt.using Lang_cmake_strings.of_version string))
           code_model)
   | Create_test_sourcelist { name; drive_name; tests; options; extra_include; function_ } ->
       Fmt.(

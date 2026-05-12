@@ -1,5 +1,5 @@
 open Base
-open Yelu_cmake_ir
+open Yelu_cmake
 
 let name = "tiny_cmake_list"
 let requires = [ "core.list"; "core.int"; "core.string" ]

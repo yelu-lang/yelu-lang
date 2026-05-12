@@ -1,5 +1,5 @@
 (* Tutorial v1 step1-step12 bridge tests. Each test parses through
-   [Yelu_cmake_legacy_bridge.stmt], emits via [Yelu_cmake_surface_emit_debug] (the
+   [Yelu_cmake_legacy_bridge.stmt], emits via [Yelu_cmake_emit_debug] (the
    direct-text emitter, now diagnostic aid), and substring-asserts that
    key cmake constructs appear in the output. The format-specific
    substring assertions (e.g. always-quoted strings) are tuned to the
@@ -29,7 +29,7 @@ let step1_bridge =
         (fun () ->
           let yelu1 = Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd in
           let cmake_text =
-            Yelu_langs.Yelu_cmake_surface_emit_debug.emit_script yelu1
+            Yelu_langs.Yelu_cmake_emit_debug.emit_script yelu1
           in
           Alcotest.(check bool) "non-empty cmake output"
             true (String.length cmake_text > 0);
@@ -84,7 +84,7 @@ let step2_bridge =
         (fun () ->
           let yelu1 = Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd in
           let cmake_text =
-            Yelu_langs.Yelu_cmake_surface_emit_debug.emit_script yelu1
+            Yelu_langs.Yelu_cmake_emit_debug.emit_script yelu1
           in
           Alcotest.(check bool) "contains add_subdirectory" true
             (String.is_substring cmake_text
@@ -142,7 +142,7 @@ let step2_math_bridge =
         (fun () ->
           let yelu1 = Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd in
           let cmake_text =
-            Yelu_langs.Yelu_cmake_surface_emit_debug.emit_script yelu1
+            Yelu_langs.Yelu_cmake_emit_debug.emit_script yelu1
           in
           Alcotest.(check bool) "contains MathFunctions library" true
             (String.is_substring cmake_text
@@ -192,7 +192,7 @@ let step3_bridge =
         (fun () ->
           let yelu1 = Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd in
           let cmake_text =
-            Yelu_langs.Yelu_cmake_surface_emit_debug.emit_script yelu1
+            Yelu_langs.Yelu_cmake_emit_debug.emit_script yelu1
           in
           Alcotest.(check bool) "contains compiler flags interface library" true
             (String.is_substring cmake_text
@@ -248,7 +248,7 @@ let step3_math_bridge =
         (fun () ->
           let yelu1 = Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd in
           let cmake_text =
-            Yelu_langs.Yelu_cmake_surface_emit_debug.emit_script yelu1
+            Yelu_langs.Yelu_cmake_emit_debug.emit_script yelu1
           in
           Alcotest.(check bool) "contains MathFunctions include dirs" true
             (String.is_substring cmake_text
@@ -293,7 +293,7 @@ let step4_bridge =
         (fun () ->
           let yelu1 = Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd in
           let cmake_text =
-            Yelu_langs.Yelu_cmake_surface_emit_debug.emit_script yelu1
+            Yelu_langs.Yelu_cmake_emit_debug.emit_script yelu1
           in
           Alcotest.(check bool) "contains gcc-like detector var" true
             (String.is_substring cmake_text ~substring:"set(gcc_like_cxx");
@@ -339,7 +339,7 @@ let step5_bridge =
         (fun () ->
           let yelu1 = Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd in
           let cmake_text =
-            Yelu_langs.Yelu_cmake_surface_emit_debug.emit_script yelu1
+            Yelu_langs.Yelu_cmake_emit_debug.emit_script yelu1
           in
           Alcotest.(check bool) "contains install target rule" true
             (String.is_substring cmake_text ~substring:"install(TARGETS Tutorial");
@@ -393,7 +393,7 @@ let step5_math_bridge =
         (fun () ->
           let yelu1 = Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd in
           let cmake_text =
-            Yelu_langs.Yelu_cmake_surface_emit_debug.emit_script yelu1
+            Yelu_langs.Yelu_cmake_emit_debug.emit_script yelu1
           in
           Alcotest.(check bool) "contains installable_libs set" true
             (String.is_substring cmake_text ~substring:"set(installable_libs");
@@ -438,7 +438,7 @@ let step6_bridge =
         (fun () ->
           let yelu1 = Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd in
           let cmake_text =
-            Yelu_langs.Yelu_cmake_surface_emit_debug.emit_script yelu1
+            Yelu_langs.Yelu_cmake_emit_debug.emit_script yelu1
           in
           Alcotest.(check bool) "step6 uses include(CTest) instead of enable_testing()"
             true
@@ -474,7 +474,7 @@ let step6_ctest_bridge =
         (fun () ->
           let yelu1 = Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd in
           let cmake_text =
-            Yelu_langs.Yelu_cmake_surface_emit_debug.emit_script yelu1
+            Yelu_langs.Yelu_cmake_emit_debug.emit_script yelu1
           in
           Alcotest.(check bool) "contains CTEST_PROJECT_NAME"
             true
@@ -521,7 +521,7 @@ let step7_bridge =
         (fun () ->
           let yelu1 = Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd in
           let cmake_text =
-            Yelu_langs.Yelu_cmake_surface_emit_debug.emit_script yelu1
+            Yelu_langs.Yelu_cmake_emit_debug.emit_script yelu1
           in
           Alcotest.(check bool) "step7 uses include(CTest)" true
             (String.is_substring cmake_text ~substring:"include(\"CTest\")");
@@ -583,7 +583,7 @@ let step7_math_bridge =
         (fun () ->
           let yelu1 = Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd in
           let cmake_text =
-            Yelu_langs.Yelu_cmake_surface_emit_debug.emit_script yelu1
+            Yelu_langs.Yelu_cmake_emit_debug.emit_script yelu1
           in
           Alcotest.(check bool) "include(CheckCXXSourceCompiles) emitted" true
             (String.is_substring cmake_text
@@ -629,7 +629,7 @@ let step8_table_bridge =
         (fun () ->
           let yelu1 = Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd in
           let cmake_text =
-            Yelu_langs.Yelu_cmake_surface_emit_debug.emit_script yelu1
+            Yelu_langs.Yelu_cmake_emit_debug.emit_script yelu1
           in
           Alcotest.(check bool) "emits add_executable for MakeTable" true
             (String.is_substring cmake_text
@@ -703,7 +703,7 @@ let step8_math_bridge =
         (fun () ->
           let yelu1 = Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd in
           let cmake_text =
-            Yelu_langs.Yelu_cmake_surface_emit_debug.emit_script yelu1
+            Yelu_langs.Yelu_cmake_emit_debug.emit_script yelu1
           in
           Alcotest.(check bool) "emits include(MakeTable.cmake)" true
             (String.is_substring cmake_text
@@ -752,7 +752,7 @@ let step9_bridge =
         (fun () ->
           let yelu1 = Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd in
           let cmake_text =
-            Yelu_langs.Yelu_cmake_surface_emit_debug.emit_script yelu1
+            Yelu_langs.Yelu_cmake_emit_debug.emit_script yelu1
           in
           Alcotest.(check bool) "emits include(CPack)" true
             (String.is_substring cmake_text ~substring:"include(\"CPack\")");
@@ -801,7 +801,7 @@ let step10_bridge =
         (fun () ->
           let yelu1 = Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd in
           let cmake_text =
-            Yelu_langs.Yelu_cmake_surface_emit_debug.emit_script yelu1
+            Yelu_langs.Yelu_cmake_emit_debug.emit_script yelu1
           in
           Alcotest.(check bool) "emits CMAKE_RUNTIME_OUTPUT_DIRECTORY" true
             (String.is_substring cmake_text
@@ -841,7 +841,7 @@ let step11_config_bridge =
         (fun () ->
           let yelu1 = Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd in
           let cmake_text =
-            Yelu_langs.Yelu_cmake_surface_emit_debug.emit_script yelu1
+            Yelu_langs.Yelu_cmake_emit_debug.emit_script yelu1
           in
           Alcotest.(check bool) "contains literal @PACKAGE_INIT@" true
             (String.is_substring cmake_text ~substring:"@PACKAGE_INIT@");
@@ -922,7 +922,7 @@ let step11_bridge =
         (fun () ->
           let yelu1 = Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd in
           let cmake_text =
-            Yelu_langs.Yelu_cmake_surface_emit_debug.emit_script yelu1
+            Yelu_langs.Yelu_cmake_emit_debug.emit_script yelu1
           in
           Alcotest.(check bool) "emits install(EXPORT MathFunctionsTargets ...)" true
             (String.is_substring cmake_text
@@ -1018,7 +1018,7 @@ let step12_bridge =
         (fun () ->
           let yelu1 = Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd in
           let cmake_text =
-            Yelu_langs.Yelu_cmake_surface_emit_debug.emit_script yelu1
+            Yelu_langs.Yelu_cmake_emit_debug.emit_script yelu1
           in
           Alcotest.(check bool) "emits set(CMAKE_DEBUG_POSTFIX " true
             (String.is_substring cmake_text
@@ -1075,7 +1075,7 @@ let step4_math_bridge =
         (fun () ->
           let yelu1 = Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd in
           let cmake_text =
-            Yelu_langs.Yelu_cmake_surface_emit_debug.emit_script yelu1
+            Yelu_langs.Yelu_cmake_emit_debug.emit_script yelu1
           in
           Alcotest.(check bool) "emits add_library(MathFunctions" true
             (String.is_substring cmake_text
@@ -1125,7 +1125,7 @@ let step6_math_bridge =
         (fun () ->
           let yelu1 = Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd in
           let cmake_text =
-            Yelu_langs.Yelu_cmake_surface_emit_debug.emit_script yelu1
+            Yelu_langs.Yelu_cmake_emit_debug.emit_script yelu1
           in
           Alcotest.(check bool) "emits add_library(MathFunctions" true
             (String.is_substring cmake_text
@@ -1193,7 +1193,7 @@ let step10_math_bridge =
         (fun () ->
           let yelu1 = Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd in
           let cmake_text =
-            Yelu_langs.Yelu_cmake_surface_emit_debug.emit_script yelu1
+            Yelu_langs.Yelu_cmake_emit_debug.emit_script yelu1
           in
           Alcotest.(check bool) "emits POSITION_INDEPENDENT_CODE prop" true
             (String.is_substring cmake_text
@@ -1271,7 +1271,7 @@ let step11_math_bridge =
         (fun () ->
           let yelu1 = Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd in
           let cmake_text =
-            Yelu_langs.Yelu_cmake_surface_emit_debug.emit_script yelu1
+            Yelu_langs.Yelu_cmake_emit_debug.emit_script yelu1
           in
           Alcotest.(check bool) "emits $<BUILD_INTERFACE genex" true
             (String.is_substring cmake_text ~substring:"$<BUILD_INTERFACE:");
@@ -1350,7 +1350,7 @@ let step12_math_bridge =
         (fun () ->
           let yelu1 = Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd in
           let cmake_text =
-            Yelu_langs.Yelu_cmake_surface_emit_debug.emit_script yelu1
+            Yelu_langs.Yelu_cmake_emit_debug.emit_script yelu1
           in
           Alcotest.(check bool) "emits the math install rule" true
             (String.is_substring cmake_text
@@ -1377,7 +1377,7 @@ let step12_multi_bridge =
         (fun () ->
           let yelu1 = Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd in
           let cmake_text =
-            Yelu_langs.Yelu_cmake_surface_emit_debug.emit_script yelu1
+            Yelu_langs.Yelu_cmake_emit_debug.emit_script yelu1
           in
           Alcotest.(check bool) "includes the per-config CPackConfig" true
             (String.is_substring cmake_text
@@ -1455,7 +1455,7 @@ let v2_root_bridge =
         (fun () ->
           let yelu1 = Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd in
           let cmake_text =
-            Yelu_langs.Yelu_cmake_surface_emit_debug.emit_script yelu1
+            Yelu_langs.Yelu_cmake_emit_debug.emit_script yelu1
           in
           Alcotest.(check bool) "emits project(Tutorial" true
             (String.is_substring cmake_text ~substring:"project(Tutorial");
@@ -1495,7 +1495,7 @@ let v2_mathlogger_bridge =
         (fun () ->
           let yelu1 = Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd in
           let cmake_text =
-            Yelu_langs.Yelu_cmake_surface_emit_debug.emit_script yelu1
+            Yelu_langs.Yelu_cmake_emit_debug.emit_script yelu1
           in
           Alcotest.(check bool) "emits add_library(MathLogger" true
             (String.is_substring cmake_text
@@ -1522,7 +1522,7 @@ let v2_mathext_bridge =
         (fun () ->
           let yelu1 = Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd in
           let cmake_text =
-            Yelu_langs.Yelu_cmake_surface_emit_debug.emit_script yelu1
+            Yelu_langs.Yelu_cmake_emit_debug.emit_script yelu1
           in
           Alcotest.(check bool) "emits add_subdirectory(OpAdd" true
             (String.is_substring cmake_text
@@ -1550,7 +1550,7 @@ let v2_opadd_bridge =
         (fun () ->
           let yelu1 = Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd in
           let cmake_text =
-            Yelu_langs.Yelu_cmake_surface_emit_debug.emit_script yelu1
+            Yelu_langs.Yelu_cmake_emit_debug.emit_script yelu1
           in
           Alcotest.(check bool) "emits OBJECT library" true
             (String.is_substring cmake_text
@@ -1573,7 +1573,7 @@ let v2_opmul_bridge =
     [ Alcotest.test_case "v2 OpMul bridges" `Quick
         (fun () ->
           let yelu1 = Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd in
-          let _ = Yelu_langs.Yelu_cmake_surface_emit_debug.emit_script yelu1 in
+          let _ = Yelu_langs.Yelu_cmake_emit_debug.emit_script yelu1 in
           ()) ] )
 
 let v2_opsub_bridge =
@@ -1592,7 +1592,7 @@ let v2_opsub_bridge =
     [ Alcotest.test_case "v2 OpSub bridges" `Quick
         (fun () ->
           let yelu1 = Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd in
-          let _ = Yelu_langs.Yelu_cmake_surface_emit_debug.emit_script yelu1 in
+          let _ = Yelu_langs.Yelu_cmake_emit_debug.emit_script yelu1 in
           ()) ] )
 
 (* v2_maketable: add_custom_command(OUTPUT ...) + add_custom_target +
@@ -1629,7 +1629,7 @@ let v2_maketable_bridge =
         (fun () ->
           let yelu1 = Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd in
           let cmake_text =
-            Yelu_langs.Yelu_cmake_surface_emit_debug.emit_script yelu1
+            Yelu_langs.Yelu_cmake_emit_debug.emit_script yelu1
           in
           Alcotest.(check bool) "emits add_custom_target(RunMakeTable" true
             (String.is_substring cmake_text
@@ -1678,7 +1678,7 @@ let v2_mathfuncs_bridge =
         (fun () ->
           let yelu1 = Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd in
           let cmake_text =
-            Yelu_langs.Yelu_cmake_surface_emit_debug.emit_script yelu1
+            Yelu_langs.Yelu_cmake_emit_debug.emit_script yelu1
           in
           Alcotest.(check bool) "emits ALIAS library" true
             (String.is_substring cmake_text
@@ -1711,7 +1711,7 @@ let v2_simpletest_bridge =
         (fun () ->
           let yelu1 = Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd in
           let cmake_text =
-            Yelu_langs.Yelu_cmake_surface_emit_debug.emit_script yelu1
+            Yelu_langs.Yelu_cmake_emit_debug.emit_script yelu1
           in
           Alcotest.(check bool) "emits ARCH_INDEPENDENT flag" true
             (String.is_substring cmake_text ~substring:"ARCH_INDEPENDENT"))
@@ -1748,7 +1748,7 @@ let v2_tutorial_exe_bridge =
         (fun () ->
           let yelu1 = Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd in
           let cmake_text =
-            Yelu_langs.Yelu_cmake_surface_emit_debug.emit_script yelu1
+            Yelu_langs.Yelu_cmake_emit_debug.emit_script yelu1
           in
           Alcotest.(check bool) "emits add_executable(Tutorial" true
             (String.is_substring cmake_text
@@ -1780,7 +1780,7 @@ let v2_tests_bridge =
         (fun () ->
           let yelu1 = Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd in
           let cmake_text =
-            Yelu_langs.Yelu_cmake_surface_emit_debug.emit_script yelu1
+            Yelu_langs.Yelu_cmake_emit_debug.emit_script yelu1
           in
           Alcotest.(check bool) "emits find_package(SimpleTest" true
             (String.is_substring cmake_text
@@ -1803,7 +1803,7 @@ let cmakeonly_bridge ~name ~description cmd =
         (fun () ->
           let yelu1 = Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd in
           let cmake_text =
-            Yelu_langs.Yelu_cmake_surface_emit_debug.emit_script yelu1
+            Yelu_langs.Yelu_cmake_emit_debug.emit_script yelu1
           in
           Alcotest.(check bool) "non-empty cmake output" true
             (String.length cmake_text > 0))

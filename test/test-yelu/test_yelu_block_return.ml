@@ -10,12 +10,12 @@
    "exit innermost" return would fail P10/P11. *)
 
 open Base
-open Yelu_langs.Yelu_cmake_ir
+open Yelu_langs.Yelu_cmake
 open Yelu_langs.Yelu_surface_cmake_cmake_op
 open Yelu_langs.Yelu_surface_cmake_store
 
 let eval_from_empty expr =
-  Yelu_langs.Yelu_cmake_translate.eval_yelu1_expr empty_env expr
+  Yelu_langs.Yelu_cmake_convert.eval_yelu_cmake_expr empty_env expr
 
 (* Read X from the current top frame; returns Some string or None. *)
 let read env name =

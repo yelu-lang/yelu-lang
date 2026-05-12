@@ -1,10 +1,10 @@
 (* IR-backed parallel of [Step_common]. Same building blocks, but
-   typed against Yelu1 IR ([Yelu_cmake_ir.expr]) instead of legacy
+   typed against Yelu1 IR ([Yelu_cmake.expr]) instead of legacy
    [Lang_yelu_cmake.yelu_stmt]. Step files in [src/bin/yelu/] use
    this module; tests on the bridge side keep using [Step_common]
    (legacy AST). E-utils pilot (2026-05-11). *)
 open Yelu_langs.Lang_yelu_cmake
-open Yelu_langs.Yelu_cmake_ir_utils
+open Yelu_langs.Yelu_cmake_utils
 
 (* --- Root CMakeLists blocks --- *)
 
@@ -191,8 +191,8 @@ let math_install_libs ?export () =
 
 (** Print a yelu IR expression to stdout as cmake.
 
-    [cmd] is already Yelu1 IR (built by [Yelu_cmake_ir_utils]). Emit
+    [cmd] is already Yelu1 IR (built by [Yelu_cmake_utils]). Emit
     directly via [emit_ast]; no bridge on this path. *)
-let print_cmake (cmd : Yelu_langs.Yelu_cmake_ir.expr) =
+let print_cmake (cmd : Yelu_langs.Yelu_cmake.expr) =
   Fmt.pr "%a" (Fmt.vbox Yelu_langs.Lang_cmake_pp.pp)
-    (Yelu_langs.Yelu_cmake_surface_emit.emit_ast cmd)
+    (Yelu_langs.Yelu_cmake_emit.emit_ast cmd)

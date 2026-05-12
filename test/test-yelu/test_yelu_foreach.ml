@@ -15,10 +15,10 @@
    downstream consumer reading [loop_var] after the loop). *)
 
 open Base
-open Yelu_langs.Yelu_cmake_ir
+open Yelu_langs.Yelu_cmake
 open Yelu_langs.Yelu_surface_cmake_cmake_op
 
-let eval_from_empty expr = Yelu_langs.Yelu_cmake_translate.eval_yelu1_expr empty_env expr
+let eval_from_empty expr = Yelu_langs.Yelu_cmake_convert.eval_yelu_cmake_expr empty_env expr
 
 (* --- After the loop, loop_var retains the final iteration value. --- *)
 

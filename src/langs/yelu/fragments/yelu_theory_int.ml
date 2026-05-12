@@ -1,5 +1,5 @@
 open Base
-open Yelu_cmake_ir
+open Yelu_cmake
 
 let name = "yelu_theory_int"
 let requires = [ "core.int" ]

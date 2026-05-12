@@ -1,5 +1,5 @@
 open Base
-open Yelu_cmake_ir
+open Yelu_cmake
 
 type expr +=
   | ECmakeUnsetVar of string

@@ -1,4 +1,4 @@
-open Yelu_langs.Yelu_cmake_ir
+open Yelu_langs.Yelu_cmake
 open Yelu_test_helpers
 let yelu_cmake_bridge =
   ( "yelu_cmake_to_yelu1",

@@ -1,11 +1,11 @@
-(* Regression tests for [Yelu_cmake_surface_emit_debug] (the direct-text emitter,
+(* Regression tests for [Yelu_cmake_emit_debug] (the direct-text emitter,
    demoted to diagnostic aid in Phase 1.5 of retirement, commit 682ebff).
-   Production lowering goes through [Yelu_cmake_surface_emit]; the AST
+   Production lowering goes through [Yelu_cmake_emit]; the AST
    path has its own parity tests in [test_yelu_tiny_emit_ast.ml]. These
    tests cover ELet emit-time substitution as exercised by the direct
    path, and protect against the diagnostic module rotting. *)
 open Base
-open Yelu_langs.Yelu_cmake_ir
+open Yelu_langs.Yelu_cmake
 let let_emit_resolve =
   ( "let_emit_resolve",
     [
@@ -18,7 +18,7 @@ let let_emit_resolve =
                    body = ESetVar ("OUT", EVar "msg") }
           in
           let cmake_text =
-            Yelu_langs.Yelu_cmake_surface_emit_debug.emit_script prog
+            Yelu_langs.Yelu_cmake_emit_debug.emit_script prog
           in
           Alcotest.(check bool)
             "emits substituted literal, not ${msg}"
@@ -37,7 +37,7 @@ let let_emit_resolve =
                    body = EUnit }
           in
           let cmake_text =
-            Yelu_langs.Yelu_cmake_surface_emit_debug.emit_script prog
+            Yelu_langs.Yelu_cmake_emit_debug.emit_script prog
           in
           (* let header has no cmake equivalent; body is empty -> empty
              output (just the trailing newline). *)
@@ -59,7 +59,7 @@ let let_emit_resolve =
                        ] }
           in
           let cmake_text =
-            Yelu_langs.Yelu_cmake_surface_emit_debug.emit_script prog
+            Yelu_langs.Yelu_cmake_emit_debug.emit_script prog
           in
           Alcotest.(check bool) "BEFORE sees outer"
             true (String.is_substring cmake_text ~substring:"set(BEFORE \"outer\")");

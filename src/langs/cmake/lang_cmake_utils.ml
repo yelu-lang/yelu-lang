@@ -8,10 +8,6 @@ let version_of_string s =
   | [major; minor; patch] -> { major = Int.of_string major; minor = Int.of_string minor; patch }
   | _ -> failwith (Printf.sprintf "version_of_string: invalid version %S" s)
 
-let string_of_version ver =
-  let str_patch = if String.length ver.patch = 0 then "" else "." ^ ver.patch in
-  Fmt.str "%d.%d%s" ver.major ver.minor str_patch
-
 let str_ s = Bare s
 let quote s = Quoted s
 let bracket_str s = Bracket s

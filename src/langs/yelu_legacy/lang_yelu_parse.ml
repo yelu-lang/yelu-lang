@@ -3,7 +3,7 @@
 
 open Base
 open Lang_yelu_cmake
-open Lang_yelu_lexer
+open Yelu_lexer
 
 type 'a parser = token list -> ('a * token list) option
 

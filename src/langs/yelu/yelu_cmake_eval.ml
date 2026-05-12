@@ -1,17 +1,17 @@
-(* Yelu2 evaluator: interpret an IR built from theory-side *idealized*
-   constructors (the [E*] forms in the [Yelu_theory_*] modules, plus the
-   shared core nodes from [yelu_tiny.ml]).
+(* Yelu1 evaluator: interpret an IR built from cmake-shaped *surface*
+   constructors (the [ECmake*] family, plus the shared core nodes from
+   [yelu_tiny.ml]). Used to demonstrate that the cmake-faithful surface
+   is executable and to compare result envs against the production
+   yelu_cmake compiler.
 
-   Yelu2 is the "cleaner" form that doesn't carry cmake-specific
-   shape (no output-var sugar; mutations are explicit via [ESetVar]).
-   This evaluator dispatches to each theory fragment's [eval_case].
-   Used to test that the theory IR alone can express programs whose
-   eval-state matches the corresponding Yelu1 program (proves
-   semantic equivalence at the IR level). *)
+   This module dispatches to each surface fragment's [eval_case] in
+   turn. Pure-theory fragments (bool, int, list, target) are also
+   consulted because Yelu1 inherits the shared core. *)
 
 open Base
-open Yelu_cmake_ir
+open Yelu_cmake
 open Yelu_theory_store
+open Yelu_surface_cmake_store
 
 let rec eval_expr env = function
   | EVar name ->
@@ -29,6 +29,13 @@ let rec eval_expr env = function
     remove_var env name, VUnit
   | EVarDefined name ->
     env, VBool (var_defined env name)
+  | ECmakeUnsetVar name ->
+    remove_var env name, VUnit
+  | ECmakeVarDefined name ->
+    env, VBool (var_defined env name)
+  | ECmakeOption { name; value; _ } ->
+    let env, value = eval_expr env value in
+    set_var env ~key:name ~data:value, VUnit
   | ESeq exprs ->
     List.fold exprs ~init:(env, VUnit) ~f:(fun (env, _last) expr ->
       eval_expr env expr)
@@ -53,39 +60,50 @@ let rec eval_expr env = function
     match Yelu_theory_list.eval_case ~eval:eval_expr env expr with
      | Some value -> value
      | None ->
-    match Yelu_theory_path.eval_case ~eval:eval_expr env expr with
+    match Yelu_surface_cmake_list.eval_case ~eval:eval_expr env expr with
      | Some value -> value
      | None ->
-    match Yelu_theory_file.eval_case ~eval:eval_expr env expr with
+    match Yelu_surface_cmake_path.eval_case ~eval:eval_expr env expr with
+     | Some value -> value
+     | None ->
+    match Yelu_surface_cmake_file.eval_case ~eval:eval_expr env expr with
      | Some value -> value
      | None ->
     match Yelu_theory_target.eval_case ~eval:eval_expr env expr with
      | Some value -> value
      | None ->
-    match Yelu_theory_install.eval_case ~eval:eval_expr env expr with
+    match Yelu_surface_cmake_target.eval_case ~eval:eval_expr env expr with
      | Some value -> value
      | None ->
-    match Yelu_theory_if.eval_case ~eval:eval_expr env expr with
+    match Yelu_surface_cmake_install.eval_case ~eval:eval_expr env expr with
      | Some value -> value
      | None ->
-    match Yelu_theory_string.eval_case ~eval:eval_expr env expr with
+    match Yelu_surface_cmake_if.eval_case ~eval:eval_expr env expr with
      | Some value -> value
      | None ->
-    match Yelu_theory_cmake_op.eval_case ~eval:eval_expr env expr with
+    match Yelu_surface_cmake_string.eval_case ~eval:eval_expr env expr with
      | Some value -> value
      | None ->
-    match Yelu_theory_dir.eval_case ~eval:eval_expr env expr with
+    match Yelu_surface_cmake_cmake_op.eval_case ~eval:eval_expr env expr with
      | Some value -> value
      | None ->
-    match Yelu_theory_test.eval_case ~eval:eval_expr env expr with
+    match Yelu_surface_cmake_dir.eval_case ~eval:eval_expr env expr with
      | Some value -> value
      | None ->
-    match Yelu_theory_property.eval_case ~eval:eval_expr env expr with
+    match Yelu_surface_cmake_test.eval_case ~eval:eval_expr env expr with
      | Some value -> value
      | None ->
-    match Yelu_theory_find.eval_case ~eval:eval_expr env expr with
+    match Yelu_surface_cmake_property.eval_case ~eval:eval_expr env expr with
      | Some value -> value
      | None ->
-    match Yelu_theory_try.eval_case ~eval:eval_expr env expr with
+    match Yelu_surface_cmake_find.eval_case ~eval:eval_expr env expr with
      | Some value -> value
-     | None -> fail "unknown expression in Yelu2")
+     | None ->
+    match Yelu_surface_cmake_try.eval_case ~eval:eval_expr env expr with
+     | Some value -> value
+     | None ->
+    (* Store fragment last — most store ops are inlined above; this
+       catches the new ECmakeSetParentScope added in R4-b.3c. *)
+    match Yelu_surface_cmake_store.eval_case env expr with
+     | Some value -> value
+     | None -> fail "unknown expression in Yelu1")

@@ -38,14 +38,14 @@
    on var leakage. *)
 
 open Base
-open Yelu_langs.Yelu_cmake_ir
+open Yelu_langs.Yelu_cmake
 open Yelu_langs.Yelu_theory_cmake_op
 open Yelu_langs.Yelu_surface_cmake_target
 open Yelu_langs.Yelu_surface_cmake_cmake_op
-open Yelu_langs.Yelu_cmake_translate
+open Yelu_langs.Yelu_cmake_convert
 
 (* Helper: evaluate a Yelu1 program from empty env and return (env, value). *)
-let eval_from_empty expr = eval_yelu1_expr empty_env expr
+let eval_from_empty expr = eval_yelu_cmake_expr empty_env expr
 
 (* Helper: assert a specific exception substring fires. *)
 let expect_eval_error name expr ~substring =
@@ -269,7 +269,7 @@ let unknown_surface_apply_is_lenient =
 let unknown_theory_apply_fails =
   Alcotest.test_case "EApply on unknown function (theory) fails" `Quick
     (fun () ->
-      match eval_yelu2_expr empty_env (EApply { name = EString "nope"; args = [] }) with
+      match eval_yelu_cmake_normal_expr empty_env (EApply { name = EString "nope"; args = [] }) with
       | exception Eval_error msg ->
         Alcotest.(check bool)
           "Eval_error mentions unknown function" true
@@ -337,11 +337,11 @@ let lift_lower_roundtrip_for_function =
               { name = EString "echo"; args = [ EString "hi" ] };
           ]
       in
-      let env_a, value_a = eval_yelu1_expr empty_env prog in
-      let lifted = lift_yelu1_to_yelu2 prog in
-      let env_b, value_b = eval_yelu2_expr empty_env lifted in
-      let lowered = lower_yelu2_to_yelu1 lifted in
-      let env_c, value_c = eval_yelu1_expr empty_env lowered in
+      let env_a, value_a = eval_yelu_cmake_expr empty_env prog in
+      let lifted = to_normal prog in
+      let env_b, value_b = eval_yelu_cmake_normal_expr empty_env lifted in
+      let lowered = from_normal lifted in
+      let env_c, value_c = eval_yelu_cmake_expr empty_env lowered in
       Alcotest.(check bool) "lift preserves return value" true
         (equal_value value_a value_b);
       Alcotest.(check bool) "lower preserves return value" true
@@ -368,7 +368,7 @@ let theory_form_works =
             EApply { name = EString "echo"; args = [ EString "theory" ] };
           ]
       in
-      let env, _ = eval_yelu2_expr empty_env prog in
+      let env, _ = eval_yelu_cmake_normal_expr empty_env prog in
       Alcotest.(check (list (list string)))
         "theory-side body captured arg via message"
         [ [ "theory" ] ] (message_texts env);

@@ -1,6 +1,6 @@
 open Base
-open Yelu_langs.Yelu_cmake_ir
-open Yelu_langs.Yelu_cmake_translate
+open Yelu_langs.Yelu_cmake
+open Yelu_langs.Yelu_cmake_convert
 
 module Old = Yelu_langs.Lang_yelu_cmake
 
@@ -85,7 +85,7 @@ let old_var name = Old.Yexpr_var (Old.Yvar name)
 let check_yelu_cmake_bridge_to_yelu1 name stmt ~expected_value ~expected_env =
   Alcotest.test_case name `Quick (fun () ->
     let expr = Yelu_langs.Yelu_cmake_legacy_bridge.stmt stmt in
-    let env, value = eval_yelu1_expr empty_env expr in
+    let env, value = eval_yelu_cmake_expr empty_env expr in
     Alcotest.(check bool) "expected value" true
       (equal_value expected_value value);
     Alcotest.(check bool) "expected env" true
@@ -103,7 +103,7 @@ let check_parsed_yelu_bridge_to_yelu1 name source ~expected_value ~expected_env 
       |> parse_old_yelu
       |> Yelu_langs.Yelu_cmake_legacy_bridge.stmt
     in
-    let env, value = eval_yelu1_expr empty_env expr in
+    let env, value = eval_yelu_cmake_expr empty_env expr in
     Alcotest.(check bool) "expected value" true
       (equal_value expected_value value);
     Alcotest.(check bool) "expected env" true
@@ -112,8 +112,8 @@ let check_parsed_yelu_bridge_to_yelu1 name source ~expected_value ~expected_env 
 let check_yelu1_to_yelu2 name expr ~expected_value ~expected_env =
   Alcotest.test_case name `Quick (fun () ->
     let env = empty_env in
-    let left_env, left_value = eval_yelu1_expr env expr in
-    let right_env, right_value = eval_yelu2_expr env (lift_yelu1_to_yelu2 expr) in
+    let left_env, left_value = eval_yelu_cmake_expr env expr in
+    let right_env, right_value = eval_yelu_cmake_normal_expr env (to_normal expr) in
     Alcotest.(check bool) "translation preserves value" true
       (equal_value left_value right_value);
     Alcotest.(check bool) "translation preserves env" true
@@ -126,8 +126,8 @@ let check_yelu1_to_yelu2 name expr ~expected_value ~expected_env =
 let check_yelu2_to_yelu1 name expr ~expected_value ~expected_env =
   Alcotest.test_case name `Quick (fun () ->
     let env = empty_env in
-    let left_env, left_value = eval_yelu2_expr env expr in
-    let right_env, right_value = eval_yelu1_expr env (lower_yelu2_to_yelu1 expr) in
+    let left_env, left_value = eval_yelu_cmake_normal_expr env expr in
+    let right_env, right_value = eval_yelu_cmake_expr env (from_normal expr) in
     Alcotest.(check bool) "translation preserves value" true
       (equal_value left_value right_value);
     Alcotest.(check bool) "translation preserves env" true
@@ -140,10 +140,10 @@ let check_yelu2_to_yelu1 name expr ~expected_value ~expected_env =
 let check_yelu1_lift_lower_roundtrip name expr =
   Alcotest.test_case name `Quick (fun () ->
     let env = empty_env in
-    let left_env, left_value = eval_yelu1_expr env expr in
-    let lifted = lift_yelu1_to_yelu2 expr in
-    let lowered = lower_yelu2_to_yelu1 lifted in
-    let right_env, right_value = eval_yelu1_expr env lowered in
+    let left_env, left_value = eval_yelu_cmake_expr env expr in
+    let lifted = to_normal expr in
+    let lowered = from_normal lifted in
+    let right_env, right_value = eval_yelu_cmake_expr env lowered in
     Alcotest.(check bool) "roundtrip preserves value" true
       (equal_value left_value right_value);
     Alcotest.(check bool) "roundtrip preserves env" true

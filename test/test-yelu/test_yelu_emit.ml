@@ -1,8 +1,8 @@
 (* Phase 1 parity tests: direct-text emit vs. AST-emit-then-pp.
 
    Each test runs a small Yelu1 program through both pipelines:
-     A. Yelu_cmake_surface_emit_debug.emit_script         (direct text)
-     B. Yelu_cmake_surface_emit.emit_script     (AST then lang_cmake_pp)
+     A. Yelu_cmake_emit_debug.emit_script         (direct text)
+     B. Yelu_cmake_emit.emit_script     (AST then lang_cmake_pp)
 
    Phase 1.1 is a *skeleton* — only a handful of constructors are wired.
    These tests cover what's wired; coverage expands in Phase 1.3.
@@ -14,11 +14,11 @@
    can pick lang_cmake_pp's output as canonical and tighten. *)
 
 open Base
-open Yelu_langs.Yelu_cmake_ir
+open Yelu_langs.Yelu_cmake
 open Yelu_langs.Yelu_theory_target
 
-module E = Yelu_langs.Yelu_cmake_surface_emit_debug
-module A = Yelu_langs.Yelu_cmake_surface_emit
+module E = Yelu_langs.Yelu_cmake_emit_debug
+module A = Yelu_langs.Yelu_cmake_emit
 
 let both prog =
   E.emit_script prog, A.emit_script prog

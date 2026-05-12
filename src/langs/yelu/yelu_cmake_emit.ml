@@ -7,7 +7,7 @@
    then the direct-text emit is demoted to a diagnostic / diff aid. *)
 
 open Base
-open Yelu_cmake_ir
+open Yelu_cmake
 open Yelu_surface_cmake_store
 open Yelu_theory_bool
 open Yelu_theory_int
@@ -204,7 +204,7 @@ let target_feature_of_expr ~env (feature : expr) : C.target_feature =
   (* tiny stores features as plain strings; assume PRIVATE kind by default. *)
   { kind = "PRIVATE"; feature = target_arg ~env feature }
 
-(* Inverse of bridge's [string_of_cmake_path_get_field]. Tiny stores
+(* Inverse of bridge's [Lang_cmake_strings.of_cmake_path_get_field]. Tiny stores
    the field as a keyword string ("ROOT_NAME", "EXTENSION LAST_ONLY", …);
    here we map back to the typed [Lang_cmake.cmake_path_get_field]. *)
 let cmake_path_get_field_of_string s : C.cmake_path_get_field =

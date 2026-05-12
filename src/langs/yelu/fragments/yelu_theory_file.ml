@@ -1,4 +1,4 @@
-open Yelu_cmake_ir
+open Yelu_cmake
 
 let name = "tiny_file"
 let requires = [ "core.string"; "path" ]

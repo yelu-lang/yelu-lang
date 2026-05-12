@@ -1,5 +1,5 @@
 open Base
-open Yelu_cmake_ir
+open Yelu_cmake
 open Yelu_theory_target
 
 let name = "tiny_cmake_property"

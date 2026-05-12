@@ -196,4 +196,4 @@ let math_install_libs ?export () =
 let print_cmake cmd =
   let yelu1 = Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd in
   Fmt.pr "%a" (Fmt.vbox Yelu_langs.Lang_cmake_pp.pp)
-    (Yelu_langs.Yelu_cmake_surface_emit.emit_ast yelu1)
+    (Yelu_langs.Yelu_cmake_emit.emit_ast yelu1)

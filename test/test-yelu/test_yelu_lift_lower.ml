@@ -1,4 +1,4 @@
-open Yelu_langs.Yelu_cmake_ir
+open Yelu_langs.Yelu_cmake
 open Yelu_langs.Yelu_theory_store
 open Yelu_langs.Yelu_surface_cmake_store
 open Yelu_langs.Yelu_theory_int

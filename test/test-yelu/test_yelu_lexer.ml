@@ -1,6 +1,6 @@
 open Base
 open Angstrom
-open Yelu_langs.Lang_yelu_lexer
+open Yelu_langs.Yelu_lexer
 
 let lex input =
   match parse_string ~consume:All token_list input with

@@ -1,11 +1,11 @@
 (* Tiny lift/lower roundtrip equivalence tests with real cmake. Uses
-   [Yelu_cmake_surface_emit_debug] (direct text emit, demoted to diagnostic
+   [Yelu_cmake_emit_debug] (direct text emit, demoted to diagnostic
    aid in Phase 1.5) intentionally — this suite checks that
-   [lift_yelu1_to_yelu2 |> lower_yelu2_to_yelu1] produces cmake whose
+   [to_normal |> from_normal] produces cmake whose
    stdout matches the original, an evaluator-correctness check that
    does not require routing through the production AST emit path.
    Production-path runtime equivalence lives in [test_runcmake_yelu]. *)
-open Yelu_langs.Yelu_cmake_ir
+open Yelu_langs.Yelu_cmake
 open Yelu_langs.Yelu_theory_store
 open Yelu_langs.Yelu_theory_bool
 open Yelu_langs.Yelu_theory_int
@@ -26,8 +26,8 @@ open Yelu_langs.Yelu_surface_cmake_path
 open Yelu_langs.Yelu_surface_cmake_string
 open Yelu_langs.Yelu_surface_cmake_if
 open Yelu_langs.Yelu_surface_cmake_cmake_op
-open Yelu_langs.Yelu_cmake_translate
-open Yelu_langs.Yelu_cmake_surface_emit_debug
+open Yelu_langs.Yelu_cmake_convert
+open Yelu_langs.Yelu_cmake_emit_debug
 open Yelu_runner.Cmake_runner
 
 let check_same_cmake_output name left right =
@@ -42,11 +42,11 @@ let check_same_cmake_output name left right =
     Alcotest.(check string) "stderr" left_result.stderr right_result.stderr)
 
 let check_yelu1_roundtrip_cmake name expr =
-  check_same_cmake_output name expr (lower_yelu2_to_yelu1 (lift_yelu1_to_yelu2 expr))
+  check_same_cmake_output name expr (from_normal (to_normal expr))
 
 let check_yelu2_lowering_cmake name expr =
   Alcotest.test_case name `Quick (fun () ->
-    let cmake_text = emit_script (lower_yelu2_to_yelu1 expr) in
+    let cmake_text = emit_script (from_normal expr) in
     let result = run_script cmake_text in
     check_exit 0 result;
     Alcotest.(check string) "stdout" "" result.stdout;
@@ -57,7 +57,7 @@ let check_yelu2_lowering_configure
     ?(languages = [ "C" ])
     name expr =
   Alcotest.test_case name `Quick (fun () ->
-    let cmake_text = emit_script (lower_yelu2_to_yelu1 expr) in
+    let cmake_text = emit_script (from_normal expr) in
     let result =
       run_configure ~languages ~files cmake_text
     in
@@ -66,7 +66,7 @@ let check_yelu2_lowering_configure
 
 let check_yelu2_custom_target_build name expr ~target ~pattern =
   Alcotest.test_case name `Quick (fun () ->
-    let cmake_text = emit_script (lower_yelu2_to_yelu1 expr) in
+    let cmake_text = emit_script (from_normal expr) in
     let project = configure_project cmake_text in
     match
       check_exit 0 project.configure.run;
@@ -84,7 +84,7 @@ let check_yelu2_custom_target_build name expr ~target ~pattern =
 
 let check_yelu2_install name expr ~expected =
   Alcotest.test_case name `Quick (fun () ->
-    let cmake_text = emit_script (lower_yelu2_to_yelu1 expr) in
+    let cmake_text = emit_script (from_normal expr) in
     let project =
       configure_project
         ~languages:[ "C" ]
@@ -124,7 +124,7 @@ let cmake_project text =
 
 let check_yelu2_file_api_equiv ?(files = [ "main.c", "int main(void) { return 0; }\n" ]) name ~reference expr =
   Alcotest.test_case name `Quick (fun () ->
-    let yelu_cmake = emit_script (lower_yelu2_to_yelu1 expr) in
+    let yelu_cmake = emit_script (from_normal expr) in
     let result = compare_file_api ~files (cmake_project reference) (cmake_project yelu_cmake) in
     check_exit 0 result)
 
@@ -447,7 +447,7 @@ let yelu2_configure_lowering =
                   ])
            in
           Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd
-          |> lift_yelu1_to_yelu2);
+          |> to_normal);
           ESetVar ("OUT", EStringUpper (EString "yes"));
           EVar "OUT";
         ]);
@@ -490,7 +490,7 @@ let yelu2_configure_lowering =
                   ])
            in
            Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd
-           |> lift_yelu1_to_yelu2);
+           |> to_normal);
 	          ESetVar ("OUT", EStringUpper (EString "yes"));
 	          EVar "OUT";
 	        ]);
@@ -532,7 +532,7 @@ let yelu2_configure_lowering =
                ]
            in
            Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd
-           |> lift_yelu1_to_yelu2);
+           |> to_normal);
           ESetVar ("OUT", EStringUpper (EString "yes"));
           EVar "OUT";
         ]);
@@ -572,7 +572,7 @@ let yelu2_configure_lowering =
                   ])
            in
            Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd
-           |> lift_yelu1_to_yelu2);
+           |> to_normal);
           ESetVar ("OUT", EStringUpper (EString "yes"));
           EVar "OUT";
         ]);
@@ -629,7 +629,7 @@ let yelu2_configure_lowering =
                ]
            in
            Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd
-           |> lift_yelu1_to_yelu2);
+           |> to_normal);
           ESetVar ("OUT", EStringUpper (EString "yes"));
           EVar "OUT";
         ]);
@@ -668,7 +668,7 @@ let yelu2_configure_lowering =
                   ])
            in
            Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd
-           |> lift_yelu1_to_yelu2);
+           |> to_normal);
           ESetVar ("OUT", EStringUpper (EString "yes"));
           EVar "OUT";
         ]);
@@ -710,7 +710,7 @@ let yelu2_configure_lowering =
                 @ Step_common.test_suite ~ctest:false)
            in
            Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd
-           |> lift_yelu1_to_yelu2);
+           |> to_normal);
           ESetVar ("OUT", EStringUpper (EString "yes"));
           EVar "OUT";
         ]);
@@ -770,7 +770,7 @@ let yelu2_configure_lowering =
                 @ Step_common.math_install_libs ())
            in
            Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd
-           |> lift_yelu1_to_yelu2);
+           |> to_normal);
           ESetVar ("OUT", EStringUpper (EString "yes"));
           EVar "OUT";
         ]);
@@ -812,7 +812,7 @@ let yelu2_configure_lowering =
                 @ Step_common.test_suite ~ctest:true)
            in
            Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd
-           |> lift_yelu1_to_yelu2);
+           |> to_normal);
           ESetVar ("OUT", EStringUpper (EString "yes"));
           EVar "OUT";
         ]);
@@ -854,7 +854,7 @@ let yelu2_configure_lowering =
                 @ Step_common.test_suite ~ctest:true)
            in
            Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd
-           |> lift_yelu1_to_yelu2);
+           |> to_normal);
           ESetVar ("OUT", EStringUpper (EString "yes"));
           EVar "OUT";
         ]);
@@ -899,7 +899,7 @@ let yelu2_configure_lowering =
                 @ Step_common.cpack_basic)
            in
            Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd
-           |> lift_yelu1_to_yelu2);
+           |> to_normal);
           ESetVar ("OUT", EStringUpper (EString "yes"));
           EVar "OUT";
         ]);
@@ -985,7 +985,7 @@ let yelu2_configure_lowering =
                   ])
            in
            Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd
-           |> lift_yelu1_to_yelu2);
+           |> to_normal);
           ESetVar ("OUT", EStringUpper (EString "yes"));
           EVar "OUT";
         ]);
@@ -1017,7 +1017,7 @@ let yelu2_configure_lowering =
                   ])
            in
            Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd
-           |> lift_yelu1_to_yelu2);
+           |> to_normal);
           ESetVar ("OUT", EStringUpper (EString "yes"));
           EVar "OUT";
         ]);

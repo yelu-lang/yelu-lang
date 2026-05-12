@@ -12,7 +12,7 @@
    Removal is gated on AST parity holding through at least one R3 /
    Y17 milestone — see [doc/yelu_tiny/retirement_plan.md]. *)
 open Base
-open Yelu_cmake_ir
+open Yelu_cmake
 open Yelu_surface_cmake_store
 open Yelu_theory_bool
 open Yelu_theory_int
