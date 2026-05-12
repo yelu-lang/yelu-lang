@@ -1,29 +1,55 @@
-# Retirement Plan (formerly "yelu_tiny → yelu")
+# Retirement Plan — yelu_cmake (formerly "yelu_tiny → yelu")
 
 The plan for moving production lowering off the legacy
 `src/langs/yelu_legacy/` (formerly `src/langs/yelu/fragments/`) and onto
 `src/langs/yelu/` (formerly `src/langs/yelu_tiny/`). Companion to
 `status.md` (open work) and `design.md` (the *why*).
 
-Note: this doc still lives at `doc/yelu_tiny/` for git-history
-continuity; the directory name will be revisited once full E lands.
+This doc tree (now at `doc/yelu_cmake/`) is cmake-language-specific.
+Any future `yelu_shell` / `yelu_c` retirement would get its own
+sibling tree (`doc/yelu_shell/` etc.).
 
 ## Status (2026-05-11)
 
-**Phase 1 + Phase 2a + 2c done; items A, B (reframed), C, D,
-E-utils, and G done.**
+**Retirement is essentially complete.** Phase 1 + Phase 2a + 2c
+done; items A, B (reframed), C, D, E-utils, and G all landed.
 
-`src/langs/yelu/` is now legacy-import-free at the code level
-and uses the two-language vocabulary throughout (`yelu_cmake` /
-`yelu_cmake_normal`). The bridge lives in `yelu_legacy/`. Bridge
-is off the binary production path.
+What this means concretely:
 
-**Remaining open:**
+- `src/langs/yelu/` is legacy-import-free at the code level and
+  uses the two-language vocabulary throughout (`yelu_cmake` /
+  `yelu_cmake_normal`). No `_ir`, no `_surface`, no `_tiny`
+  anywhere in the new directory.
+- The bridge (`yelu_cmake_legacy_bridge`) lives in
+  `src/langs/yelu_legacy/` and is **off the binary production
+  path**. Step binaries route directly through
+  `Yelu_cmake_utils → Yelu_cmake → Yelu_cmake_emit → Lang_cmake_pp`.
+- Byte-identical verification holds: oracle 194/194, parser 295,
+  `make cmake-only-check` 12/12, `make runcmake-yelu` 50/50.
+- The legacy stack (`src/langs/yelu_legacy/`) is intentionally
+  kept callable — no rush to eliminate it. It serves the byte
+  oracle and pair-wise oracle as reference implementations.
+  Deletion is a separate, later decision (gated on Y17 + at
+  least one major version of `yelu_cmake` shipping without
+  needing the cross-check).
+
+**Remaining retirement items:**
 - **F** — Parser uses the constructor module (refactor; ~10%
   parser LOC; one source of truth for command-shape decisions).
+  Orthogonal; can land any time.
 - **E** (deferred to last) — module-level bridge deletion. Gated
   on shifting the byte oracle and pair-wise oracle from bridge-
-  fed shape to source-fed shape.
+  fed shape to source-fed shape. Not urgent; the bridge is
+  cheap to keep around as test infrastructure.
+
+**Beyond retirement.** Several architectural follow-ups are
+queued in `status.md` "Post-retirement cleanup": splitting
+`cmake_op`, categorizing general vs cmake-specific theories
+(item 6), splitting the shared `expr` type between `yelu_cmake`
+and `yelu_cmake_normal` (item 7), the Y17 typing pass, and
+per-fragment convert/emit decentralization. These are not part
+of retirement; they're forward-looking design work on the
+post-retirement codebase.
 
 - Production text generation routes through
   `Yelu1 → emit_ast → Lang_cmake.exp → cmake_pp`.

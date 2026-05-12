@@ -1,6 +1,6 @@
 (* Phase 1 of retirement: lower Yelu1 IR to Lang_cmake.exp (the cmake
    syntax AST), then let the existing [lang_cmake_pp] render to text.
-   See [doc/yelu_tiny/retirement_plan.md] for context.
+   See [doc/yelu_cmake/retirement_plan.md] for context.
 
    This module exists alongside [yelu_tiny_cmake_emit.ml] (the direct-
    text emit). Phase 1 closes coverage here until parity is reached;
@@ -656,7 +656,7 @@ let rec emit_exp ~env (e : expr) : C.exp =
          Synthesize a placeholder Jop_get so emit doesn't crash; the
          resulting cmake text is not semantically faithful to the
          original. Tracked as a bridge gap in
-         [doc/yelu_tiny/status.md]. *)
+         [doc/yelu_cmake/status.md]. *)
       | "JSON_op" -> C.Jop_get { json = C.Bare ""; path = [] }
       | _ -> fail "emit_ast: unknown string(JSON ...) op %S" op_name
     in

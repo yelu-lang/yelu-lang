@@ -158,7 +158,7 @@ namespace; `set_property(TARGET ...)` as the older sibling of
 
 ## Linked artifacts
 
-- `doc/yelu_tiny/status.md` — current open work (the slim living tracker).
-- `doc/yelu_tiny/design.md` — durable design notes.
-- `doc/yelu_tiny/structure.md` — code-anchored module guide.
+- `doc/yelu_cmake/status.md` — current open work (the slim living tracker).
+- `doc/yelu_cmake/design.md` — durable design notes.
+- `doc/yelu_cmake/structure.md` — code-anchored module guide.
 - `src/langs/yelu_tiny/` — the harness itself.

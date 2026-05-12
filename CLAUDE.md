@@ -25,7 +25,7 @@ with the byte-equality oracle in `test_yelu_compile.ml` asserting every
 program produces byte-identical text against the legacy `Lang_yelu_compile`
 reference. Watch for the `[emit_ast oracle] covered=194 uncovered=0`
 line at the end of `dune test` — any drift is a Phase 1 regression. See
-[doc/yelu_tiny/retirement_plan.md](doc/yelu_tiny/retirement_plan.md) for
+[doc/yelu_cmake/retirement_plan.md](doc/yelu_cmake/retirement_plan.md) for
 the full happy path + invocation guide.
 
 Make targets (from repo root):
@@ -58,15 +58,19 @@ make step1 .. step12     # generate → cmake configure → build → run
 
 | File                                   | Purpose                                                          |
 | -------------------------------------- | ---------------------------------------------------------------- |
-| `src/langs/yelu/yelu_parse.ml`                 | Concrete-syntax parser → Yelu1 IR (formerly `yelu_parse_y1.ml`; now the default) |
-| `src/langs/yelu/yelu_cmake_ir.ml`              | Core Yelu1 IR types + env + eval (formerly `yelu_tiny.ml`)       |
-| `src/langs/yelu/yelu_cmake_surface_emit.ml`    | Yelu1 IR → `Lang_cmake.exp` (production emit; formerly `yelu_tiny_cmake_emit_ast.ml`) |
-| `src/langs/yelu/yelu_cmake_surface_eval.ml`    | Yelu1 surface eval (formerly `yelu_tiny_yelu1.ml`)               |
-| `src/langs/yelu/yelu_cmake_eval.ml`            | Yelu2 idealized eval (formerly `yelu_tiny_yelu2.ml`)             |
-| `src/langs/yelu/yelu_cmake_translate.ml`       | Yelu1 ↔ Yelu2 lift/lower (formerly `yelu_tiny_translate.ml`)     |
-| `src/langs/yelu/yelu_cmake_legacy_bridge.ml`   | Legacy `Lang_yelu_cmake` AST → Yelu1 IR (formerly `yelu_cmake_to_yelu1.ml`) |
+| `src/langs/yelu/yelu_parse.ml`                 | Concrete-syntax parser → `yelu_cmake.expr`                       |
+| `src/langs/yelu/yelu_lexer.ml`                 | Shared tokens                                                    |
+| `src/langs/yelu/yelu_cmake.ml`                 | Core `yelu_cmake` types + env + eval primitives                  |
+| `src/langs/yelu/yelu_cmake_emit.ml`            | `yelu_cmake.expr` → `Lang_cmake.exp` (production emit)           |
+| `src/langs/yelu/yelu_cmake_emit_debug.ml`      | Direct-text emit (debug aid)                                     |
+| `src/langs/yelu/yelu_cmake_eval.ml`            | `yelu_cmake` evaluator                                           |
+| `src/langs/yelu/yelu_cmake_normal_eval.ml`     | `yelu_cmake_normal` evaluator                                    |
+| `src/langs/yelu/yelu_cmake_convert.ml`         | `to_normal` / `from_normal` between the two languages            |
+| `src/langs/yelu/yelu_cmake_utils.ml`           | Ergonomic ctor module for `yelu_cmake.expr`                      |
+| `src/langs/yelu/fragments/yelu_cmake_<theory>.ml`         | Per-theory `yelu_cmake` ctors (target, string, list, …) |
+| `src/langs/yelu/fragments/yelu_cmake_normal_<theory>.ml`  | Per-theory `yelu_cmake_normal` ctors                    |
+| `src/langs/yelu_legacy/yelu_cmake_legacy_bridge.ml` | Legacy `Lang_yelu_cmake` AST → `yelu_cmake.expr`; reference-only after G |
 | `src/langs/yelu_legacy/lang_yelu_parse.ml`     | Legacy parser → `Lang_yelu_cmake` AST; still feeds the byte oracle |
-| `src/langs/yelu_legacy/lang_yelu_lexer.ml`     | Tokens; shared by both parsers                                   |
 | `src/langs/yelu_legacy/lang_yelu.ml`           | Core: `LANG_TYPES`, `Make_stmt` functor bundle (relocated to legacy 2026-05-11) |
 | `src/langs/yelu_legacy/lang_yelu_type.ml`      | Type universe, `checking_stage`, `CHECKER_BASE`                  |
 | `src/langs/yelu_legacy/lang_yelu_cmake.ml`     | Cmake-pack: `yelu_stmt`, `Cmake_check`, 14 theory instantiations |
@@ -152,10 +156,10 @@ Total unit: 655. Total cmake-backed: 40.
 | `doc/yelu_infra_test.md`             | Test harness, dune aliases, gotchas                 |
 | `doc/worklog_2026_04.md`             | Completed items (Y1, Y9, Y10)                       |
 | `doc/worklog_2026_05.md`             | yelu_tiny harness Tier A–F (Bar #1 + Bar #2)        |
-| `doc/yelu_tiny/design.md`            | Durable design notes for yelu_tiny harness          |
-| `doc/yelu_tiny/structure.md`         | Code-anchored guide to the yelu_tiny modules        |
-| `doc/yelu_tiny/status.md`            | Living tracker: current open work for yelu_tiny     |
-| `doc/yelu_tiny/retirement_plan.md`   | Two-phase plan for moving production off yelu_cmake |
+| `doc/yelu_cmake/design.md`            | Durable design notes for the yelu_cmake harness     |
+| `doc/yelu_cmake/structure.md`         | Code-anchored guide to the yelu_cmake modules       |
+| `doc/yelu_cmake/status.md`            | Living tracker: current open work for yelu_cmake    |
+| `doc/yelu_cmake/retirement_plan.md`   | Two-phase plan for moving production off yelu_cmake |
 
 ## Architecture
 

@@ -11,7 +11,7 @@
    we reuse the bridge's [string_of_*] helpers rather than
    re-enumerating each case.
 
-   See doc/yelu_tiny/retirement_plan.md item E for context. *)
+   See doc/yelu_cmake/retirement_plan.md item E for context. *)
 
 open Base
 open Yelu_cmake

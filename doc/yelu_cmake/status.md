@@ -1,48 +1,68 @@
-# Retirement Status — Current Open Work
+# yelu_cmake — Status & Current Open Work
 
-(Doc still under `doc/yelu_tiny/` for git-history continuity; the
-on-disk subsystem is now `src/langs/yelu/` after item D.)
+This doc tree (`doc/yelu_cmake/`) is cmake-language-specific.
+Any future `yelu_shell` / `yelu_c` work would get its own
+sibling tree.
 
 Living tracker. Strip and update freely; durable design is in `design.md`,
 code-anchored module guide in `structure.md`, history in
 `../worklog_2026_04.md` / `../worklog_2026_05.md`.
 
-**Last verified 2026-05-11:** `dune build && dune test` green;
-byte-equality oracle covers 194/194 production programs with 0
-uncovered, 0 skipped. Parser tests now 295 (incl. 125 pair-wise
-oracle cases across all direct-parser families including genex).
-`make runcmake-yelu` green (50/50 pairs). Retirement Phase 1
-done. Phase 2 warm-up trio landed. Phase 2a covers all 12 families
-via separate Yelu1 parser (`Yelu_parse_y1`); pair-wise oracle agrees
-byte-for-byte on every covered test. **Phase 2c structural move
-done:** `src/langs/yelu/`'s compile/wellform/type/utils + 15
-fragments relocated to `src/langs/yelu_legacy/`; parse + lexer stay
-as the still-production entry. Module names unchanged (dune
-`(include_subdirs unqualified)`), so no source-import updates were
-needed. **Item A (direct-parser gap list) closed:** try_compile /
-try_run added; 27 tier_remaining cases promoted into the pair-wise
-oracle; four bridge shape gaps explicitly deferred (no production
-caller hits them today). **Item B (genex) closed (reframed):**
-opaque-string round-trip is byte-identical for all covered genex
-shapes; typed Yge_* theory deferred to Y17. **Item C (binary
-callers repointed):** `Step_common.print_cmake` — the sole call
-site of `Lang_yelu_compile.compile` in `src/bin/yelu/` — now
-routes through bridge + emit_ast (`make cmake-only-check` 12/12,
-`make runcmake-yelu` 50/50). **E-lite + item D (naming honesty
-rename) done:** legacy parser+lexer relocated to
-`src/langs/yelu_legacy/`, the `yelu_tiny` directory renamed to
-`src/langs/yelu/`, and all `Yelu_tiny_*` / `Yelu_parse_y1` /
-`Yelu_cmake_to_yelu1` modules renamed to the
-`Yelu_cmake_*` / `Yelu_parse` scheme. Test files dropped the
-`_tiny` infix; all 295 parser tests + byte-equality oracle
-194/194 + cmake-only-check + runcmake-yelu still pass byte-
-identically. Four legacy-parser bugs surfaced (same
-shape: handler only matches narrow Yexpr_string variant and falls
-through to "" / "?" for the rest):
+## Where we are (2026-05-11)
+
+**Retirement is essentially complete.** Production binaries
+generate cmake text via `Yelu_cmake_utils → Yelu_cmake →
+Yelu_cmake_emit → Lang_cmake_pp` with no calls into the legacy
+bridge. The two languages — `yelu_cmake` (CMake-faithful) and
+`yelu_cmake_normal` (normalized form) — have clean names
+throughout `src/langs/yelu/`; the legacy stack lives in
+`src/langs/yelu_legacy/` as reference-only.
+
+**Verifications** (continuously green):
+- `dune build && dune test` — all unit tests pass
+- byte-equality oracle: `covered=194 uncovered=0`
+- parser tests: 295 (incl. 125 pair-wise oracle cases across
+  all 12 direct-parser families, genex included)
+- `make cmake-only-check`: 12/12
+- `make runcmake-yelu`: 50/50
+
+**Retirement summary** (all done):
+- Phase 1: production text generation routes through `emit_ast`
+  → `Lang_cmake.exp` → `cmake_pp`
+- Phase 2a: separate parser (`Yelu_parse`) covers all 12
+  families directly to Yelu1 IR; byte-identical to the bridge
+  path on every covered test
+- Phase 2c: legacy compile/wellform/type/utils + 15 fragments
+  relocated to `src/langs/yelu_legacy/`
+- Item A: direct-parser gap list closed
+- Item B: genex opaque-string handling sufficient (typed
+  theory → Y17)
+- Item C: binary callers repointed onto bridge + emit_ast
+- E-lite: legacy parser+lexer to yelu_legacy
+- Item D: `yelu_tiny` renamed to `yelu`
+- E-utils: step files emit IR directly via
+  `Yelu_cmake_utils`; bridge off the binary path
+- Item G: language-name honesty + legacy isolation —
+  `yelu_cmake` / `yelu_cmake_normal` vocabulary anchored
+  everywhere; bridge moved to `yelu_legacy/`; enum-string
+  converters extracted to `Lang_cmake_strings` in the cmake
+  layer; fragments renamed; lexer renamed and relocated
+
+**Remaining retirement items:**
+- **F** — parser uses the constructor module (~10% LOC
+  shrinkage; orthogonal)
+- **E** (final) — module-level bridge deletion (gated on
+  shifting byte oracle and pair-wise oracle to source-fed
+  shape; not urgent)
+
+**Four legacy-parser bugs** surfaced during the migration but
+deferred — production tests don't exercise them, and they share
+the same shape (handler matches narrow `Yexpr_string` variant
+and falls through to `""` / `"?"` for other variants):
 - `( set NAME val )` form
 - `( policy_set "CMPxxxx" )` form
 - `( cmake_call "myfn" )` form
-- `( message ${VAR} )` form (drops Ycs_eval)
+- `( message ${VAR} )` form (drops `Ycs_eval`)
 All four omitted from the pair-wise oracle; legacy parser fix
 deferred (one-line edit per case).
 

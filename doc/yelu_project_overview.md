@@ -81,7 +81,7 @@ Milestone status (as of 2026-05-10):
 - **Bar #3 — real-world cmake rewrites (z3, llvm, torch)** ⏳ not started.
 
 Full implementation history → `doc/worklog_2026_05.md`.
-Current TODO → `doc/yelu_tiny/status.md`.
+Current TODO → `doc/yelu_cmake/status.md`.
 
 ## Current State
 
