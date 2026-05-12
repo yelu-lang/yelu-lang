@@ -26,7 +26,7 @@ let provides =
     "target.custom_command";
   ]
 
-(* [tiny_file_set] / [tiny_target_sources_item] live in yelu_tiny.ml
+(* [tiny_file_set] / [tiny_target_sources_item] live in yelu_cmake.ml
    so theory and surface fragments can both reference the same shape
    without one depending on the other. See that file for definitions. *)
 

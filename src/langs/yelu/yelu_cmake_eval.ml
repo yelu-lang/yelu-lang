@@ -1,12 +1,12 @@
-(* Yelu1 evaluator: interpret an IR built from cmake-shaped *surface*
+(* yelu_cmake evaluator: interpret an IR built from cmake-shaped *surface*
    constructors (the [ECmake*] family, plus the shared core nodes from
-   [yelu_tiny.ml]). Used to demonstrate that the cmake-faithful surface
+   [yelu_cmake.ml]). Used to demonstrate that the cmake-faithful surface
    is executable and to compare result envs against the production
    yelu_cmake compiler.
 
    This module dispatches to each surface fragment's [eval_case] in
    turn. Pure-theory fragments (bool, int, list, target) are also
-   consulted because Yelu1 inherits the shared core. *)
+   consulted because yelu_cmake inherits the shared core. *)
 
 open Base
 open Yelu_cmake
@@ -106,4 +106,4 @@ let rec eval_expr env = function
        catches the new ECmakeSetParentScope added in R4-b.3c. *)
     match Yelu_cmake_store.eval_case env expr with
      | Some value -> value
-     | None -> fail "unknown expression in Yelu1")
+     | None -> fail "unknown expression in yelu_cmake")

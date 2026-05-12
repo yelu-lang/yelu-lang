@@ -1,27 +1,31 @@
-(* Translation between Yelu1 (cmake-shaped surface) and Yelu2 (theory-side
-   idealized) IR. Pure syntactic rewrites — no env, no eval — they walk
-   the IR replacing each form with its counterpart in the other bundle.
+(* Translation between yelu_cmake (CMake-command-faithful form) and
+   yelu_cmake_normal (normalized form). Pure syntactic rewrites —
+   no env, no eval — they walk the IR replacing each form with its
+   counterpart in the other language.
 
-   [to_normal]  : Yelu1 -> Yelu2.
-     Each [ECmake*] surface form maps to its theory counterpart. Core
-     nodes (EVar, ESetVar, ESeq, ELet, …) pass through with recursion.
-     CMake-specific patterns translate to compositional theory forms
-     (e.g. [ECmakeListAppend] becomes [ESetVar (..., EListAppend ...)]).
+   [to_normal]  : yelu_cmake -> yelu_cmake_normal.
+     Each [ECmake*] yelu_cmake form maps to its yelu_cmake_normal
+     counterpart. Core nodes (EVar, ESetVar, ESeq, ELet, …) pass
+     through with recursion. CMake-specific patterns translate to
+     normalized forms (e.g. [ECmakeListAppend] becomes
+     [ESetVar (..., EListAppend ...)]).
 
-   [from_normal] : Yelu2 -> Yelu1.
+   [from_normal] : yelu_cmake_normal -> yelu_cmake.
      The reverse rewrite. Has special pattern-matched cases for
-     [ESetVar] wrapping common theory effects (e.g.
+     [ESetVar] wrapping common normal-form effects (e.g.
      [ESetVar (out, EStringConcat ...)] becomes
      [ECmakeStringConcat { out; inputs }]).
 
-   The two functions together form an *almost*-roundtrip: lift then
-   lower should produce IR with the same observable cmake emission as
-   the original. The roundtrip property is exercised by the
-   [yelu1_lift_lower_roundtrip] tests. *)
+   The two functions together form an *almost*-roundtrip:
+   to_normal then from_normal should produce IR with the same
+   observable cmake emission as the original. The roundtrip
+   property is exercised by the lift/lower tests in
+   [test_yelu_lift_lower.ml] (still using the older "lift_lower"
+   identifier names). *)
 
-(* Public surface: short re-export names for the split evaluators so that
-   tests and library users don't have to spell out three module prefixes
-   for what used to be one [Yelu_cmake_ir_eval] interface. *)
+(* Public surface: short re-export names for the split evaluators so
+   that tests and library users don't have to spell out three module
+   prefixes for what used to be one combined eval interface. *)
 let eval_yelu_cmake_expr env expr = Yelu_cmake_eval.eval_expr env expr
 let eval_yelu_cmake_normal_expr env expr = Yelu_cmake_normal_eval.eval_expr env expr
 
@@ -293,9 +297,9 @@ let rec to_normal = function
   | ECmakeListLength { list; out } ->
     ESetVar (out, EListLength (EVar list))
   | ECmakeListGet { list; indices; out } ->
-    (* Yelu2 EListGet takes a single index expr. For multi-index lifts
+    (* yelu_cmake_normal EListGet takes a single index expr. For multi-index lifts
        we project the first index; semantics-preserving multi-index
-       requires a future Yelu2 ctor. *)
+       requires a future yelu_cmake_normal ctor. *)
     let i = match indices with
       | [ i ] -> EInt i
       | _ -> EInt 0
@@ -556,8 +560,8 @@ let rec to_normal = function
       ]
   | ECmakeTargetIncludeDirectories
       { target; visibility; before = _; system = _; dirs } ->
-    (* Yelu2 theory drops cmake-specific BEFORE / SYSTEM flags; the
-       round-trip preserves them only via the Yelu1 surface, which is
+    (* yelu_cmake_normal theory drops cmake-specific BEFORE / SYSTEM flags; the
+       round-trip preserves them only via the yelu_cmake surface, which is
        where they belong. Lower fills with [false] (the legacy default). *)
     ESeq
       [
@@ -884,7 +888,7 @@ let rec to_normal = function
 
   (* CMake find surface -> Yelu find theory. The cmake-specific
      attributes (version / exact / quiet / config_mode / components /
-     optional_components) drop at lift since Yelu2's idealized theory
+     optional_components) drop at lift since yelu_cmake_normal's idealized theory
      doesn't model them; lower fills with conservative defaults. *)
   | ECmakeFindPackage
       { package_name; required;
@@ -949,7 +953,7 @@ let rec to_normal = function
         compile_output_variable = r.compile_output_variable;
         run_output_variable = r.run_output_variable;
         args = List.map r.args ~f:to_normal }
-  | _ -> fail "cannot translate unknown Yelu1 expression"
+  | _ -> fail "cannot translate unknown yelu_cmake expression"
 let rec from_normal = function
   (* Core/store cases shared by both bundles. *)
   | EVar name -> EVar name
@@ -1749,4 +1753,4 @@ let rec from_normal = function
       { var;
         value = from_normal value;
         body = from_normal body }
-  | _ -> fail "cannot translate unknown Yelu2 expression"
+  | _ -> fail "cannot translate unknown yelu_cmake_normal expression"

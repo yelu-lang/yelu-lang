@@ -66,103 +66,50 @@ and falls through to `""` / `"?"` for other variants):
 All four omitted from the pair-wise oracle; legacy parser fix
 deferred (one-line edit per case).
 
-## What's done
+For the full retirement record (Phase 1, 2a, 2c, items A–G), see
+`retirement_plan.md`. For chronological history,
+`../worklog_2026_05.md` covers the harness build-out using the older
+"Yelu1 / Yelu2 / yelu_tiny" vocabulary.
 
-Three breadth milestones, in order of attempt:
+## Known bridge shape gaps
 
-- **Bar #1 — tutorial step parity.** v1 step1–step12 (root + math + table +
-  config) all bridge through tiny; six configure through real cmake.
-- **Bar #2 — theory breadth (lite).** All 14 production theories have at
-  least a first slice (var, target, install, test, property, string, file,
-  path, list, find, try, cmake_op, cond, dir). Genex stays deferred.
-- **Retirement gluing — R1, R4, R5, R6.** Step files, `test_yelu_compile`
-  (194), `test_runcmake_yelu` (50), and `test_yelu_parse` (170) all route
-  through `bridge → tiny → cmake`. The 13 R4-b semantic-batch programs
-  (block / return / while / break / continue / foreach_range /
-  separate_arguments / macro) bridge through a probe-verified
-  env-frame-stack model — see `../cmake/scope_and_control_flow.md`.
-- **Retirement Phase 1 (done 2026-05-11).** Production lowering routes
-  through `Yelu1 → emit_ast → Lang_cmake.exp → lang_cmake_pp → text`.
-  Byte-equality oracle in `test_yelu_compile.ml` reports 194/194
-  programs byte-identical with legacy `Lang_yelu_compile`. The
-  `runcmake-yelu` suite (50 pairs) routes through the AST path.
-  Three tiny IR extensions closed all bridge information-loss cases
-  (`ECmakeForeachInList`; `before/system` fields on target_*; full
-  `find_package` attribute set). Direct-text emit
-  (`yelu_tiny_cmake_emit.ml`) is demoted to a diagnostic aid — kept
-  callable for human inspection but not on the production path.
-  Details: `retirement_plan.md`.
+Documented constructor-shape gaps where the legacy bridge raises
+`Bridge_error` rather than silently dropping data. Production tests
+don't exercise any of these today; each needs either a yelu_cmake IR
+extension or a bridge-side rewrite. Locations refer to
+`src/langs/yelu_legacy/yelu_cmake_legacy_bridge.ml`.
 
-## What's open
-
-| ID  | Title                            | Notes                                                                                                                                                                                           |
-| --- | -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| R3  | Genex theory (full)              | Production has 17 typed `Yge_*` ctors, but they're stringified at AST-build time via `yge` (`lang_yelu_utils.ml:7`), so the live production AST already carries opaque strings. Phase 2 warm-up landed `ECmakeGenex of string` as the bridge-side structural hook (commit TBD); full theory with eval semantics deferred until Phase 2c parser refactor reaches genex-heavy families. |
-| R7  | (postponed) typecheck + wellform | Re-framed as **Y17** (see below). Carrying the production checker over straight is no longer the plan; tiny's theories deserve a fresh typing pass once yelu1↔cmake and yelu2↔yelu1 are stable. |
-| —   | Macro elimination                | Deferred. Gated on R5 data + Bar #3 (real-world rewrites). Memo: `.claude/memory/project_macro_elimination.md`.                                                                                 |
-| —   | Bar #3 — real-world cmake        | Rewrite z3 / llvm / torch builds in yelu; prove structural equivalence. Not started.                                                                                                            |
-
-### Known bridge gaps (explicit fail cases, no production test hits them)
-
-These are documented constructor-shape gaps where the bridge raises
-`Bridge_error` with a descriptive message rather than silently dropping
-data. Production tests do not exercise any of these today; each is a
-future-work item that needs a tiny IR extension or bridge rewrite.
-
-- **String-comparison conds beyond equality.** `Yexpr_str_less`,
+- **String-comparison conds beyond equality** — `Yexpr_str_less`,
   `Yexpr_str_greater`, `Yexpr_str_less_eq`, `Yexpr_str_greater_eq`
-  (the STRLESS / STRGREATER / STRLESS_EQUAL / STRGREATER_EQUAL forms)
-  not yet mirrored in tiny. See `yelu_cmake_to_yelu1.ml:64`.
-- **`add_executable` / `add_library` with `EXCLUDE_FROM_ALL`.** Bridge
-  rejects the flag at `:743` and `:752`; tiny surface ctors don't
-  carry the field. Extending the ctors is straightforward when needed.
-- **`target_link_libraries` multi-target.** Bridge supports exactly
-  one target per call (`yelu_cmake_to_yelu1.ml:774`); production AST
-  allows multiple in a single statement. Surface either takes a list
-  or the bridge splits into multiple per-target ECmake* statements.
-- **`add_custom_command(TARGET ...)`.** TARGET-form custom command
-  deferred — production tests use the OUTPUT-form variant. See
-  `yelu_cmake_to_yelu1.ml:900`.
+  (STRLESS / STRGREATER / STRLESS_EQUAL / STRGREATER_EQUAL) not yet
+  mirrored in yelu_cmake.
+- **`add_executable` / `add_library` with `EXCLUDE_FROM_ALL`** —
+  bridge rejects the flag; yelu_cmake ctors don't carry the field.
+- **`target_link_libraries` multi-target** — bridge supports exactly
+  one target per call; production AST allows multiple. Either widen
+  the yelu_cmake surface to take a target list, or have the bridge
+  split into multiple per-target statements.
+- **`add_custom_command(TARGET ...)`** — TARGET-form custom command
+  deferred; production tests only use the OUTPUT-form variant.
 
-## Y17 — types-on-tiny (post-retirement)
+## Y17 — types on yelu_cmake (post-retirement)
 
-The previous typing attempt (production `Stage_typecheck` per fragment) was
-structurally shallow: each fragment validated its own expression types in
-isolation, with `wellform` bolted on top to handle cross-theory name
-binding. With proper theories (yelu_theory_*) the type design has actual
-semantic ground to stand on — namespace separation is already in `env`,
-mutability / set-once / identity rules belong with each theory module, and
-the lift/lower pair gives a natural place to push richer invariants.
+The previous typing attempt (production `Stage_typecheck` per
+fragment) was structurally shallow: each fragment validated its own
+expression types in isolation, with `wellform` bolted on top to
+handle cross-theory name binding. With proper theories
+(`Yelu_cmake_normal_*`) the type design has actual semantic ground
+to stand on — namespace separation is already in `env`,
+mutability / set-once / identity rules belong with each theory
+module, and `to_normal` / `from_normal` give a natural place to push
+richer invariants.
 
-Order: bring types in **after** retirement establishes yelu1↔cmake and
-yelu2↔yelu1 as a stable composition. Retrofitting types onto an unstable
-substrate would repeat the previous failure mode.
-
-## Retirement criterion
-
-> Full plan: `retirement_plan.md`. The summary below states the gate;
-> the plan covers the two-phase sequencing (emit-through-cmake-AST,
-> then parser-produces-Yelu1) and the oracle test that keeps legacy
-> compile callable forever.
-
-Retirement is bridge + emit parity only; typing decisions (Y17) happen
-*after* retirement, on the renamed-yelu codebase. `src/langs/yelu/` is
-retirable when:
-
-- Every step file bridges (done at R1).
-- Zero unguarded `_ -> fail` cases remain in the bridge (R2 — three
-  catch-alls still document attrition-surface gaps; production tests do
-  not hit them today).
-- Production tests run through tiny with equivalent cmake output
-  (done at R4 + R5 + R6).
-- R3 (genex first slice) lands so v2 / CMakeOnly genex usage is
-  bridge-faithful, not catch-all-stubbed.
-
-At that point `src/langs/yelu_tiny/` becomes the production code and the
-old `src/langs/yelu/` (sans parser / lexer / post-bridge stages) becomes
-`src/langs/yelu_legacy/`. Legacy deletion is a separate later decision
-gated on Y17 — keep `yelu_legacy` around as a comparison baseline until
-the typing model is settled.
+Order: bring types in **after** retirement establishes
+yelu_cmake ↔ cmake AST and yelu_cmake_normal ↔ yelu_cmake as a
+stable composition. Retrofitting types onto an unstable substrate
+would repeat the previous failure mode. Retirement is essentially
+done, so Y17 is unblocked from a "stable substrate" standpoint;
+sequencing depends on appetite for the design work.
 
 ## Post-retirement cleanup
 
@@ -183,7 +130,7 @@ Deferred until after the production switch, in order of value:
    work, but entropy returns here as constructors land. Per-fragment
    convert / emit modules reverse the trend. Cosmetic, not load-bearing;
    defer until after the bigger Y17 typing decisions.
-4. **Y17 — fresh typing pass on tiny** (see below).
+4. **Y17 — fresh typing pass on yelu_cmake** (see "Y17" section above).
 5. **Promote compat surfaces to real theories** where they're worth it
    (genex first, then find / try / cmake_op subsets). This pairs with
    Y17 — typing decisions inform which surfaces deserve the lift.
@@ -219,6 +166,17 @@ Deferred until after the production switch, in order of value:
    into their owning theory fragments at the same time. Pairs
    naturally with item 6 (general vs cmake-specific theories) and
    item 4 (Y17 typing).
+
+## Project-level milestones (separate from retirement)
+
+- **Bar #3 — real-world cmake.** Rewrite z3 / llvm / torch builds
+  in `yelu_cmake`, prove structural equivalence with the original
+  CMakeLists. Not started; the manifesto-level "does this scale"
+  test.
+- **Macro elimination.** Whether to drop `function()` / `macro()`
+  from yelu_cmake in favor of pure-OCaml parameterization, given
+  yelu programs are themselves OCaml. Deferred; revisit with
+  Bar #3 data. Memo: `.claude/memory/project_macro_elimination.md`.
 
 ## Deferred
 

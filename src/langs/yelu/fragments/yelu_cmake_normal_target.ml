@@ -36,7 +36,7 @@ type expr +=
       global : bool;
     }
   | EAddDependencies of { target : string; dep : string }
-  (* See [tiny_target_sources_item] in [yelu_tiny.ml] for shape. *)
+  (* See [tiny_target_sources_item] in [yelu_cmake.ml] for shape. *)
   | ETargetSourcesFs of {
       target : expr;
       items : tiny_target_sources_item list;

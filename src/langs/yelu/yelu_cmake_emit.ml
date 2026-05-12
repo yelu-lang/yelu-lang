@@ -1,10 +1,12 @@
-(* Phase 1 of retirement: lower Yelu1 IR to Lang_cmake.exp (the cmake
-   syntax AST), then let the existing [lang_cmake_pp] render to text.
-   See [doc/yelu_cmake/retirement_plan.md] for context.
+(* Production emit: lower yelu_cmake.expr to Lang_cmake.exp (the
+   cmake syntax AST), then let the existing [lang_cmake_pp] render
+   to text. This is the production path for every step binary and
+   every test that needs cmake text output.
 
-   This module exists alongside [yelu_tiny_cmake_emit.ml] (the direct-
-   text emit). Phase 1 closes coverage here until parity is reached;
-   then the direct-text emit is demoted to a diagnostic / diff aid. *)
+   This module exists alongside [yelu_cmake_emit_debug.ml] (the
+   direct-text emit, retained as a diagnostic / diff aid; not on
+   the production path). See [doc/yelu_cmake/retirement_plan.md]
+   for the full retirement story. *)
 
 open Base
 open Yelu_cmake
@@ -29,7 +31,7 @@ open Yelu_cmake_normal_target
 module C = Lang_cmake
 
 (* ========================================================================
-   Erasure helpers — Yelu1 expr → cmake AST positional shapes.
+   Erasure helpers — yelu_cmake expr → cmake AST positional shapes.
 
    Four distinct erasures are needed; each gets its own helper:
 
@@ -160,13 +162,13 @@ and cond_atom ?(env = empty_subst) (e : expr) : string list =
   cond_tokens ~env e
 
 (* ========================================================================
-   Top-level emit: Yelu1 expr → cmake AST [exp].
+   Top-level emit: yelu_cmake expr → cmake AST [exp].
 
    ESeq → Exp_list, ELet extends [subst] before recursing into body,
    matched ECmake* constructors map to their cmake AST counterparts.
 
    Phase 1.1 scope: skeleton + a small set of commands. Subsequent
-   commits expand coverage until parity with [yelu_tiny_cmake_emit].
+   commits expand coverage until parity with [yelu_cmake_emit_debug].
    ======================================================================== *)
 
 let message_mode_of_string = function
@@ -1221,7 +1223,7 @@ let rec emit_exp ~env (e : expr) : C.exp =
            dir = None })
 
   (* Diagnostic / result-message fallthroughs (kept compatible with
-     [yelu_tiny_cmake_emit]: a bare value at statement position renders
+     [yelu_cmake_emit_debug]: a bare value at statement position renders
      as a [message] for round-trip-observability). *)
   | EVar name when Map.mem env name ->
     emit_exp ~env (Map.find_exn env name)

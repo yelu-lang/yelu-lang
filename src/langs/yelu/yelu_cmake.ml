@@ -391,12 +391,12 @@ let top_frame env =
   match env.frames with
   | f :: _ -> f
   | [] ->
-    failwith "yelu_tiny: env.frames is empty (invariant violation)"
+    failwith "yelu_cmake: env.frames is empty (invariant violation)"
 
 let with_top_frame env f =
   match env.frames with
   | top :: rest -> { env with frames = f top :: rest }
-  | [] -> failwith "yelu_tiny: env.frames is empty (invariant violation)"
+  | [] -> failwith "yelu_cmake: env.frames is empty (invariant violation)"
 
 (* Read: consult [locals] first, fall through to [parent_snapshot].
    Per the verified cmake semantics (P15 / P20 / P21), the snapshot is
@@ -489,7 +489,7 @@ let pop_frame ?(propagate = []) env =
     in
     { env with frames = parent :: rest }
   | _ ->
-    failwith "yelu_tiny: pop_frame on root frame (invariant violation)"
+    failwith "yelu_cmake: pop_frame on root frame (invariant violation)"
 
 (* [Return_function] is the control-flow exception raised by
    [ECmakeReturn]. Carries:

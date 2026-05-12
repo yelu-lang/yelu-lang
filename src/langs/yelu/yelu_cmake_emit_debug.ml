@@ -1,12 +1,12 @@
-(* Direct-text emit for Yelu1 IR.
+(* Direct-text emit for yelu_cmake.expr.
 
    As of Phase 1.5 (retirement plan), this module is no longer on the
    production path — production emits via
-   [yelu_tiny_cmake_emit_ast] -> [lang_cmake_pp]. The direct-text emit
+   [yelu_cmake_emit] -> [lang_cmake_pp]. The direct-text emit
    stays callable as a *diagnostic aid*: useful for human inspection of
    the bridge output without going through the cmake AST, and as a
    regression target for the step-level bridge tests in
-   [test_yelu_tiny_steps] and [test_yelu_tiny_emit] that document
+   [test_yelu_steps] and [test_yelu_emit_debug] that document
    specific bridge format conventions.
 
    Removal is gated on AST parity holding through at least one R3 /
@@ -1011,7 +1011,7 @@ let rec emit_expr_impl ~env e =
         (opt_kv "COMPILE_OUTPUT_VARIABLE" r.compile_output_variable)
         (opt_kv "RUN_OUTPUT_VARIABLE" r.run_output_variable)
         (kw_list "ARGS" r.args) ]
-  | _ -> fail "cannot emit Yelu1 expression to CMake"
+  | _ -> fail "cannot emit yelu_cmake expression to CMake"
 
 let emit_expr ?(env = empty_subst) expr = emit_expr_impl ~env expr
 

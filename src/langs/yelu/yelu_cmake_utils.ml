@@ -1,8 +1,8 @@
-(* Ergonomic constructors that produce Yelu1 IR ([Yelu_cmake.expr])
+(* Ergonomic constructors that produce yelu_cmake.expr ([Yelu_cmake.expr])
    directly, mirroring the shape of [Lang_yelu_utils] (which builds
    the legacy [Lang_yelu_cmake] AST).
 
-   Each helper here is a one-line wrapper around a Yelu1 ctor, so step
+   Each helper here is a one-line wrapper around a yelu_cmake ctor, so step
    files can switch their [open] from [Lang_yelu_utils] to this module
    and emit directly without the legacy AST → bridge round trip.
 
@@ -37,7 +37,7 @@ let ykeyword s = EString s
 let ystr s = EString s
 let ybool b = EBool b
 
-(* [${VAR}] inline refs stay as [EString] in Yelu1 (matching the
+(* [${VAR}] inline refs stay as [EString] in yelu_cmake (matching the
    legacy [Ycs_eval] flow); [$<...>] generator expressions go through
    [ECmakeGenex]. Mirrors [Yelu_parse.p_expr_y1]. *)
 let ystr_eval s =
@@ -61,7 +61,7 @@ let dir_concat d suffix = ycref_path d suffix
 
 (* ============================================================
    Let binding + sequence. Legacy [ylet] is sequence-shaped (binds
-   the rest of the enclosing list); Yelu1 [ELet] is expression-shaped
+   the rest of the enclosing list); yelu_cmake [ELet] is expression-shaped
    (carries its body inside). [ycmd_of_list] folds the body in, same
    logic as the bridge's [stmts_to_expr]
    ([yelu_cmake_legacy_bridge.ml:1056]).

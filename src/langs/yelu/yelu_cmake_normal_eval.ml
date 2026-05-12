@@ -3,11 +3,11 @@
    [Yelu_cmake_normal_*] fragment modules, plus the shared core nodes
    from [yelu_cmake.ml]).
 
-   Yelu2 is the "cleaner" form that doesn't carry cmake-specific
+   yelu_cmake_normal is the "cleaner" form that doesn't carry cmake-specific
    shape (no output-var sugar; mutations are explicit via [ESetVar]).
    This evaluator dispatches to each theory fragment's [eval_case].
    Used to test that the theory IR alone can express programs whose
-   eval-state matches the corresponding Yelu1 program (proves
+   eval-state matches the corresponding yelu_cmake program (proves
    semantic equivalence at the IR level). *)
 
 open Base
@@ -89,4 +89,4 @@ let rec eval_expr env = function
      | None ->
     match Yelu_cmake_normal_try.eval_case ~eval:eval_expr env expr with
      | Some value -> value
-     | None -> fail "unknown expression in Yelu2")
+     | None -> fail "unknown expression in yelu_cmake_normal")

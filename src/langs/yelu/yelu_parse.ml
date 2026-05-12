@@ -1,15 +1,11 @@
-(* Phase 2a — parser-direct-to-Yelu1.
+(* Concrete-syntax parser for yelu_cmake. Produces
+   [Yelu_cmake.expr] directly from token streams; replaces the
+   older legacy parser [Lang_yelu_parse] (in `yelu_legacy/`) that
+   built the intermediate `Lang_yelu_cmake` AST.
 
-   Pilot for the eventual replacement of [Lang_yelu_parse.parse_program]
-   (which builds the production [Lang_yelu_cmake] AST) with a parser
-   that builds [Yelu_cmake.expr] (Yelu1 IR) directly.
-
-   This module is parallel to [Lang_yelu_parse] — it shares the lexer
-   (`Yelu_lexer.token_list`) but constructs Yelu1 nodes during
-   parsing instead of going through the legacy yelu_cmake AST. Per the
-   retirement plan, family-by-family the new parser absorbs each
-   statement family from the legacy parser; when all families are
-   covered, the legacy parser retires.
+   Shares the lexer (`Yelu_lexer.token_list`) with the legacy
+   parser. The legacy parser is retained for the byte oracle and
+   pair-wise oracle; new code reads here.
 
    Current scope: broad CMake-family coverage used by the parser
    pair-wise oracle, including variable assignment plus control, cond,
@@ -136,7 +132,7 @@ let p_expr_y1 toks =
   | STRING s :: rest -> Some (EString s, rest)
   | PATH s :: rest -> Some (EString s, rest)
   | EVAL s :: rest ->
-    (* Match the bridge's Ycs_eval-to-Yelu1 rule: $<...> → ECmakeGenex,
+    (* Match the bridge's Ycs_eval-to-yelu_cmake rule: $<...> → ECmakeGenex,
        everything else (including ${...}) → EString. *)
     if String.is_substring s ~substring:"$<" then
       Some (ECmakeGenex s, rest)
@@ -252,7 +248,7 @@ let p_var_stmt_y1 toks =
 (* ============================================================
    Command + kwargs collector — duplicated from
    [Lang_yelu_parse.p_command]'s argument-loop. Collects positional
-   args (as Yelu1 expr) and `~name:value` kwargs (as a name → expr
+   args (as yelu_cmake expr) and `~name:value` kwargs (as a name → expr
    alist) until it hits a parser-stopping token.
    ============================================================ *)
 
@@ -1111,7 +1107,7 @@ let p_cmake_op_command_y1 toks =
    (the legacy parser handles them via its full grammar). *)
 (* ============================================================
    Condition parser — mirrors [Lang_yelu_parse.p_cond] / [p_cond_atom]
-   structure. Builds Yelu1 cond expressions (ENot, EAnd, EOr,
+   structure. Builds yelu_cmake cond expressions (ENot, EAnd, EOr,
    EIntLess/Equal/etc., ECmakeStringEqual, ECmakeVarDefined,
    ECmakeTargetExists, ECmakeMatches, ECmakeInList, ECmakeIsDirectory,
    ECmakeIsAbsolute, ECmakeFileExists, ECmakePolicyCheck) directly.
@@ -1287,7 +1283,7 @@ let rec p_stmt_inner_y1 toks =
   match p_apply_y1 toks with Some r -> Some r | None ->
   p_block_y1 toks
 
-(* `let var [: type] = expr in stmt` — Yelu1 ELet is expression-shaped,
+(* `let var [: type] = expr in stmt` — yelu_cmake ELet is expression-shaped,
    matching the syntax directly (no rest-of-list awkwardness like the
    legacy sequence-shaped Ylet). *)
 and p_let_y1 toks =
@@ -1539,7 +1535,7 @@ let parse_tokens_y1 toks =
     in
     Error ("unexpected trailing tokens" ^ ctx)
   | None ->
-    Error "parse error (unsupported Yelu1 direct-parser syntax)"
+    Error "parse error (unsupported yelu_cmake direct-parser syntax)"
 
 let parse_program_y1 input =
   match Angstrom.parse_string ~consume:All token_list input with

@@ -1,8 +1,26 @@
-# Yelu Theory Composition Design Notes
+# yelu_cmake — Theory Composition Design Notes
 
-This is the durable reference for the `yelu_tiny` theory-composition harness.
-For current open work see `status.md`; for the file-by-file module guide see
-`structure.md`. Update this file only when the underlying design changes.
+Durable reference for the yelu_cmake theory-composition harness.
+For current open work see `status.md`; for the file-by-file module
+guide see `structure.md`. Update this file only when the underlying
+design changes.
+
+> **Vocabulary note (post-G).** This doc was drafted during the
+> harness phase and uses the older terminology throughout. The
+> substance is current, but read with this glossary in mind:
+>
+> | Older name (in this doc)         | Current name (in code)                     |
+> | -------------------------------- | ------------------------------------------ |
+> | `yelu_tiny` / "tiny core"        | `yelu_cmake` (the core module + IR)        |
+> | `Yelu1` / "CMake-shaped surface" | `yelu_cmake` (the cmake-faithful language) |
+> | `Yelu2` / "better Yelu theories" | `yelu_cmake_normal` (the normalized form)  |
+> | `yelu_surface_cmake_<theory>`    | `yelu_cmake_<theory>` (fragment)           |
+> | `yelu_theory_<theory>`           | `yelu_cmake_normal_<theory>` (fragment)    |
+> | "lift" (Yelu1 → Yelu2)           | `Yelu_cmake_convert.to_normal`             |
+> | "lower" (Yelu2 → Yelu1)          | `Yelu_cmake_convert.from_normal`           |
+>
+> A future rewrite pass can fold these in-line; for now the glossary
+> keeps the design intact while pointing readers at the live names.
 
 The next theory-composition experiment should not refactor the current
 `yelu_cmake` pack first. That pack already contains CMake-specific behavior:
