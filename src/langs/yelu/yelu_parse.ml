@@ -65,7 +65,6 @@ open Yelu_lexer
 open Yelu_cmake
 open Yelu_cmake_normal_bool
 open Yelu_cmake_normal_int
-open Yelu_cmake_normal_list
 open Yelu_cmake_store
 open Yelu_cmake_string
 open Yelu_cmake_list
@@ -73,13 +72,8 @@ open Yelu_cmake_path
 open Yelu_cmake_file
 open Yelu_cmake_normal_target
 open Yelu_cmake_target
-open Yelu_cmake_dir
-open Yelu_cmake_test
-open Yelu_cmake_property
-open Yelu_cmake_find
-open Yelu_cmake_install
 open Yelu_cmake_cmake_op
-open Yelu_cmake_try
+open Yelu_cmake_utils
 
 (* ============================================================
    Combinator primitives — duplicated from Lang_yelu_parse.
@@ -151,13 +145,10 @@ let p_expr_y1 toks =
    going through Lang_yelu_cmake AST.
    ============================================================ *)
 
-(* Match the legacy var_statement bridge: a single value becomes the
-   value expr directly; multiple values become an EList; empty becomes
-   EString "". *)
-let pack_set_value = function
-  | [] -> EString ""
-  | [ v ] -> v
-  | vs -> EList vs
+(* Var-family dispatchers below build their IR through
+   [Yelu_cmake_utils.yc_set] etc. The empty/single/list value-list
+   normalization that [yc_set] does internally used to live in a
+   local [pack_set_value]; removed in F refactor. *)
 
 (* `IDENT := v1, v2, v3` or `cache IDENT := v ; 'msg'` *)
 let p_assign_y1 toks =
@@ -188,13 +179,9 @@ let p_assign_y1 toks =
            | STRING s :: SEMI :: rest' -> (s, rest')
            | _ -> ("", rest)
          in
-         Some
-           (ECmakeSetCache
-              { name; values; cache_type = "STRING"; docstring = msg;
-                force = false },
-            rest)
+         Some (yc_set_cache ~docstring:msg name values, rest)
        else
-         Some (ESetVar (name, pack_set_value values), rest))
+         Some (yc_set name values, rest))
   | _ -> None
 
 (* `set NAME value...` plain set form (outer `(`/`)` handled by block). *)
@@ -213,7 +200,7 @@ let p_set_command_y1 toks =
            | None -> List.rev acc, toks)
       in
       let values, rest = collect_vals [] rest in
-      Some (ESetVar (name, pack_set_value values), rest)
+      Some (yc_set name values, rest)
     | _ -> None
 
 (* `option NAME value` *)
@@ -226,7 +213,7 @@ let p_option_command_y1 toks =
       (match p_expr_y1 rest with
        | None -> None
        | Some (value, rest) ->
-         Some (ECmakeOption { name; message = ""; value }, rest))
+         Some (yc_option ~value ~msg:"" name, rest))
     | _ -> None
 
 (* `unset_cache NAME` *)
@@ -236,7 +223,7 @@ let p_unset_cache_command_y1 toks =
   | Some ((), toks) ->
     match toks with
     | (STRING name | IDENT name) :: rest ->
-      Some (ECmakeUnsetVarCache name, rest)
+      Some (yc_unset_cache name, rest)
     | _ -> None
 
 let p_var_stmt_y1 toks =
@@ -418,55 +405,42 @@ let p_list_command_y1_inner name args kwargs =
   let out = out_var_y1 kwargs in
   match name, args with
   | "list_append", cvar :: values ->
-    Some (ECmakeListAppend
-            { list = cvar_name_of_y1 cvar; items = values })
+    Some (yc_list_append (cvar_name_of_y1 cvar) values)
   | "list_length", [ cvar ] ->
-    Some (ECmakeListLength { list = cvar_name_of_y1 cvar; out })
+    Some (yc_list_length (cvar_name_of_y1 cvar) out)
   | "list_get", cvar :: indices when not (List.is_empty indices) ->
-    Some (ECmakeListGet
-            { list = cvar_name_of_y1 cvar;
-              indices = List.map indices ~f:expr_to_int_y1;
-              out })
+    Some (yc_list_get
+            ~indices:(List.map indices ~f:expr_to_int_y1)
+            (cvar_name_of_y1 cvar) out)
   | "list_remove_item", cvar :: values ->
-    Some (ECmakeListRemoveItem
-            { list = cvar_name_of_y1 cvar; items = values })
+    Some (yc_list_remove_item (cvar_name_of_y1 cvar) values)
   | "list_remove_duplicates", [ cvar ] ->
-    Some (ECmakeListRemoveDuplicates { list = cvar_name_of_y1 cvar })
+    Some (yc_list_remove_duplicates (cvar_name_of_y1 cvar))
   | "list_reverse", [ cvar ] ->
-    Some (ECmakeListReverse { list = cvar_name_of_y1 cvar })
+    Some (yc_list_reverse (cvar_name_of_y1 cvar))
   | "list_sort", [ cvar ] ->
     Some (ECmakeListSort
             { list = cvar_name_of_y1 cvar;
               order = None; compare = None; case = None })
   | "list_join", [ cvar; glue ] ->
-    Some (ECmakeListJoin
-            { list = cvar_name_of_y1 cvar; glue; out })
+    Some (yc_list_join (cvar_name_of_y1 cvar) glue out)
   | "list_find", [ cvar; value ] ->
-    Some (ECmakeListFind
-            { list = cvar_name_of_y1 cvar; value; out })
+    Some (yc_list_find (cvar_name_of_y1 cvar) value out)
   | "list_prepend", cvar :: values ->
-    Some (ECmakeListPrepend
-            { list = cvar_name_of_y1 cvar; items = values })
+    Some (yc_list_prepend (cvar_name_of_y1 cvar) values)
   | "list_insert", cvar :: _ ->
     (* Legacy parser defaults index/values; preserve to match. *)
-    Some (ECmakeListInsert
-            { list = cvar_name_of_y1 cvar; index = 0; items = [] })
+    Some (yc_list_insert (cvar_name_of_y1 cvar) 0 [])
   | "list_remove_at", cvar :: _ ->
     (* Legacy parser drops the indices; preserve to match. *)
-    Some (ECmakeListRemoveAt
-            { list = cvar_name_of_y1 cvar; indices = [] })
+    Some (yc_list_remove_at (cvar_name_of_y1 cvar) [])
   | "list_pop_back", [ cvar ] ->
-    Some (ECmakeListPopBack
-            { list = cvar_name_of_y1 cvar; out_vars = [] })
+    Some (yc_list_pop_back (cvar_name_of_y1 cvar))
   | "list_pop_front", [ cvar ] ->
-    Some (ECmakeListPopFront
-            { list = cvar_name_of_y1 cvar; out_vars = [] })
+    Some (yc_list_pop_front (cvar_name_of_y1 cvar))
   | "list_sublist", [ cvar; b; l ] ->
-    Some (ECmakeListSublist
-            { list = cvar_name_of_y1 cvar;
-              begin_ = expr_to_int_y1 b;
-              length = expr_to_int_y1 l;
-              out })
+    Some (yc_list_sublist (cvar_name_of_y1 cvar)
+            (expr_to_int_y1 b) (expr_to_int_y1 l) out)
   | "list_filter", [ cvar; regex ] ->
     let regex_s = match regex with EString s | EVar s -> s | _ -> "" in
     Some (ECmakeListFilter
@@ -591,41 +565,20 @@ let p_file_command_y1_inner name args kwargs =
   let out = out_var_y1 kwargs in
   match name, args with
   | "configure_file", [ input; output ] ->
-    Some (ECmakeConfigureFile { input; output })
-  | "file_read", [ file ] ->
-    Some (ECmakeFileReadFull
-            { path = file; out; offset = None; limit = None; hex = false })
-  | "file_write", file :: content ->
-    Some (ECmakeFileWrite { path = file; content })
-  | "file_glob", patterns ->
-    Some (ECmakeFileGlob
-            { out; recurse = false; relative = None;
-              configure_depends = false; patterns })
-  | "file_copy", [ input; output ] ->
-    Some (ECmakeFileCopy
-            { input; output; result = None; only_if_different = false })
-  | "file_rename", [ old_; new_ ] ->
-    Some (ECmakeFileRename { old_; new_; result = None; no_replace = false })
-  | "file_remove", files ->
-    Some (ECmakeFileRemove { files; recurse = false })
-  | "file_real_path", [ path ] ->
-    Some (ECmakeFileRealPath
-            { out; path; base_dir = None; expand_tilde = false })
-  | "file_size", [ file ] ->
-    Some (ECmakeFileSize { out; path = file })
-  | "file_timestamp", [ file ] ->
-    Some (ECmakeFileTimestamp
-            { out; path = file; format = None; utc = false })
-  | "file_make_directory", [ dir ] ->
-    Some (ECmakeFileMakeDirectory { dirs = [ dir ] })
-  | "file_touch", files ->
-    Some (ECmakeFileTouch { files; nocreate = false })
-  | "file_strings", [ file ] ->
-    Some (ECmakeFileStrings
-            { out; path = file; regex = None; encoding = None;
-              limit_count = None })
-  | "file_read_symlink", [ link ] ->
-    Some (ECmakeFileReadSymlink { out; link })
+    Some (yc_configure_file ~input output)
+  | "file_read", [ file ] -> Some (yc_file_read out file)
+  | "file_write", file :: content -> Some (yc_file_write file content)
+  | "file_glob", patterns -> Some (yc_file_glob out patterns)
+  | "file_copy", [ input; output ] -> Some (yc_file_copy_file input output)
+  | "file_rename", [ old_; new_ ] -> Some (yc_file_rename old_ new_)
+  | "file_remove", files -> Some (yc_file_remove files)
+  | "file_real_path", [ path ] -> Some (yc_file_real_path out path)
+  | "file_size", [ file ] -> Some (yc_file_size out file)
+  | "file_timestamp", [ file ] -> Some (yc_file_timestamp out file)
+  | "file_make_directory", [ dir ] -> Some (yc_file_make_directory [ dir ])
+  | "file_touch", files -> Some (yc_file_touch files)
+  | "file_strings", [ file ] -> Some (yc_file_strings out file)
+  | "file_read_symlink", [ link ] -> Some (yc_file_read_symlink out link)
   | _ -> None
 
 let p_file_command_y1 toks =
@@ -768,20 +721,13 @@ let p_target_command_y1 toks =
 
 let p_dir_command_y1_inner name args _kwargs =
   match name, args with
-  | "add_subdirectory", [ dir ] ->
-    Some (ECmakeAddSubdirectory dir)
-  | "include_directories", dirs ->
-    Some (ECmakeIncludeDirectories { dirs; before = false; system = false })
-  | "add_compile_definitions", defs ->
-    Some (ECmakeAddCompileDefinitions defs)
-  | "add_compile_options", opts ->
-    Some (ECmakeAddCompileOptions opts)
-  | "add_link_options", opts ->
-    Some (ECmakeAddLinkOptions opts)
-  | "add_definitions", defs ->
-    Some (ECmakeAddDefinitions defs)
-  | "link_directories", dirs ->
-    Some (ECmakeLinkDirectories { dirs; before = false })
+  | "add_subdirectory", [ dir ] -> Some (yc_add_subdirectory dir)
+  | "include_directories", dirs -> Some (yc_include_directories dirs)
+  | "add_compile_definitions", defs -> Some (yc_add_compile_definitions defs)
+  | "add_compile_options", opts -> Some (yc_add_compile_options opts)
+  | "add_link_options", opts -> Some (yc_add_link_options opts)
+  | "add_definitions", defs -> Some (yc_add_definitions defs)
+  | "link_directories", dirs -> Some (yc_link_directories dirs)
   | _ -> None
 
 let p_dir_command_y1 toks =
@@ -805,9 +751,9 @@ let p_dir_command_y1 toks =
 
 let p_test_command_y1_inner name args _kwargs =
   match name, args with
-  | "enable_testing", [] -> Some ECmakeEnableTesting
+  | "enable_testing", [] -> Some yc_enable_testing
   | "add_test", name_arg :: command :: rest ->
-    Some (ECmakeAddTest { name = name_arg; command; args = rest })
+    Some (yc_add_test name_arg command rest)
   | _ -> None
 
 let p_test_command_y1 toks =
@@ -833,30 +779,24 @@ let p_property_command_y1_inner name args kwargs =
   let out = out_var_y1 kwargs in
   match name, args with
   | "get_target_property", [ tgt ] ->
-    Some (ECmakeGetProperty
-            { var = out; target = tgt; property = "PROP"; set_form = false })
+    Some (yc_get_property ~target:tgt "PROP" out)
   | "set_target_properties", [ _tgt ] ->
-    (* Legacy parser produces empty properties; bridge emits
-       [ESeq []] which renders as empty text. *)
+    (* Legacy parser produces empty properties; emits ESeq []. *)
     Some (ESeq [])
   | "set_property", targets ->
-    Some (ECmakeSetProperty
-            { targets; append = false; properties = [] })
+    Some (yc_set_property ~targets [])
   | "get_directory_property", [] ->
-    Some (ECmakeGetDirectoryProperty { var = out; property = "PROP" })
+    Some (yc_get_directory_property "PROP" out)
   | "set_directory_property", [] ->
-    Some (ECmakeSetDirectoryProperty
-            { property = "PROP"; append = false; values = [] })
+    Some (yc_set_directory_property "PROP" [])
   | "set_test_properties", [ test ] ->
-    Some (ECmakeSetTestsProperties
-            { tests = [ test ]; properties = [] })
+    Some (yc_set_tests_properties [ test ] [])
   | "set_source_property", [ file ] ->
-    Some (ECmakeSetSourceProperty
-            { file; property = "PROP"; values = [] })
+    Some (yc_set_source_property ~property:"PROP" file [])
   | "set_global_property", [] ->
-    Some (ECmakeSetGlobalProperty { properties = [] })
+    Some (yc_set_global_property [])
   | "get_global_property", [] ->
-    Some (ECmakeGetGlobalProperty { var = out; property = "PROP" })
+    Some (yc_get_global_property ~property:"PROP" out)
   | _ -> None
 
 let p_property_command_y1 toks =
@@ -894,27 +834,15 @@ let p_find_command_y1_inner name args _kwargs =
   in
   match name, args with
   | "find_package", [ pkg ] ->
-    Some (ECmakeFindPackage
-            { package_name = str_name pkg;
-              version = None; exact = false; quiet = false;
-              config_mode = false; required = false;
-              components = []; optional_components = [] })
+    Some (yc_find_package (str_name pkg))
   | "find_library", [ cvar ] ->
-    Some (ECmakeFindLibrary
-            { out = cvar_name cvar;
-              names = []; paths = []; hints = []; required = false })
+    Some (yc_find_library (cvar_name cvar))
   | "find_path", [ cvar ] ->
-    Some (ECmakeFindPath
-            { out = cvar_name cvar;
-              names = []; paths = []; hints = []; required = false })
+    Some (yc_find_path (cvar_name cvar))
   | "find_program", [ cvar ] ->
-    Some (ECmakeFindProgram
-            { out = cvar_name cvar;
-              names = []; paths = []; hints = []; required = false })
+    Some (yc_find_program (cvar_name cvar))
   | "find_file", [ cvar ] ->
-    Some (ECmakeFindFile
-            { out = cvar_name cvar;
-              names = []; paths = []; hints = []; required = false })
+    Some (yc_find_file (cvar_name cvar))
   | _ -> None
 
 let p_find_command_y1 toks =
@@ -941,25 +869,18 @@ let p_find_command_y1 toks =
 let p_install_command_y1_inner name args _kwargs =
   match name, args with
   | "install_targets", [ destination ] ->
-    Some (ECmakeInstallTargets
-            { targets = []; destination; export = None })
+    Some (yc_install_targets [] destination)
   | "install_files", [ destination ] ->
-    Some (ECmakeInstallFiles { files = []; destination })
+    Some (yc_install_files [] destination)
   | "install_export", [ export; destination ] ->
-    Some (ECmakeInstallExport
-            { file = None; export; destination; namespace = None })
+    Some (yc_install_export export destination)
   | "export", [ name_arg ] ->
-    Some (ECmakeExportExport { name = name_arg; file = None })
+    Some (yc_export_export name_arg)
   | "configure_package_config_file", [ dest; input; output ] ->
-    Some (ECmakeConfigurePackageConfigFile
-            { install_dest = dest; input; output;
-              no_set_and_check_macro = false;
-              no_check_required_components_macro = false })
+    Some (yc_configure_package_config_file dest input output)
   | "write_basic_package_version_file", [ file ] ->
-    Some (ECmakeWriteBasicPackageVersionFile
-            { file; version = None;
-              compatibility = "AnyNewerVersion";
-              arch_independent = false })
+    Some (yc_write_basic_package_version_file
+            ~compatibility:Lang_cmake.Any_newer_version file)
   | _ -> None
 
 let p_install_command_y1 toks =
@@ -989,17 +910,10 @@ let p_install_command_y1 toks =
 let p_try_command_y1_inner name args _kwargs =
   match name, args with
   | "try_compile", [ result ] ->
-    Some (ECmakeTryCompile
-            { result_var = cvar_name_of_y1 result; sources = [] })
+    Some (yc_try_compile (cvar_name_of_y1 result))
   | "try_run", [ run_result; compile_result ] ->
-    Some (ECmakeTryRun
-            { run_result_var = cvar_name_of_y1 run_result;
-              compile_result_var = cvar_name_of_y1 compile_result;
-              sources = []; compile_definitions = [];
-              link_libraries = [];
-              compile_output_variable = None;
-              run_output_variable = None;
-              args = [] })
+    Some (yc_try_run (cvar_name_of_y1 run_result)
+            (cvar_name_of_y1 compile_result))
   | _ -> None
 
 let p_try_command_y1 toks =
@@ -1045,23 +959,23 @@ let p_cmake_op_command_y1_inner name args kwargs =
     (* Legacy: texts list, each STRING/PATH → s, else "" *)
     let texts =
       List.map args ~f:(fun e ->
-        match e with EString s -> EString s | _ -> EString "")
+        match e with EString s -> s | _ -> "")
     in
-    Some (ECmakeMessage { mode = "STATUS"; texts })
+    Some (yc_message ~mode:Lang_cmake.Mm_status texts)
   | "math", [ exp ] ->
     let s = match exp with EString s -> s | _ -> "" in
-    Some (ECmakeMath { exp = s; out })
+    Some (yc_math s out)
   | "include", [ file ] ->
     let optional =
       List.Assoc.mem kwargs ~equal:String.equal "optional"
     in
-    Some (ECmakeInclude { file; optional })
+    Some (yc_include ~optional file)
   | "include_guard", [] ->
-    Some (ECmakeIncludeGuard { scope = "GLOBAL" })
+    Some (yc_include_guard Lang_cmake.Ig_global)
   | "policy_set", [ id ] ->
-    Some (ECmakePolicySet { id = str_of id; new_ = true })
+    Some (yc_policy_set ~new_:true (str_of id))
   | "enable_language", _ ->
-    Some (ECmakeEnableLanguage { langs = []; optional = false })
+    Some (yc_enable_language ~optional:false [])
   | "execute_process", _ ->
     Some (ECmakeExecuteProcess
             { commands = [];
