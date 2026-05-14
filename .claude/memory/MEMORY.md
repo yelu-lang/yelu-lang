@@ -18,6 +18,7 @@
 - [Latin letters not Greek](feedback_option_letters.md) — use a/b/c/d or 1/2/3/4 for option lists
 - [OCaml LSP stale diagnostics](feedback_ocamllsp_hook_interrupt.md) — ignore LSP errors during multi-file refactors; verify with dune build
 - [Ask before implementing semantically-loaded constructs](feedback_ask_on_semantic_design.md) — scope, binding, control flow, evaluation order: surface design choices before code (foreach 2026-05-10 miss)
+- [Web docs only on explicit ask](feedback_web_docs_explicit.md) — never auto-update docs/ as a side effect of internal work; wait for explicit instruction
 
 ## Quick Reference
 - `open Base` shadows `result`, `prefix`, `id`, `append` — rename in patterns
