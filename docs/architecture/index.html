@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Architecture — Yelu</title>
+  <link rel="stylesheet" href="../style.css">
+  <link rel="icon" href="../favicon.svg" type="image/svg+xml">
+</head>
+<body>
+
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <a href="../">Yelu</a>
+  </div>
+  <p class="sidebar-tagline">a compositional language for the AI era</p>
+
+  <div class="sidebar-section">Pages</div>
+  <ul class="sidebar-nav">
+    <li><a href="../">Home</a></li>
+    <li><a href="../manifesto/">Manifesto</a></li>
+    <li><a href="../cmake/">yelu-cmake</a></li>
+    <li><a href="./" class="active">Architecture</a></li>
+    <li><a href="../painpoints/">Pain points</a></li>
+    <li><a href="../equivalence/">Equivalence</a></li>
+  </ul>
+
+  <div class="sidebar-section">On this page</div>
+  <ul class="sidebar-nav">
+    <li><a href="#two-languages">Two paired languages</a></li>
+    <li><a href="#pipeline">Compilation pipeline</a></li>
+    <li><a href="#theories">Theory fragments</a></li>
+    <li><a href="#verification">Verification stack</a></li>
+    <li><a href="#retirement">From legacy to new</a></li>
+    <li><a href="#whats-next">What's next</a></li>
+  </ul>
+
+  <div class="sidebar-section">Project</div>
+  <ul class="sidebar-nav">
+    <li><a href="https://github.com/yelu-lang/yelu-lang">GitHub</a></li>
+  </ul>
+
+  <div class="sidebar-footer">
+    yelu-lang &copy; 2026<br>
+    <a href="https://github.com/yelu-lang/yelu-lang">github.com/yelu-lang/yelu-lang</a>
+  </div>
+</aside>
+
+<main class="content">
+
+<header class="page-header">
+  <h1>Architecture</h1>
+  <p>How yelu-cmake is shaped: two languages, one pipeline, verifier-driven</p>
+</header>
+
+<p>
+  This page distills the design of the yelu-cmake implementation
+  for someone curious about how the compiler is shaped. For
+  internal contributor docs see
+  <a href="https://github.com/yelu-lang/yelu-lang/blob/main/doc/yelu_cmake/structure.md">doc/yelu_cmake/structure.md</a>
+  and
+  <a href="https://github.com/yelu-lang/yelu-lang/blob/main/doc/yelu_cmake/design.md">doc/yelu_cmake/design.md</a>
+  in the repo.
+</p>
+
+<h2 id="two-languages">Two paired languages</h2>
+
+<p>
+  The project hosts <strong>two distinct cmake-domain languages</strong>
+  over a shared IR. Neither is "more abstract" than the other &mdash;
+  they're different decompositions of the same problem.
+</p>
+
+<div class="features">
+  <div class="feature-card">
+    <h4><code>yelu_cmake</code></h4>
+    <p>
+      The CMake-command-faithful compatibility form. Stable, closest to
+      emission. What step files build, what the parser produces, what
+      emits to text. <strong>The workhorse.</strong>
+    </p>
+    <p>
+      One constructor per cmake command family
+      (<code>ECmakeAddExecutable</code>, <code>ECmakeTargetIncludeDirectories</code>,
+      <code>ECmakeStringConcat</code>, &hellip;).
+    </p>
+  </div>
+  <div class="feature-card">
+    <h4><code>yelu_cmake_normal</code></h4>
+    <p>
+      The normalized form. Same domain, different decomposition: each
+      theory carries its own value-oriented ctors
+      (<code>EStringConcat</code>, <code>EListAppend</code>, &hellip;) without
+      cmake's output-variable shape.
+    </p>
+    <p>
+      Used for refactoring passes and as the basis for richer typing
+      decisions (Y17). Not on the production emit path.
+    </p>
+  </div>
+</div>
+
+<p>
+  Translation lives in <code>Yelu_cmake_convert</code> with two
+  near-inverse functions:
+</p>
+
+<pre><code>Yelu_cmake_convert.to_normal   : yelu_cmake.expr -&gt; yelu_cmake_normal.expr
+Yelu_cmake_convert.from_normal : yelu_cmake_normal.expr -&gt; yelu_cmake.expr</code></pre>
+
+<p>
+  The round-trip property &mdash; <code>from_normal &middot; to_normal</code> preserves
+  observable cmake emission &mdash; is exercised by 65 lift/lower tests.
+</p>
+
+<p class="note">
+  <strong>Naming aside.</strong> The two names &mdash; <code>yelu_cmake</code> and
+  <code>yelu_cmake_normal</code> &mdash; are intentionally
+  representation-suffix-free. There is no <code>_ir</code>, no
+  <code>_surface</code>, no <code>_string</code>. The bare name belongs
+  to the workhorse; variants get an honest descriptive suffix.
+</p>
+
+<h2 id="pipeline">Compilation pipeline</h2>
+
+<p>
+  Production cmake-text generation runs entirely through the new
+  typed surface. Two input forms, one converged pipeline:
+</p>
+
+<pre><code>From OCaml step files:
+  Step file (.ml)
+    &rarr; Yelu_cmake_utils.{yc_set, add_exe, ...}
+    &rarr; yelu_cmake.expr
+    &rarr; Yelu_cmake_emit.emit_ast
+    &rarr; Lang_cmake.exp
+    &rarr; Lang_cmake_pp.pp
+    &rarr; CMakeLists.txt
+
+From .ye concrete source:
+  source.ye
+    &rarr; Yelu_lexer
+    &rarr; Yelu_parse
+    &rarr; yelu_cmake.expr
+    &rarr; (same backend as above)</code></pre>
+
+<p>
+  Two important properties:
+</p>
+
+<ul>
+  <li><strong>No bridge on the binary path.</strong> The legacy
+      <code>Lang_yelu_cmake</code> AST and the
+      <code>Yelu_cmake_legacy_bridge</code> are not called from any
+      step binary. They remain callable only as the reference side of
+      the byte oracle.</li>
+  <li><strong>One pretty-printer.</strong> All cmake text goes through
+      <code>Lang_cmake_pp.pp</code> &mdash; ~1.4k lines of
+      well-tested formatting that emits valid cmake syntax for every
+      cmake AST node. The typed IR collapses into the cmake AST via
+      four short erasure helpers (arg quoting, target/name positions,
+      cond tokenization, let substitution).</li>
+</ul>
+
+<h2 id="theories">Theory fragments</h2>
+
+<p>
+  Each cmake command family lives in its own pair of fragment files.
+  A theory module defines a value-oriented set of constructors plus
+  a per-theory <code>eval_case</code>; the matched yelu_cmake fragment
+  defines the cmake-shaped equivalents (often with output-variable
+  side effects).
+</p>
+
+<pre><code>src/langs/yelu/fragments/
+&#x251c;&#x2500;&#x2500; yelu_cmake_target.ml              add_executable, add_library, target_*
+&#x251c;&#x2500;&#x2500; yelu_cmake_normal_target.ml       ETarget, ELibrary, ETargetLinkLibraries
+&#x251c;&#x2500;&#x2500; yelu_cmake_string.ml              string(CONCAT|REPLACE|REGEX|...)
+&#x251c;&#x2500;&#x2500; yelu_cmake_normal_string.ml       EStringConcat, EStringEqual, ...
+&#x251c;&#x2500;&#x2500; ...                              13 more cmake theories
+&#x2514;&#x2500;&#x2500; ...                              15 normal-form theories</code></pre>
+
+<table>
+  <thead>
+    <tr><th>Theory</th><th>Kind</th><th>Notes</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><code>target</code></td><td><span class="badge-done">real</span></td><td>add_executable, add_library, target_* visibility-aware</td></tr>
+    <tr><td><code>store</code></td><td><span class="badge-done">real</span></td><td>set / unset / PARENT_SCOPE / option</td></tr>
+    <tr><td><code>install</code></td><td><span class="badge-done">real</span></td><td>install(TARGETS / FILES / EXPORT) + package-config writer</td></tr>
+    <tr><td><code>test</code></td><td><span class="badge-done">real</span></td><td>enable_testing, add_test</td></tr>
+    <tr><td><code>dir</code></td><td><span class="badge-done">real</span></td><td>add_subdirectory, dir-level include/compile/link</td></tr>
+    <tr><td><code>if</code></td><td><span class="badge-done">real</span></td><td>cmake statement-if vs normalized expression-if</td></tr>
+    <tr><td><code>string</code></td><td><span class="badge-done">mixed</span></td><td>core ops real; regex / timestamp / json: emit-faithful</td></tr>
+    <tr><td><code>list</code></td><td><span class="badge-done">mixed</span></td><td>core ops real; advanced transforms: emit-faithful</td></tr>
+    <tr><td><code>path</code></td><td><span class="badge-done">mixed</span></td><td>core ops real; native conversion + subcommands: emit-faithful</td></tr>
+    <tr><td><code>file</code></td><td><span class="badge-done">mixed</span></td><td>in-memory fs for core ops; glob / copy: emit-faithful</td></tr>
+    <tr><td><code>property</code></td><td><span class="badge-done">mixed</span></td><td>target-property: real; global / source / test: emit-faithful</td></tr>
+    <tr><td><code>cmake_op</code></td><td><span class="badge-todo">compat</span></td><td>project / message / math / include / function / macro / block / while / foreach / execute_process &mdash; broad surface bucket, eval delegates to real cmake</td></tr>
+    <tr><td><code>find</code></td><td><span class="badge-todo">compat</span></td><td>find_package / library / path / program &mdash; eval is placeholder</td></tr>
+    <tr><td><code>try</code></td><td><span class="badge-todo">compat</span></td><td>try_compile / try_run &mdash; eval stubs; probe runs at cmake time</td></tr>
+  </tbody>
+</table>
+
+<p>
+  <strong>Real</strong> means evaluation is meaningful at compile time
+  (the theory carries its own semantics).
+  <strong>Mixed</strong> means real for common ops, emit-faithful for
+  the long tail. <strong>Compat</strong> means evaluation is
+  placeholder &mdash; cmake's runtime owns the semantics, and yelu just
+  emits faithfully.
+</p>
+
+<h2 id="verification">Verification stack</h2>
+
+<p>
+  Every cmake-text-producing path is verified against the legacy
+  reference at multiple levels:
+</p>
+
+<div class="comparison-grid">
+  <div class="feature-card">
+    <h4>Byte-equality oracle</h4>
+    <p>
+      For every test program built as legacy AST, run both
+      <code>legacy_compile &rarr; pp</code> and
+      <code>bridge &rarr; emit_ast &rarr; pp</code>; assert
+      <strong>byte-identical</strong> text. Catches any divergence
+      between the legacy and new emit paths at the character level.
+    </p>
+    <p><strong>Status:</strong> 194/194 programs covered, 0 uncovered.</p>
+  </div>
+  <div class="feature-card">
+    <h4>Pair-wise parser oracle</h4>
+    <p>
+      For every covered source program, run both parser paths
+      (<code>legacy parse &rarr; bridge &rarr; emit</code> vs.
+      <code>new parse &rarr; emit</code>) and assert byte-identical
+      text. Catches parser-level divergence.
+    </p>
+    <p><strong>Status:</strong> 125 pair-wise cases across all 12 cmake command families.</p>
+  </div>
+  <div class="feature-card">
+    <h4>cmake-only structural check</h4>
+    <p>
+      Compile each cmake-only step file to text; structurally compare
+      against the reference CMakeLists from the cmake source tree.
+      Catches semantic-equivalence drift even when the text differs in
+      whitespace.
+    </p>
+    <p><strong>Status:</strong> 12/12 step pairs match.</p>
+  </div>
+  <div class="feature-card">
+    <h4>runcmake-yelu (live cmake)</h4>
+    <p>
+      Run each yelu-generated cmake script through a real cmake
+      instance; capture and diff stdout against running the reference
+      script. End-to-end behavioral equivalence.
+    </p>
+    <p><strong>Status:</strong> 50/50 pairs byte-identical stdout.</p>
+  </div>
+</div>
+
+<h2 id="retirement">From legacy to new</h2>
+
+<p>
+  The current shape is the result of a phased retirement. The codebase
+  started with a single legacy <code>Lang_yelu_*</code> stack
+  (parser + AST + compile + 15 fragments + 14 typecheck modules) plus
+  a parallel harness exploring theory composition. Production
+  generation now runs through the harness; legacy is retained as the
+  byte-equality reference and as the source of truth during the
+  migration audit. Highlights of the retirement, in order:
+</p>
+
+<ul>
+  <li><strong>Phase 1 &mdash; emit through cmake AST.</strong>
+      Production text generation moved from the legacy direct compile
+      to a path going through the typed
+      <code>Lang_cmake.exp</code> AST and shared pretty-printer.</li>
+  <li><strong>Phase 2a &mdash; parser directly to IR.</strong> A new
+      Angstrom-based parser (<code>Yelu_parse</code>) reads the same
+      concrete syntax and produces the typed IR directly, without
+      going through the legacy AST.</li>
+  <li><strong>Items A&ndash;D &mdash; gap closure + structural moves.</strong>
+      Direct-parser gap list closed (try_compile, genex round-trip,
+      kwarg-lists); binary callers repointed; the legacy parser/lexer
+      relocated to <code>yelu_legacy/</code>; the harness directory
+      renamed from <code>yelu_tiny/</code> to <code>yelu/</code>.</li>
+  <li><strong>E-utils &mdash; bridge off the binary path.</strong> A
+      mirror constructor module (<code>Yelu_cmake_utils</code>) lets
+      step files build typed IR directly; no production binary now
+      calls the legacy bridge.</li>
+  <li><strong>G &mdash; language-name honesty + legacy isolation.</strong>
+      The two-language vocabulary
+      (<code>yelu_cmake</code> / <code>yelu_cmake_normal</code>)
+      anchored in every file/module name. Bridge moved to
+      <code>yelu_legacy/</code>. The new directory has zero
+      code-level imports of legacy modules.</li>
+</ul>
+
+<p>
+  Two retirement items remain open but are not on any binary path:
+  <strong>F</strong> (parser uses the constructor module &mdash; ~10%
+  LOC shrink, one source of truth for command-shape decisions) and
+  <strong>final E</strong> (module-level bridge deletion, gated on
+  shifting the byte oracle and pair-wise oracle to source-fed shape).
+</p>
+
+<h2 id="whats-next">What's next</h2>
+
+<p>
+  With the production substrate stable, the design queue opens up:
+</p>
+
+<div class="features">
+  <div class="feature-card">
+    <h4>Y17 &mdash; typing pass</h4>
+    <p>
+      A fresh typing model that uses the two-language form
+      semantically: namespace separation, mutability/identity rules
+      per theory, and the <code>to_normal</code>/<code>from_normal</code>
+      pair as a place to push richer invariants. Unblocked now that
+      retirement is done.
+    </p>
+  </div>
+  <div class="feature-card">
+    <h4>General vs cmake-specific theories</h4>
+    <p>
+      Several theories under <code>yelu_cmake_normal_*</code> are
+      general-purpose (<code>bool</code>, <code>int</code>,
+      <code>string</code>, <code>list</code>, <code>store</code>),
+      not cmake-specific. Separating them into a shared core makes
+      future <code>yelu_shell</code> / <code>yelu_c</code> packs
+      cleanly reusable.
+    </p>
+  </div>
+  <div class="feature-card">
+    <h4>Split the shared <code>expr</code></h4>
+    <p>
+      Today both languages extend the same
+      <code>Yelu_cmake.expr</code> type. A clean separation gives
+      each language its own <code>expr</code>, with truly shared core
+      nodes (<code>EVar</code>, <code>ESeq</code>, <code>ELet</code>,
+      &hellip;) staying in a small shared module.
+    </p>
+  </div>
+  <div class="feature-card">
+    <h4>Bar #3 &mdash; real-world cmake</h4>
+    <p>
+      Rewrite z3 / llvm / torch builds in yelu_cmake; prove structural
+      equivalence with the original CMakeLists. The
+      manifesto-level "does this scale" test &mdash; not started.
+    </p>
+  </div>
+</div>
+
+<p>
+  For day-to-day work see
+  <a href="https://github.com/yelu-lang/yelu-lang/blob/main/doc/yelu_cmake/status.md">doc/yelu_cmake/status.md</a>
+  &mdash; the in-repo living tracker.
+</p>
+
+</main>
+</body>
+</html>

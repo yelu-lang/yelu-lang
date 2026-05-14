@@ -20,6 +20,7 @@
     <li><a href="./" class="active">Home</a></li>
     <li><a href="manifesto/">Manifesto</a></li>
     <li><a href="cmake/">yelu-cmake</a></li>
+    <li><a href="architecture/">Architecture</a></li>
     <li><a href="painpoints/">Pain points</a></li>
     <li><a href="equivalence/">Equivalence</a></li>
   </ul>
@@ -74,10 +75,11 @@
   </div>
   <div class="feature-card">
     <h4>The architecture</h4>
-    <p>A universal control side (binding, branching, macros) composes with
-       target-specific theories (typed constructors &amp; checkers). 14 theories
-       for cmake; more packs to come.</p>
-    <p><a href="manifesto/#architecture">Read more &rarr;</a></p>
+    <p>Two paired languages over a shared IR: <code>yelu_cmake</code>
+       (CMake-faithful) and <code>yelu_cmake_normal</code> (normalized
+       form), with <code>to_normal</code>/<code>from_normal</code>
+       between them. 15 theory fragments per side.</p>
+    <p><a href="architecture/">Read more &rarr;</a></p>
   </div>
   <div class="feature-card">
     <h4>The syntax</h4>
@@ -115,45 +117,72 @@
 
 <h2>State of the project</h2>
 
+<p>
+  The first complete pack &mdash; yelu-cmake &mdash; is past its
+  retirement milestone: production cmake generation runs entirely
+  through the new typed surface, with the legacy stack retained
+  only as a reference oracle. See <a href="architecture/">Architecture</a>
+  for the current layering.
+</p>
+
 <table>
   <thead>
     <tr><th>Component</th><th>Status</th><th>Detail</th></tr>
   </thead>
   <tbody>
     <tr>
-      <td>Type checker</td>
+      <td>Two-language form</td>
       <td><span class="badge-done">done</span></td>
-      <td>14 theories, per-statement type constraints</td>
-    </tr>
-    <tr>
-      <td>Name binding (wellform)</td>
-      <td><span class="badge-done">done</span></td>
-      <td>Whole-program cvar/target def-use checking</td>
+      <td>yelu_cmake (CMake-faithful) + yelu_cmake_normal (normalized)
+          with <code>to_normal</code>/<code>from_normal</code></td>
     </tr>
     <tr>
       <td>Concrete syntax parser</td>
       <td><span class="badge-done">done</span></td>
-      <td>168 parser tests, all 14 theories covered</td>
+      <td>Produces typed IR directly; 295 parser tests across all 12 families</td>
     </tr>
     <tr>
-      <td>Nested genex lexer</td>
+      <td>Compile-time checking</td>
       <td><span class="badge-done">done</span></td>
-      <td>Bracket-counting on <code>$&lt;</code>/<code>&gt;</code> pairs</td>
+      <td>15 theory fragments per side: typed ctors + per-theory eval</td>
     </tr>
     <tr>
-      <td>cmake equivalence oracle</td>
-      <td><span class="badge-done">running</span></td>
-      <td>108 structural checks + 12 end-to-end steps</td>
+      <td>Production emit path</td>
+      <td><span class="badge-done">done</span></td>
+      <td>Parser &rarr; IR &rarr; <code>Lang_cmake.exp</code> &rarr; <code>cmake_pp</code>;
+          no legacy bridge on the binary path</td>
     </tr>
     <tr>
-      <td>Effect checking pass</td>
+      <td>Byte-equality oracle</td>
+      <td><span class="badge-done">194/194</span></td>
+      <td>Every covered program produces byte-identical text vs. the
+          legacy compile</td>
+    </tr>
+    <tr>
+      <td>Pair-wise parser oracle</td>
+      <td><span class="badge-done">125 cases</span></td>
+      <td>Old parser path vs. new parser path; byte-identical on every case</td>
+    </tr>
+    <tr>
+      <td>cmake-only structural check</td>
+      <td><span class="badge-done">12/12</span></td>
+      <td>Step files vs. reference CMakeLists; structural equivalence</td>
+    </tr>
+    <tr>
+      <td>runcmake-yelu (live cmake)</td>
+      <td><span class="badge-done">50/50</span></td>
+      <td>Real cmake configure-and-run; stdout byte-identical to reference</td>
+    </tr>
+    <tr>
+      <td>Test suite (unit)</td>
+      <td><span class="badge-done">853 tests</span></td>
+      <td>72 cmake PP + 194 byte oracle + 295 parser + 65 lift/lower + 49 + 43 + 25 + 14 + 5 + 3 + ...</td>
+    </tr>
+    <tr>
+      <td>Y17 &mdash; typing pass</td>
       <td><span class="badge-todo">next</span></td>
-      <td>Execution-mode constraints</td>
-    </tr>
-    <tr>
-      <td>Test suite</td>
-      <td><span class="badge-done">515 tests</span></td>
-      <td>25 lexer + 168 parser + 322 check/compile/wellform</td>
+      <td>Fresh typing on the normalized form, unblocked now that
+          retirement is done</td>
     </tr>
   </tbody>
 </table>
