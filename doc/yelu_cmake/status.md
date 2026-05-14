@@ -47,10 +47,11 @@ throughout `src/langs/yelu/`; the legacy stack lives in
   everywhere; bridge moved to `yelu_legacy/`; enum-string
   converters extracted to `Lang_cmake_strings` in the cmake
   layer; fragments renamed; lexer renamed and relocated
+- Item F: parser dispatchers route through `Yelu_cmake_utils`
+  (one source of truth for command-shape decisions; −86 LOC in
+  `yelu_parse.ml`)
 
-**Remaining retirement items:**
-- **F** — parser uses the constructor module (~10% LOC
-  shrinkage; orthogonal)
+**Remaining retirement item:**
 - **E** (final) — module-level bridge deletion (gated on
   shifting byte oracle and pair-wise oracle to source-fed
   shape; not urgent)

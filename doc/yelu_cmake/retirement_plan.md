@@ -12,7 +12,7 @@ sibling tree (`doc/yelu_shell/` etc.).
 ## Status (2026-05-11)
 
 **Retirement is essentially complete.** Phase 1 + Phase 2a + 2c
-done; items A, B (reframed), C, D, E-utils, and G all landed.
+done; items A, B (reframed), C, D, E-utils, G, and F all landed.
 
 What this means concretely:
 
@@ -34,10 +34,7 @@ What this means concretely:
   needing the cross-check).
 
 **Remaining retirement items:**
-- **F** — Parser uses the constructor module (refactor; ~10%
-  parser LOC; one source of truth for command-shape decisions).
-  Orthogonal; can land any time.
-- **E** (deferred to last) — module-level bridge deletion. Gated
+- **E** (the last one) — module-level bridge deletion. Gated
   on shifting the byte oracle and pair-wise oracle from bridge-
   fed shape to source-fed shape. Not urgent; the bridge is
   cheap to keep around as test infrastructure.
@@ -410,43 +407,34 @@ Consolidated history; commit refs in parens.
   representation-tagged names left in the new directory.
   Byte-identical: oracle 194/194, parser 295,
   `make cmake-only-check` 12/12, `make runcmake-yelu` 50/50.
+- **Item F — parser uses the constructor module (54f0ab4).**
+  `Yelu_parse` dispatchers now route through `Yelu_cmake_utils`
+  helpers wherever the signature matches. One source of truth for
+  command-shape decisions across parser and step files.
+
+  *Refactored:* var, cmake_op (simple cases), test, try, install,
+  find, dir, property, file, and list (simple cases) — every
+  helper that takes a value-shape matching the parser's dispatch.
+
+  *Kept inline (intentional):* target visibility-group
+  dispatchers (parser groups by string keys; utils takes
+  Lang_cmake.target_kind enum — round-tripping through the enum
+  would add work without centralization gain); `list_sort` /
+  `list_filter` / `list_transform` (similar enum mismatch);
+  string and path families (utils doesn't cover most parser cases
+  since step files don't use them — adding 40+ helpers to utils
+  just to centralize parser cases would invert the driving
+  relationship); `p_let_y1` / `p_block_y1` (parser uses concrete
+  `let X = E in stmt` scoping, not the sequence-shaped let-folding
+  that `ycmd_of_list` handles — different mechanisms, not
+  duplication).
+
+  *Net:* −86 lines in `yelu_parse.ml` (167 removed, 81 added);
+  5 unused `open Yelu_cmake_*` lines dropped since the helpers
+  cover those constructors now. Verifications byte-identical
+  throughout.
 
 ## Open
-
-### F — Parser uses the constructor module
-
-The current parser (`Yelu_parse`) dispatches each command and
-builds the IR ctor inline — duplicating the same shape decisions
-that now live in `Yelu_cmake_utils`. The value-list normalization
-in `yc_set` (`[] / [v] / vs` cases), the visibility-group folding
-in `include_dirs` / `compile_defs` / etc., the
-`Ylet → ELet` body-folding in `ycmd_of_list`, and the
-enum-to-string conversion for `message` mode — all repeated.
-
-Refactoring the parser dispatchers to call the constructor module
-would:
-
-- collapse ~200 lines of repeated case logic;
-- give the project **one** source of truth for "what does this
-  command shape become in IR" — fix a default once, both step
-  files and the parser get it;
-- naturally compose with future fragment-level cleanups
-  (item #3 in `status.md` — moving emit/translate arms closer to
-  each fragment).
-
-Estimated parser shrinkage: ~10% LOC, but the structural win
-matters more than the line count.
-
-**Scope clarification:** F is a refactor of where ctor *calls*
-live (parser dispatchers shift from inline IR construction to
-calling the existing helpers). The helper function names
-(`yc_set`, `add_exe`, `yvar`, `ystr`, `ycmd_of_list`, …) are
-kept as-is — they're already good.
-
-**Sequencing:** kept as a separate item from retirement so we can
-audit and decide on future optimization (laziness, sharing,
-tagless-final-like derivation) before landing it on the parser.
-Orthogonal to E; can land any time after E-utils.
 
 ### E — Bridge retirement
 
@@ -531,8 +519,7 @@ equivalence claim stays byte-level.
 ## Sequencing summary
 
 ```
-done:       warm-up trio  →  Phase 1 (emit_ast)  →  Phase 2a (parser-direct-to-Yelu1, 12 families)  →  Phase 2c (legacy fragments relocated)  →  A (direct-parser gap list closed)  →  B (genex opaque-string sufficient; typed theory → Y17)  →  C (binary callers onto bridge + emit_ast)  →  E-lite (legacy parser+lexer to yelu_legacy)  →  D (yelu_tiny renamed to yelu)  →  E-utils (step files emit IR directly; bridge off binary path)  →  G (language-name honesty: yelu_cmake / yelu_cmake_normal; legacy isolation; fragment renames)
-open F:     parser-uses-ctors refactor (one source of truth for command-shape decisions; ~10% parser LOC; orthogonal — audit before landing)
+done:       warm-up trio  →  Phase 1 (emit_ast)  →  Phase 2a (parser-direct-to-Yelu1, 12 families)  →  Phase 2c (legacy fragments relocated)  →  A (direct-parser gap list closed)  →  B (genex opaque-string sufficient; typed theory → Y17)  →  C (binary callers onto bridge + emit_ast)  →  E-lite (legacy parser+lexer to yelu_legacy)  →  D (yelu_tiny renamed to yelu)  →  E-utils (step files emit IR directly; bridge off binary path)  →  G (language-name honesty: yelu_cmake / yelu_cmake_normal; legacy isolation; fragment renames)  →  F (parser dispatchers route through Yelu_cmake_utils)
 open E:     module-level bridge deletion — shift byte oracle and pair-wise oracle to source-fed shape; then delete yelu_cmake_legacy_bridge.ml
 y17:        post-retirement typing pass on the renamed harness (incl. typed genex)
 delete?:    separate decision, gated on Y17 + production stability

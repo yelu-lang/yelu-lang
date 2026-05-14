@@ -300,11 +300,13 @@ From .ye concrete source:
 </ul>
 
 <p>
-  Two retirement items remain open but are not on any binary path:
-  <strong>F</strong> (parser uses the constructor module &mdash; ~10%
-  LOC shrink, one source of truth for command-shape decisions) and
-  <strong>final E</strong> (module-level bridge deletion, gated on
-  shifting the byte oracle and pair-wise oracle to source-fed shape).
+  <strong>Item F</strong> (parser dispatchers route through the
+  ctor module) landed in late 2026-05; the parser now shares one
+  source of truth with step files for how cmake command shapes
+  become IR.
+  <strong>Final E</strong> (module-level bridge deletion) remains
+  open and not urgent, gated on shifting the byte oracle and
+  pair-wise oracle from bridge-fed to source-fed shape.
 </p>
 
 <h2 id="whats-next">What's next</h2>
