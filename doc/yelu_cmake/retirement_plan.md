@@ -34,10 +34,13 @@ What this means concretely:
   needing the cross-check).
 
 **Remaining retirement items:**
-- **E** (the last one) — module-level bridge deletion. Gated
-  on shifting the byte oracle and pair-wise oracle from bridge-
-  fed shape to source-fed shape. Not urgent; the bridge is
-  cheap to keep around as test infrastructure.
+- **E1** — make legacy deadcode. Replace the byte oracle and
+  pair-wise oracle with non-legacy tests (golden-file based).
+  After E1: nothing in `src/` or `test/` imports legacy modules;
+  `yelu_legacy/` stays on disk as deadcode.
+- **E2** — delete `yelu_legacy/` entirely. Gated on E1 holding
+  green and Y17 typecheck reintroduction not needing legacy as a
+  reference.
 
 **Beyond retirement.** Several architectural follow-ups are
 queued in `status.md` "Post-retirement cleanup": splitting
@@ -438,42 +441,86 @@ Consolidated history; commit refs in parens.
 
 ### E — Bridge retirement
 
-After items A, B (reframed), C, E-lite, D, and E-utils, the bridge
-(`Yelu_cmake_legacy_bridge`, formerly `Yelu_cmake_to_yelu1`) is
-**off the binary production path** but still has consumers:
+After items A, B (reframed), C, E-lite, D, E-utils, G, and F, the
+bridge (`Yelu_cmake_legacy_bridge`) and the rest of the legacy
+stack are **off the binary production path** but still referenced
+by three places in test infrastructure:
 
 1. **The byte oracle in `test_yelu_compile.ml`** — feeds programs
    constructed as legacy AST through both `legacy_compile → pp`
    and `bridge → emit_ast → pp`, asserting byte equality.
-2. **The pair-wise oracle in `test_yelu_cmake_parse.ml`** — the
-   legacy side of the comparison uses `Lang_yelu_parse → bridge →
-   emit_ast`.
+   194/194 covered. The strongest correctness signal we have.
+2. **The pair-wise oracle in `test_yelu_cmake_parse.ml`** —
+   parses `.ye` source via both parsers
+   (`Lang_yelu_parse → bridge → emit` vs `Yelu_parse → emit`),
+   asserts byte-identical text. 125 cases.
+3. **Bridge smoke tests** in `test_yelu_bridge.ml`.
 
-Both are test infrastructure; neither is on a binary path. Full
-module-level deletion would require shifting both oracles from
-the bridge-fed shape to a source-fed shape:
+E splits into two phases that match the production-vs-deletion
+distinction:
 
-```
-legacy_text = source |> Lang_yelu_parse.parse |> Lang_yelu_compile.compile |> pp
-new_text    = source |> Yelu_parse.parse      |> Yelu_cmake_emit.emit_ast |> pp
-assert byte-identical
-```
+### E1 — Make legacy deadcode
 
-That's separable from retirement (the production critical-path
-retirement is already done after E-utils). Defer; revisit when
-final E becomes necessary.
+Replace the oracles with tests that don't reference legacy. Goal:
+after E1, no source or test file in the repo imports or calls
+into `Lang_yelu_*` / `Yelu_cmake_legacy_bridge`. The legacy
+modules stay on disk in `yelu_legacy/`, still compile, but are
+unreached (deadcode).
 
-Once either lands, the bridge can be deleted and the
-byte-equality oracle in `test_yelu_compile.ml` shifts from the
-bridge-fed shape (legacy AST in, two paths out) to the source-fed
-shape (source in, two parsers + two emits, same `Lang_cmake_pp`).
-`Lang_yelu_cmake` (the AST type) may then stay in `yelu_legacy/`
-as a frozen reference shape, callable only by the legacy compile.
+The substantive design choice is what *replaces* the byte oracle
+and pair-wise oracle. The byte oracle's strength is "two
+independent implementations agree byte-for-byte" — strip legacy
+out and you need a substitute that catches the same regressions.
+Options:
 
-**Phase 2 done criterion:** production path is
-`parse → Yelu1 → emit_ast → cmake_pp → text` with no
-`yelu_legacy` imports on the binary side. Legacy compile stays
-callable for the oracle test.
+| Approach | Strength | Weakness |
+| --- | --- | --- |
+| **Golden-file tests** — `.ye` source + checked-in expected `.cmake`, assert byte-identical | Easy to write; readable; catches any output change | Brittle to intentional output changes (every cmake-format tweak rewrites every golden); no cross-implementation check |
+| **Round-trip parse** — parse `.ye` → IR → emit → parse the cmake again → re-emit → assert equal | No reference file needed; catches parse/emit asymmetries | Needs a cmake-text reader (we only have a writer today); doesn't catch errors common to both halves |
+| **Real cmake compare** — emit, run `cmake -P`, capture stdout, compare to running a reference `.cmake` | End-to-end behavioral; what users actually experience | Slow; flaky on cmake version drift. `make runcmake-yelu` already covers a 50-case subset |
+| **Structural cmake compare** — emit, parse with a third-party gersemi / cmake-format parser, structural-diff against reference | Strict but resilient to formatting | Needs external parser dep; `make cmake-only-check` already does this for 12 step files |
+
+Recommended hybrid: **golden files for the 194 byte-oracle
+programs** + keep `runcmake-yelu` (50) and `cmake-only-check`
+(12) for behavioral coverage. Golden files are the most direct
+replacement and the existing 194 programs already give a corpus.
+After E1, the test becomes "emit and diff against golden" rather
+than "two paths agree."
+
+Concrete steps for E1:
+
+1. Write a small harness that takes the existing 194 programs in
+   `test_yelu_compile.ml` and emits goldens
+   (`.cmake` files checked in alongside the test).
+2. Convert `test_yelu_compile.ml`'s byte oracle from "both paths
+   agree" to "new path matches golden."
+3. Convert `test_yelu_cmake_parse.ml`'s pair-wise oracle
+   similarly — for each `.ye` source, assert new-parser output
+   matches golden (drops the legacy-parser side of the
+   comparison).
+4. Delete `test_yelu_bridge.ml`'s smoke check (subsumed by
+   goldens).
+5. Verify nothing in `src/` or `test/` calls into `yelu_legacy/`
+   (grep for `Lang_yelu_*` and `Yelu_cmake_legacy_bridge`).
+6. Run `dune test` + `make cmake-only-check` + `make runcmake-yelu`
+   against the new tests; expect equivalent coverage.
+
+After E1: legacy is deadcode. Modules stay on disk for reference;
+nothing calls them. Sized at ~2–3 sessions; the golden-generation
+harness is short, but golden file format and managing the
+byte-identical signal when fragments change need thought.
+
+### E2 — Delete the deadcode
+
+Once E1's replacement tests have held green long enough to trust
+them, and Y17 (typecheck reintroduction) settles without needing
+legacy as a reference, delete `src/langs/yelu_legacy/` entirely.
+Small mechanical change; just a `git rm -r` plus removing any
+dangling test/dune entries.
+
+**Sequencing.** E1 is the right next step if you want legacy as
+deadcode before the Y17 typing pass. E2 stays deferred and
+explicitly gated.
 
 ## Equivalence oracle (kept callable forever)
 
@@ -520,7 +567,8 @@ equivalence claim stays byte-level.
 
 ```
 done:       warm-up trio  →  Phase 1 (emit_ast)  →  Phase 2a (parser-direct-to-Yelu1, 12 families)  →  Phase 2c (legacy fragments relocated)  →  A (direct-parser gap list closed)  →  B (genex opaque-string sufficient; typed theory → Y17)  →  C (binary callers onto bridge + emit_ast)  →  E-lite (legacy parser+lexer to yelu_legacy)  →  D (yelu_tiny renamed to yelu)  →  E-utils (step files emit IR directly; bridge off binary path)  →  G (language-name honesty: yelu_cmake / yelu_cmake_normal; legacy isolation; fragment renames)  →  F (parser dispatchers route through Yelu_cmake_utils)
-open E:     module-level bridge deletion — shift byte oracle and pair-wise oracle to source-fed shape; then delete yelu_cmake_legacy_bridge.ml
+open E1:    make legacy deadcode — replace byte oracle + pair-wise oracle with golden-file tests; verify no src/ or test/ imports yelu_legacy/
+open E2:    delete yelu_legacy/ entirely — gated on E1 + Y17 not needing legacy as reference
 y17:        post-retirement typing pass on the renamed harness (incl. typed genex)
 delete?:    separate decision, gated on Y17 + production stability
 ```

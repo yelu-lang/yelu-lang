@@ -51,10 +51,14 @@ throughout `src/langs/yelu/`; the legacy stack lives in
   (one source of truth for command-shape decisions; −86 LOC in
   `yelu_parse.ml`)
 
-**Remaining retirement item:**
-- **E** (final) — module-level bridge deletion (gated on
-  shifting byte oracle and pair-wise oracle to source-fed
-  shape; not urgent)
+**Remaining retirement items (E split):**
+- **E1** — make legacy deadcode. Replace the byte oracle and
+  pair-wise oracle with golden-file tests so neither references
+  legacy. After E1: `yelu_legacy/` stays on disk but is
+  unreached by any code or test.
+- **E2** — delete `yelu_legacy/` entirely. Gated on E1 holding
+  green long enough and Y17 (typecheck reintroduction) not
+  needing legacy as reference.
 
 **Four legacy-parser bugs** surfaced during the migration but
 deferred — production tests don't exercise them, and they share
