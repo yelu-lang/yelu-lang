@@ -2,15 +2,13 @@
     Mirrors Tests/RunCMake/separate_arguments/ positive scripts.
     WindowsCommand and ProgramCommand* skipped (platform/PATH-search specific). *)
 
-open Yelu_langs.Lang_yelu_cmake
-open Yelu_langs.Lang_yelu_utils
-open Yelu_langs.Lang_yelu_compile
+open Yelu_langs.Yelu_cmake
+open Yelu_langs.Yelu_cmake_utils
 open Yelu_langs.Lang_cmake_pp
 open Yelu_runner.Cmake_runner
 
 let compile exp =
-  let cmake_ast = compile empty_env exp |> snd in
-  Fmt.str "%a" (Fmt.vbox pp) cmake_ast
+  Fmt.str "%a" (Fmt.vbox pp) (Yelu_langs.Yelu_cmake_emit.emit_ast exp)
 
 let check_cmake name prog =
   Alcotest.test_case name `Quick (fun () ->
@@ -21,7 +19,7 @@ let check_cmake name prog =
 (* Mirrors Tests/RunCMake/separate_arguments/EmptyCommand.cmake
    Old-style separate_arguments on an undefined variable leaves it undefined. *)
 let empty_command =
-  check_cmake "empty_command" (Ystmt_list [
+  check_cmake "empty_command" (ESeq [
     (* nothing is not set — separate_arguments(nothing) must leave it undefined *)
     yc_separate_arguments_plain (ycvar "nothing");
     yifthen (yis_defined (ycstr "nothing"))
@@ -31,7 +29,7 @@ let empty_command =
 (* Mirrors Tests/RunCMake/separate_arguments/PlainCommand.cmake
    Old-style: split "a b  c" → "a;b;;c" (double space → empty middle element). *)
 let plain_command =
-  check_cmake "plain_command" (Ystmt_list [
+  check_cmake "plain_command" (ESeq [
     yc_set (ycvar "out") [ ystr "a b  c" ];
     yc_separate_arguments_plain (ycvar "out");
     yifthen (ynot (ystrequal (ycref "out") (ystr "a;b;;c")))
@@ -41,7 +39,7 @@ let plain_command =
 (* Mirrors Tests/RunCMake/separate_arguments/UnixCommand.cmake (simple subset).
    Full test uses complex shell quoting; we cover the structural cases. *)
 let unix_simple =
-  check_cmake "unix_simple" (Ystmt_list [
+  check_cmake "unix_simple" (ESeq [
     (* plain space-separated words *)
     yc_separate_arguments ~mode:Sa_unix_command ~input:(ystr "a b c") (ycvar "out");
     yifthen (ynot (ystrequal (ycref "out") (ystr "a;b;c")))
@@ -58,7 +56,7 @@ let unix_simple =
 
 (* NativeCommand on Linux behaves identically to UnixCommand for the simple cases. *)
 let native_command =
-  check_cmake "native_command" (Ystmt_list [
+  check_cmake "native_command" (ESeq [
     yc_separate_arguments ~mode:Sa_native_command ~input:(ystr "a b c") (ycvar "out");
     yifthen (ynot (ystrequal (ycref "out") (ystr "a;b;c")))
       (yc_message ~mode:Mm_fatal_error ["native_command: a b c failed"]);

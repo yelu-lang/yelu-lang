@@ -1,15 +1,13 @@
 (** conf-run level tests for math(EXPR).
     Mirrors Tests/RunCMake/math/MATH.cmake and MATH-ToleratedExpression.cmake. *)
 
-open Yelu_langs.Lang_yelu_cmake
-open Yelu_langs.Lang_yelu_utils
-open Yelu_langs.Lang_yelu_compile
+open Yelu_langs.Yelu_cmake
+open Yelu_langs.Yelu_cmake_utils
 open Yelu_langs.Lang_cmake_pp
 open Yelu_runner.Cmake_runner
 
 let compile exp =
-  let cmake_ast = compile empty_env exp |> snd in
-  Fmt.str "%a" (Fmt.vbox pp) cmake_ast
+  Fmt.str "%a" (Fmt.vbox pp) (Yelu_langs.Yelu_cmake_emit.emit_ast exp)
 
 let check_cmake name prog =
   Alcotest.test_case name `Quick (fun () ->
@@ -19,7 +17,7 @@ let check_cmake name prog =
 
 (* Mirrors Tests/RunCMake/math/MATH.cmake *)
 let math =
-  check_cmake "math" (Ystmt_list [
+  check_cmake "math" (ESeq [
     yc_math "100 * 10" (ycvar "r");
     yifthen (ynot (ystrequal (ycref "r") (ystr "1000")))
       (yc_message ~mode:Mm_fatal_error ["100 * 10 should be 1000"]);
@@ -39,7 +37,7 @@ let math =
    cmake exits 0 but emits a dev warning to stderr. *)
 let math_tolerated =
   Alcotest.test_case "math_tolerated" `Quick (fun () ->
-      let prog = Ystmt_list [
+      let prog = ESeq [
         yc_math "'2*1-1'" (ycvar "var");
         yifthen (ynot (ystrequal (ycref "var") (ystr "1")))
           (yc_message ~mode:Mm_fatal_error ["tolerated expression should eval to 1"]);
@@ -54,7 +52,7 @@ let math_tolerated =
    Note: cmake emits CMake Warning (dev) in configure mode, but NOT in -P script
    mode — so we only verify the computed values, not the warning. *)
 let math_overflow =
-  check_cmake "overflow" (Ystmt_list [
+  check_cmake "overflow" (ESeq [
     (* 0x7FFFFFFFFFFFFFFF + 1 wraps to INT64_MIN *)
     yc_math "0x7FFFFFFFFFFFFFFF + 1" (ycvar "r");
     yifthen (ynot (ystrequal (ycref "r") (ystr "-9223372036854775808")))
@@ -71,7 +69,7 @@ let math_overflow =
 
 (* Division, modulo, and bitwise operators *)
 let math_ops =
-  check_cmake "ops" (Ystmt_list [
+  check_cmake "ops" (ESeq [
     yc_math "17 / 5" (ycvar "r");
     yifthen (ynot (ystrequal (ycref "r") (ystr "3")))
       (yc_message ~mode:Mm_fatal_error ["17 / 5 should be 3 (integer division)"]);
@@ -98,7 +96,7 @@ let math_ops =
 
 (* Bitwise NOT — unary ~ operator *)
 let math_bitnot =
-  check_cmake "bitnot" (Ystmt_list [
+  check_cmake "bitnot" (ESeq [
     yc_math "~0" (ycvar "r");
     yifthen (ynot (ystrequal (ycref "r") (ystr "-1")))
       (yc_message ~mode:Mm_fatal_error ["~0 should be -1"]);

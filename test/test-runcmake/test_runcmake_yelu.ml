@@ -7,10 +7,9 @@
       check_pair_text — reference is an inline cmake string (used when the
                         upstream script produces no stdout, e.g. cmake_path) *)
 
-open Yelu_langs.Lang_yelu_cmake
-open Yelu_langs.Lang_yelu_utils
+open Yelu_langs.Yelu_cmake
+open Yelu_langs.Yelu_cmake_utils
 open Yelu_langs.Lang_cmake
-open Yelu_langs.Lang_yelu_compile
 open Yelu_langs.Lang_cmake_pp
 open Yelu_runner.Cmake_runner
 
@@ -34,7 +33,7 @@ let runcmake_dir =
 let script_dir d = Filename.concat runcmake_dir d
 
 let compile_to_cmake prog =
-  let _, ast = compile empty_env prog in
+  let ast = Yelu_langs.Yelu_cmake_emit.emit_ast prog in
   let buf = Buffer.create 512 in
   let ff = Format.formatter_of_buffer buf in
   Format.pp_open_vbox ff 0;
@@ -43,50 +42,9 @@ let compile_to_cmake prog =
   Format.pp_print_flush ff ();
   Buffer.contents buf
 
-(* R5 — same prog through the tiny bridge instead of production compile.
-   Used by the [check_pair_*] helpers to assert tiny's emit produces
-   cmake that runs identically to the reference. Phase 1.4 routes
-   through the AST path (Yelu1 -> Lang_cmake.exp -> lang_cmake_pp);
-   the direct-text [Yelu_cmake_emit_debug.emit_script] is retained as a
-   diagnostic aid but is no longer the production path. *)
-let bridge_to_cmake_via_tiny prog =
-  let yelu1 = Yelu_langs.Yelu_cmake_legacy_bridge.stmt prog in
-  Yelu_langs.Yelu_cmake_emit.emit_script yelu1
-
 let fail_mismatch ref_result yelu_result cmake_text =
   Alcotest.failf "stdout mismatch\nref :\n%s\nyelu:\n%s\nyelu cmake:\n%s"
     ref_result.stdout yelu_result.stdout cmake_text
-
-(* R5 — drive [prog] through the tiny bridge and assert that the
-   resulting cmake (a) runs successfully and (b) produces the same
-   stdout as the reference. The bridge / emit code is intentionally
-   different from the production compile path; matching stdouts is the
-   semantic-equivalence check. *)
-let check_tiny_matches_ref name ref_result prog =
-  match bridge_to_cmake_via_tiny prog with
-  | exception Yelu_langs.Yelu_cmake_legacy_bridge.Bridge_error msg ->
-    Alcotest.failf "%s: tiny bridge raised: %s" name msg
-  | tiny_cmake ->
-    let tiny_result = run_script tiny_cmake in
-    if tiny_result.exit_code <> 0 then
-      Alcotest.failf
-        "%s: tiny-emitted cmake failed at configure (exit %d)\nstderr:\n%s\ntiny cmake:\n%s"
-        name tiny_result.exit_code tiny_result.stderr tiny_cmake;
-    if ref_result.stdout <> tiny_result.stdout then
-      Alcotest.failf
-        "%s: tiny stdout differs from reference\nref:\n%s\ntiny:\n%s\ntiny cmake:\n%s"
-        name ref_result.stdout tiny_result.stdout tiny_cmake
-
-(* R5 skip-list. Names of tests where the tiny bridge can't produce
-   equivalent cmake yet — typically because tiny's emit handles a
-   construct differently than the production compile, or because the
-   bridge raises. Each entry needs a follow-up R2-style attrition fix
-   before it can come off the list. Empty means R5 is fully closed. *)
-let tiny_bridge_skip : string list = [
-]
-
-let do_tiny_check name =
-  not (Base.List.mem tiny_bridge_skip name ~equal:Base.String.equal)
 
 (** Reference is the upstream RunCMake .cmake file. *)
 let check_pair name dir ?(cmake_flags = []) yelu_prog =
@@ -98,8 +56,7 @@ let check_pair name dir ?(cmake_flags = []) yelu_prog =
     let yelu_result = run_script cmake_text in
     check_exit 0 yelu_result;
     if ref_result.stdout <> yelu_result.stdout then
-      fail_mismatch ref_result yelu_result cmake_text;
-    if do_tiny_check name then check_tiny_matches_ref name ref_result yelu_prog)
+      fail_mismatch ref_result yelu_result cmake_text)
 
 (** Reference is an inline cmake string. Use when the upstream RunCMake script
     produces no stdout (only FATAL_ERROR on failure) — write a minimal cmake
@@ -112,8 +69,7 @@ let check_pair_text name ref_cmake yelu_prog =
     let yelu_result = run_script cmake_text in
     check_exit 0 yelu_result;
     if ref_result.stdout <> yelu_result.stdout then
-      fail_mismatch ref_result yelu_result cmake_text;
-    if do_tiny_check name then check_tiny_matches_ref name ref_result yelu_prog)
+      fail_mismatch ref_result yelu_result cmake_text)
 
 (** Like check_pair_text but also compares stderr (with cmake filepath normalized).
     Use for negative-path tests that produce warnings/errors on stderr with no stdout. *)
@@ -126,8 +82,7 @@ let check_pair_text_stderr name ref_cmake yelu_prog =
     check_exit 0 yelu_result;
     if ref_result.stdout <> yelu_result.stdout then
       fail_mismatch ref_result yelu_result cmake_text;
-    check_stderr_normalized ref_result yelu_result cmake_text;
-    if do_tiny_check name then check_tiny_matches_ref name ref_result yelu_prog)
+    check_stderr_normalized ref_result yelu_result cmake_text)
 
 (* ==================================================================== *)
 (* variable_watch                                                        *)
@@ -136,7 +91,7 @@ let check_pair_text_stderr name ref_cmake yelu_prog =
 (* variable_watch(b) with no callback fires a cmake debug log to stderr,
    not stdout — both ref and yelu produce empty stdout, exit 0. *)
 let vw_modified_access =
-  Ystmt_list [
+  ESeq [
     yc_set (ycvar "b") [ystr "a"];
     yc_variable_watch (ycvar "b");
     yc_set (ycvar "b") [ystr "b"];
@@ -145,7 +100,7 @@ let vw_modified_access =
 (* All callbacks are empty functions; registering watch inside a callback
    is allowed. No stdout output. *)
 let vw_modify_watch_in_callback =
-  Ystmt_list [
+  ESeq [
     yc_function (ystr "watch2") [] [];
     yc_function (ystr "watch1") [] [
       yc_variable_watch ~command:(Some "watch2") (ycvar "watched");
@@ -161,7 +116,7 @@ let vw_modify_watch_in_callback =
   ]
 
 let vw_no_watcher =
-  Ystmt_list [
+  ESeq [
     yc_function (ystr "my_func") [] [ yc_message ~mode:Mm_none ["my_func"] ];
     yc_variable_watch ~command:(Some "my_func") (ycvar "a");
     yc_set (ycvar "a") [ystr ""];
@@ -170,7 +125,7 @@ let vw_no_watcher =
   ]
 
 let vw_raise_in_parent_scope =
-  Ystmt_list [
+  ESeq [
     yc_function (ystr "watch") ["variable"; "access"; "value"] [
       yc_message ~mode:Mm_none [ "${variable} ${access} ${value}" ]
     ];
@@ -183,7 +138,7 @@ let vw_raise_in_parent_scope =
   ]
 
 let vw_watch_twice =
-  Ystmt_list [
+  ESeq [
     yc_function (ystr "watch1") [] [ yc_message ~mode:Mm_none ["From watch1"] ];
     yc_function (ystr "watch2") [] [ yc_message ~mode:Mm_none ["From watch2"] ];
     yc_variable_watch ~command:(Some "watch1") (ycvar "watched");
@@ -205,7 +160,7 @@ message("${out}")
 |}
 
 let cp_append_yelu =
-  Ystmt_list [
+  ESeq [
     yc_path_set (ycvar "path") (ystr "/a/b");
     yc_path_append (ycvar "path") [ystr "c"];
     yc_message ~mode:Mm_none ["${path}"];
@@ -220,7 +175,7 @@ message("${path}")
 |}
 
 let cp_normal_path_yelu =
-  Ystmt_list [
+  ESeq [
     yc_path_set (ycvar "path") (ystr "a/./b/../c");
     yc_path_normal_path (ycvar "path");
     yc_message ~mode:Mm_none ["${path}"];
@@ -233,7 +188,7 @@ message("${path}")
 |}
 
 let cp_remove_filename_yelu =
-  Ystmt_list [
+  ESeq [
     yc_path_set (ycvar "path") (ystr "/a/b/c.txt");
     yc_path_remove_filename (ycvar "path");
     yc_message ~mode:Mm_none ["${path}"];
@@ -246,7 +201,7 @@ message("${path}")
 |}
 
 let cp_replace_extension_yelu =
-  Ystmt_list [
+  ESeq [
     yc_path_set (ycvar "path") (ystr "a/b/c.txt");
     yc_path_replace_extension (ycvar "path") (ystr ".md");
     yc_message ~mode:Mm_none ["${path}"];
@@ -262,7 +217,7 @@ message("${result}")
 |}
 
 let cp_is_absolute_yelu =
-  Ystmt_list [
+  ESeq [
     yc_path_set (ycvar "path") (ystr "/a/b");
     yc_path_is_absolute (ycvar "path") (ycvar "result");
     yc_message ~mode:Mm_none ["${result}"];
@@ -279,7 +234,7 @@ message("${result}")
 |}
 
 let cp_compare_yelu =
-  Ystmt_list [
+  ESeq [
     yc_path_compare (ystr "/a/b") Cpco_equal (ystr "/a/b") (ycvar "result");
     yc_message ~mode:Mm_none ["${result}"];
     yc_path_compare (ystr "/a/b") Cpco_not_equal (ystr "/a/c") (ycvar "result");
@@ -302,10 +257,10 @@ endwhile()
 |}
 
 let while_counter_yelu =
-  Ystmt_list [
+  ESeq [
     yc_set (ycvar "i") [ystr "0"];
-    yc_while (Yexpr_less (ystr_eval "${i}", ystr "3"))
-      (Ystmt_list [
+    yc_while (yless (ystr_eval "${i}") (ystr "3"))
+      (ESeq [
         yc_message ~mode:Mm_none ["${i}"];
         yc_math "${i} + 1" (ycvar "i");
       ]);
@@ -324,10 +279,10 @@ endwhile()
 |}
 
 let while_break_yelu =
-  Ystmt_list [
+  ESeq [
     yc_set (ycvar "i") [ystr "0"];
-    yc_while (Yexpr_less (ystr_eval "${i}", ystr "10"))
-      (Ystmt_list [
+    yc_while (yless (ystr_eval "${i}") (ystr "10"))
+      (ESeq [
         yifthen (ystrequal (ystr_eval "${i}") (ystr "3")) yc_break;
         yc_message ~mode:Mm_none ["${i}"];
         yc_math "${i} + 1" (ycvar "i");
@@ -351,7 +306,7 @@ f()
 |}
 
 let return_early_yelu =
-  Ystmt_list [
+  ESeq [
     yc_function (ystr "f") [] [
       yc_message ~mode:Mm_none ["before"];
       yc_return ();
@@ -373,7 +328,7 @@ message("${result}")
 |}
 
 let return_propagate_yelu =
-  Ystmt_list [
+  ESeq [
     yc_language_eval "cmake_policy(SET CMP0140 NEW)";
     yc_function (ystr "f") [] [
       yc_set (ycvar "result") [ystr "from_f"];
@@ -401,7 +356,7 @@ endif()
 |}
 
 let option_default_yelu =
-  Ystmt_list [
+  ESeq [
     yc_option ~msg:"A test option" (ycvar "MY_OPT");
     yif (ytruthy (ycstr "MY_OPT"))
       (yc_message ~mode:Mm_none ["ON"])
@@ -421,7 +376,7 @@ endif()
 |}
 
 let option_respects_var_yelu =
-  Ystmt_list [
+  ESeq [
     yc_language_eval "cmake_policy(SET CMP0077 NEW)";
     yc_set (ycvar "MY_OPT") [ybool true];
     yc_option ~msg:"A test option" (ycvar "MY_OPT");
@@ -436,7 +391,7 @@ let option_respects_var_yelu =
 
 (* set(VAR val PARENT_SCOPE) inside a function updates the caller's var. *)
 let set_parent_pulling =
-  Ystmt_list [
+  ESeq [
     yc_function (ystr "test_set") [] [
       yc_set (ycvar "blah") [ystr "value2"];
       yc_message ~mode:Mm_none ["before PARENT_SCOPE blah=${blah}"];
@@ -458,7 +413,7 @@ message("${MY_VAR}")
 |}
 
 let set_env_yelu =
-  Ystmt_list [
+  ESeq [
     yc_set_env "MY_VAR" (ystr "hello");
     yc_message ~mode:Mm_none ["$ENV{MY_VAR}"];
     yc_unset_env "MY_VAR";
@@ -476,7 +431,7 @@ cmake_path(SET path NORMALIZE "/x/y/../z")
 message("${path}")
 |}
 let cp_set_yelu =
-  Ystmt_list [
+  ESeq [
     yc_path_set (ycvar "path") (ystr "/x/y/z");
     yc_message ~mode:Mm_none ["${path}"];
     yc_path_set ~normalize:true (ycvar "path") (ystr "/x/y/../z");
@@ -491,7 +446,7 @@ cmake_path(ABSOLUTE_PATH path BASE_DIRECTORY "/x/y/a/f" NORMALIZE OUTPUT_VARIABL
 message("${out}")
 |}
 let cp_absolute_path_yelu =
-  Ystmt_list [
+  ESeq [
     yc_path_set (ycvar "path") (ystr "../../a/d");
     yc_path_absolute_path ~base_dir:(Some (ystr "/x/y/a/f"))
       ~out:(Some (ycvar "out")) (ycvar "path");
@@ -507,7 +462,7 @@ cmake_path(APPEND_STRING path "cd" OUTPUT_VARIABLE out)
 message("${out}")
 |}
 let cp_append_string_yelu =
-  Ystmt_list [
+  ESeq [
     yc_path_set (ycvar "path") (ystr "/a/b");
     yc_path_append_string ~out:(Some (ycvar "out")) (ycvar "path") [ystr "cd"];
     yc_message ~mode:Mm_none ["${out}"];
@@ -522,7 +477,7 @@ cmake_path(IS_RELATIVE path out)
 message("${out}")
 |}
 let cp_is_relative_yelu =
-  Ystmt_list [
+  ESeq [
     yc_path_set (ycvar "path") (ystr "a/b");
     yc_path_is_relative (ycvar "path") (ycvar "out");
     yc_message ~mode:Mm_none ["${out}"];
@@ -540,7 +495,7 @@ cmake_path(IS_PREFIX path "a/b/d/e" NORMALIZE out)
 message("${out}")
 |}
 let cp_is_prefix_yelu =
-  Ystmt_list [
+  ESeq [
     yc_path_set (ycvar "path") (ystr "a/b/c");
     yc_path_is_prefix (ycvar "path") (ystr "a/b/c/d") (ycvar "out");
     yc_message ~mode:Mm_none ["${out}"];
@@ -562,7 +517,7 @@ cmake_path(HAS_ROOT_DIRECTORY path out)
 message("${out}")
 |}
 let cp_has_item_yelu =
-  Ystmt_list [
+  ESeq [
     yc_path_set (ycvar "path") (ystr "/a/b/c.txt");
     yc_path_has (ycvar "path") Cph_root_directory (ycvar "out");
     yc_message ~mode:Mm_none ["${out}"];
@@ -588,7 +543,7 @@ else()
 endif()
 |}
 let cp_hash_yelu =
-  Ystmt_list [
+  ESeq [
     yc_path_set (ycvar "path1") (ystr "a/b/c");
     yc_path_set (ycvar "path2") (ystr "a/b////c");
     yc_path_hash (ycvar "path1") (ycvar "h1");
@@ -607,7 +562,7 @@ cmake_path(RELATIVE_PATH path BASE_DIRECTORY "a" OUTPUT_VARIABLE out)
 message("${out}")
 |}
 let cp_relative_path_yelu =
-  Ystmt_list [
+  ESeq [
     yc_path_set (ycvar "path") (ystr "/a/d");
     yc_path_relative_path ~base_dir:(Some (ystr "/a/b/c"))
       ~out:(Some (ycvar "out")) (ycvar "path");
@@ -627,7 +582,7 @@ cmake_path(REMOVE_EXTENSION path LAST_ONLY OUTPUT_VARIABLE out)
 message("${out}")
 |}
 let cp_remove_extension_yelu =
-  Ystmt_list [
+  ESeq [
     yc_path_set (ycvar "path") (ystr "a/b/c.e.f");
     yc_path_remove_extension ~out:(Some (ycvar "out")) (ycvar "path");
     yc_message ~mode:Mm_none ["${out}"];
@@ -642,7 +597,7 @@ cmake_path(REPLACE_FILENAME path "x.y" OUTPUT_VARIABLE out)
 message("${out}")
 |}
 let cp_replace_filename_yelu =
-  Ystmt_list [
+  ESeq [
     yc_path_set (ycvar "path") (ystr "a/b/c.e.f");
     yc_path_replace_filename ~out:(Some (ycvar "out")) (ycvar "path") (ystr "x.y");
     yc_message ~mode:Mm_none ["${out}"];
@@ -656,7 +611,7 @@ cmake_path(CONVERT "/x/y/../z" TO_CMAKE_PATH_LIST out NORMALIZE)
 message("${out}")
 |}
 let cp_convert_yelu =
-  Ystmt_list [
+  ESeq [
     yc_path_convert_to_cmake (ystr "/a/b/c") (ycvar "out");
     yc_message ~mode:Mm_none ["${out}"];
     yc_path_convert_to_cmake ~normalize:true (ystr "/x/y/../z") (ycvar "out");
@@ -670,7 +625,7 @@ cmake_path(NATIVE_PATH path out)
 message("${out}")
 |}
 let cp_native_path_yelu =
-  Ystmt_list [
+  ESeq [
     yc_path_set (ycvar "path") (ystr "/a/b/c");
     yc_path_native_path (ycvar "path") (ycvar "out");
     yc_message ~mode:Mm_none ["${out}"];
@@ -691,7 +646,7 @@ message("${r}")
 |}
 
 let math_ops_yelu =
-  Ystmt_list [
+  ESeq [
     yc_math "100 * 10" (ycvar "r");
     yc_message ~mode:Mm_none ["${r}"];
     yc_math "0xFF" (ycvar "r");
@@ -702,7 +657,7 @@ let math_ops_yelu =
 
 (* foreach + math: iterate expressions, evaluate and print each result. *)
 let math_overflow_yelu =
-  Ystmt_list [
+  ESeq [
     yc_foreach_in ~items:[
       ystr "-4 <<   1";
       ystr "-4 >>   1";
@@ -714,7 +669,7 @@ let math_overflow_yelu =
       ystr "-0x7FFFFFFFFFFFFFFF - 2";
       ystr " 0x7FFFFFFFFFFFFFFF * 2";
       ystr "-~0x7FFFFFFFFFFFFFFF";
-    ] (ycvar "expr") (Ystmt_list [
+    ] (ycvar "expr") (ESeq [
       yc_math "${expr}" (ycvar "result");
       yc_message ~mode:Mm_status ["${expr}: ${result}"];
     ]);
@@ -731,7 +686,7 @@ message("${out}")
 |}
 
 let list_join_yelu =
-  Ystmt_list [
+  ESeq [
     yc_list_append (ycvar "myList") [ystr "a"; ystr "b"; ystr "c"];
     yc_list_join (ycvar "myList") (ystr ",") (ycvar "out");
     yc_message ~mode:Mm_none ["${out}"];
@@ -744,7 +699,7 @@ message("${myList}")
 |}
 
 let list_sort_yelu =
-  Ystmt_list [
+  ESeq [
     yc_list_append (ycvar "myList") [ystr "c"; ystr "a"; ystr "b"];
     yc_list_sort (ycvar "myList");
     yc_message ~mode:Mm_none ["${myList}"];
@@ -758,7 +713,7 @@ message("${myList}")
 |}
 
 let list_pop_back_yelu =
-  Ystmt_list [
+  ESeq [
     yc_list_append (ycvar "myList") [ystr "a"; ystr "b"; ystr "c"];
     yc_list_pop_back ~out_vars:[ycvar "popped"] (ycvar "myList");
     yc_message ~mode:Mm_none ["${popped}"];
@@ -773,7 +728,7 @@ message("${myList}")
 |}
 
 let list_pop_front_yelu =
-  Ystmt_list [
+  ESeq [
     yc_list_append (ycvar "myList") [ystr "a"; ystr "b"; ystr "c"];
     yc_list_pop_front ~out_vars:[ycvar "popped"] (ycvar "myList");
     yc_message ~mode:Mm_none ["${popped}"];
@@ -787,7 +742,7 @@ message("${myList}")
 |}
 
 let list_prepend_yelu =
-  Ystmt_list [
+  ESeq [
     yc_list_append (ycvar "myList") [ystr "a"; ystr "b"];
     yc_list_prepend (ycvar "myList") [ystr "x"];
     yc_message ~mode:Mm_none ["${myList}"];
@@ -803,7 +758,7 @@ message("${out}")
 |}
 
 let string_concat_yelu =
-  Ystmt_list [
+  ESeq [
     yc_string_concat (ycvar "out") [ystr "hello"; ystr " "; ystr "world"];
     yc_message ~mode:Mm_none ["${out}"];
   ]
@@ -815,7 +770,7 @@ message("${out}")
 |}
 
 let string_append_yelu =
-  Ystmt_list [
+  ESeq [
     yc_set (ycvar "out") [ystr "hello"];
     yc_string_append (ycvar "out") [ystr " world"];
     yc_message ~mode:Mm_none ["${out}"];
@@ -827,7 +782,7 @@ message("${out}")
 |}
 
 let string_join_yelu =
-  Ystmt_list [
+  ESeq [
     yc_string_join (ystr ",") (ycvar "out") [ystr "a"; ystr "b"; ystr "c"];
     yc_message ~mode:Mm_none ["${out}"];
   ]
@@ -838,7 +793,7 @@ message("${out}")
 |}
 
 let string_hex_yelu =
-  Ystmt_list [
+  ESeq [
     yc_string_hex (ystr "hello") (ycvar "out");
     yc_message ~mode:Mm_none ["${out}"];
   ]
@@ -849,7 +804,7 @@ message("${out}")
 |}
 
 let string_uuid_yelu =
-  Ystmt_list [
+  ESeq [
     yc_string_uuid
       ~namespace:"6ba7b810-9dad-11d1-80b4-00c04fd430c8"
       ~name:"www.example.com"
@@ -864,7 +819,7 @@ message("${out}")
 |}
 
 let string_repeat_yelu =
-  Ystmt_list [
+  ESeq [
     yc_string_repeat (ystr "ab") 3 (ycvar "out");
     yc_message ~mode:Mm_none ["${out}"];
   ]
@@ -881,7 +836,7 @@ endforeach()
 |}
 
 let foreach_range_yelu =
-  Ystmt_list [
+  ESeq [
     yc_foreach_range ~stop:3 (ycvar "i") (yc_message ~mode:Mm_status ["${i}"]);
   ]
 
@@ -893,7 +848,7 @@ endforeach()
 |}
 
 let foreach_in_yelu =
-  Ystmt_list [
+  ESeq [
     yc_list_append (ycvar "myList") [ystr "satu"; ystr "dua"; ystr "tiga"];
     yc_foreach_in ~lists:[ycvar "myList"] ~items:[ystr "one"; ystr "two"] (ycvar "i")
       (yc_message ~mode:Mm_status ["${i}"]);
@@ -909,7 +864,7 @@ message("line1\nline2")
 |}
 
 let message_newline_yelu =
-  Ystmt_list [
+  ESeq [
     yc_message ~mode:Mm_none ["line1\nline2"];
   ]
 
@@ -926,7 +881,7 @@ message(STATUS "no indent")
 |}
 
 let message_indent_yelu =
-  Ystmt_list [
+  ESeq [
     yc_list_append (ycvar "CMAKE_MESSAGE_INDENT") [ystr "  "];
     yc_message ~mode:Mm_status ["level1"];
     yc_list_append (ycvar "CMAKE_MESSAGE_INDENT") [ystr "  "];

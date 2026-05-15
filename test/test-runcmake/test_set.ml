@@ -3,15 +3,13 @@
     unset(CACHE). Env-var tests deferred (need cmake_runner env support). *)
 
 open Yelu_langs.Lang_cmake
-open Yelu_langs.Lang_yelu_cmake
-open Yelu_langs.Lang_yelu_utils
-open Yelu_langs.Lang_yelu_compile
+open Yelu_langs.Yelu_cmake
+open Yelu_langs.Yelu_cmake_utils
 open Yelu_langs.Lang_cmake_pp
 open Yelu_runner.Cmake_runner
 
 let compile exp =
-  let cmake_ast = compile empty_env exp |> snd in
-  Fmt.str "%a" (Fmt.vbox pp) cmake_ast
+  Fmt.str "%a" (Fmt.vbox pp) (Yelu_langs.Yelu_cmake_emit.emit_ast exp)
 
 let check_cmake name prog =
   Alcotest.test_case name `Quick (fun () ->
@@ -21,7 +19,7 @@ let check_cmake name prog =
 
 (* set then unset — variable becomes undefined *)
 let normal_unset =
-  check_cmake "normal_unset" (Ystmt_list [
+  check_cmake "normal_unset" (ESeq [
     yc_set (ycvar "x") [ ystr "hello" ];
     yifthen (ynot (yis_defined (ycstr "x")))
       (yc_message ~mode:Mm_fatal_error ["normal_unset: x should be defined"]);
@@ -32,7 +30,7 @@ let normal_unset =
 
 (* PARENT_SCOPE: set in function propagates to caller *)
 let parent_scope =
-  check_cmake "parent_scope" (Ystmt_list [
+  check_cmake "parent_scope" (ESeq [
     yc_function (ycstr "setval") []
       [ yc_set ~parent_scope:true (ycvar "result") [ ystr "from_func" ] ];
     yc_apply (ycstr "setval") [];
@@ -42,7 +40,7 @@ let parent_scope =
 
 (* cache first-write-wins: second set without FORCE is ignored *)
 let cache_first_write_wins =
-  check_cmake "cache_first_write_wins" (Ystmt_list [
+  check_cmake "cache_first_write_wins" (ESeq [
     yc_set_cache (ycvar "cfg") [ ystr "initial" ] ~docstring:"test";
     yc_set_cache (ycvar "cfg") [ ystr "ignored" ] ~docstring:"test";
     yifthen (ynot (ystrequal (ycref "cfg") (ystr "initial")))
@@ -51,7 +49,7 @@ let cache_first_write_wins =
 
 (* cache FORCE: overrides existing cache entry *)
 let cache_force =
-  check_cmake "cache_force" (Ystmt_list [
+  check_cmake "cache_force" (ESeq [
     yc_set_cache (ycvar "cfg") [ ystr "initial" ] ~docstring:"test";
     yc_set_cache ~force:true (ycvar "cfg") [ ystr "overridden" ] ~docstring:"test";
     yifthen (ynot (ystrequal (ycref "cfg") (ystr "overridden")))
@@ -60,7 +58,7 @@ let cache_force =
 
 (* cache type PATH *)
 let cache_path_type =
-  check_cmake "cache_path_type" (Ystmt_list [
+  check_cmake "cache_path_type" (ESeq [
     yc_set_cache ~cache_type:Ct_path (ycvar "mypath") [ ystr "/usr/lib" ] ~docstring:"a path";
     yifthen (ynot (ystrequal (ycref "mypath") (ystr "/usr/lib")))
       (yc_message ~mode:Mm_fatal_error ["cache_path_type: mypath should be /usr/lib"]);
@@ -68,7 +66,7 @@ let cache_path_type =
 
 (* unset(CACHE): removes cache entry, variable becomes undefined *)
 let unset_cache =
-  check_cmake "unset_cache" (Ystmt_list [
+  check_cmake "unset_cache" (ESeq [
     yc_set_cache (ycvar "tmp") [ ystr "val" ] ~docstring:"temp";
     yifthen (ynot (yis_defined (ycstr "tmp")))
       (yc_message ~mode:Mm_fatal_error ["unset_cache: tmp should be defined"]);
@@ -79,7 +77,7 @@ let unset_cache =
 
 (* cache type BOOL: value is ON/OFF *)
 let cache_bool_type =
-  check_cmake "cache_bool_type" (Ystmt_list [
+  check_cmake "cache_bool_type" (ESeq [
     yc_set_cache ~cache_type:Ct_bool (ycvar "flag") [ ystr "ON" ] ~docstring:"a bool flag";
     yifthen (ynot (ystrequal (ycref "flag") (ystr "ON")))
       (yc_message ~mode:Mm_fatal_error ["cache_bool_type: flag should be ON"]);
@@ -87,7 +85,7 @@ let cache_bool_type =
 
 (* cache type STRING: generic string value *)
 let cache_string_type =
-  check_cmake "cache_string_type" (Ystmt_list [
+  check_cmake "cache_string_type" (ESeq [
     yc_set_cache ~cache_type:Ct_string (ycvar "greeting") [ ystr "hello" ] ~docstring:"a string";
     yifthen (ynot (ystrequal (ycref "greeting") (ystr "hello")))
       (yc_message ~mode:Mm_fatal_error ["cache_string_type: greeting should be hello"]);
@@ -96,7 +94,7 @@ let cache_string_type =
 (* --- Dual-write: cache set also writes normal on first configure --- *)
 let cache_writes_normal =
   Alcotest.test_case "cache_writes_normal" `Quick (fun () ->
-    let result = run_configure (compile (Ystmt_list [
+    let result = run_configure (compile (ESeq [
       yc_set_cache (ycvar "dual") [ ystr "cached" ] ~docstring:"test";
       yifthen (ynot (ystrequal (ycref "dual") (ystr "cached")))
         (yc_message ~mode:Mm_fatal_error ["dual: normal should be cached"]);
@@ -109,7 +107,7 @@ let cache_noop_on_reconfigure =
      creates a fresh temp dir, so the cache from run 1 doesn't persist.
      Instead, test: one configure with two cache-sets of the same name. *)
   Alcotest.test_case "cache_noop_on_reconfigure" `Quick (fun () ->
-    let result = run_configure (compile (Ystmt_list [
+    let result = run_configure (compile (ESeq [
       yc_set_cache (ycvar "sticky") [ ystr "first" ] ~docstring:"t";
       (* second set without FORCE — should be ignored because cache already exists
          from the first set in the same configure run *)
@@ -122,7 +120,7 @@ let cache_noop_on_reconfigure =
 (* --- unset(normal) — cache persists, ${VAR} falls back to cache --- *)
 let unset_normal_cache_persists =
   Alcotest.test_case "unset_normal_cache_persists" `Quick (fun () ->
-    let result = run_configure (compile (Ystmt_list [
+    let result = run_configure (compile (ESeq [
       yc_set (ycvar "unc") [ ystr "normal_val" ];
       yc_set_cache (ycvar "unc") [ ystr "cache_val" ] ~docstring:"t";
       yc_set (ycvar "unc") [];  (* unset normal: set to empty *)
@@ -136,7 +134,7 @@ let unset_normal_cache_persists =
 (* --- unset(CACHE) — removes BOTH cache and normal --- *)
 let unset_cache_removes_both =
   Alcotest.test_case "unset_cache_removes_both" `Quick (fun () ->
-    let result = run_configure (compile (Ystmt_list [
+    let result = run_configure (compile (ESeq [
       yc_set_cache (ycvar "rm") [ ystr "val" ] ~docstring:"t";
       yc_unset_cache (ycvar "rm");
       yifthen (yis_defined (ycstr "rm"))
@@ -150,7 +148,7 @@ let unset_cache_removes_both =
 (* --- normal then cache (same name): cache overwrites normal --- *)
 let normal_then_cache =
   Alcotest.test_case "normal_then_cache" `Quick (fun () ->
-    let result = run_configure (compile (Ystmt_list [
+    let result = run_configure (compile (ESeq [
       yc_set (ycvar "nc") [ ystr "first_n" ];
       yc_set_cache (ycvar "nc") [ ystr "then_c" ] ~docstring:"t";
       yifthen (ynot (ystrequal (ycref "nc") (ystr "then_c")))
@@ -161,7 +159,7 @@ let normal_then_cache =
 (* --- cache then normal: normal reads first --- *)
 let cache_then_normal =
   Alcotest.test_case "cache_then_normal" `Quick (fun () ->
-    let result = run_configure (compile (Ystmt_list [
+    let result = run_configure (compile (ESeq [
       yc_set_cache (ycvar "cn") [ ystr "first_c" ] ~docstring:"t";
       yc_set (ycvar "cn") [ ystr "then_n" ];
       yifthen (ynot (ystrequal (ycref "cn") (ystr "then_n")))
@@ -174,10 +172,10 @@ let cache_then_normal =
 (* --- option() equivalence: option(VAR "msg" ON) === set(VAR ON CACHE BOOL "msg") --- *)
 let option_equiv_set_cache_bool =
   Alcotest.test_case "option_equiv" `Quick (fun () ->
-    let prog_opt = Ystmt_list [
+    let prog_opt = ESeq [
       yc_option ~value:(ybool true) ~msg:"enable foo" (ycvar "opt1");
     ] in
-    let prog_set = Ystmt_list [
+    let prog_set = ESeq [
       yc_set_cache ~cache_type:Ct_bool (ycvar "opt1") [ ystr "ON" ] ~docstring:"enable foo";
     ] in
     let r1 = run_configure (compile prog_opt) in

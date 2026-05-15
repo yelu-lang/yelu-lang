@@ -2,15 +2,13 @@
     Each test mirrors a positive script from Tests/RunCMake/string/.
     The yelu program generates cmake text; cmake -P runs it; exit_code 0 = pass. *)
 
-open Yelu_langs.Lang_yelu_cmake
-open Yelu_langs.Lang_yelu_utils
-open Yelu_langs.Lang_yelu_compile
+open Yelu_langs.Yelu_cmake
+open Yelu_langs.Yelu_cmake_utils
 open Yelu_langs.Lang_cmake_pp
 open Yelu_runner.Cmake_runner
 
 let compile exp =
-  let cmake_ast = compile empty_env exp |> snd in
-  Fmt.str "%a" (Fmt.vbox pp) cmake_ast
+  Fmt.str "%a" (Fmt.vbox pp) (Yelu_langs.Yelu_cmake_emit.emit_ast exp)
 
 let check_cmake name prog =
   Alcotest.test_case name `Quick (fun () ->
@@ -20,7 +18,7 @@ let check_cmake name prog =
 
 (* Mirrors Tests/RunCMake/string/Append.cmake (subset: no bracket-string cases) *)
 let append =
-  check_cmake "append" (Ystmt_list [
+  check_cmake "append" (ESeq [
     (* APPEND with no extra args on "" is a no-op *)
     yc_set (ycvar "out") [ ystr "" ];
     yc_string_append (ycvar "out") [];
@@ -40,7 +38,7 @@ let append =
 
 (* Mirrors Tests/RunCMake/string/Join.cmake *)
 let join =
-  check_cmake "join" (Ystmt_list [
+  check_cmake "join" (ESeq [
     yc_string_join (ystr "%") (ycvar "out") [];
     yifthen (ynot (ystrequal (ycref "out") (ystr "")))
       (yc_message ~mode:Mm_fatal_error ["JOIN no items should produce empty"]);
@@ -57,7 +55,7 @@ let join =
 
 (* Mirrors Tests/RunCMake/string/Concat.cmake (subset: no bracket-string cases) *)
 let concat =
-  check_cmake "concat" (Ystmt_list [
+  check_cmake "concat" (ESeq [
     yc_string_concat (ycvar "out") [];
     yifthen (ynot (ystrequal (ycref "out") (ystr "")))
       (yc_message ~mode:Mm_fatal_error ["CONCAT no args failed"]);
@@ -71,7 +69,7 @@ let concat =
 
 (* Mirrors Tests/RunCMake/string/Repeat.cmake *)
 let repeat =
-  check_cmake "repeat" (Ystmt_list [
+  check_cmake "repeat" (ESeq [
     yc_string_repeat (ystr "q") 4 (ycvar "q_out");
     yifthen (ynot (ystrequal (ycref "q_out") (ystr "qqqq")))
       (yc_message ~mode:Mm_fatal_error ["REPEAT q*4 failed"]);
@@ -88,7 +86,7 @@ let repeat =
 
 (* Mirrors Tests/RunCMake/string/GenexpStrip.cmake (inlined, no helper function) *)
 let genex_strip =
-  check_cmake "genex_strip" (Ystmt_list [
+  check_cmake "genex_strip" (ESeq [
     (* "$<BOOL:1>" → "" *)
     yc_string_genex_strip (ystr "$<BOOL:1>") (ycvar "strip");
     yifthen (ynot (ystrequal (ycref "strip") (ystr "")))

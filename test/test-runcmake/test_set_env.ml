@@ -1,15 +1,13 @@
 (** conf-run level tests for set(ENV{...}) / $ENV{VAR} / unset(ENV{...}).
     Uses run_script ~env to pre-populate the cmake process environment. *)
 
-open Yelu_langs.Lang_yelu_cmake
-open Yelu_langs.Lang_yelu_utils
-open Yelu_langs.Lang_yelu_compile
+open Yelu_langs.Yelu_cmake
+open Yelu_langs.Yelu_cmake_utils
 open Yelu_langs.Lang_cmake_pp
 open Yelu_runner.Cmake_runner
 
 let compile exp =
-  let cmake_ast = compile empty_env exp |> snd in
-  Fmt.str "%a" (Fmt.vbox pp) cmake_ast
+  Fmt.str "%a" (Fmt.vbox pp) (Yelu_langs.Yelu_cmake_emit.emit_ast exp)
 
 let check_cmake_env name env prog =
   Alcotest.test_case name `Quick (fun () ->
@@ -26,7 +24,7 @@ let read_env_var =
 
 (* set(ENV{VAR} value) sets an env var readable via $ENV{} in the same script *)
 let set_env_var =
-  check_cmake_env "set_env_var" [] (Ystmt_list [
+  check_cmake_env "set_env_var" [] (ESeq [
     yc_set_env "YELU_SET_VAR" (ystr "world");
     yifthen (ynot (ystrequal (ystr_eval "$ENV{YELU_SET_VAR}") (ystr "world")))
       (yc_message ~mode:Mm_fatal_error ["set_env_var: YELU_SET_VAR should be world"]);
@@ -34,7 +32,7 @@ let set_env_var =
 
 (* unset(ENV{VAR}) clears the variable *)
 let unset_env_var =
-  check_cmake_env "unset_env_var" [("YELU_UNSET_VAR", "present")] (Ystmt_list [
+  check_cmake_env "unset_env_var" [("YELU_UNSET_VAR", "present")] (ESeq [
     yifthen (ynot (ystrequal (ystr_eval "$ENV{YELU_UNSET_VAR}") (ystr "present")))
       (yc_message ~mode:Mm_fatal_error ["unset_env_var: var should be present before unset"]);
     yc_unset_env "YELU_UNSET_VAR";

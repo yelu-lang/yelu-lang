@@ -2,15 +2,13 @@
     Mirrors Tests/RunCMake/foreach/foreach-all-test.cmake positive cases.
     ZIP_LISTS and multiple-iter-vars skipped (yelu gap — needs zip in core). *)
 
-open Yelu_langs.Lang_yelu_cmake
-open Yelu_langs.Lang_yelu_utils
-open Yelu_langs.Lang_yelu_compile
+open Yelu_langs.Yelu_cmake
+open Yelu_langs.Yelu_cmake_utils
 open Yelu_langs.Lang_cmake_pp
 open Yelu_runner.Cmake_runner
 
 let compile exp =
-  let cmake_ast = compile empty_env exp |> snd in
-  Fmt.str "%a" (Fmt.vbox pp) cmake_ast
+  Fmt.str "%a" (Fmt.vbox pp) (Yelu_langs.Yelu_cmake_emit.emit_ast exp)
 
 let check_cmake name prog =
   Alcotest.test_case name `Quick (fun () ->
@@ -20,7 +18,7 @@ let check_cmake name prog =
 
 (* foreach(RANGE stop) — iterates 0..stop inclusive *)
 let range_stop =
-  check_cmake "range_stop" (Ystmt_list [
+  check_cmake "range_stop" (ESeq [
     yc_set (ycvar "acc") [ ystr "" ];
     yc_foreach_range ~stop:3 (ycvar "i")
       (yc_string_append (ycvar "acc") [ ycref "i" ]);
@@ -31,7 +29,7 @@ let range_stop =
 
 (* foreach(RANGE start stop) — iterates start..stop inclusive *)
 let range_start_stop =
-  check_cmake "range_start_stop" (Ystmt_list [
+  check_cmake "range_start_stop" (ESeq [
     yc_set (ycvar "acc") [ ystr "" ];
     yc_foreach_range ~start:2 ~stop:4 (ycvar "i")
       (yc_string_append (ycvar "acc") [ ycref "i" ]);
@@ -42,7 +40,7 @@ let range_start_stop =
 
 (* foreach(RANGE start stop step) — iterates with step *)
 let range_step =
-  check_cmake "range_step" (Ystmt_list [
+  check_cmake "range_step" (ESeq [
     yc_set (ycvar "acc") [ ystr "" ];
     yc_foreach_range ~start:0 ~stop:6 ~step:2 (ycvar "i")
       (yc_string_append (ycvar "acc") [ ycref "i" ]);
@@ -53,7 +51,7 @@ let range_step =
 
 (* foreach(IN ITEMS ...) — iterates literal items *)
 let in_items =
-  check_cmake "in_items" (Ystmt_list [
+  check_cmake "in_items" (ESeq [
     yc_set (ycvar "acc") [ ystr "" ];
     yc_foreach_in ~items:[ ystr "a"; ystr "b"; ystr "c" ] (ycvar "x")
       (yc_string_append (ycvar "acc") [ ycref "x" ]);
@@ -63,7 +61,7 @@ let in_items =
 
 (* foreach(IN LISTS var) — iterates a cmake list variable *)
 let in_lists =
-  check_cmake "in_lists" (Ystmt_list [
+  check_cmake "in_lists" (ESeq [
     yc_list_append (ycvar "words") [ ystr "one"; ystr "two"; ystr "three" ];
     yc_set (ycvar "count") [ ystr "0" ];
     yc_foreach_in ~lists:[ ycvar "words" ] (ycvar "w")
@@ -74,7 +72,7 @@ let in_lists =
 
 (* foreach(IN LISTS var ITEMS ...) — combined lists + items *)
 let in_lists_and_items =
-  check_cmake "in_lists_and_items" (Ystmt_list [
+  check_cmake "in_lists_and_items" (ESeq [
     yc_list_append (ycvar "base") [ ystr "x"; ystr "y" ];
     yc_set (ycvar "count") [ ystr "0" ];
     yc_foreach_in ~lists:[ ycvar "base" ] ~items:[ ystr "z" ] (ycvar "v")

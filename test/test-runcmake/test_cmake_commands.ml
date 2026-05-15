@@ -2,9 +2,8 @@
     yelu-generated cmake through configure + build. Both must exit 0.
     Source: Tests/CMakeCommands/ — one subdirectory per target_* command. *)
 
-open Yelu_langs.Lang_yelu_cmake
-open Yelu_langs.Lang_yelu_utils
-open Yelu_langs.Lang_yelu_compile
+open Yelu_langs.Yelu_cmake
+open Yelu_langs.Yelu_cmake_utils
 open Yelu_langs.Lang_cmake_pp
 open Yelu_runner.Cmake_runner
 
@@ -30,7 +29,7 @@ let tests_dir = Filename.dirname cmake_commands_dir
 let ref_dir name = Filename.concat cmake_commands_dir name
 
 let compile prog =
-  let _, ast = compile empty_env prog in
+  let ast = Yelu_langs.Yelu_cmake_emit.emit_ast prog in
   let buf = Buffer.create 512 in
   let ff = Format.formatter_of_buffer buf in
   Format.pp_open_vbox ff 0;
@@ -99,7 +98,7 @@ int flags_lib(void) { return 0; }
 let t name = ytval name
 
 let tlo_yelu =
-  Ystmt_list [
+  ESeq [
     yc_project ~languages:[Lang_c] "target_link_options";
     add_lib ~type_:Lib_shared ~sources:[ystr "lib.c"] (t "target_link_options");
     yc_target_link_options (t "target_link_options")
@@ -140,7 +139,7 @@ int main(void) { return 0; }
 |}
 
 let acd_yelu =
-  Ystmt_list [
+  ESeq [
     yc_project ~languages:[Lang_cxx] "add_compile_definitions";
     yc_add_compile_definitions [
       ystr "TEST_DEFINITION";
@@ -151,7 +150,7 @@ let acd_yelu =
     add_lib_imported ~lib_type:"UNKNOWN" (t "imp");
     yc_get_target_property (ycvar "_res") "imp" "COMPILE_DEFINITIONS";
     yifthen (ytruthy (ycstr "_res"))
-      (Ystmt_list [ yc_message ~mode:Mm_send_error ["add_compile_definitions populated the COMPILE_DEFINITIONS target property"] ]);
+      (ESeq [ yc_message ~mode:Mm_send_error ["add_compile_definitions populated the COMPILE_DEFINITIONS target property"] ]);
   ]
 
 (* ==================================================================== *)
@@ -163,17 +162,17 @@ let acd_yelu =
    imported targets must NOT inherit it. *)
 
 let add_link_opts_yelu =
-  Ystmt_list [
+  ESeq [
     yc_project ~languages:[Lang_c] "add_link_options";
     yc_add_link_options [ystr "-LINK_FLAG"];
     add_exe ~exclude_from_all:true ~sources:[ystr "LinkOptionsExe.c"] (t "add_link_options");
     yc_get_target_property (ycvar "result") "add_link_options" "LINK_OPTIONS";
     yifthen (ynot (ymatches (ycstr "result") "-LINK_FLAG"))
-      (Ystmt_list [ yc_message ~mode:Mm_send_error ["add_link_options not populated the LINK_OPTIONS target property"] ]);
+      (ESeq [ yc_message ~mode:Mm_send_error ["add_link_options not populated the LINK_OPTIONS target property"] ]);
     add_lib_imported ~lib_type:"UNKNOWN" (t "imp");
     yc_get_target_property (ycvar "result") "imp" "LINK_OPTIONS";
     yifthen (ytruthy (ycstr "result"))
-      (Ystmt_list [ yc_message ~mode:Mm_fatal_error ["add_link_options populated the LINK_OPTIONS target property"] ]);
+      (ESeq [ yc_message ~mode:Mm_fatal_error ["add_link_options populated the LINK_OPTIONS target property"] ]);
   ]
 
 (* ==================================================================== *)
@@ -185,7 +184,7 @@ let add_link_opts_yelu =
    target property, imported target must NOT inherit. *)
 
 let link_dirs_yelu =
-  Ystmt_list [
+  ESeq [
     yc_project ~languages:[Lang_c] "link_directories";
     yc_link_directories [ystr "/A"];
     yc_link_directories ~before:true [ystr "/B"];
@@ -193,15 +192,15 @@ let link_dirs_yelu =
     yc_link_directories [ystr "/C"];
     yc_get_directory_property "LINK_DIRECTORIES" (ycvar "result");
     yifthen (ynot (ymatches (ycstr "result") "/C;/B;/A"))
-      (Ystmt_list [ yc_message ~mode:Mm_send_error ["link_directories not populated the LINK_DIRECTORIES directory property"] ]);
+      (ESeq [ yc_message ~mode:Mm_send_error ["link_directories not populated the LINK_DIRECTORIES directory property"] ]);
     add_exe ~exclude_from_all:true ~sources:[ystr "LinkDirectoriesExe.c"] (t "link_directories");
     yc_get_target_property (ycvar "result") "link_directories" "LINK_DIRECTORIES";
     yifthen (ynot (ymatches (ycstr "result") "/C;/B;/A"))
-      (Ystmt_list [ yc_message ~mode:Mm_send_error ["link_directories not populated the LINK_DIRECTORIES target property"] ]);
+      (ESeq [ yc_message ~mode:Mm_send_error ["link_directories not populated the LINK_DIRECTORIES target property"] ]);
     add_lib_imported ~lib_type:"UNKNOWN" (t "imp");
     yc_get_target_property (ycvar "result") "imp" "LINK_DIRECTORIES";
     yifthen (ytruthy (ycstr "result"))
-      (Ystmt_list [ yc_message ~mode:Mm_fatal_error ["link_directories populated the LINK_DIRECTORIES target property"] ]);
+      (ESeq [ yc_message ~mode:Mm_fatal_error ["link_directories populated the LINK_DIRECTORIES target property"] ]);
   ]
 
 (* ==================================================================== *)
@@ -223,7 +222,7 @@ int main(void) { return 0; }
 |}
 
 let aco_yelu =
-  Ystmt_list [
+  ESeq [
     yc_project ~languages:[Lang_cxx] "add_compile_options";
     yc_add_compile_options [ystr "-DTEST_OPTION"];
     add_exe ~sources:[ystr "main.cpp"] (t "add_compile_options");
@@ -231,7 +230,7 @@ let aco_yelu =
     add_lib_imported ~lib_type:"UNKNOWN" (t "imp");
     yc_get_target_property (ycvar "_res") "imp" "COMPILE_OPTIONS";
     yifthen (ytruthy (ycstr "_res"))
-      (Ystmt_list [ yc_message ~mode:Mm_send_error ["add_compile_options populated the COMPILE_OPTIONS target property"] ]);
+      (ESeq [ yc_message ~mode:Mm_send_error ["add_compile_options populated the COMPILE_OPTIONS target property"] ]);
   ]
 
 (* ==================================================================== *)
@@ -304,7 +303,7 @@ void consumer_c(void) {}
 |}
 
 let tcd_yelu =
-  Ystmt_list [
+  ESeq [
     yc_project ~languages:[Lang_c; Lang_cxx] "target_compile_definitions";
     add_exe ~sources:[ystr "main.cpp"] (t "target_compile_definitions");
     compile_defs (t "target_compile_definitions") [
@@ -333,7 +332,7 @@ let tcd_yelu =
     add_lib_imported ~lib_type:"UNKNOWN" (t "imp");
     yc_get_target_property (ycvar "_res") "imp" "COMPILE_DEFINITIONS";
     yifthen (ytruthy (ycstr "_res"))
-      (Ystmt_list [ yc_message ~mode:Mm_send_error ["add_definitions populated the COMPILE_DEFINITIONS target property"] ]);
+      (ESeq [ yc_message ~mode:Mm_send_error ["add_definitions populated the COMPILE_DEFINITIONS target property"] ]);
   ]
 
 (* ==================================================================== *)
@@ -436,7 +435,7 @@ void consumer_c(void) {}
 |}
 
 let tco_yelu =
-  Ystmt_list [
+  ESeq [
     yc_project ~languages:[Lang_c; Lang_cxx] "target_compile_options";
     add_exe ~sources:[ystr "main.cpp"] (t "target_compile_options");
     compile_opts (t "target_compile_options") [
@@ -480,7 +479,7 @@ int flags_lib(void) { return 0; }
 |}
 
 let tld_yelu =
-  Ystmt_list [
+  ESeq [
     yc_project ~languages:[Lang_c] "target_link_directories";
     add_lib ~type_:Lib_shared ~sources:[ystr "LinkDirectoriesLib.c"] (t "target_link_directories");
     yc_target_link_directories (t "target_link_directories") [ ytarget_def ~kind:Private [] ];
@@ -491,31 +490,31 @@ let tld_yelu =
     ];
     yc_get_target_property (ycvar "result") "target_link_directories_2" "LINK_DIRECTORIES";
     yifthen (ynot (ystrequal (ycstr "result") (ystr "/private/dir")))
-      (Ystmt_list [ yc_message ~mode:Mm_send_error ["${result} target_link_directories not populated the LINK_DIRECTORIES target property"] ]);
+      (ESeq [ yc_message ~mode:Mm_send_error ["${result} target_link_directories not populated the LINK_DIRECTORIES target property"] ]);
     yc_get_target_property (ycvar "result") "target_link_directories_2" "INTERFACE_LINK_DIRECTORIES";
     yifthen (ynot (ystrequal (ycstr "result") (ystr "/interface/dir")))
-      (Ystmt_list [ yc_message ~mode:Mm_send_error ["target_link_directories not populated the INTERFACE_LINK_DIRECTORIES target property of shared library"] ]);
+      (ESeq [ yc_message ~mode:Mm_send_error ["target_link_directories not populated the INTERFACE_LINK_DIRECTORIES target property of shared library"] ]);
     add_lib ~type_:Lib_static ~exclude_from_all:true ~sources:[ystr "LinkDirectoriesLib.c"] (t "target_link_directories_3");
     yc_target_link_directories (t "target_link_directories_3") [
       ytarget_def ~kind:Interface [ystr "/interface/dir"];
     ];
     yc_get_target_property (ycvar "result") "target_link_directories_3" "INTERFACE_LINK_DIRECTORIES";
     yifthen (ynot (ystrequal (ycstr "result") (ystr "/interface/dir")))
-      (Ystmt_list [ yc_message ~mode:Mm_send_error ["target_link_directories not populated the INTERFACE_LINK_DIRECTORIES target property of static library"] ]);
+      (ESeq [ yc_message ~mode:Mm_send_error ["target_link_directories not populated the INTERFACE_LINK_DIRECTORIES target property of static library"] ]);
     add_lib ~type_:Lib_shared ~exclude_from_all:true ~sources:[ystr "LinkDirectoriesLib.c"] (t "target_link_directories_4");
     yc_target_link_directories (t "target_link_directories_4") [
       ytarget_def ~kind:Private [ystr "relative/dir"];
     ];
     yc_get_target_property (ycvar "result") "target_link_directories_4" "LINK_DIRECTORIES";
     yifthen (ynot (ystrequal (ycstr "result") (ystr_eval "${CMAKE_CURRENT_SOURCE_DIR}/relative/dir")))
-      (Ystmt_list [ yc_message ~mode:Mm_send_error ["target_link_directories not populated the LINK_DIRECTORIES with relative path"] ]);
+      (ESeq [ yc_message ~mode:Mm_send_error ["target_link_directories not populated the LINK_DIRECTORIES with relative path"] ]);
     yc_add_subdirectory (ystr "subdir");
     yc_target_link_directories (t "target_link_directories_5") [
       ytarget_def ~kind:Private [ystr "relative/dir"];
     ];
     yc_get_target_property (ycvar "result") "target_link_directories_5" "LINK_DIRECTORIES";
     yifthen (ynot (ystrequal (ycstr "result") (ystr_eval "${CMAKE_CURRENT_SOURCE_DIR}/relative/dir")))
-      (Ystmt_list [ yc_message ~mode:Mm_send_error ["target_link_directories not populated the LINK_DIRECTORIES with relative path"] ]);
+      (ESeq [ yc_message ~mode:Mm_send_error ["target_link_directories not populated the LINK_DIRECTORIES with relative path"] ]);
   ]
 
 (* ==================================================================== *)
@@ -575,11 +574,11 @@ int main(int, char**) { return getAutoType(); }
 |}
 
 let tcf_yelu =
-  Ystmt_list [
+  ESeq [
     yc_minimum_required_s "3.10";
     yc_project ~languages:[Lang_c; Lang_cxx] "target_compile_features";
     yifthen (yin_list (ystr "c_restrict") (ycstr "CMAKE_C_COMPILE_FEATURES"))
-      (Ystmt_list [
+      (ESeq [
         add_exe ~sources:[ystr "main.c"] (t "c_target_compile_features_specific");
         compile_feats (t "c_target_compile_features_specific") [ytarget_feature ~kind:Private "c_restrict"];
         add_lib ~sources:[ystr "lib_restrict.c"] (t "c_lib_restrict_specific");
@@ -588,7 +587,7 @@ let tcf_yelu =
         link_lib [t "c_restrict_user_specific"] [ytarget_def ~kind:Plain [ytval "c_lib_restrict_specific"]];
       ]);
     yifthen (yand (yin_list (ystr "c_std_99") (ycstr "CMAKE_C_COMPILE_FEATURES")) (ynot (ystrequal (ycstr "CMAKE_C_COMPILER_ID") (ystr "MSVC"))))
-      (Ystmt_list [
+      (ESeq [
         add_exe ~sources:[ystr "main.c"] (t "c_target_compile_features_meta");
         compile_feats (t "c_target_compile_features_meta") [ytarget_feature ~kind:Private "c_std_99"];
         add_lib ~sources:[ystr "lib_restrict.c"] (t "c_lib_restrict_meta");
@@ -597,7 +596,7 @@ let tcf_yelu =
         link_lib [t "c_restrict_user_meta"] [ytarget_def ~kind:Plain [ytval "c_lib_restrict_meta"]];
       ]);
     yifthen (yin_list (ystr "cxx_auto_type") (ycstr "CMAKE_CXX_COMPILE_FEATURES"))
-      (Ystmt_list [
+      (ESeq [
         add_exe ~sources:[ystr "main.cpp"] (t "cxx_target_compile_features_specific");
         compile_feats (t "cxx_target_compile_features_specific") [ytarget_feature ~kind:Private "cxx_auto_type"];
         add_lib ~sources:[ystr "lib_auto_type.cpp"] (t "cxx_lib_auto_type_specific");
@@ -606,7 +605,7 @@ let tcf_yelu =
         link_lib [t "cxx_lib_user_specific"] [ytarget_def ~kind:Plain [ytval "cxx_lib_auto_type_specific"]];
       ]);
     yifthen (yin_list (ystr "cxx_std_11") (ycstr "CMAKE_CXX_COMPILE_FEATURES"))
-      (Ystmt_list [
+      (ESeq [
         add_exe ~sources:[ystr "main.cpp"] (t "cxx_target_compile_features_meta");
         compile_feats (t "cxx_target_compile_features_meta") [ytarget_feature ~kind:Private "cxx_std_11"];
         add_lib ~sources:[ystr "lib_auto_type.cpp"] (t "cxx_lib_auto_type_meta");
@@ -668,7 +667,7 @@ let ts_subdir_cmake = {|target_sources(target_sources_lib PUBLIC $<1:${CMAKE_CUR
                                           ../empty_3.cpp)|}
 
 let ts_yelu =
-  Ystmt_list [
+  ESeq [
     yc_minimum_required_s "3.12";
     yc_policy_set "CMP0076";
     yc_project ~languages:[Lang_cxx] "target_sources";
@@ -678,20 +677,20 @@ let ts_yelu =
     yc_set (ycvar "subdir_fullpath") [ystr_eval "${CMAKE_CURRENT_LIST_DIR}/subdir"];
     yc_get_target_property (ycvar "target_sources_lib_property") "target_sources_lib" "SOURCES";
     yifthen (ynot (yin_list (ystr_eval "$<1:${subdir_fullpath}/subdir_empty_1.cpp>") (ycstr "target_sources_lib_property")))
-      (Ystmt_list [ yc_message ~mode:Mm_send_error ["target_sources_lib: Generator expression to absolute sub directory file not found"] ]);
+      (ESeq [ yc_message ~mode:Mm_send_error ["target_sources_lib: Generator expression to absolute sub directory file not found"] ]);
     yifthen (ynot (yin_list (ystr_eval "$<1:${subdir_fullpath}/../empty_1.cpp>") (ycstr "target_sources_lib_property")))
-      (Ystmt_list [ yc_message ~mode:Mm_send_error ["target_sources_lib: Generator expression to absolute main directory file not found"] ]);
+      (ESeq [ yc_message ~mode:Mm_send_error ["target_sources_lib: Generator expression to absolute main directory file not found"] ]);
     yifthen (ynot (yin_list (ystr_eval "${subdir_fullpath}/subdir_empty_2.cpp") (ycstr "target_sources_lib_property")))
-      (Ystmt_list [ yc_message ~mode:Mm_send_error ["target_sources_lib: Relative sub directory file not converted to absolute"] ]);
+      (ESeq [ yc_message ~mode:Mm_send_error ["target_sources_lib: Relative sub directory file not converted to absolute"] ]);
     yifthen (ynot (yin_list (ystr_eval "$<1:empty_2.cpp>") (ycstr "target_sources_lib_property")))
-      (Ystmt_list [ yc_message ~mode:Mm_send_error ["target_sources_lib: Generator expression to relative main directory file not found"] ]);
+      (ESeq [ yc_message ~mode:Mm_send_error ["target_sources_lib: Generator expression to relative main directory file not found"] ]);
     yifthen (ynot (yin_list (ystr_eval "${subdir_fullpath}/../empty_3.cpp") (ycstr "target_sources_lib_property")))
-      (Ystmt_list [ yc_message ~mode:Mm_send_error ["target_sources_lib: Relative main directory file not converted to absolute"] ]);
+      (ESeq [ yc_message ~mode:Mm_send_error ["target_sources_lib: Relative main directory file not converted to absolute"] ]);
     add_exe ~sources:[ystr "main.cpp"] (t "target_sources");
     link_lib [t "target_sources"] [ytarget_def ~kind:Plain [ytval "target_sources_lib"]];
     yc_get_target_property (ycvar "target_sources_property") "target_sources" "SOURCES";
     yifthen (ynot (yin_list (ystr "main.cpp") (ycstr "target_sources_property")))
-      (Ystmt_list [ yc_message ~mode:Mm_send_error ["target_sources: Relative main directory file converted to absolute"] ]);
+      (ESeq [ yc_message ~mode:Mm_send_error ["target_sources: Relative main directory file converted to absolute"] ]);
   ]
 
 (* ==================================================================== *)
@@ -778,7 +777,7 @@ void same(void) {}
 
 let tid_yelu =
   let bindir = "${CMAKE_CURRENT_BINARY_DIR}" in
-  Ystmt_list [
+  ESeq [
     yc_project ~languages:[Lang_c; Lang_cxx] "target_include_directories";
     (* generate binary-dir headers at configure time *)
     yc_file_make_directory [ystr_eval (bindir ^ "/privateinclude")];
@@ -840,7 +839,7 @@ let tid_yelu =
     add_lib_imported ~lib_type:"UNKNOWN" (t "imp");
     yc_get_target_property (ycvar "_res") "imp" "INCLUDE_DIRECTORIES";
     yifthen (ytruthy (ycstr "_res"))
-      (Ystmt_list [ yc_message ~mode:Mm_send_error ["include_directories populated the INCLUDE_DIRECTORIES target property"] ]);
+      (ESeq [ yc_message ~mode:Mm_send_error ["include_directories populated the INCLUDE_DIRECTORIES target property"] ]);
     (* same: header-order test — same_two wins over same_one via PRIVATE include dir *)
     add_lib ~type_:Lib_static
       ~sources:[ystr "same.c"; ystr "same_one/same.h"; ystr "same_two/same.h"]
@@ -882,7 +881,7 @@ int main(void) { bar(); return 0; }
 |}
 
 let libname_yelu =
-  Ystmt_list [
+  ESeq [
     yc_minimum_required_s "3.10";
     yc_project ~languages:[Lang_c] "LibName";
     yc_set (ycvar "LIBRARY_OUTPUT_PATH") [ystr "lib"];
@@ -893,7 +892,7 @@ let libname_yelu =
     add_exe ~sources:[ystr "foobar.c"] (t "foobar");
     link_lib [t "foobar"] [ytarget_def ~kind:Plain [ytval "foo"]];
     yifthen (ytruthy (ycstr "UNIX"))
-      (Ystmt_list [ link_lib [t "foobar"] [ytarget_def ~kind:Plain [ystr "-L/usr/local/lib"]] ]);
+      (ESeq [ link_lib [t "foobar"] [ytarget_def ~kind:Plain [ystr "-L/usr/local/lib"]] ]);
     add_lib ~type_:Lib_shared ~sources:[ystr "foo.c"] (t "verFoo");
     link_lib [t "verFoo"] [ytarget_def ~kind:Plain [ytval "bar"]];
     yc_set_target_properties (t "verFoo")
@@ -916,20 +915,20 @@ int main(void) { return (int)sin(0); }
 |}
 
 let link_static_yelu =
-  Ystmt_list [
+  ESeq [
     yc_minimum_required_s "3.10";
-    yifthen (ypolicy_defined "CMP0129") (Ystmt_list [ yc_policy_set "CMP0129" ]);
+    yifthen (ypolicy_defined "CMP0129") (ESeq [ yc_policy_set "CMP0129" ]);
     yc_project ~languages:[Lang_c] "LinkStatic";
     yifthen (ynot (ymatches (ycstr "CMAKE_C_COMPILER_ID") ("GNU|LCC")))
-      (Ystmt_list [ yc_message ~mode:Mm_fatal_error ["This test works only with the GNU or LCC compiler!"] ]);
+      (ESeq [ yc_message ~mode:Mm_fatal_error ["This test works only with the GNU or LCC compiler!"] ]);
     yc_find_library ~names:[ystr "libm.a"] (ycvar "MATH_LIBRARY");
     yif (ytruthy (ycstr "MATH_LIBRARY"))
-      (Ystmt_list [
+      (ESeq [
         yc_get_filename_component ~mode:"PATH" (ycvar "MATH_LIB_DIR") (ycstr "MATH_LIBRARY");
         yc_link_directories [ystr_eval "${MATH_LIB_DIR}"];
         yc_set (ycvar "MATH_LIBRARIES") [ystr_eval "${MATH_LIBRARY}"; ystr "-lm"];
       ])
-      (Ystmt_list [ yc_message ~mode:Mm_fatal_error ["Cannot find libm.a needed for this test"] ]);
+      (ESeq [ yc_message ~mode:Mm_fatal_error ["Cannot find libm.a needed for this test"] ]);
     add_exe ~sources:[ystr "LinkStatic.c"] (t "LinkStatic");
     link_lib [t "LinkStatic"]
       [ytarget_def ~kind:Plain [ystr_eval "${MATH_LIBRARIES}"]];
@@ -993,7 +992,7 @@ int bar()
 |}
 
 let simple_yelu =
-  Ystmt_list [
+  ESeq [
     yc_project ~languages:[Lang_cxx; Lang_c] "Simple";
     add_exe ~sources:[ystr "simple.cxx"] (t "Simple");
     add_lib ~type_:Lib_static
@@ -1035,7 +1034,7 @@ int main(void) { OneFunc(); TwoFunc(); return 0; }
 
 (* link_libraries() is the global (legacy) form — emit via quote_cmd. *)
 let ll_yelu =
-  Ystmt_list [
+  ESeq [
     yc_minimum_required_s "3.10";
     yc_project ~languages:[Lang_c] "LinkLine";
     add_lib ~sources:[ystr "One.c"] (t "One");
@@ -1080,7 +1079,7 @@ let llo_exec1_c = {|void OneFunc(); int main(void) { OneFunc(); return 0; }|}
 let llo_exec2_c = {|void TwoFunc(); int main(void) { TwoFunc(); return 0; }|}
 
 let llo_yelu =
-  Ystmt_list [
+  ESeq [
     yc_minimum_required_s "3.10";
     yc_project ~languages:[Lang_c] "LinkLineOrder";
     add_lib ~sources:[ystr "NoDepA.c"] (t "NoDepA");
@@ -1111,7 +1110,7 @@ let llo_yelu =
 
 (* Tests OUTPUT_NAME prefix/suffix overrides on an executable target. *)
 let out_name_yelu =
-  Ystmt_list [
+  ESeq [
     yc_minimum_required_s "3.12";
     yc_project ~languages:[Lang_c] "OutName";
     add_exe ~sources:[ystr "main.c"] (t "OutName");
@@ -1126,7 +1125,7 @@ let out_name_yelu =
 (* Root adds one subdir; subdir adds a header-only static library.
    The resulting libtest.a is empty (no object files). *)
 let _empty_lib_yelu =
-  Ystmt_list [
+  ESeq [
     yc_minimum_required_s "3.10";
     yc_project "TestEmptyLibrary";
     yc_add_subdirectory (ystr "subdir");
@@ -1160,7 +1159,7 @@ endif()
 |}
 
 let target_name_yelu =
-  Ystmt_list [
+  ESeq [
     yc_minimum_required_s "3.10";
     yc_project ~languages:[Lang_c] "TargetName";
     yc_add_subdirectory (ystr "executables");
@@ -1442,7 +1441,7 @@ TEST_EXPORT int testCxxModule(void) { return 0; }
 |}
 
 let cxxonly_yelu =
-  Ystmt_list [
+  ESeq [
     yc_minimum_required_s "3.10";
     yc_project ~languages:[Lang_cxx] "CxxOnly";
     yc_set (ycvar "CMAKE_DEBUG_POSTFIX") [ystr "_test_debug_postfix"];
@@ -1526,7 +1525,7 @@ target_link_libraries(tgt Top::foo)
 |}
 
 let alias_target_yelu =
-  Ystmt_list [
+  ESeq [
     yc_minimum_required_s "3.10";
     yc_project ~languages:[Lang_cxx] "AliasTarget";
     add_lib ~type_:Lib_shared ~sources:[ystr "empty.cpp"] (t "foo");
@@ -1703,7 +1702,7 @@ target_link_libraries(test_shared_via_iface_non_conflict shared_iface)
 |}
 
 let pic_yelu =
-  Ystmt_list [
+  ESeq [
     yc_minimum_required_s "3.10";
     yc_project ~languages:[Lang_cxx] "PositionIndependentTargets";
     yc_include (ystr "CheckCXXSourceCompiles");
@@ -1798,7 +1797,7 @@ int main(int argc, char* argv[]) { return impl_obj(); }
 
 (* A subdir — yelu program compiled to cmake string *)
 let objlib_a_cmake =
-  compile (Ystmt_list [
+  compile (ESeq [
     yc_project ~languages:[Lang_c] "ObjectLibraryA";
     yc_set (ycvar "CMAKE_POSITION_INDEPENDENT_CODE") [ystr "ON"];
     yc_add_definitions [ystr "-DA_DEF"];
@@ -1820,7 +1819,7 @@ let objlib_a_cmake =
 
 (* B subdir — yelu program *)
 let objlib_b_cmake =
-  compile (Ystmt_list [
+  compile (ESeq [
     yc_project ~languages:[Lang_c] "ObjectLibraryB";
     yc_set (ycvar "CMAKE_POSITION_INDEPENDENT_CODE") [ystr "ON"];
     add_lib ~type_:Lib_object ~sources:[ystr "b1.c"; ystr "b2.c"] (t "B");
@@ -1857,7 +1856,7 @@ target_link_libraries(useimpl PRIVATE implgather)
    ExportLanguages skipped — uses ExternalProject_Add (external cmake invocation). *)
 let objlib_yelu =
   let obj = ystr_eval in  (* shorthand for $<TARGET_OBJECTS:X> *)
-  Ystmt_list [
+  ESeq [
     yc_project ~languages:[Lang_c] "ObjectLibrary";
     yc_add_subdirectory (ystr "A");
     yc_add_subdirectory (ystr "B");
@@ -2005,7 +2004,7 @@ int main()
 let compile_options_yelu =
   let co = t "CompileOptions" in
   let testlib = t "testlib" in
-  Ystmt_list [
+  ESeq [
     yc_minimum_required_s "3.10";
     yifthen (ypolicy_defined "CMP0092") (yc_policy_set "CMP0092");
     yifthen (ypolicy_defined "CMP0129") (yc_policy_set "CMP0129");
@@ -2051,7 +2050,7 @@ let compile_options_yelu =
       (compile_opts co [ ytarget_def ~kind:Private [ystr_eval {|-DTEST_OCTOTHORPE=\"#\"|}] ]);
     (* flag tests: GNU/LCC/AppleClang/MSVC compilers *)
     yifthen (ymatches (ycstr "CMAKE_CXX_COMPILER_ID") {|^(GNU|LCC|AppleClang|MSVC)$|})
-      (Ystmt_list [
+      (ESeq [
         compile_defs co [ ytarget_def ~kind:Private [ystr "DO_FLAG_TESTS"] ];
         yifthen (ymatches (ycstr "CMAKE_CXX_COMPILER_ID") {|^(GNU|LCC|AppleClang)$|})
           (yc_string_append (ycvar "CMAKE_CXX_FLAGS") [ystr " -w"]);
@@ -2083,11 +2082,11 @@ let compile_options_yelu =
   ]
 
 let compile_defs_yelu =
-  Ystmt_list [
+  ESeq [
     yc_minimum_required_s "3.10";
     yc_project ~languages:[Lang_cxx; Lang_c] "CompileDefinitions";
     yc_foreach ~items:[ystr "DEBUG"; ystr "RELEASE"; ystr "RELWITHDEBINFO"; ystr "MINSIZEREL"]
-      (ycvar "c") (Ystmt_list [
+      (ycvar "c") (ESeq [
         yc_set (ycvar "CMAKE_C_FLAGS_${c}") [ystr_eval "${CMAKE_C_FLAGS_${c}} -DTEST_CONFIG_${c}"];
         yc_set (ycvar "CMAKE_CXX_FLAGS_${c}") [ystr_eval "${CMAKE_CXX_FLAGS_${c}} -DTEST_CONFIG_${c}"];
       ]);
@@ -2316,7 +2315,7 @@ let () =
            not tractable as a reference. Yelu-only build covering OUTPUT form,
            add_custom_target ALL+DEPENDS, and add_dependencies. *)
         check_build_yelu "basic"
-          (Ystmt_list [
+          (ESeq [
             yc_project "CustomCommandTest";
             (* step 1: touch a stamp file *)
             yc_add_custom_command
@@ -2406,7 +2405,7 @@ endif()
                    "-DTEST_LIBRARY_PATH=$<TARGET_FILE:" ^ tname ^ ">";
                    "-P"; "${CMAKE_CURRENT_SOURCE_DIR}/verify.cmake"]]
            in
-           Ystmt_list [
+           ESeq [
              yc_project "Visibility";
              (* C hidden targets *)
              add_lib ~type_:Lib_shared ~sources:[ystr "hidden.c"] (t "hidden1");

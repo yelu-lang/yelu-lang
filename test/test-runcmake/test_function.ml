@@ -5,15 +5,13 @@
     SKIP: CMAKE_CURRENT_FUNCTION_LIST_DIR/FILE — same as CMAKE_CURRENT_LIST_*
     in script mode; only differ when include()d from another file. *)
 
-open Yelu_langs.Lang_yelu_cmake
-open Yelu_langs.Lang_yelu_utils
-open Yelu_langs.Lang_yelu_compile
+open Yelu_langs.Yelu_cmake
+open Yelu_langs.Yelu_cmake_utils
 open Yelu_langs.Lang_cmake_pp
 open Yelu_runner.Cmake_runner
 
 let compile exp =
-  let cmake_ast = compile empty_env exp |> snd in
-  Fmt.str "%a" (Fmt.vbox pp) cmake_ast
+  Fmt.str "%a" (Fmt.vbox pp) (Yelu_langs.Yelu_cmake_emit.emit_ast exp)
 
 let check_cmake name prog =
   Alcotest.test_case name `Quick (fun () ->
@@ -23,7 +21,7 @@ let check_cmake name prog =
 
 (* CMAKE_CURRENT_FUNCTION: name of the currently executing function *)
 let current_function_name =
-  check_cmake "current_function_name" (Ystmt_list [
+  check_cmake "current_function_name" (ESeq [
     yc_function (ycstr "my_func") []
       [ yc_set ~parent_scope:true (ycvar "fn_name") [ ycref "CMAKE_CURRENT_FUNCTION" ] ];
     yc_apply (ycstr "my_func") [];
@@ -37,7 +35,7 @@ let current_function_name =
 
 (* CMAKE_CURRENT_LIST_FILE: path of the script being processed *)
 let current_list_file =
-  check_cmake "current_list_file" (Ystmt_list [
+  check_cmake "current_list_file" (ESeq [
     yc_function (ycstr "file_func") []
       [ yc_set ~parent_scope:true (ycvar "cl_file") [ ycref "CMAKE_CURRENT_LIST_FILE" ] ];
     yc_apply (ycstr "file_func") [];
@@ -52,7 +50,7 @@ let current_list_file =
 
 (* cmake function args: ARGC, ARGV, ARGN, ARG0 etc. *)
 let function_args =
-  check_cmake "function_args" (Ystmt_list [
+  check_cmake "function_args" (ESeq [
     yc_function (ycstr "arg_func") [ "a"; "b" ]
       [ yc_set ~parent_scope:true (ycvar "argc_out") [ ycref "ARGC" ];
         yc_set ~parent_scope:true (ycvar "argv0_out") [ ycref "ARGV0" ];

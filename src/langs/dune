@@ -1,8 +1,21 @@
 (include_subdirs unqualified)
 
+; yelu_legacy/ modules are retained on disk for reference but excluded
+; from the [yelu_langs] library — no src/ or test/ code imports them
+; (E1 deadcode milestone). Add a module here if you genuinely add it
+; outside yelu_legacy/.
 (library
  (name yelu_langs)
  (package yelu)
  (libraries base fmt angstrom)
+ (modules
+   :standard
+   \ lang_yelu lang_yelu_cmake lang_yelu_compile lang_yelu_parse
+     lang_yelu_type lang_yelu_utils lang_yelu_wellform
+     yelu_cmake_legacy_bridge
+     lang_yelu_cmake_op lang_yelu_cond lang_yelu_dir lang_yelu_file
+     lang_yelu_find lang_yelu_genex lang_yelu_install lang_yelu_list
+     lang_yelu_path lang_yelu_property lang_yelu_string
+     lang_yelu_target lang_yelu_test lang_yelu_try lang_yelu_var)
  (preprocess
   (pps ppx_jane)))

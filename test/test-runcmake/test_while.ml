@@ -3,15 +3,13 @@
     useful as yelu targets.  These tests validate the actual loop semantics
     that the yelu layer generates. *)
 
-open Yelu_langs.Lang_yelu_cmake
-open Yelu_langs.Lang_yelu_utils
-open Yelu_langs.Lang_yelu_compile
+open Yelu_langs.Yelu_cmake
+open Yelu_langs.Yelu_cmake_utils
 open Yelu_langs.Lang_cmake_pp
 open Yelu_runner.Cmake_runner
 
 let compile exp =
-  let cmake_ast = compile empty_env exp |> snd in
-  Fmt.str "%a" (Fmt.vbox pp) cmake_ast
+  Fmt.str "%a" (Fmt.vbox pp) (Yelu_langs.Yelu_cmake_emit.emit_ast exp)
 
 let check_cmake name prog =
   Alcotest.test_case name `Quick (fun () ->
@@ -21,10 +19,10 @@ let check_cmake name prog =
 
 (* Count from 1 to 5 with a while loop, check final value *)
 let basic_loop =
-  check_cmake "basic_loop" (Ystmt_list [
+  check_cmake "basic_loop" (ESeq [
     yc_set (ycvar "i") [ ystr "1" ];
     yc_while (ytruthy (ycstr "i"))
-      (Ystmt_list [
+      (ESeq [
         yifthen (ystrequal (ycref "i") (ystr "6"))
           yc_break;
         yc_math "${i} + 1" (ycvar "i");
@@ -36,11 +34,11 @@ let basic_loop =
 
 (* break exits the loop immediately *)
 let break_test =
-  check_cmake "break" (Ystmt_list [
+  check_cmake "break" (ESeq [
     (* start with a truthy value so the loop body executes at least once *)
     yc_set (ycvar "x") [ ystr "1" ];
     yc_while (ytruthy (ycstr "x"))
-      (Ystmt_list [
+      (ESeq [
         yc_set (ycvar "x") [ ystr "99" ];
         yc_break;
         (* this set must not execute *)
@@ -55,14 +53,14 @@ let break_test =
    calls continue — the while condition re-evaluates to false and exits.
    count should be 3 (incremented at i=1, 2, 3 only). *)
 let continue_test =
-  check_cmake "continue" (Ystmt_list [
+  check_cmake "continue" (ESeq [
     yc_set (ycvar "i") [ ystr "1" ];
     yc_set (ycvar "count") [ ystr "0" ];
     yc_while (ytruthy (ycstr "i"))
-      (Ystmt_list [
+      (ESeq [
         (* at i=4: set i="" (falsy) and continue → exits the loop *)
         yifthen (ystrequal (ycref "i") (ystr "4"))
-          (Ystmt_list [
+          (ESeq [
             yc_set (ycvar "i") [ ystr "" ];
             yc_continue;
           ]);

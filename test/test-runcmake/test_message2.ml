@@ -2,14 +2,13 @@
     VERBOSE/DEBUG/TRACE/DEPRECATION require --log-level flag to be visible.
     CMAKE_MESSAGE_CONTEXT requires --log-context flag. *)
 
-open Yelu_langs.Lang_yelu_utils
-open Yelu_langs.Lang_yelu_compile
+open Yelu_langs.Yelu_cmake
+open Yelu_langs.Yelu_cmake_utils
 open Yelu_langs.Lang_cmake_pp
 open Yelu_runner.Cmake_runner
 
 let compile exp =
-  let cmake_ast = compile empty_env exp |> snd in
-  Fmt.str "%a" (Fmt.vbox pp) cmake_ast
+  Fmt.str "%a" (Fmt.vbox pp) (Yelu_langs.Yelu_cmake_emit.emit_ast exp)
 
 (* VERBOSE/DEBUG/TRACE go to stdout; DEPRECATION goes to stderr *)
 let check_log_level name level mode text ~on_stderr =
@@ -51,7 +50,7 @@ let msg_verbose_hidden =
 (* CMAKE_MESSAGE_CONTEXT: requires --log-context; prepends [ctx] to output *)
 let msg_context =
   Alcotest.test_case "context" `Quick (fun () ->
-      let result = run_script ~flags:["--log-context"] (compile (Ystmt_list [
+      let result = run_script ~flags:["--log-context"] (compile (ESeq [
         yc_list_append (ycvar "CMAKE_MESSAGE_CONTEXT") [ystr "myctx"];
         yc_message ~mode:Mm_status ["hello from context"];
       ])) in
@@ -62,7 +61,7 @@ let msg_context =
 (* CMAKE_MESSAGE_INDENT: prepends indent strings unconditionally *)
 let msg_indent =
   Alcotest.test_case "indent" `Quick (fun () ->
-      let result = run_script (compile (Ystmt_list [
+      let result = run_script (compile (ESeq [
         yc_list_append (ycvar "CMAKE_MESSAGE_INDENT") [ystr "  "];
         yc_message ~mode:Mm_status ["indented"];
       ])) in

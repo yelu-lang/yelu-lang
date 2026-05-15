@@ -2,15 +2,13 @@
     Uses run_configure from cmake_runner. *)
 
 open Yelu_langs.Lang_cmake
-open Yelu_langs.Lang_yelu_cmake
-open Yelu_langs.Lang_yelu_utils
-open Yelu_langs.Lang_yelu_compile
+open Yelu_langs.Yelu_cmake
+open Yelu_langs.Yelu_cmake_utils
 open Yelu_langs.Lang_cmake_pp
 open Yelu_runner.Cmake_runner
 
 let compile exp =
-  let cmake_ast = compile empty_env exp |> snd in
-  Fmt.str "%a" (Fmt.vbox pp) cmake_ast
+  Fmt.str "%a" (Fmt.vbox pp) (Yelu_langs.Yelu_cmake_emit.emit_ast exp)
 
 let check_conf name prog f =
   Alcotest.test_case name `Quick (fun () ->
@@ -46,7 +44,7 @@ let message_to_stdout =
 (* cmake_path GET FILENAME — configure-mode value check via message *)
 let cmake_path_get =
   check_conf "cmake_path_get"
-    (Ystmt_list [
+    (ESeq [
       yc_path_set (ycvar "P") (ystr "/usr/local/bin/cmake");
       yc_path_get (ycvar "P") Cpf_filename (ycvar "FNAME");
       yc_message ~mode:Mm_status ["${FNAME}"];
@@ -97,7 +95,7 @@ let try_compile_fail =
 (* try_compile with OUTPUT_VARIABLE captures compiler output *)
 let try_compile_output =
   check_conf_c "try_compile_output"
-    (Ystmt_list [
+    (ESeq [
       yc_try_compile ~no_cache:true ~output_variable:(Some (ycvar "OUT"))
         (ycvar "RESULT") [src "pass.c"];
       yc_message ~mode:Mm_status ["${RESULT}"];
@@ -121,7 +119,7 @@ let try_compile_cxx_standard =
 (* set_property(GLOBAL PROPERTY ...) + get_property(GLOBAL ...) round-trip *)
 let prop_global_roundtrip =
   check_conf "prop_global_roundtrip"
-    (Ystmt_list [
+    (ESeq [
       yc_set_global_property [("MY_GLOBAL_PROP", ystr "globalval")];
       yc_get_global_property ~property:"MY_GLOBAL_PROP" (ycvar "OUT");
       yc_message ~mode:Mm_status ["${OUT}"];
@@ -131,7 +129,7 @@ let prop_global_roundtrip =
 (* set_target_properties + get_target_property round-trip via custom target *)
 let prop_target_roundtrip =
   check_conf "prop_target_roundtrip"
-    (Ystmt_list [
+    (ESeq [
       yc_add_custom_target "mytarget";
       yc_set_target_properties (ytval "mytarget") [("MY_PROP", ystr "myval")];
       yc_get_target_property (ycvar "OUT") "mytarget" "MY_PROP";
@@ -142,7 +140,7 @@ let prop_target_roundtrip =
 (* set_property(TARGET ...) + get_target_property round-trip *)
 let prop_target_set_property =
   check_conf "prop_target_set_property"
-    (Ystmt_list [
+    (ESeq [
       yc_add_custom_target "t2";
       yc_set_property ~targets:[ytval "t2"] [("CUSTOM_PROP", ystr "custom")];
       yc_get_target_property (ycvar "OUT") "t2" "CUSTOM_PROP";
@@ -153,7 +151,7 @@ let prop_target_set_property =
 (* define_property GLOBAL + set + get round-trip *)
 let define_property_global =
   check_conf "define_property_global"
-    (Ystmt_list [
+    (ESeq [
       yc_define_property ~brief_docs:["my prop"] Dp_global "MY_DEFINED_PROP";
       yc_set_global_property [("MY_DEFINED_PROP", ystr "defined_val")];
       yc_get_global_property ~property:"MY_DEFINED_PROP" (ycvar "OUT");
@@ -164,7 +162,7 @@ let define_property_global =
 (* define_property TARGET + set_target_properties + get_target_property round-trip *)
 let define_property_target =
   check_conf "define_property_target"
-    (Ystmt_list [
+    (ESeq [
       yc_define_property ~brief_docs:["target prop"] Dp_target "MY_TARGET_PROP";
       yc_add_custom_target "tprop_target";
       yc_set_target_properties (ytval "tprop_target") [("MY_TARGET_PROP", ystr "tval")];
@@ -187,7 +185,7 @@ let () =
         Alcotest.test_case "pch_private" `Quick (fun () ->
           let result = run_configure ~languages:["C"]
             ~files:[("pch_src.c", "int pch_fn(void) { return 0; }")]
-            (compile (Ystmt_list [
+            (compile (ESeq [
               add_lib ~type_:Lib_static ~sources:[src "pch_src.c"] (ytval "pchlib");
               yc_target_precompile_headers (ytval "pchlib")
                 [ytarget_def ~kind:Private [yname "<stdio.h>"]];
@@ -199,7 +197,7 @@ let () =
         Alcotest.test_case "pch_interface" `Quick (fun () ->
           let result = run_configure ~languages:["C"]
             ~files:[("iface_src.c", "int iface_fn(void) { return 0; }")]
-            (compile (Ystmt_list [
+            (compile (ESeq [
               add_lib ~type_:Lib_interface (ytval "ifacelib");
               yc_target_precompile_headers (ytval "ifacelib")
                 [ytarget_def ~kind:Interface [yname "<stdlib.h>"]];
@@ -210,7 +208,7 @@ let () =
           check_stdout_matches "iface pch ok" result.run) ]);
       ("add_dependencies", [
         check_conf "add_dependencies_basic"
-          (Ystmt_list [
+          (ESeq [
             yc_add_custom_target "dep_a";
             yc_add_custom_target "dep_b";
             yc_add_dependencies "dep_b" "dep_a";
@@ -219,13 +217,13 @@ let () =
           (fun r -> check_stdout_matches "deps ok" r.run) ]);
       ("block", [
         check_conf "block_body_executes"
-          (Ystmt_list [
+          (ESeq [
             yc_block [yc_message ~mode:Mm_status ["inside block"]];
           ])
           (fun r -> check_stdout_matches "inside block" r.run) ]);
       ("cmake_language", [
         check_conf "cmake_language_call"
-          (Ystmt_list [
+          (ESeq [
             yc_macro (ystr "say_hi") [
               yc_message ~mode:Mm_status ["hi from macro"]
             ];
@@ -236,7 +234,7 @@ let () =
           (yc_language_eval {|message(STATUS "eval says hello")|})
           (fun r -> check_stdout_matches "eval says hello" r.run);
         check_conf "cmake_language_get_log_level"
-          (Ystmt_list [
+          (ESeq [
             yc_language_get_log_level (ycvar "LOG_LEVEL");
             yc_message ~mode:Mm_status ["${LOG_LEVEL}"];
           ])
@@ -245,7 +243,7 @@ let () =
               Alcotest.fail "expected non-empty LOG_LEVEL output") ]);
       ("variable_watch", [
         check_conf "variable_watch_triggers"
-          (Ystmt_list [
+          (ESeq [
             yc_set_cache ~cache_type:Ct_string ~docstring:"" (ycvar "WATCHED") [ystr "initial"];
             yc_variable_watch (ycvar "WATCHED");
             yc_message ~mode:Mm_status ["${WATCHED}"];

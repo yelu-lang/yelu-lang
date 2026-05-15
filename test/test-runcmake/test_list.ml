@@ -3,15 +3,13 @@
     The yelu program generates cmake text; cmake -P runs it; exit_code 0 = pass. *)
 
 open Yelu_langs.Lang_cmake
-open Yelu_langs.Lang_yelu_cmake
-open Yelu_langs.Lang_yelu_utils
-open Yelu_langs.Lang_yelu_compile
+open Yelu_langs.Yelu_cmake
+open Yelu_langs.Yelu_cmake_utils
 open Yelu_langs.Lang_cmake_pp
 open Yelu_runner.Cmake_runner
 
 let compile exp =
-  let cmake_ast = compile empty_env exp |> snd in
-  Fmt.str "%a" (Fmt.vbox pp) cmake_ast
+  Fmt.str "%a" (Fmt.vbox pp) (Yelu_langs.Yelu_cmake_emit.emit_ast exp)
 
 let check_cmake name prog =
   Alcotest.test_case name `Quick (fun () ->
@@ -21,7 +19,7 @@ let check_cmake name prog =
 
 (* Mirrors Tests/RunCMake/list/JOIN.cmake *)
 let join =
-  check_cmake "join" (Ystmt_list [
+  check_cmake "join" (ESeq [
     (* JOIN undefined list → "" *)
     yc_list_join (ycvar "undefList") (ystr "%") (ycvar "out");
     yifthen (ynot (ystrequal (ycref "out") (ystr "")))
@@ -44,7 +42,7 @@ let join =
 
 (* Mirrors Tests/RunCMake/list/SUBLIST.cmake *)
 let sublist =
-  check_cmake "sublist" (Ystmt_list [
+  check_cmake "sublist" (ESeq [
     yc_set (ycvar "L") [ ystr "alpha"; ystr "bravo"; ystr "charlie"; ystr "delta" ];
     yc_list_sublist (ycvar "L") 1 2 (ycvar "result");
     yifthen (ynot (ystrequal (ycref "result") (ystr "bravo;charlie")))
@@ -60,7 +58,7 @@ let sublist =
 
 (* Mirrors Tests/RunCMake/list/PREPEND.cmake *)
 let prepend =
-  check_cmake "prepend" (Ystmt_list [
+  check_cmake "prepend" (ESeq [
     yc_set (ycvar "L") [ ystr "c"; ystr "d" ];
     yc_list_prepend (ycvar "L") [ ystr "a"; ystr "b" ];
     yifthen (ynot (ystrequal (ycref "L") (ystr "a;b;c;d")))
@@ -74,7 +72,7 @@ let prepend =
 
 (* Mirrors Tests/RunCMake/list/POP_BACK.cmake *)
 let pop_back =
-  check_cmake "pop_back" (Ystmt_list [
+  check_cmake "pop_back" (ESeq [
     (* POP_BACK from 2-item list, no out var *)
     yc_set (ycvar "L") [ ystr "one"; ystr "two" ];
     yc_list_pop_back (ycvar "L");
@@ -91,7 +89,7 @@ let pop_back =
 
 (* Mirrors Tests/RunCMake/list/POP_FRONT.cmake *)
 let pop_front =
-  check_cmake "pop_front" (Ystmt_list [
+  check_cmake "pop_front" (ESeq [
     yc_set (ycvar "L") [ ystr "one"; ystr "two" ];
     yc_list_pop_front (ycvar "L");
     yifthen (ynot (ystrequal (ycref "L") (ystr "two")))
@@ -106,7 +104,7 @@ let pop_front =
 
 (* Mirrors Tests/RunCMake/list/SORT.cmake (subset: default + case-insensitive) *)
 let sort =
-  check_cmake "sort" (Ystmt_list [
+  check_cmake "sort" (ESeq [
     (* default sort: case-sensitive ascending string *)
     yc_set (ycvar "L") [ ystr "c/B.h"; ystr "a/c.h"; ystr "B/a.h" ];
     yc_list_sort (ycvar "L");
@@ -121,7 +119,7 @@ let sort =
 
 (* Mirrors Tests/RunCMake/list/REMOVE_DUPLICATES-PreserveOrder.cmake *)
 let remove_duplicates =
-  check_cmake "remove_duplicates" (Ystmt_list [
+  check_cmake "remove_duplicates" (ESeq [
     yc_set (ycvar "L") [ ystr "a"; ystr "b"; ystr "a"; ystr "c"; ystr "b" ];
     yc_list_remove_duplicates (ycvar "L");
     yifthen (ynot (ystrequal (ycref "L") (ystr "a;b;c")))

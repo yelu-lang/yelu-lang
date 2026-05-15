@@ -4,15 +4,13 @@
     WARNING/AUTHOR_WARNING go to stderr.
     FATAL_ERROR/SEND_ERROR exit non-zero. *)
 
-open Yelu_langs.Lang_yelu_cmake
-open Yelu_langs.Lang_yelu_utils
-open Yelu_langs.Lang_yelu_compile
+open Yelu_langs.Yelu_cmake
+open Yelu_langs.Yelu_cmake_utils
 open Yelu_langs.Lang_cmake_pp
 open Yelu_runner.Cmake_runner
 
 let compile exp =
-  let cmake_ast = compile empty_env exp |> snd in
-  Fmt.str "%a" (Fmt.vbox pp) cmake_ast
+  Fmt.str "%a" (Fmt.vbox pp) (Yelu_langs.Yelu_cmake_emit.emit_ast exp)
 
 let check_cmake_result name prog f =
   Alcotest.test_case name `Quick (fun () ->
@@ -28,7 +26,7 @@ let status_message =
 
 (* CHECK_START / CHECK_PASS produces "-- Checking ...\n-- Checking ... - done" on stdout *)
 let check_pass =
-  check_cmake_result "check_pass" (Ystmt_list [
+  check_cmake_result "check_pass" (ESeq [
     yc_message ~mode:Mm_check_start ["my feature"];
     yc_message ~mode:Mm_check_pass ["done"];
   ]) (fun r ->
@@ -38,7 +36,7 @@ let check_pass =
 
 (* CHECK_FAIL: "-- optional dep - not found" on stdout, exits 0 *)
 let check_fail =
-  check_cmake_result "check_fail" (Ystmt_list [
+  check_cmake_result "check_fail" (ESeq [
     yc_message ~mode:Mm_check_start ["optional dep"];
     yc_message ~mode:Mm_check_fail ["not found"];
   ]) (fun r ->

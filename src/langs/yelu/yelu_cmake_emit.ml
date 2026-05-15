@@ -1034,6 +1034,21 @@ let rec emit_exp ~env (e : expr) : C.exp =
            items = items_with_kind ~env ~visibility headers })
 
   (* Custom target / command *)
+  | ECmakeAddCustomCommand { outputs; commands; depends; comment; verbatim } ->
+    let cc_list =
+      List.map commands ~f:(fun (bc : build_command) ->
+        ({ command = bc.command; args = bc.args } : C.custom_command))
+    in
+    let outputs = List.map outputs ~f:(target_arg ~env) in
+    let depends = List.map depends ~f:(target_arg ~env) in
+    C.Project_cmd
+      (C.Add_custom_command
+         { outputs; commands = cc_list; depends; comment;
+           main_dependency = None; byproducts = []; implicit_depends = [];
+           working_directory = None; depfile = None; job_pool = None;
+           job_server_aware = false; verbatim; append = false;
+           uses_terminal = false; codegen = false;
+           command_expand_list = []; depends_explicit_only = false })
   | ECmakeAddCustomTarget { name; all; commands; depends; comment } ->
     let cc_list =
       List.map commands ~f:(fun (bc : build_command) ->

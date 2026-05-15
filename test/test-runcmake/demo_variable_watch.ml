@@ -1,9 +1,8 @@
 (** Demo: yelu → cmake text → cmake -P, mirroring variable_watch/RaiseInParentScope.cmake.
     Run: dune exec yelu/test/test-runcmake/demo_variable_watch.exe *)
 
-open Yelu_langs.Lang_yelu_cmake
-open Yelu_langs.Lang_yelu_utils
-open Yelu_langs.Lang_yelu_compile
+open Yelu_langs.Yelu_cmake
+open Yelu_langs.Yelu_cmake_utils
 open Yelu_langs.Lang_cmake_pp
 open Yelu_runner.Cmake_runner
 
@@ -19,7 +18,7 @@ open Yelu_runner.Cmake_runner
      f()
 *)
 let prog =
-  Ystmt_list [
+  ESeq [
     yc_function (ystr "watch") ["variable"; "access"; "value"] [
       yc_message [ "${variable} ${access} ${value}" ]
     ];
@@ -32,7 +31,7 @@ let prog =
   ]
 
 let () =
-  let _, cmake_ast = compile empty_env prog in
+  let cmake_ast = Yelu_langs.Yelu_cmake_emit.emit_ast prog in
   let cmake_text =
     let buf = Buffer.create 256 in
     let ff = Format.formatter_of_buffer buf in
