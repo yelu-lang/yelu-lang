@@ -1,17 +1,43 @@
-(* Ergonomic constructors that produce yelu_cmake.expr ([Yelu_cmake.expr])
-   directly, mirroring the shape of [Lang_yelu_utils] (which builds
-   the legacy [Lang_yelu_cmake] AST).
+(* Ergonomic constructors that produce [Yelu_cmake.expr] directly.
+   This module is the single source of truth for step binaries and
+   tests building yelu_cmake IR; the legacy bridge / Lang_yelu_utils
+   path was retired in E1.
 
-   Each helper here is a one-line wrapper around a yelu_cmake ctor, so step
-   files can switch their [open] from [Lang_yelu_utils] to this module
-   and emit directly without the legacy AST → bridge round trip.
+   Each helper is a one-line wrapper around a yelu_cmake ctor.
 
-   For helpers whose legacy API takes a typed enum
-   ([Lang_cmake.message_mode] etc.) but whose IR ctor takes a [string],
-   we reuse the bridge's [string_of_*] helpers rather than
-   re-enumerating each case.
+   Enum-to-string conversions for ctors that take [string] where the
+   legacy surface took a typed enum live in
+   [Lang_cmake_strings] (in the cmake layer).
 
-   See doc/yelu_cmake/retirement_plan.md item E for context. *)
+   See doc/yelu_cmake/retirement_plan.md for the migration history.
+
+   === Stub helpers (track in doc/yelu_cmake/status.md "Known IR
+   shape gaps") ===
+
+   Some helpers in this file accept arguments the IR cannot yet
+   represent. Two flavors:
+
+   - **Accept-and-discard** (safe semantic weakening): the cmake
+     output is still legal and the discarded option only affects
+     a feature we do not yet model.
+       - [yc_math ~output_format]      drops the format
+                                       (always emits decimal).
+       - [add_exe ~exclude_from_all]
+         / [add_lib ~exclude_from_all] drop the flag (affects
+                                       `make all`, not configure).
+
+   - **Failwith** (callers must wait for IR support): the helper
+     refuses to emit until the IR grows the relevant ctor.
+       - [ystrless] / [ystrgreater] / [ystrless_equal]
+         / [ystrgreater_equal]         (STRLESS / STRGREATER family;
+                                        IR currently has only
+                                        STREQUAL via ECmakeStringEqual)
+       - [yc_add_custom_command_target] (TARGET-form custom command;
+                                        IR has only the OUTPUT form)
+       - [yc_string_json_*]            (JSON ops; IR's
+                                        ECmakeStringJson collapses
+                                        to an opaque op_name)
+   *)
 
 open Base
 open Yelu_cmake
@@ -260,15 +286,19 @@ let yless_equal a b = Yelu_cmake_normal_int.EIntLessEqual (a, b)
 let ygreater_equal a b = Yelu_cmake_normal_int.EIntGreaterEqual (a, b)
 let yequal a b = Yelu_cmake_normal_int.EIntEqual (a, b)
 
-(* String-order comparisons. The legacy compile path emitted STRLESS /
-   STRGREATER / STRLESS_EQUAL / STRGREATER_EQUAL; the IR does not yet
-   model these conds (the legacy bridge raises on them). Stub as
-   ECmakeStringEqual so callers compile; tests exercising these will
-   need to be revisited when string-order conds are added to the IR. *)
-let ystrless a b = Yelu_cmake_string.ECmakeStringEqual (a, b)
-let ystrgreater a b = Yelu_cmake_string.ECmakeStringEqual (a, b)
-let ystrless_equal a b = Yelu_cmake_string.ECmakeStringEqual (a, b)
-let ystrgreater_equal a b = Yelu_cmake_string.ECmakeStringEqual (a, b)
+(* String-order comparisons (STRLESS / STRGREATER / STRLESS_EQUAL /
+   STRGREATER_EQUAL). The legacy compile path emitted these directly,
+   but the IR does not yet have a string-order cond ctor (the legacy
+   bridge also raised). Fail explicitly rather than emit ECmakeStringEqual
+   silently — wrong-shape stubs are worse than missing helpers. *)
+let ystrless _ _ =
+  failwith "ystrless: IR does not yet model STRLESS; see status.md \"Known IR shape gaps\""
+let ystrgreater _ _ =
+  failwith "ystrgreater: IR does not yet model STRGREATER; see status.md \"Known IR shape gaps\""
+let ystrless_equal _ _ =
+  failwith "ystrless_equal: IR does not yet model STRLESS_EQUAL; see status.md \"Known IR shape gaps\""
+let ystrgreater_equal _ _ =
+  failwith "ystrgreater_equal: IR does not yet model STRGREATER_EQUAL; see status.md \"Known IR shape gaps\""
 let yis_target e =
   match e with
   | ETarget _ -> Yelu_cmake_target.ECmakeTargetExists e
@@ -434,17 +464,14 @@ let yc_add_custom_target
       commands = List.map commands ~f:to_build_command;
       depends; comment }
 
-(* TARGET-form add_custom_command. The legacy bridge raises on this; the
-   IR has no dedicated ctor. Approximate by emitting a stub
-   [ECmakeAddCustomCommand] with empty outputs — tests using this helper
-   exercise legacy emit features that haven't been ported yet. *)
+(* TARGET-form add_custom_command. The legacy bridge raised on this and
+   the IR has no dedicated TARGET-form ctor. Emitting empty-outputs
+   ECmakeAddCustomCommand was the previous stub, but that produces a
+   different cmake command shape entirely (OUTPUT-form with no outputs).
+   Fail explicitly until the IR grows a TARGET-form ctor. *)
 let yc_add_custom_command_target
-    ?(verbatim = false) ?(comment : string option = None)
-    ~target:_ ~when_:_ commands =
-  ECmakeAddCustomCommand
-    { outputs = [];
-      commands = List.map commands ~f:to_build_command;
-      depends = []; verbatim; comment }
+    ?verbatim:_ ?comment:_ ~target:_ ~when_:_ _commands =
+  failwith "yc_add_custom_command_target: IR does not yet model TARGET-form add_custom_command; see status.md \"Known IR shape gaps\""
 
 let cw_pre_build  = Lang_cmake.Cw_pre_build
 let cw_pre_link   = Lang_cmake.Cw_pre_link
@@ -937,45 +964,38 @@ let yc_string_uuid ?(upper = false) ~namespace ~name ~type_ out =
   let type_s = match type_ with `Md5 -> "MD5" | `Sha1 -> "SHA1" in
   ECmakeStringUuid { out; namespace; name; type_ = type_s; upper }
 
-(* Match the legacy bridge's "opaque JSON op" shape — the bridge does not
-   carry the op_name or path; eval treats the result as empty. [?error_var]
-   without default lets callers pass [~error_var:(ycvar "e")] without
-   wrapping in [Some]. *)
-let yc_string_json_get ?error_var ?path:_ ~out json =
-  ECmakeStringJson
-    { out; error_var; op_name = "JSON_op"; args = [ json ] }
+(* JSON ops. The legacy bridge collapsed every JSON op into an opaque
+   ECmakeStringJson with op_name = "JSON_op" and dropped the path /
+   sub-op detail; emit_ast then materialized that as an empty
+   string(JSON ... GET) regardless of the original intent — silently
+   wrong cmake. Fail explicitly until the IR carries the JSON op + path
+   discriminator. *)
+let yc_string_json_get ?error_var:_ ?path:_ ~out:_ _ =
+  failwith "yc_string_json_get: IR's ECmakeStringJson is opaque; see status.md \"Known IR shape gaps\""
 
-let yc_string_json_get_raw ?error_var ?path:_ ~out json =
-  ECmakeStringJson
-    { out; error_var; op_name = "JSON_op"; args = [ json ] }
+let yc_string_json_get_raw ?error_var:_ ?path:_ ~out:_ _ =
+  failwith "yc_string_json_get_raw: IR's ECmakeStringJson is opaque; see status.md \"Known IR shape gaps\""
 
-let yc_string_json_type ?error_var ?path:_ ~out json =
-  ECmakeStringJson
-    { out; error_var; op_name = "JSON_op"; args = [ json ] }
+let yc_string_json_type ?error_var:_ ?path:_ ~out:_ _ =
+  failwith "yc_string_json_type: IR's ECmakeStringJson is opaque; see status.md \"Known IR shape gaps\""
 
-let yc_string_json_length ?error_var ?path:_ ~out json =
-  ECmakeStringJson
-    { out; error_var; op_name = "JSON_op"; args = [ json ] }
+let yc_string_json_length ?error_var:_ ?path:_ ~out:_ _ =
+  failwith "yc_string_json_length: IR's ECmakeStringJson is opaque; see status.md \"Known IR shape gaps\""
 
-let yc_string_json_member ?error_var ?path:_ ~out json =
-  ECmakeStringJson
-    { out; error_var; op_name = "JSON_op"; args = [ json ] }
+let yc_string_json_member ?error_var:_ ?path:_ ~out:_ _ =
+  failwith "yc_string_json_member: IR's ECmakeStringJson is opaque; see status.md \"Known IR shape gaps\""
 
-let yc_string_json_remove ?error_var ?path:_ ~out json =
-  ECmakeStringJson
-    { out; error_var; op_name = "JSON_op"; args = [ json ] }
+let yc_string_json_remove ?error_var:_ ?path:_ ~out:_ _ =
+  failwith "yc_string_json_remove: IR's ECmakeStringJson is opaque; see status.md \"Known IR shape gaps\""
 
-let yc_string_json_set ?error_var ?path:_ ~out ~value:_ json =
-  ECmakeStringJson
-    { out; error_var; op_name = "JSON_op"; args = [ json ] }
+let yc_string_json_set ?error_var:_ ?path:_ ~out:_ ~value:_ _ =
+  failwith "yc_string_json_set: IR's ECmakeStringJson is opaque; see status.md \"Known IR shape gaps\""
 
-let yc_string_json_equal ~out json1 json2 =
-  ECmakeStringJson
-    { out; error_var = None; op_name = "JSON_op"; args = [ json1; json2 ] }
+let yc_string_json_equal ~out:_ _ _ =
+  failwith "yc_string_json_equal: IR's ECmakeStringJson is opaque; see status.md \"Known IR shape gaps\""
 
-let yc_string_json_string_encode ~out value =
-  ECmakeStringJson
-    { out; error_var = None; op_name = "JSON_op"; args = [ value ] }
+let yc_string_json_string_encode ~out:_ _ =
+  failwith "yc_string_json_string_encode: IR's ECmakeStringJson is opaque; see status.md \"Known IR shape gaps\""
 
 let yc_string_append cvar inputs = ECmakeStringAppend { cvar; inputs }
 let yc_string_prepend cvar inputs = ECmakeStringPrepend { cvar; inputs }

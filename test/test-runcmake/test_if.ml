@@ -93,18 +93,10 @@ let numeric_compare =
       (yc_message ~mode:Mm_fatal_error ["GREATER_EQUAL: 7 >= 5 failed"]);
   ])
 
-(* STRLESS / STRGREATER / STRLESS_EQUAL / STRGREATER_EQUAL *)
-let string_compare =
-  check_cmake "string_compare" (ESeq [
-    yifthen (ynot (ystrless (ystr "apple") (ystr "banana")))
-      (yc_message ~mode:Mm_fatal_error ["STRLESS: apple < banana failed"]);
-    yifthen (ynot (ystrgreater (ystr "zebra") (ystr "apple")))
-      (yc_message ~mode:Mm_fatal_error ["STRGREATER: zebra > apple failed"]);
-    yifthen (ynot (ystrless_equal (ystr "abc") (ystr "abc")))
-      (yc_message ~mode:Mm_fatal_error ["STRLESS_EQUAL: abc <= abc failed"]);
-    yifthen (ynot (ystrgreater_equal (ystr "z") (ystr "a")))
-      (yc_message ~mode:Mm_fatal_error ["STRGREATER_EQUAL: z >= a failed"]);
-  ])
+(* STRLESS / STRGREATER / STRLESS_EQUAL / STRGREATER_EQUAL removed in
+   the post-E1 audit pass: the helpers were stubbed to ECmakeStringEqual
+   (wrong semantics) and have since been promoted to failwith. Restore
+   when the IR grows real string-order conds. *)
 
 (* EXISTS / IS_DIRECTORY / IS_ABSOLUTE *)
 let file_tests =
@@ -132,6 +124,5 @@ let () =
       ("version_compare_equal", [ version_compare_equal ]);
       ("compound",             [ compound ]);
       ("numeric_compare",      [ numeric_compare ]);
-      ("string_compare",       [ string_compare ]);
       ("file_tests",           [ file_tests ]);
     ]

@@ -9,7 +9,8 @@
   test_yelu_emit
   test_yelu_function
   test_yelu_foreach
-  test_yelu_block_return)
+  test_yelu_block_return
+  test_yelu_utils_stubs)
  (libraries base alcotest angstrom yelu_langs step_common)
  (preprocess
   (pps ppx_jane)))

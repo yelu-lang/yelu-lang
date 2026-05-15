@@ -1,16 +1,12 @@
 (* Concrete-syntax parser for yelu_cmake. Produces
-   [Yelu_cmake.expr] directly from token streams; replaces the
-   older legacy parser [Lang_yelu_parse] (in `yelu_legacy/`) that
-   built the intermediate `Lang_yelu_cmake` AST.
+   [Yelu_cmake.expr] directly from token streams. The only
+   production parser since E1 retired the legacy
+   [Lang_yelu_parse] path.
 
-   Shares the lexer (`Yelu_lexer.token_list`) with the legacy
-   parser. The legacy parser is retained for the byte oracle and
-   pair-wise oracle; new code reads here.
-
-   Current scope: broad CMake-family coverage used by the parser
-   pair-wise oracle, including variable assignment plus control, cond,
-   string, list, path, file, target, dir, test, property, find,
-   install, cmake_op, function/macro/while/foreach/apply shapes.
+   Current scope: broad CMake-family coverage including variable
+   assignment plus control, cond, string, list, path, file,
+   target, dir, test, property, find, install, cmake_op,
+   function/macro/while/foreach/apply shapes.
 
      - `IDENT := value`              → ESetVar
      - `IDENT := v1, v2, v3`         → ESetVar (… EList …)
@@ -20,45 +16,31 @@
      - `( unset_cache IDENT )`       → ECmakeUnsetVarCache
 
    The exposed entry point [parse_program_y1] returns a single
-   [Yelu_cmake.expr] for the covered syntax. Unsupported inputs produce
-   [Error _]. The pair-wise oracle in
-   [test_yelu_cmake_parse.ml] compares this against the legacy path
-   ([Lang_yelu_parse.parse_program] → [Yelu_cmake_legacy_bridge.stmt] →
-   [Yelu_cmake_emit.emit_script]) at the cmake-text level.
+   [Yelu_cmake.expr] for the covered syntax. Unsupported inputs
+   produce [Error _]. Test coverage lives in
+   [test_yelu_cmake_parse.ml] (smoke + structural assertions on
+   the IR shape, plus 125 inline-golden cases frozen during E1).
 
-   Helpers are duplicated from [Lang_yelu_parse] rather than imported,
-   to keep the migration unit self-contained and to make the eventual
-   retirement of the legacy parser straightforward.
+   === Legacy-compatible defaults (vestigial) ===
 
-   === Legacy-compatible defaults ===
-
-   Several helpers in this file hard-code placeholder values to keep
-   the pair-wise oracle byte-identical against the legacy parser. They
-   are intentional retention of legacy behavior, not final language
-   design. A post-retirement pass should replace each with either a
-   required keyword arg or an explicit syntactic form.
+   Several helpers in this file hard-code placeholder values that
+   originally kept the pair-wise oracle byte-identical against
+   the legacy parser. The oracle is gone; these defaults remain
+   only because they froze into the inline goldens during E1.
+   Tightening them to required-keyword or explicit-syntax forms
+   should be paired with regenerating the relevant goldens.
 
    - [out_var_y1]              → "?" sentinel when ~out missing.
    - [cvar_name_of_y1]         → "?" sentinel for non-name positions.
    - [expr_to_int_y1]          → 0 on parse failure (math, list index).
    - [string_uuid]             → namespace="ns", name="n" placeholders
                                  when keyword args missing.
-   - [string_compare] (2-arg)  → op="EQUAL" default (legacy Sco_equal).
+   - [string_compare] (2-arg)  → op="EQUAL" default.
    - [cmake_minimum_required]  → "3.20" version fallback.
    - [project]                 → "Project" name fallback.
-   - [policy_set]              → "" id fallback (also a legacy bug
-                                 shape: only Ycs_string matches the
-                                 id field).
+   - [policy_set]              → "" id fallback.
    - find_*/install_*          → empty list defaults for unsupplied
-                                 keyword args (paths, hints, etc.).
-
-   The legacy-parser bug shapes — `( set NAME val )`, `( policy_set
-   "CMPxxxx" )`, `( cmake_call "myfn" )` — narrow the matched
-   constructor to [Yexpr_string (Ycs_string _)] and fall through for
-   double-quoted / Ycs_path inputs, emitting "" or "?". The new
-   parser handles all three via [str_of]; the cases are documented
-   inline and omitted from the pair-wise oracle until the legacy
-   parser is fixed separately. *)
+                                 keyword args (paths, hints, etc.). *)
 
 open Base
 open Yelu_lexer
@@ -76,7 +58,11 @@ open Yelu_cmake_cmake_op
 open Yelu_cmake_utils
 
 (* ============================================================
-   Combinator primitives — duplicated from Lang_yelu_parse.
+   Combinator primitives. The structure of this parser was
+   originally cloned from the legacy [Lang_yelu_parse]; module
+   references below point at the historical sibling that lives
+   in `src/langs/yelu_legacy/` but no longer participates in
+   the build.
    ============================================================ *)
 
 (* kw mirrors [Lang_yelu_parse.kw]: reserved-word strings map to
