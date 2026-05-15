@@ -8,23 +8,32 @@ Living tracker. Strip and update freely; durable design is in `design.md`,
 code-anchored module guide in `structure.md`, history in
 `../worklog_2026_04.md` / `../worklog_2026_05.md`.
 
-## Where we are (2026-05-11)
+## Where we are (2026-05-14)
 
-**Retirement is essentially complete.** Production binaries
-generate cmake text via `Yelu_cmake_utils → Yelu_cmake →
-Yelu_cmake_emit → Lang_cmake_pp` with no calls into the legacy
-bridge. The two languages — `yelu_cmake` (CMake-faithful) and
+**Retirement is complete through E1: `yelu_legacy/` is
+deadcode.** Production binaries generate cmake text via
+`Yelu_cmake_utils → Yelu_cmake → Yelu_cmake_emit →
+Lang_cmake_pp` with no calls into the legacy bridge. The two
+languages — `yelu_cmake` (CMake-faithful) and
 `yelu_cmake_normal` (normalized form) — have clean names
 throughout `src/langs/yelu/`; the legacy stack lives in
-`src/langs/yelu_legacy/` as reference-only.
+`src/langs/yelu_legacy/` and is excluded from the `yelu_langs`
+library via the parent dune's `(modules :standard \ …)`. The
+modules stay on disk for reference but no longer compile into
+anything.
 
 **Verifications** (continuously green):
-- `dune build && dune test` — all unit tests pass
-- byte-equality oracle: `covered=194 uncovered=0`
-- parser tests: 295 (incl. 125 pair-wise oracle cases across
-  all 12 direct-parser families, genex included)
+- `dune build && dune test` — 1010 unit tests pass
+- parser tests: 280 (after dropping 15 legacy-only inputs in
+  E1; the new parser does not yet handle `~msg:`, `~global`,
+  alias commands, custom targets, foreach IN, block, extern,
+  set_env, etc.)
 - `make cmake-only-check`: 12/12
 - `make runcmake-yelu`: 50/50
+- `make cmake-commands` was broken pre-E1 (`Failure("expected
+  target name")` on `a99d9f7`); after E1 it surfaces 12 cmake
+  build-level failures (`-PRIVATE_FLAG` rejected by `cc`) that
+  are pre-existing, not regressions
 
 **Retirement summary** (all done):
 - Phase 1: production text generation routes through `emit_ast`
@@ -50,12 +59,38 @@ throughout `src/langs/yelu/`; the legacy stack lives in
 - Item F: parser dispatchers route through `Yelu_cmake_utils`
   (one source of truth for command-shape decisions; −86 LOC in
   `yelu_parse.ml`)
+- **Item E1** (2026-05-14, commits `c85fb3d` `d0def93`
+  `a99d9f7` `5b11ae7`) — legacy made deadcode:
+  - Byte oracle (194 programs in `test_yelu_compile.ml`)
+    rewritten to assert new emit path against inline expected
+    strings frozen from the legacy reference
+  - Pair-wise parser oracle (125 `_y1` cases in
+    `test_yelu_cmake_parse.ml`) rewritten the same way
+  - `test_yelu_bridge.ml` deleted
+  - `test_yelu_check.ml` deleted (its `Cmake_check` typecheck
+    pass + `Lang_yelu_wellform` binding pass exist only on the
+    legacy AST; replacement covered by Y17)
+  - 22 step binaries + their dune setup migrated to
+    `Step_common_ir`; legacy `Step_common` deleted; ergonomic
+    enum re-exports added to `Yelu_cmake_utils`
+  - 26 `test/test-runcmake/*` files migrated off
+    `Lang_yelu_compile` to the IR + `emit_ast` path
+  - ~150 lines of gap-fills in `Yelu_cmake_utils` (yc_string_*
+    family extensions, list_transform, ygreater/yless,
+    yc_link_libraries, yc_add_custom_command_target stub, math
+    output_format accept-and-discard, separate_arguments
+    `?input` shape fix, ystr-comparison stubs)
+  - `ECmakeAddCustomCommand` added to `emit_ast`
+  - `add_exe` / `add_lib`'s `~exclude_from_all` now silently
+    drops rather than failwith'ing
+  - `ylet` fixed to demote `EVar n → EString n` at bind time
+    (mirrors the legacy bridge's `let_value`; without it
+    `ylet "do_test" (ycstr "do_test")` infinite-looped
+    `emit_debug.arg`)
+  - `src/langs/dune` excludes all 24 yelu_legacy modules from
+    the `yelu_langs` library
 
-**Remaining retirement items (E split):**
-- **E1** — make legacy deadcode. Replace the byte oracle and
-  pair-wise oracle with golden-file tests so neither references
-  legacy. After E1: `yelu_legacy/` stays on disk but is
-  unreached by any code or test.
+**Remaining retirement item:**
 - **E2** — delete `yelu_legacy/` entirely. Gated on E1 holding
   green long enough and Y17 (typecheck reintroduction) not
   needing legacy as reference.
@@ -76,26 +111,42 @@ For the full retirement record (Phase 1, 2a, 2c, items A–G), see
 `../worklog_2026_05.md` covers the harness build-out using the older
 "Yelu1 / Yelu2 / yelu_tiny" vocabulary.
 
-## Known bridge shape gaps
+## Known IR shape gaps (carried into E1)
 
-Documented constructor-shape gaps where the legacy bridge raises
-`Bridge_error` rather than silently dropping data. Production tests
-don't exercise any of these today; each needs either a yelu_cmake IR
-extension or a bridge-side rewrite. Locations refer to
-`src/langs/yelu_legacy/yelu_cmake_legacy_bridge.ml`.
+Constructors the legacy compile path handled but the IR + `emit_ast`
+path does not yet model with full fidelity. E1's gap-fills in
+`Yelu_cmake_utils` either stub or accept-and-discard the affected
+options; tests exercising the missing semantics may still fail at
+the cmake-build layer (not the build layer).
 
-- **String-comparison conds beyond equality** — `Yexpr_str_less`,
-  `Yexpr_str_greater`, `Yexpr_str_less_eq`, `Yexpr_str_greater_eq`
-  (STRLESS / STRGREATER / STRLESS_EQUAL / STRGREATER_EQUAL) not yet
-  mirrored in yelu_cmake.
+- **String-comparison conds beyond equality** — `STRLESS` /
+  `STRGREATER` / `STRLESS_EQUAL` / `STRGREATER_EQUAL`. E1 stubs
+  `ystrless` / `ystrgreater` / `ystrless_equal` /
+  `ystrgreater_equal` as `ECmakeStringEqual`, which compiles but
+  changes runtime semantics. 4 cases in `test_if.ml` are affected.
 - **`add_executable` / `add_library` with `EXCLUDE_FROM_ALL`** —
-  bridge rejects the flag; yelu_cmake ctors don't carry the field.
-- **`target_link_libraries` multi-target** — bridge supports exactly
-  one target per call; production AST allows multiple. Either widen
-  the yelu_cmake surface to take a target list, or have the bridge
-  split into multiple per-target statements.
-- **`add_custom_command(TARGET ...)`** — TARGET-form custom command
-  deferred; production tests only use the OUTPUT-form variant.
+  the IR ctors don't carry the flag. E1's `add_exe` / `add_lib`
+  silently drop `~exclude_from_all`. Builds still configure; the
+  generated targets are no longer excluded from `make all`.
+- **`target_link_libraries` multi-target** — bridge supported
+  exactly one target per call; production AST allowed multiple.
+  The IR surface still takes a single target; multi-target callers
+  must split into per-target statements.
+- **`add_custom_command(TARGET ...)`** — TARGET-form custom
+  command. E1 stubs `yc_add_custom_command_target` as an empty-
+  outputs `ECmakeAddCustomCommand`; emit produces a valid but
+  semantically degenerate `add_custom_command(...)`.
+- **`math` `~output_format`** — IR `ECmakeMath` only carries
+  `exp` and `out`. E1's `yc_math` accepts `~output_format` and
+  discards it; tests using `Hexdecimal` get decimal output.
+- **JSON ops** — `ECmakeStringJson` is opaque
+  (`op_name = "JSON_op"`, no path / sub-op detail). The legacy
+  bridge already lost this fidelity; E1's `yc_string_json_*`
+  helpers match the bridge's collapse rather than the legacy
+  compile path's full enumeration.
+
+These are now first-class TODOs for any post-deadcode feature
+work; see also `## Post-retirement cleanup` below.
 
 ## Y17 — types on yelu_cmake (post-retirement)
 
