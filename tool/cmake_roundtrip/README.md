@@ -27,11 +27,13 @@ Stage 2 item.
   text (so quoting / bracket framing is byte-identical), and
   literal `(`/`)` tokens used for inner grouping (e.g.
   `if((A AND B))`).
-- 24/25 yelu-emitted tutorial step files round-trip with
-  byte-identical output after gersemi normalization. The 25th
-  (`step11_config`) is a `.cmake.in` template with `@PACKAGE_INIT@`
-  — not valid cmake source, correctly flagged as ERROR by
-  tree-sitter.
+- `.cmake.in` templates with `@VAR@` placeholders are handled
+  via a tree-sitter-ERROR fallback: when the root has an ERROR
+  spanning the whole file, the source is preserved verbatim as
+  a `raw` chunk. Gersemi is idempotent on this kind of opaque
+  text, so the round-trip stays byte-identical.
+- 25/25 yelu-emitted tutorial step files round-trip with
+  byte-identical output after gersemi normalization.
 - Untyped AST: each argument is a string of raw source text.
   Typed mapping into `Lang_cmake.exp` is Stage 2.
 
@@ -80,9 +82,15 @@ diff <(gersemi /tmp/tutorial_cmake/step1.cmake | grep -v "^$") \
 - **Comments dropped** — tree-sitter parses `line_comment` /
   `bracket_comment` nodes but the parser skips them. Stage 2 or
   later.
-- **`.cmake.in` templates not supported** — tree-sitter rejects
-  `@VAR@` at file scope. These are configure-time templates,
-  not raw cmake.
+- **`.cmake.in` template handling is coarse** — when tree-sitter
+  flags the whole root as ERROR (mis-lexing `@VAR@` placeholders
+  as an unclosed bracket argument), the source is preserved
+  verbatim as a single `raw` chunk. We lose any inner structure
+  the file might have had. Acceptable for the round-trip claim
+  (gersemi is idempotent on the same opaque text), but a finer
+  pass-through that parses non-template chunks structurally
+  would be a Stage-2+ enhancement. TODO: tree-sitter-cmake
+  upstream may also be teachable to accept `@VAR@` tokens.
 
 ## Next (Stage 2)
 

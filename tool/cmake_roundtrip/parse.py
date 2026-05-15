@@ -142,7 +142,14 @@ def parse_stmt(node, src):
         return parse_block(node, src, 'block_command', 'endblock_command')
     if t in ('line_comment', 'bracket_comment'):
         return None
-    # Unrecognized — bubble up so the round-trip surfaces it.
+    if t == 'ERROR':
+        # tree-sitter couldn't parse this fragment. Preserve the raw
+        # source so the round-trip is still byte-identical (modulo
+        # gersemi normalization). Common case: .cmake.in templates
+        # with @PACKAGE_INIT@ etc.
+        return {'kind': 'raw', 'text': get_text(node, src)}
+    # Recognized tree-sitter node we don't know how to handle yet.
+    # Surface it as 'unknown' so the printer can flag it loudly.
     return {'kind': 'unknown', 'type': t, 'text': get_text(node, src)}
 
 
@@ -150,7 +157,15 @@ def parse_source(src):
     lang = tree_sitter.Language(tree_sitter_cmake.language())
     parser = tree_sitter.Parser(lang)
     tree = parser.parse(src)
-    stmts = [parse_stmt(c, src) for c in tree.root_node.children]
+    # If the entire root is an error (e.g., a .cmake.in template that
+    # tree-sitter mis-lexes as one giant bracket_argument), fall back
+    # to emitting the whole file as raw text. Gersemi handles
+    # opaque-but-valid cmake text idempotently.
+    root = tree.root_node
+    if root.has_error and all(c.type == 'ERROR' for c in root.children):
+        return {'kind': 'source_file',
+                'stmts': [{'kind': 'raw', 'text': src.decode('utf-8')}]}
+    stmts = [parse_stmt(c, src) for c in root.children]
     stmts = [s for s in stmts if s is not None]
     return {'kind': 'source_file', 'stmts': stmts}
 

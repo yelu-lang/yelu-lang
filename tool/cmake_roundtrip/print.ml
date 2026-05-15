@@ -27,6 +27,11 @@ type stmt =
       clauses : (cmd * stmt list) list;
       tail : cmd;
     }
+  (* Raw text passthrough — used for tree-sitter ERROR nodes and
+     .cmake.in templates. Round-tripped verbatim. *)
+  | Raw of string
+  (* Recognized tree-sitter node we don't yet handle. Flagged as a
+     comment in the output so the failure is visible. *)
   | Unknown of { ts_type : string; text : string }
 
 (* ============================================================
@@ -86,6 +91,7 @@ and stmt_of_json = function
          | None -> failwith "block: missing tail"
        in
        Block { block_type; head; body; clauses; tail }
+     | "raw" -> Raw (json_string_field obj "text")
      | "unknown" ->
        Unknown {
          ts_type = json_string_field obj "type";
@@ -129,6 +135,9 @@ let rec print_stmt ~depth buf = function
     Buffer.add_string buf (indent depth);
     Buffer.add_string buf (print_cmd tail);
     Buffer.add_char buf '\n'
+  | Raw text ->
+    Buffer.add_string buf text;
+    if not (String.is_suffix text ~suffix:"\n") then Buffer.add_char buf '\n'
   | Unknown { ts_type; text } ->
     Buffer.add_string buf (indent depth);
     Buffer.add_string buf
