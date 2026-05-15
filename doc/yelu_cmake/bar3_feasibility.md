@@ -1,34 +1,22 @@
-# Bar #3 feasibility — z3 / llvm in yelu_cmake
+# Bar #3 feasibility — z3 / llvm and yelu_cmake
 
-Survey of what it would take to rewrite z3 and llvm's CMake
-builds in `yelu_cmake` and prove structural equivalence with the
-originals (the Bar #3 milestone from the manifesto). Grounded in
-the actual contents of `/home/red/code/contrib/z3-all/z3` and
-`/home/red/code/contrib/llvm-all/llvm-project/llvm`.
+Survey of what it would take to validate `yelu_cmake` against
+real-world cmake projects (the Bar #3 milestone from the
+manifesto). Grounded in
+`/home/red/code/contrib/z3-all/z3` and
+`/home/red/code/contrib/llvm-all/llvm-project/llvm` as snapshots
+of the targets.
 
-## What "translate" means here
+Two distinct shapes of claim are surveyed:
 
-Two valid framings:
-
-| Framing | Approach | Where it lands |
+| Claim | Verifies | Effort |
 | --- | --- | --- |
-| **Mechanical translation** | Write a CMake-source → yelu_cmake source translator. | Out of scope. Requires a real CMake parser (we have an emitter only) and would not capture semantics like macro expansion or property propagation. |
-| **Hand rewrite, structural equivalence** | Read the original CMakeLists, write the equivalent OCaml using `Yelu_cmake_utils`, emit, diff against the original (text or behavior). | What the manifesto means. The rest of this doc assumes this framing. |
+| **Bar #3-lite — syntactic round-trip** | `Lang_cmake.exp` (the typed cmake AST) is structurally rich enough to losslessly carry a real-world cmake project's source | ~1 month with tree-sitter-cmake; ~2-3 months DIY |
+| **Bar #3 — hand rewrite** | `yelu_cmake` (the typed surface) can *generate* the cmake a real-world project ships | ~weeks per small project; months for z3; quarters for llvm |
 
-"Structural equivalence" can mean two different verification
-shapes:
-
-- **Text-level**: emitted cmake is byte-identical (up to
-  formatting) to the original. Strong claim; requires preserving
-  the original DSL (`z3_add_component`, `add_llvm_library`, etc.)
-  as yelu_cmake `function()` calls — not replacing with OCaml
-  helpers.
-- **Behavior-level**: emitted cmake configures + builds with
-  identical output to the original. Weaker claim; allows
-  refactoring the DSL out of cmake into OCaml.
-
-The text-level claim is the manifesto target. The behavior-level
-claim is more achievable and still scientifically interesting.
+Both are useful. Bar #3-lite is the floor — if our cmake AST
+can't even round-trip z3, the hand rewrite can't succeed
+either. Recommendation at the bottom: do Bar #3-lite first.
 
 ## Source scale
 
@@ -43,19 +31,241 @@ Both projects checked at the heads currently on disk
 llvm-project is much larger if Clang / MLIR / etc. are added.
 The `llvm/llvm` subtree is the natural minimum scope.
 
+---
+
+# Bar #3-lite — syntactic round-trip
+
+The minimal scientific claim: "our typed cmake AST
+(`Lang_cmake.exp`) captures real-world cmake without semantic
+modeling — no variable substitution, no function invocation, no
+property propagation."
+
+```
+z3's CMakeLists.txt  →  parse  →  Lang_cmake.exp  →  pretty-print  →  diff against original
+```
+
+What's missing today: yelu has a cmake *emitter* (`Lang_cmake_pp`)
+and a *yelu-source* parser (`Yelu_parse`), but **no parser for
+arbitrary cmake source**. That's the new piece.
+
+## Building the parser — three options
+
+### Option A: tree-sitter-cmake via Python (recommended starter)
+
+[`uyha/tree-sitter-cmake`](https://github.com/uyha/tree-sitter-cmake)
+is a maintained tree-sitter grammar (used by Neovim and various
+editors). Tree-sitter handles all the lexer pain: bracket
+arguments `[==[...]==]`, quoted vs unquoted args, escape
+sequences, line continuations, BOM tolerance. The grammar
+produces a concrete syntax tree (CST) distinguishing
+control-flow blocks (`if_command` / `foreach_def` /
+`function_def` / etc.) from `normal_command` nodes; per-command
+typing is left to the consumer.
+
+Pipeline:
+
+```
+Python:  z3.cmake  →  tree-sitter parse  →  CST  →  JSON dump  →  stdout
+OCaml:   stdin     →  yojson  →  walk CST  →  Lang_cmake.exp
+         then:     Lang_cmake_pp  →  text  →  gersemi normalize  →  diff
+```
+
+The Python side is ~30 lines (load grammar, parse, serialize
+node tree as JSON). OCaml side reads JSON with `yojson` (already
+a common dep) and walks the tree.
+
+Pros:
+- Lexer / parser is **already written and battle-tested**.
+- Comments, brackets, line-continuation, all UTF-8 / BOM issues
+  handled by tree-sitter.
+- Iterative coverage: start with `source_file` + `normal_command`
+  + a single command (`set`), get a working round-trip, then add
+  commands one at a time.
+
+Cons:
+- Python build step in the test pipeline.
+- The CST is *concrete* — preserves syntax, including whitespace
+  and comments. Mapping it to the *typed* `Lang_cmake.exp`
+  requires the per-command knowledge (the same work as any other
+  parser approach, just without the lexer cost).
+
+### Option B: ocaml-tree-sitter (pure OCaml runtime)
+
+[`semgrep/ocaml-tree-sitter`](https://github.com/semgrep/ocaml-tree-sitter)
+is the OCaml binding ecosystem for tree-sitter (semgrep uses it
+for ~30 languages). It takes a tree-sitter grammar and generates
+OCaml ADTs + a parser at build time.
+
+Pros:
+- Pure OCaml runtime; no Python or other interpreter at test
+  time. Just a C library (libtree-sitter) and the generated
+  OCaml binding.
+- Type-safe CST traversal in OCaml (the generated ADT mirrors
+  the tree-sitter grammar nodes).
+
+Cons:
+- Codegen step at build time (small extra dune complexity).
+- Adds `libtree-sitter` + `libtree-sitter-cmake` C deps to the
+  build.
+- Whether the cmake grammar is in the maintained `semgrep/`
+  pre-built bindings list — TBD; may need to run their codegen
+  ourselves against `uyha/tree-sitter-cmake`.
+
+### Option C: DIY parser
+
+OCaml lexer + recursive-descent parser, no external runtime
+deps.
+
+Pros:
+- No deps. Builds cleanly anywhere.
+- Full control over the AST shape.
+
+Cons:
+- Reimplements what tree-sitter already does well. Bracket
+  arguments in particular are tedious (`[==[...]==]` with
+  arbitrary `=` count).
+- ~2-3 months to match tree-sitter-cmake's robustness.
+
+### Recommendation: A → B if it pays off
+
+Start with **Option A** (Python + tree-sitter-cmake). Fastest
+path to a working round-trip — probably **2-3 weeks** to a
+useful prototype. If the prototype proves the concept and the
+Python dep becomes annoying, migrate to **Option B**
+(ocaml-tree-sitter) in a follow-up — the JSON-walking code that
+maps CST → `Lang_cmake.exp` is mostly reusable; only the
+"how do we get the CST" layer changes.
+
+**Skip Option C.** Building a CMake parser from scratch is its
+own multi-month project; not worth the time when tree-sitter
+exists.
+
+## Two verification shapes
+
+Once the parser exists, two oracles can use it:
+
+### Shape 1: Text round-trip (fast, hermetic)
+
+```
+input.txt --gersemi--> canonical_A
+parse(input.txt) --pp--> reprint --gersemi--> canonical_B
+diff canonical_A canonical_B
+```
+
+gersemi handles whitespace / quoting / line-continuation
+variants, so the comparison surfaces only structural
+differences. A green diff means "our typed cmake AST + printer
+captures the syntactic content of z3's cmake, modulo
+formatting."
+
+Runs in milliseconds per file. Suitable for unit-test-style
+coverage across z3's 200 cmake files / llvm's 596.
+
+### Shape 2: File-API round-trip (stronger, slower)
+
+CMake's file API writes JSON describing the build graph
+(`<build>/.cmake/api/v1/reply/codemodel-v2-*.json`) after
+configure. The harness exists already as `make file-api-test`
+against tutorial steps.
+
+```
+real cmake configure on z3      →  file-API JSON_A
+real cmake configure on (parse+print of z3)  →  file-API JSON_B
+diff JSON_A JSON_B
+```
+
+Stronger than Shape 1: asserts the *cmake-perceived* structure
+is identical, catching issues like:
+- An argument gersemi treats as equivalent but cmake parses
+  differently.
+- Command-order mattering (e.g., `set` before `add_library` vs
+  after).
+- A printer that drops a flag, or adds an extra one cmake
+  silently ignores.
+
+Costs ~10 seconds per configure on z3 (cacheable). Run on a
+subset, nightly, or as a gating check.
+
+## What Bar #3-lite gives the project
+
+- **No `yelu_cmake` IR involvement.** Lives entirely at the
+  `Lang_cmake` layer. Decoupled from theory split, Y17, the
+  `yelu_cmake` ↔ `yelu_cmake_normal` design space.
+- **Coverage signal for `Lang_cmake.exp`.** The 133 commands
+  were carved against the CMake tutorial corpus, much narrower
+  than z3. Every parse failure on z3 surfaces a missing or
+  shallow command in the cmake AST — a real-world version of
+  the "Known IR shape gaps" tracking, but at the cmake-AST
+  layer.
+- **A cmake parser yelu doesn't have.** Y8 (multi-stage core),
+  Y17 typing, and the full Bar #3 all become much easier to
+  think about with a real cmake parser in hand.
+- **Free baseline via gersemi.** If
+  `gersemi(input) == gersemi(parse_print(input))`, you know the
+  parser+printer correctly captures syntactic content.
+
+## Risks where Bar #3-lite gets uglier
+
+- **Comments**: tree-sitter parses them as CST nodes; you can
+  either carry them through into `Lang_cmake.exp` (adds comment
+  nodes; invasive) or canonicalize via gersemi (lose them in
+  round-trip but pass the diff). The latter is fine for the
+  research claim.
+- **Bracket arguments** `[==[...]==]` are syntactically
+  delimited but semantically opaque (used for embedded code
+  generation, regexes). Parser preserves the literal text and
+  the bracket level; printer reuses the appropriate level.
+  tree-sitter handles this; the printer needs care.
+- **Generator expressions** `$<...>` inside arguments: parse as
+  opaque strings (matching how yelu_cmake already treats them
+  as `Ycs_eval`). Pass the literal text through.
+- **Per-file vs per-project round-trip.** Shape 1 is per-file —
+  `include()` and `add_subdirectory()` are preserved as
+  literal calls. Shape 2 (file-API) is per-project — cmake
+  follows them at configure time.
+
+---
+
+# Bar #3 — full hand rewrite
+
+The original manifesto claim: rewrite a project's CMakeLists in
+`yelu_cmake` and prove structural equivalence with the original.
+
+Two valid framings:
+
+| Framing | Approach | Where it lands |
+| --- | --- | --- |
+| **Mechanical translation** | Write a cmake source → yelu_cmake source translator. | Out of scope — even Bar #3-lite (parse → `Lang_cmake.exp` → reprint cmake) doesn't generate *yelu_cmake* source; it round-trips the cmake AST. Producing yelu_cmake source would require modeling cmake semantics, not just syntax. |
+| **Hand rewrite, structural equivalence** | Read the original cmake, write the equivalent OCaml using `Yelu_cmake_utils`, emit, diff. | What the manifesto means. |
+
+"Structural equivalence" can mean two different verification
+shapes:
+
+- **Text-level**: emitted cmake byte-identical (up to formatting)
+  to the original. Strong claim; requires preserving the original
+  DSL (`z3_add_component`, `add_llvm_library`, etc.) as
+  yelu_cmake `function()` calls — not replacing with OCaml
+  helpers.
+- **Behavior-level**: emitted cmake configures + builds with
+  identical output. Weaker; allows refactoring the DSL out of
+  cmake into OCaml.
+
+The text-level claim is the manifesto target. The behavior-level
+claim is more achievable and still scientifically interesting.
+
 ## yelu_cmake coverage matrix
 
 Cross-referencing the unique cmake commands used by each project
 against the 14 yelu_cmake theories. Categories:
 
-- **Covered** — yelu_cmake_utils helper exists, IR ctor exists,
-  emit_ast produces valid cmake.
-- **Partial** — helper exists but with documented gaps (see
+- **Covered** — `Yelu_cmake_utils` helper exists, IR ctor
+  exists, `emit_ast` produces valid cmake.
+- **Partial** — helper exists with documented gaps (see
   `status.md` "Known IR shape gaps") or signature differences.
-- **Missing — modelable** — no IR ctor today, but the surface is
+- **Missing — modelable** — no IR ctor today; surface
   straightforward to add.
 - **Missing — hard** — adding the surface is its own substantial
-  feature; the project depends on it in a non-trivial way.
+  feature; the project depends on it non-trivially.
 
 ### z3
 
@@ -92,7 +302,7 @@ helpers that emit the same target / property mutations.
 | Covered | ~70 | Same baseline as z3 plus more cond / list / string ops |
 | Partial | ~15 | Same as z3 plus several `target_*` arrangements that use the multi-target / multi-visibility shapes |
 | Missing — modelable | ~25 | `cmake_parse_arguments` (39 uses, frequent), `check_c_source_compiles`, `check_cxx_source_compiles`, `try_run`, `try_compile` extended forms, `add_compile_options`, `add_link_options`, `include_directories` (deprecated but used), `link_directories`, `link_libraries` (deprecated but used) |
-| Missing — hard | ~35 | `tablegen` / `add_public_tablegen_target` (the LLVM TableGen integration — 379 + 68 uses); LLVM's CMake build-time scripting via `cmake -P`; multi-config generator handling; the host-tool / cross-compile dance; multi-target arch detection |
+| Missing — hard | ~35 | `tablegen` / `add_public_tablegen_target` (LLVM TableGen integration — 379 + 68 uses); LLVM's CMake build-time scripting via `cmake -P`; multi-config generator handling; the host-tool / cross-compile dance; multi-target arch detection |
 
 **llvm DSL** (300+ DSL-call sites):
 - `add_llvm_component_library` (204 uses) — full component
@@ -105,7 +315,7 @@ helpers that emit the same target / property mutations.
   files. Configure-time code generation; without TableGen, you
   cannot build LLVM.
 
-## Specific blockers
+## Specific blockers (full Bar #3)
 
 ### Shared by both
 
@@ -117,20 +327,20 @@ helpers that emit the same target / property mutations.
 2. **Cross-theory generator expressions** — both projects use
    `$<BUILD_INTERFACE:...>`, `$<INSTALL_INTERFACE:...>`,
    `$<TARGET_PROPERTY:...>` etc. extensively. Today these flow
-   through yelu_cmake as opaque `EString`s via `Ycs_eval`. That
-   is sufficient for emission but means yelu_cmake cannot
-   reason about them (and Y17 cannot type them).
+   through yelu_cmake as opaque `EString`s via `Ycs_eval`.
+   Sufficient for emission but means yelu_cmake cannot reason
+   about them (and Y17 cannot type them).
 3. **Subdirectory scope isolation** — yelu_cmake records
    `add_subdirectory` but does not enforce var / target scope
    isolation. z3 has 89 subdirectories; llvm has hundreds. The
-   emitted cmake works because real cmake provides the
-   scoping, but yelu_cmake's own eval / typecheck cannot
-   reason across the boundary.
+   emitted cmake works because real cmake provides the scoping,
+   but yelu_cmake's own eval / typecheck cannot reason across
+   the boundary.
 4. **Custom `Find*.cmake` modules** — both ship their own. The
-   `find_package` flow currently calls into yelu_cmake's
-   modeled find primitives but doesn't execute a custom
-   `Find*.cmake` module's logic. For text-level equivalence,
-   these modules need to be rewritten in yelu_cmake too.
+   `find_package` flow calls into yelu_cmake's modeled find
+   primitives but doesn't execute a custom `Find*.cmake`
+   module's logic. For text-level equivalence, these modules
+   need to be rewritten in yelu_cmake too.
 5. **Global property mutation** (`set_property(GLOBAL APPEND
    PROPERTY ...)`) — used by both for component / dependency
    bookkeeping. yelu_cmake's property scope coverage is
@@ -144,113 +354,116 @@ helpers that emit the same target / property mutations.
    the `.td` → `.inc.h` step as an opaque `add_custom_command`
    and lose any structural understanding.
 
-## Recommended path
+---
 
-A staged approach, starting much smaller than z3 / llvm:
+# Recommended path
 
-### Stage 0 — Identify candidates with z3-shaped complexity but smaller scope
+Bar #3-lite first; full Bar #3 layered on top once it succeeds.
 
-Goal: a target where the full hand-rewrite fits in 1–2 weeks
-and produces a meaningful claim. Suggested candidates (in
-increasing order of difficulty):
+### Stage 0 — Cmake parser via tree-sitter (~2–3 weeks)
 
-- **fmt** (libfmt) — ~10 cmake files, well-modularized, no
-  custom DSL beyond standard `target_*` helpers. Doable in
-  ~2 days.
-- **catch2** — similar size, similar shape. Header-only library
-  so the build is mostly install rules + tests.
-- **rapidjson** — small, header-only, very simple cmake.
+Build the parser + round-trip harness:
 
-Pick one of these as the **proof-of-concept**: end-to-end
-hand rewrite, text-level diff, behavior-level verification by
-configuring + building.
+- Python wrapper around `tree-sitter-cmake`. Emits JSON CST to
+  stdout.
+- OCaml `cmake_parse_source` module. Reads JSON, walks the CST,
+  produces either:
+  - (Variant 1, faster) an *untyped* `Cmake_source_ast` that
+    captures `(command_name, raw_args, body_block?)` — enough to
+    round-trip but doesn't test `Lang_cmake.exp`.
+  - (Variant 2, slower) `Lang_cmake.exp` directly — tests
+    `Lang_cmake.exp` expressiveness per command.
+- Pretty-printer for whichever AST shape — reuse
+  `Lang_cmake_pp` for Variant 2; trivial new printer for
+  Variant 1.
+- Test harness:
+  `gersemi(input) == gersemi(parse_print(input))` per file.
 
-### Stage 1 — z3 partial (Stage 0 → z3 root only)
+Start with Variant 1 to validate the lexer / CST walking;
+upgrade to Variant 2 once round-trip is green for a corpus of
+small files. The two variants share most of the code.
 
-After Stage 0, attempt z3's **root `CMakeLists.txt`** and the
-top-level component declarations, leaving the per-component
-`src/<component>/CMakeLists.txt` files in their original form.
-This requires:
+### Stage 1 — Run round-trip on z3 (~1–2 weeks after Stage 0)
 
-- Modeling z3's 7 custom DSL functions in yelu_cmake `yc_function`
-- Filling the ~15 "missing — modelable" gaps (`check_*`,
-  `cmake_parse_arguments`, version helpers)
-- Confirming the partial gaps (multi-target, global properties)
-  don't bite
+Apply the Variant 2 round-trip to all 200 z3 cmake files. Each
+parse failure or diff is a coverage gap in `Lang_cmake.exp` or
+the printer; address command-by-command. Expected outcomes:
 
-Estimate: 2–4 weeks. Produces a real Bar-#3-shaped artifact for
-a project that's non-trivial but not enormous.
+- 60–80% of z3 files round-trip cleanly on first run.
+- Remaining files exercise less-covered `Lang_cmake.exp`
+  commands; gap list grows the cmake AST.
+- Coverage matrix becomes data-backed rather than
+  estimate-based.
 
-### Stage 2 — z3 full
+### Stage 1.5 — File-API round-trip on z3 (~1 week)
 
-Translate every component. Requires the per-component DSL calls
-to round-trip through yelu_cmake function definitions.
-Realistic estimate: 1–2 months once Stage 1 is solid.
+Add Shape 2 as a stronger oracle for z3's top-level. Catches
+issues the syntactic oracle misses.
 
-### Stage 3 — LLVM exploratory
+### Stage 2 — Round-trip on llvm/llvm (~1+ months)
 
-Pick a subset (e.g., `llvm/lib/Support`) and attempt the
-rewrite, primarily to surface what TableGen and the
-`add_llvm_*` macro family need from yelu_cmake. Likely to
-generate a longer follow-up TODO list than a finished
-translation.
+Same parser, much wider command vocabulary. Coverage matrix
+grows substantially. Bar #3-lite milestone for llvm: every
+cmake file in `llvm/llvm` round-trips through `Lang_cmake.exp`.
+
+### Stage 3 — Full Bar #3 on small targets (~1–2 months)
+
+Don't attempt z3 or llvm hand rewrites until Bar #3-lite has
+mapped the coverage. Start with **fmt / catch2 / rapidjson**
+as Stage 3 calibration — 1–2k cmake LOC, no custom DSL. Pick
+the version pinned in a real project we care about, not latest.
+
+### Stage 4+ — Full Bar #3 on z3 then llvm (months to quarters)
+
+Only attempt after Stage 1+2 establishes that the cmake AST
+is rich enough, *and* Y17 typing has landed (the typing rules
+will surface what's expressible in yelu_cmake).
+
+---
 
 ## What yelu_cmake would gain from doing this
 
 Beyond the manifesto claim:
 
-- **Real-world IR shape feedback** — the current IR was
-  designed against the CMake tutorial + RunCMake corpus. Real
-  projects use cmake idioms the corpus does not exercise (deep
-  property propagation, generator expressions in install
-  rules, multi-target link_lib, find_package modules with
-  components).
-- **Forced honesty on gaps** — the "Known IR shape gaps" list
-  is currently passive (tests that document the stubs, but no
-  caller demanding the fix). Real-project translation surfaces
-  which gaps actually matter.
-- **Bench for Y17** — typing rules can be exercised against
-  real cmake projects; the failure modes ("this type system
-  can't express what z3's DSL needs") are more informative
-  than synthetic examples.
+- **Real-world IR shape feedback** — the current IR was designed
+  against the CMake tutorial + RunCMake corpus. Real projects
+  use cmake idioms the corpus doesn't exercise.
+- **Forced honesty on gaps** — the "Known IR shape gaps" list is
+  currently passive (tests that document the stubs, no caller
+  demanding the fix). Real-project parsing surfaces which gaps
+  actually matter.
+- **Bench for Y17** — typing rules can be exercised against real
+  cmake projects; failure modes are more informative than
+  synthetic examples.
+- **A cmake parser** — useful component independent of the
+  Bar #3 claim (Y8, Y17, future tooling all benefit).
 
 ## What yelu_cmake would NOT gain from doing this prematurely
 
-- It is **not a substitute** for the structural cleanup items
-  in `status.md`. Splitting `cmake_op`, moving emit / convert
-  arms to fragments, the theory split (`yelu_theory/plan.md`),
-  Y17 typing — none of these are blocked by Bar #3, and Bar #3
-  benefits from each being in place first.
-- It is **not a CI-able test**. Behavior-level equivalence runs
-  real builds; days of CI time. Manifesto-shaped, not
-  regression-shaped.
-
-## Recommendation
-
-Don't attempt z3 or llvm directly. Start with **fmt** or
-**catch2** as Stage 0. The point of those targets is to
-calibrate: how long does a hand rewrite of a 1k-line cmake
-build actually take, and which gaps surface first? Those
-numbers will determine whether z3 (Stage 1) is a 2-week or
-2-month project.
-
-If Stage 0 succeeds and the gaps are small, jump to z3 root
-(Stage 1). LLVM (Stage 3) should wait for Y17 to land — the
-DSL complexity makes the typing surface the load-bearing
-question, not the IR coverage.
+- It is **not a substitute** for the structural cleanup items in
+  `status.md`. Splitting `cmake_op`, moving emit / convert arms
+  to fragments, the theory split (`doc/yelu_theory/plan.md`),
+  Y17 typing — none are blocked by Bar #3-lite, and Bar #3
+  (hand rewrite) benefits from each being in place first.
+- It is **not a CI-able test for full Bar #3**. Behavior-level
+  equivalence runs real builds; days of CI time.
+  Manifesto-shaped, not regression-shaped. Bar #3-lite (Shape 1
+  / Shape 2) is CI-able.
 
 ## Open questions
 
-- **Which fmt / catch2 / rapidjson?** Pick the version pinned
-  in a real project we care about, not latest, so the cmake
-  is one we'd actually want to drop yelu output into.
-- **Verification strategy** — what counts as "structural
-  equivalence" in practice? Text-diff after gersemi
-  normalization? Compare the generated build graph
-  (`cmake --graphviz`)? Configure + build + compare artifact
-  hashes? Pick one before starting Stage 0.
-- **DSL preservation vs OCaml-side helpers** — text-level
-  equivalence requires DSL preservation (e.g., emit a
+- **Which fmt / catch2 / rapidjson version for Stage 3?** Pin
+  the version a real project we care about uses, not latest.
+- **Verification strategy for "structural equivalence"** —
+  text-diff after gersemi normalization? Compare the generated
+  build graph (`cmake --graphviz`)? File-API JSON diff? Pick
+  one before starting Stage 3.
+- **DSL preservation vs OCaml-side helpers** — for full Bar #3,
+  text-level equivalence requires DSL preservation (emit a
   `z3_add_component` cmake function). Decide whether the
   research claim needs text-level, or whether behavior-level
   is enough.
+- **tree-sitter-cmake grammar gaps** — until we actually run
+  the round-trip, we don't know whether the grammar covers
+  every shape z3 / llvm use. Expect to file 1–3 upstream PRs
+  during Stage 0.
