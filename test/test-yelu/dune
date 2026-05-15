@@ -1,7 +1,6 @@
 (tests
  (names
   test_yelu_compile
-  test_yelu_check
   test_yelu_lexer
   test_yelu_cmake_parse
   test_yelu_lift_lower

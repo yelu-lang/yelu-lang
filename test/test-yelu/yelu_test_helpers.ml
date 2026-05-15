@@ -2,8 +2,6 @@ open Base
 open Yelu_langs.Yelu_cmake
 open Yelu_langs.Yelu_cmake_convert
 
-module Old = Yelu_langs.Lang_yelu_cmake
-
 let target
       ?(kind = TargetExecutable)
       ?(sources = [])
@@ -77,37 +75,6 @@ let env_of_bindings
   let env = List.fold try_compiles ~init:env ~f:add_try_compile in
   List.fold functions ~init:env ~f:(fun env (name, decl) ->
     set_function env name decl)
-
-let old_cvar name : Old.tc_name = { ns = Old.Ns_var; name }
-let old_str s = Old.Yexpr_string (Old.Ycs_string s)
-let old_var name = Old.Yexpr_var (Old.Yvar name)
-
-let check_yelu_cmake_bridge_to_yelu1 name stmt ~expected_value ~expected_env =
-  Alcotest.test_case name `Quick (fun () ->
-    let expr = Yelu_langs.Yelu_cmake_legacy_bridge.stmt stmt in
-    let env, value = eval_yelu_cmake_expr empty_env expr in
-    Alcotest.(check bool) "expected value" true
-      (equal_value expected_value value);
-    Alcotest.(check bool) "expected env" true
-      (equal_env expected_env env))
-
-let parse_old_yelu source =
-  match Yelu_langs.Lang_yelu_parse.parse_program source with
-  | Ok stmt -> stmt
-  | Error error -> Alcotest.failf "parse error: %s" error
-
-let check_parsed_yelu_bridge_to_yelu1 name source ~expected_value ~expected_env =
-  Alcotest.test_case name `Quick (fun () ->
-    let expr =
-      source
-      |> parse_old_yelu
-      |> Yelu_langs.Yelu_cmake_legacy_bridge.stmt
-    in
-    let env, value = eval_yelu_cmake_expr empty_env expr in
-    Alcotest.(check bool) "expected value" true
-      (equal_value expected_value value);
-    Alcotest.(check bool) "expected env" true
-      (equal_env expected_env env))
 
 let check_yelu1_to_yelu2 name expr ~expected_value ~expected_env =
   Alcotest.test_case name `Quick (fun () ->

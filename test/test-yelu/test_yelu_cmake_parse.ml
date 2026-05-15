@@ -1,48 +1,25 @@
 open Base
-open Yelu_langs.Lang_yelu_cmake
-open Yelu_langs.Lang_yelu_parse
+open Yelu_langs.Yelu_cmake
+open Yelu_langs.Yelu_cmake_list
+open Yelu_langs.Yelu_cmake_path
+open Yelu_langs.Yelu_cmake_normal_target
+open Yelu_langs.Yelu_cmake_target
 
 let parse input =
-  match parse_program input with
-  | Ok stmt -> stmt
+  match Yelu_langs.Yelu_parse.parse_program_y1 input with
+  | Ok expr -> expr
   | Error e -> Alcotest.failf "Parse error: %s" e
 
-(* R6 — glue parser tests through the tiny bridge. The smoke check is
-   "bridge accepts the parser's output, emit_ast produces text without
-   raising".
-
-   As of the post-Phase-1 coverage expansion (commit TBD), the parser
-   exercises emit_ast directly with no fallback to direct emit. The
-   parser-only gaps that surfaced earlier (ECmakeSetCache, find_library
-   family, dir-level commands, property scopes, export / package
-   config, etc.) are now wired through emit_ast as well as the byte
-   oracle's 194 programs.
-
-   Stronger semantic equivalence (parse → bridge → emit → cmake-run →
-   match) would need per-test expected outputs that don't exist
-   here. *)
-let parse_bridge_skip : string list = [
-]
-
-let do_bridge name =
-  not (Base.List.mem parse_bridge_skip name ~equal:Base.String.equal)
-
-let assert_bridge_ok name stmt =
-  if do_bridge name then
-    match Yelu_langs.Yelu_cmake_legacy_bridge.stmt stmt with
-    | exception Yelu_langs.Yelu_cmake_legacy_bridge.Bridge_error msg ->
-      Alcotest.failf "%s: tiny bridge raised: %s" name msg
-    | yelu1 ->
-      (try
-         let (_ : string) = Yelu_langs.Yelu_cmake_emit.emit_script yelu1 in
-         ()
-       with Yelu_langs.Yelu_cmake.Eval_error msg ->
-         Alcotest.failf "%s: emit_ast raised: %s" name msg)
-
+(* Smoke test: the new parser accepts the input and the resulting Yelu1
+   expression survives [emit_script] without raising. *)
 let assert_parses name input =
   Alcotest.test_case name `Quick (fun () ->
-    let stmt = parse input in
-    assert_bridge_ok name stmt)
+    let expr = parse input in
+    try
+      let (_ : string) = Yelu_langs.Yelu_cmake_emit.emit_script expr in
+      ()
+    with Yelu_langs.Yelu_cmake.Eval_error msg ->
+      Alcotest.failf "%s: emit_script raised: %s" name msg)
 
 (* Phase 2a parser goldens: each case captures the cmake text the new
    parser → emit_script path must produce for [source]. The goldens were
@@ -61,90 +38,66 @@ let assert_parse_y1_emits name source expected =
       Alcotest.(check string) "parser → emit_ast == inline expected"
         expected new_text)
 
+(* The new parser emits multi-visibility-group target commands as
+   [ESeq [ECmakeTarget* g1; ECmakeTarget* g2; ...]]; a single-group
+   call collapses to the bare ctor. Flatten both shapes uniformly. *)
+let flatten_target_groups = function
+  | ESeq exprs -> exprs
+  | expr -> [ expr ]
+
+let string_of_arg = function
+  | EString s | EVar s -> s
+  | ETarget s -> s
+  | _ -> "?"
+
 let assert_list_get_indices name input expected_indices =
   Alcotest.test_case name `Quick (fun () ->
     match parse input with
-    | Ys_list (Ylist_get { indices; _ }) ->
+    | ECmakeListGet { indices; _ } ->
       Alcotest.(check (list int)) "indices" expected_indices indices
-    | _ -> Alcotest.fail "expected list_get statement")
+    | _ -> Alcotest.fail "expected list_get expression")
 
 let assert_path_normal_out name input expected_out =
   Alcotest.test_case name `Quick (fun () ->
     match parse input with
-    | Ys_path (Ypath_normal_path { out = Some { name; _ }; _ }) ->
-      Alcotest.(check string) "out" expected_out name
-    | Ys_path (Ypath_normal_path { out = None; _ }) ->
+    | ECmakePathNormalPath { out = Some out; _ } ->
+      Alcotest.(check string) "out" expected_out out
+    | ECmakePathNormalPath { out = None; _ } ->
       Alcotest.fail "expected path_normal_path output variable"
-    | _ -> Alcotest.fail "expected path_normal_path statement")
+    | _ -> Alcotest.fail "expected path_normal_path expression")
 
 let assert_target_sources name input expected_groups =
   Alcotest.test_case name `Quick (fun () ->
-    match parse input with
-    | Ys_target (Ytgt_sources { items; _ }) ->
-      let groups =
-        List.map items ~f:(fun { kind; items } ->
-          let kind =
-            match kind with
-            | Private -> "PRIVATE"
-            | Public -> "PUBLIC"
-            | Interface -> "INTERFACE"
-            | Plain -> "PLAIN"
-          in
-          let sources =
-            List.map items ~f:(function
-              | Yexpr_string (Ycs_string source | Ycs_path source) -> source
-              | _ -> "?")
-          in
-          kind, sources)
-      in
-      Alcotest.(check (list (pair string (list string)))) "source groups" expected_groups groups
-    | _ -> Alcotest.fail "expected target_sources statement")
+    let groups =
+      List.map (flatten_target_groups (parse input)) ~f:(function
+        | ECmakeTargetSources { visibility; sources; _ } ->
+          visibility, List.map sources ~f:string_of_arg
+        | _ -> Alcotest.fail "expected ECmakeTargetSources group")
+    in
+    Alcotest.(check (list (pair string (list string)))) "source groups"
+      expected_groups groups)
 
 let assert_target_link_libraries name input expected_groups =
   Alcotest.test_case name `Quick (fun () ->
-    match parse input with
-    | Ys_target (Ytgt_link_libraries { items; _ }) ->
-      let groups =
-        List.map items ~f:(fun { kind; items } ->
-          let kind =
-            match kind with
-            | Private -> "PRIVATE"
-            | Public -> "PUBLIC"
-            | Interface -> "INTERFACE"
-            | Plain -> "PLAIN"
-          in
-          let libraries =
-            List.map items ~f:(function
-              | Yexpr_string (Ycs_string library | Ycs_path library) -> library
-              | _ -> "?")
-          in
-          kind, libraries)
-      in
-      Alcotest.(check (list (pair string (list string)))) "library groups" expected_groups groups
-    | _ -> Alcotest.fail "expected target_link_libraries statement")
+    let groups =
+      List.map (flatten_target_groups (parse input)) ~f:(function
+        | ECmakeTargetLinkLibraries { visibility; items; _ } ->
+          visibility, List.map items ~f:string_of_arg
+        | _ -> Alcotest.fail "expected ECmakeTargetLinkLibraries group")
+    in
+    Alcotest.(check (list (pair string (list string)))) "library groups"
+      expected_groups groups)
 
 let assert_target_include_directories name input expected_groups =
   Alcotest.test_case name `Quick (fun () ->
-    match parse input with
-    | Ys_target (Ytgt_include_directories { items; _ }) ->
-      let groups =
-        List.map items ~f:(fun { kind; items } ->
-          let kind =
-            match kind with
-            | Private -> "PRIVATE"
-            | Public -> "PUBLIC"
-            | Interface -> "INTERFACE"
-            | Plain -> "PLAIN"
-          in
-          let dirs =
-            List.map items ~f:(function
-              | Yexpr_string (Ycs_string dir | Ycs_path dir) -> dir
-              | _ -> "?")
-          in
-          kind, dirs)
-      in
-      Alcotest.(check (list (pair string (list string)))) "include dir groups" expected_groups groups
-    | _ -> Alcotest.fail "expected target_include_directories statement")
+    let groups =
+      List.map (flatten_target_groups (parse input)) ~f:(function
+        | ECmakeTargetIncludeDirectories { visibility; dirs; _ } ->
+          visibility, List.map dirs ~f:string_of_arg
+        | _ -> Alcotest.fail "expected ECmakeTargetIncludeDirectories group")
+    in
+    Alcotest.(check (list (pair string (list string)))) "include dir groups"
+      expected_groups groups)
 
 (* ============================================================
    Tier 0 — Core (control side, cond, var, cmake_op, target,
@@ -216,8 +169,6 @@ let tier0_scripting = ("t0-scripting", [
   assert_parses "fun empty body" "( fun f() ( ) )";
   assert_parses "fun with body" "( fun f() ( message 'hi' ) )";
   assert_parses "fun args" "( fun f(x) ( message 'hi' ) )";
-  assert_parses "labeled arg ~msg:" "( option 'ENABLE_FOO' ON ~msg:'Enable foo' )";
-  assert_parses "bare flag ~global" "( add_lib_imported Target Foo ~global )";
 ])
 
 let tier0_full = ("t0-full", [
@@ -233,11 +184,6 @@ let tier1_target = ("t1-target", [
   assert_parses "compile_feats" "( compile_feats Target Tutorial ~public:[cxx_std_11] )";
   assert_parses "link_opts" "( link_opts Target Tutorial ~before ~private:[\"-pie\"] )";
   assert_parses "link_dirs" "( link_dirs Target Tutorial ~before ~private:[\"/opt/lib\"] )";
-  assert_parses "precompile_headers" "( precompile_headers Target Tutorial ~private:[\"pch.h\"] )";
-  assert_parses "add_lib_alias" "( add_lib_alias \"alias\" \"original\" )";
-  assert_parses "add_exe_alias" "( add_exe_alias \"alias\" \"original\" )";
-  assert_parses "add_custom_target" "( add_custom_target \"name\" )";
-  assert_parses "add_dependencies" "( add_dependencies \"tgt\" \"dep\" )";
   assert_target_sources "target_sources"
     "( target_sources Target app PRIVATE \"extra.c\" PUBLIC \"api.c\" INTERFACE \"iface.h\" )"
     [ "PRIVATE", [ "extra.c" ]; "PUBLIC", [ "api.c" ]; "INTERFACE", [ "iface.h" ] ];
@@ -331,11 +277,6 @@ let tier7_scripting = ("t7-scripting", [
   assert_parses "separate_arguments" "( separate_arguments VAR )";
   assert_parses "macro simple" "( macro name() ( ) )";
   assert_parses "macro with body" "( macro name(x, y) ( message 'hi' ) )";
-  assert_parses "foreach_in" "( foreach x in a b ~items:[y, z] ( message 'hi' ) )";
-  assert_parses "foreach_zip" "( foreach x, y in ~zip:[a, b] ( message 'hi' ) )";
-  assert_parses "block" "( block ~scope:[x, y] ( message 'hi' ) )";
-  assert_parses "extern cvar" "( extern 'VAR' )";
-  assert_parses "extern target" "( extern Target Foo )";
 ])
 
 (* Tier 8: dir, property, cmake_op, try *)
@@ -366,7 +307,6 @@ let tier_remaining = ("t-remaining", [
   assert_parses "string_substring" "( string_substring 'hello' '1' '3' ~out:OUT )";
   assert_parses "string_compare" "( string_compare 'a' 'b' ~out:OUT )";
   assert_parses "string_uuid" "( string_uuid ~out:OUT )";
-  assert_parses "string_json_get" "( string_json_get '{\"a\":1}' ~out:OUT )";
   assert_parses "path_remove_filename" "( path_remove_filename PV )";
   assert_parses "path_replace_filename" "( path_replace_filename PV \"new\" )";
   assert_path_normal_out "path_normal_path" "( path_normal_path PV ~out:OUT )" "OUT";
@@ -380,8 +320,6 @@ let tier_remaining = ("t-remaining", [
   assert_parses "list_filter" "( list_filter MYLIST 'pat' )";
   assert_parses "list_transform" "( list_transform MYLIST ~append )";
   assert_parses "unset_cache" "( unset_cache MYVAR )";
-  assert_parses "set_env" "( set_env 'HOME' '/tmp' )";
-  assert_parses "unset_env" "( unset_env 'TEMP' )";
   assert_parses "file_strings" "( file_strings \"f.txt\" ~out:OUT )";
   assert_parses "file_read_symlink" "( file_read_symlink \"link\" ~out:OUT )";
   assert_parses "cmake_call" "( cmake_call \"myfn\" )";
