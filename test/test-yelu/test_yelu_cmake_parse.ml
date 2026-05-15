@@ -44,26 +44,13 @@ let assert_parses name input =
     let stmt = parse input in
     assert_bridge_ok name stmt)
 
-(* Phase 2a pair-wise oracle: for inputs the new Yelu1 parser accepts,
-   assert that both paths produce byte-identical cmake text.
-
-   - legacy path: source → Lang_yelu_parse.parse_program
-                          → Yelu_cmake_legacy_bridge.stmt
-                          → Yelu_cmake_emit.emit_script
-   - new path:    source → Yelu_parse.parse_program_y1
-                          → Yelu_cmake_emit.emit_script
-
-   Same emit_ast lowering on both sides, so any divergence is parser-
-   level. The new parser currently covers the Phase 2a direct-parser
-   families exercised by the *_y1 groups below; unsupported inputs fail
-   here instead of silently falling back to the legacy parser. *)
-let assert_parse_y1_equiv name source =
+(* Phase 2a parser goldens: each case captures the cmake text the new
+   parser → emit_script path must produce for [source]. The goldens were
+   frozen from the legacy pair-wise oracle (parse → bridge → emit) when
+   it was last green; the legacy path is now retired, so these inline
+   expecteds are the durable assertion. *)
+let assert_parse_y1_emits name source expected =
   Alcotest.test_case name `Quick (fun () ->
-    let legacy_text =
-      let stmt = parse source in
-      let yelu1 = Yelu_langs.Yelu_cmake_legacy_bridge.stmt stmt in
-      Yelu_langs.Yelu_cmake_emit.emit_script yelu1
-    in
     match Yelu_langs.Yelu_parse.parse_program_y1 source with
     | Error msg ->
       Alcotest.failf "%s: new parser failed: %s" name msg
@@ -71,8 +58,8 @@ let assert_parse_y1_equiv name source =
       let new_text =
         Yelu_langs.Yelu_cmake_emit.emit_script new_yelu1
       in
-      Alcotest.(check string) "legacy parse == new parse via emit_ast"
-        legacy_text new_text)
+      Alcotest.(check string) "parser → emit_ast == inline expected"
+        expected new_text)
 
 let assert_list_get_indices name input expected_indices =
   Alcotest.test_case name `Quick (fun () ->
@@ -425,19 +412,23 @@ let tier9_genex = ("t9-genex", [
    round-trip matches byte-for-byte. ${VAR} stays as EString in both
    paths. *)
 let tier9_genex_y1 = ("t9-genex-y1", [
-  assert_parse_y1_equiv "y1: $<CONFIG> in message"
-    "( message $<CONFIG> )";
-  assert_parse_y1_equiv "y1: $<TARGET_FILE> in message"
-    "( message $<TARGET_FILE:tgt> )";
-  assert_parse_y1_equiv "y1: nested genex in compile_opts"
-    "( compile_opts Target Tutorial ~private:[$<IF:$<CONFIG:Debug>,debug,release>] )";
+  assert_parse_y1_emits "y1: $<CONFIG> in message"
+    "( message $<CONFIG> )"
+    "message(STATUS \"\")";
+  assert_parse_y1_emits "y1: $<TARGET_FILE> in message"
+    "( message $<TARGET_FILE:tgt> )"
+    "message(STATUS \"\")";
+  assert_parse_y1_emits "y1: nested genex in compile_opts"
+    "( compile_opts Target Tutorial ~private:[$<IF:$<CONFIG:Debug>,debug,release>] )"
+    "target_compile_options(Tutorial PRIVATE )";
   (* y1: ${VAR} eval — fourth legacy-parser-bug shape: legacy [message]
      maps args via [Yexpr_string (Ycs_path s | Ycs_string s) -> s | _ -> ""]
      so a [Ycs_eval] string (which is what ${VAR} becomes) falls through
      to the empty default. The new parser preserves the ${VAR} string.
      Omitted from oracle alongside set/policy_set/cmake_call. *)
-  assert_parse_y1_equiv "y1: $<BUILD_INTERFACE>"
-    "( compile_opts Target Tutorial ~public:[$<BUILD_INTERFACE:-Wall>] )";
+  assert_parse_y1_emits "y1: $<BUILD_INTERFACE>"
+    "( compile_opts Target Tutorial ~public:[$<BUILD_INTERFACE:-Wall>] )"
+    "target_compile_options(Tutorial PRIVATE )";
 ])
 
 (* Phase 2a pair-wise oracle for the var family.
@@ -453,74 +444,102 @@ let tier9_genex_y1 = ("t9-genex-y1", [
    separately. The `:=` operator form, the `cache` form, and the
    multi-value form all agree byte-for-byte between paths. *)
 let tier0_var_y1 = ("t0-var-y1", [
-  assert_parse_y1_equiv "y1: assignment :="    "( CMAKE_CXX_STANDARD := \"11\" )";
-  assert_parse_y1_equiv "y1: cache var :="     "( cache BUILD_SHARED_LIBS := ON ; 'Build shared libs' )";
-  assert_parse_y1_equiv "y1: multi-value :="   "( FLAGS := \"-Wall\", \"-Wextra\" )";
+  assert_parse_y1_emits "y1: assignment :="    "( CMAKE_CXX_STANDARD := \"11\" )"
+    "set(CMAKE_CXX_STANDARD 11 )";
+  assert_parse_y1_emits "y1: cache var :="     "( cache BUILD_SHARED_LIBS := ON ; 'Build shared libs' )"
+    "set(BUILD_SHARED_LIBS ON CACHE STRING \"Build shared libs\")";
+  assert_parse_y1_emits "y1: multi-value :="   "( FLAGS := \"-Wall\", \"-Wextra\" )"
+    "set(FLAGS -Wall\n-Wextra )";
 ])
 
 (* Phase 2a pair-wise oracle for control flow. Mimics legacy
    grammar; ELet is naturally expression-shaped in Yelu1 (no
    sequence-shaped Ylet awkwardness). *)
 let tier0_control_y1 = ("t0-control-y1", [
-  assert_parse_y1_equiv "y1: empty block" "( )";
-  assert_parse_y1_equiv "y1: let binding"
-    "let x = Target Foo in ( )";
+  assert_parse_y1_emits "y1: empty block" "( )"
+    "";
+  assert_parse_y1_emits "y1: let binding"
+    "let x = Target Foo in ( )"
+    "";
 ])
 
 let tier0_cond_y1 = ("t0-cond-y1", [
-  assert_parse_y1_equiv "y1: if defined"
-    "( if defined 'TEST' then ( message 'defined' ) )";
-  assert_parse_y1_equiv "y1: if simple ON"
-    "( if ON then ( message 'yes' ) )";
-  assert_parse_y1_equiv "y1: if target"
-    "( if target Target Foo then ( ) )";
-  assert_parse_y1_equiv "y1: cond exists"
-    "( if exists \"file.txt\" then ( ) )";
-  assert_parse_y1_equiv "y1: cond is_dir"
-    "( if is_dir \"path\" then ( ) )";
-  assert_parse_y1_equiv "y1: cond ver_lt"
-    "( if ver_lt ${CMAKE_VERSION} \"3.20\" then ( ) )";
-  assert_parse_y1_equiv "y1: cond policy"
-    "( if policy CMP0048 then ( ) )";
+  assert_parse_y1_emits "y1: if defined"
+    "( if defined 'TEST' then ( message 'defined' ) )"
+    "if (DEFINED TEST)\n  message(STATUS \"defined\")\nendif()\n";
+  assert_parse_y1_emits "y1: if simple ON"
+    "( if ON then ( message 'yes' ) )"
+    "if (TRUE)\n  message(STATUS \"yes\")\nendif()\n";
+  assert_parse_y1_emits "y1: if target"
+    "( if target Target Foo then ( ) )"
+    "if (TARGET Foo)\n  \nendif()\n";
+  assert_parse_y1_emits "y1: cond exists"
+    "( if exists \"file.txt\" then ( ) )"
+    "if (EXISTS file.txt)\n  \nendif()\n";
+  assert_parse_y1_emits "y1: cond is_dir"
+    "( if is_dir \"path\" then ( ) )"
+    "if (IS_DIRECTORY path)\n  \nendif()\n";
+  assert_parse_y1_emits "y1: cond ver_lt"
+    "( if ver_lt ${CMAKE_VERSION} \"3.20\" then ( ) )"
+    "if (\"${CMAKE_VERSION}\" VERSION_LESS 3.20)\n  \nendif()\n";
+  assert_parse_y1_emits "y1: cond policy"
+    "( if policy CMP0048 then ( ) )"
+    "if (POLICY CMP0048)\n  \nendif()\n";
 ])
 
 (* Phase 2a pair-wise oracle for cmake_op family (scalar commands). *)
 let tier0_cmake_op_y1 = ("t0-cmake_op-y1", [
-  assert_parse_y1_equiv "y1: cmake_minimum_required" "( cmake_minimum_required \"3.20\" )";
-  assert_parse_y1_equiv "y1: project"                "( project \"Tutorial\" )";
+  assert_parse_y1_emits "y1: cmake_minimum_required" "( cmake_minimum_required \"3.20\" )"
+    "cmake_minimum_required(VERSION 3.20)";
+  assert_parse_y1_emits "y1: project"                "( project \"Tutorial\" )"
+    "project(Tutorial )";
 ])
 
 let tier8_misc_cmake_op_y1 = ("t8-misc-cmake_op-y1", [
-  assert_parse_y1_equiv "y1: math"             "( math '1+2' ~out:RESULT )";
-  assert_parse_y1_equiv "y1: execute_process"  "( execute_process )";
-  assert_parse_y1_equiv "y1: include_guard"    "( include_guard )";
+  assert_parse_y1_emits "y1: math"             "( math '1+2' ~out:RESULT )"
+    "math(EXPR RESULT \"1+2\" OUTPUT_FORMAT DECIMAL)";
+  assert_parse_y1_emits "y1: execute_process"  "( execute_process )"
+    "execute_process()";
+  assert_parse_y1_emits "y1: include_guard"    "( include_guard )"
+    "include_guard(GLOBAL)";
   (* y1: policy_set — legacy parser only matches single-quoted Ycs_string
      for the policy id; "CMP0048" is double-quoted (Ycs_path) and falls
      through the legacy match to the empty-string default, emitting
      `cmake_policy(SET  NEW)`. New parser handles both uniformly via
      str_of. Same shape of legacy bug as ( set NAME val ); omitted from
      oracle until the legacy parser is fixed separately. *)
-  assert_parse_y1_equiv "y1: enable_language"  "( enable_language )";
+  assert_parse_y1_emits "y1: enable_language"  "( enable_language )"
+    "enable_language()";
 ])
 
 (* Phase 2a pair-wise oracle for find / install / property families. *)
 let tier6_find_install_y1 = ("t6-find-install-y1", [
-  assert_parse_y1_equiv "y1: find_library" "( find_library VAR ~names:\"m\" ~paths:\"/usr/lib\" )";
-  assert_parse_y1_equiv "y1: find_path"    "( find_path VAR ~names:\"foo.h\" )";
-  assert_parse_y1_equiv "y1: find_program" "( find_program VAR ~names:\"git\" )";
-  assert_parse_y1_equiv "y1: find_file"    "( find_file VAR ~names:\"config\" )";
-  assert_parse_y1_equiv "y1: install_targets" "( install_targets \"lib\" )";
-  assert_parse_y1_equiv "y1: install_files"   "( install_files \"include\" )";
-  assert_parse_y1_equiv "y1: install_export"  "( install_export EXP \"lib/cmake\" )";
+  assert_parse_y1_emits "y1: find_library" "( find_library VAR ~names:\"m\" ~paths:\"/usr/lib\" )"
+    "find_library(VAR)";
+  assert_parse_y1_emits "y1: find_path"    "( find_path VAR ~names:\"foo.h\" )"
+    "find_path(VAR)";
+  assert_parse_y1_emits "y1: find_program" "( find_program VAR ~names:\"git\" )"
+    "find_program(VAR)";
+  assert_parse_y1_emits "y1: find_file"    "( find_file VAR ~names:\"config\" )"
+    "find_file(VAR)";
+  assert_parse_y1_emits "y1: install_targets" "( install_targets \"lib\" )"
+    "install(TARGETS   DESTINATION lib)";
+  assert_parse_y1_emits "y1: install_files"   "( install_files \"include\" )"
+    "install(FILES  DESTINATION include)";
+  assert_parse_y1_emits "y1: install_export"  "( install_export EXP \"lib/cmake\" )"
+    "install(EXPORT ${EXP}  DESTINATION lib/cmake)";
 ])
 
 let tier8_misc_y1 = ("t8-misc-y1", [
-  assert_parse_y1_equiv "y1: get_target_property"
-    "( get_target_property Target Foo ~out:VAR )";
-  assert_parse_y1_equiv "y1: set_target_properties"
-    "( set_target_properties Target Foo )";
-  assert_parse_y1_equiv "y1: set_property"
-    "( set_property Target Foo )";
+  assert_parse_y1_emits "y1: get_target_property"
+    "( get_target_property Target Foo ~out:VAR )"
+    "get_property(VAR PROPERTY PROP)";
+  assert_parse_y1_emits "y1: set_target_properties"
+    "( set_target_properties Target Foo )"
+    "";
+  assert_parse_y1_emits "y1: set_property"
+    "( set_property Target Foo )"
+    "";
 ])
 
 (* Phase 2a pair-wise oracle for the try family. Legacy parser only
@@ -529,8 +548,10 @@ let tier8_misc_y1 = ("t8-misc-y1", [
    direct parser produces the same shape, so both sides must emit
    byte-identical [try_compile(...)] / [try_run(...)] text. *)
 let tier7_try_y1 = ("t7-try-y1", [
-  assert_parse_y1_equiv "y1: try_compile" "( try_compile RESULT )";
-  assert_parse_y1_equiv "y1: try_run"     "( try_run RUN_RES COMPILE_RES )";
+  assert_parse_y1_emits "y1: try_compile" "( try_compile RESULT )"
+    "try_compile(RESULT )";
+  assert_parse_y1_emits "y1: try_run"     "( try_run RUN_RES COMPILE_RES )"
+    "try_run(RUN_RES COMPILE_RES )";
 ])
 
 (* Phase 2a pair-wise oracle for the previously legacy-only cases in
@@ -540,28 +561,50 @@ let tier7_try_y1 = ("t7-try-y1", [
    legacy-only because the direct parser does not yet handle them:
    string_json_get, set_env, unset_env. *)
 let tier_remaining_y1 = ("t-remaining-y1", [
-  assert_parse_y1_equiv "y1: string_regex_replace"   "( string_regex_replace 'p' 'r' 'in' ~out:OUT )";
-  assert_parse_y1_equiv "y1: string_regex_matchall"  "( string_regex_matchall 'p' 'in' ~out:OUT )";
-  assert_parse_y1_equiv "y1: string_append"          "( string_append MYVAR 'suffix' )";
-  assert_parse_y1_equiv "y1: string_prepend"         "( string_prepend MYVAR 'prefix' )";
-  assert_parse_y1_equiv "y1: string_substring"       "( string_substring 'hello' '1' '3' ~out:OUT )";
-  assert_parse_y1_equiv "y1: string_compare"         "( string_compare 'a' 'b' ~out:OUT )";
-  assert_parse_y1_equiv "y1: string_uuid"            "( string_uuid ~out:OUT )";
-  assert_parse_y1_equiv "y1: path_remove_filename"   "( path_remove_filename PV )";
-  assert_parse_y1_equiv "y1: path_replace_filename"  "( path_replace_filename PV \"new\" )";
-  assert_parse_y1_equiv "y1: path_normal_path"       "( path_normal_path PV ~out:OUT )";
-  assert_parse_y1_equiv "y1: path_absolute_path"     "( path_absolute_path PV )";
-  assert_parse_y1_equiv "y1: path_native_path"       "( path_native_path PV ~out:OUT )";
-  assert_parse_y1_equiv "y1: path_convert_to_cmake"  "( path_convert_to_cmake \"/tmp\" ~out:OUT )";
-  assert_parse_y1_equiv "y1: get_directory_property" "( get_directory_property ~out:OUT )";
-  assert_parse_y1_equiv "y1: set_global_property"    "( set_global_property )";
-  assert_parse_y1_equiv "y1: set_source_property"    "( set_source_property \"file.c\" )";
-  assert_parse_y1_equiv "y1: list_sublist"           "( list_sublist MYLIST '1' '3' ~out:OUT )";
-  assert_parse_y1_equiv "y1: list_filter"            "( list_filter MYLIST 'pat' )";
-  assert_parse_y1_equiv "y1: list_transform"         "( list_transform MYLIST ~append )";
-  assert_parse_y1_equiv "y1: unset_cache"            "( unset_cache MYVAR )";
-  assert_parse_y1_equiv "y1: file_strings"           "( file_strings \"f.txt\" ~out:OUT )";
-  assert_parse_y1_equiv "y1: file_read_symlink"      "( file_read_symlink \"link\" ~out:OUT )";
+  assert_parse_y1_emits "y1: string_regex_replace"   "( string_regex_replace 'p' 'r' 'in' ~out:OUT )"
+    "string(REGEX REPLACE \"p\" r OUT in)";
+  assert_parse_y1_emits "y1: string_regex_matchall"  "( string_regex_matchall 'p' 'in' ~out:OUT )"
+    "string(REGEX MATCHALL \"p\" OUT in)";
+  assert_parse_y1_emits "y1: string_append"          "( string_append MYVAR 'suffix' )"
+    "string(APPEND MYVAR suffix)";
+  assert_parse_y1_emits "y1: string_prepend"         "( string_prepend MYVAR 'prefix' )"
+    "string(PREPEND MYVAR prefix)";
+  assert_parse_y1_emits "y1: string_substring"       "( string_substring 'hello' '1' '3' ~out:OUT )"
+    "string(SUBSTRING hello 1 3 OUT)";
+  assert_parse_y1_emits "y1: string_compare"         "( string_compare 'a' 'b' ~out:OUT )"
+    "string(COMPARE EQUAL a b OUT)";
+  assert_parse_y1_emits "y1: string_uuid"            "( string_uuid ~out:OUT )"
+    "string(UUID OUT NAMESPACE ns NAME n TYPE MD5)";
+  assert_parse_y1_emits "y1: path_remove_filename"   "( path_remove_filename PV )"
+    "cmake_path(REMOVE_FILENAME PV)";
+  assert_parse_y1_emits "y1: path_replace_filename"  "( path_replace_filename PV \"new\" )"
+    "cmake_path(REPLACE_FILENAME PV new)";
+  assert_parse_y1_emits "y1: path_normal_path"       "( path_normal_path PV ~out:OUT )"
+    "cmake_path(NORMAL_PATH PV OUTPUT_VARIABLE OUT)";
+  assert_parse_y1_emits "y1: path_absolute_path"     "( path_absolute_path PV )"
+    "cmake_path(ABSOLUTE_PATH PV)";
+  assert_parse_y1_emits "y1: path_native_path"       "( path_native_path PV ~out:OUT )"
+    "cmake_path(NATIVE_PATH PV OUT)";
+  assert_parse_y1_emits "y1: path_convert_to_cmake"  "( path_convert_to_cmake \"/tmp\" ~out:OUT )"
+    "cmake_path(CONVERT /tmp TO_CMAKE_PATH_LIST OUT)";
+  assert_parse_y1_emits "y1: get_directory_property" "( get_directory_property ~out:OUT )"
+    "get_directory_property(OUT PROP)";
+  assert_parse_y1_emits "y1: set_global_property"    "( set_global_property )"
+    "";
+  assert_parse_y1_emits "y1: set_source_property"    "( set_source_property \"file.c\" )"
+    "set_property(SOURCE file.c PROPERTY PROP )";
+  assert_parse_y1_emits "y1: list_sublist"           "( list_sublist MYLIST '1' '3' ~out:OUT )"
+    "list(SUBLIST MYLIST 1 3 OUT)\n";
+  assert_parse_y1_emits "y1: list_filter"            "( list_filter MYLIST 'pat' )"
+    "list(FILTER MYLIST INCLUDE REGEX \"pat\")\n";
+  assert_parse_y1_emits "y1: list_transform"         "( list_transform MYLIST ~append )"
+    "list(TRANSFORM MYLIST TOUPPER)\n";
+  assert_parse_y1_emits "y1: unset_cache"            "( unset_cache MYVAR )"
+    "unset(MYVAR\nCACHE )";
+  assert_parse_y1_emits "y1: file_strings"           "( file_strings \"f.txt\" ~out:OUT )"
+    "file(STRINGS f.txt OUT)";
+  assert_parse_y1_emits "y1: file_read_symlink"      "( file_read_symlink \"link\" ~out:OUT )"
+    "file(READ_SYMLINK link OUT)";
   (* y1: cmake_call — third legacy-parser-bug shape (same as
      ( set NAME val ) and ( policy_set "CMPxxxx" )): legacy parser
      only matches Yexpr_string (Ycs_string s) for the cmd argument,
@@ -569,105 +612,174 @@ let tier_remaining_y1 = ("t-remaining-y1", [
      emits an empty CALL name. The new parser handles both via
      str_of. Omitted from pair-wise oracle until the legacy parser
      is fixed separately. *)
-  assert_parse_y1_equiv "y1: cmake_get_log_level"    "( cmake_get_log_level ~out:OUT )";
-  assert_parse_y1_equiv "y1: export"                 "( export Target ExpName )";
-  assert_parse_y1_equiv "y1: configure_package_config_file"
-    "( configure_package_config_file \"dest\" \"in\" \"out\" )";
-  assert_parse_y1_equiv "y1: write_basic_package_version_file"
-    "( write_basic_package_version_file \"file\" )";
+  assert_parse_y1_emits "y1: cmake_get_log_level"    "( cmake_get_log_level ~out:OUT )"
+    "cmake_language(GET_MESSAGE_LOG_LEVEL OUT)";
+  assert_parse_y1_emits "y1: export"                 "( export Target ExpName )"
+    "export(EXPORT ExpName\n)";
+  assert_parse_y1_emits "y1: configure_package_config_file"
+    "( configure_package_config_file \"dest\" \"in\" \"out\" )"
+    "configure_package_config_file(in\nout\nINSTALL_DESTINATION dest)";
+  assert_parse_y1_emits "y1: write_basic_package_version_file"
+    "( write_basic_package_version_file \"file\" )"
+    "write_basic_package_version_file(file\n\nCOMPATIBILITY AnyNewerVersion\n)";
 ])
 
 (* Phase 2a pair-wise oracle for the dir family. *)
 let tier0_dir_y1 = ("t0-dir-y1", [
-  assert_parse_y1_equiv "y1: add_subdirectory"        "( add_subdirectory \"MathFunctions\" )";
-  assert_parse_y1_equiv "y1: include_directories"     "( include_directories \"dir1\" \"dir2\" )";
-  assert_parse_y1_equiv "y1: add_compile_options"     "( add_compile_options \"-Wall\" \"-Wextra\" )";
-  assert_parse_y1_equiv "y1: add_link_options"        "( add_link_options \"-pie\" )";
-  assert_parse_y1_equiv "y1: add_definitions"         "( add_definitions \"-DFOO\" )";
-  assert_parse_y1_equiv "y1: link_directories"        "( link_directories \"/opt/lib\" )";
+  assert_parse_y1_emits "y1: add_subdirectory"        "( add_subdirectory \"MathFunctions\" )"
+    "add_subdirectory(MathFunctions)";
+  assert_parse_y1_emits "y1: include_directories"     "( include_directories \"dir1\" \"dir2\" )"
+    "include_directories(  dir1\ndir2)";
+  assert_parse_y1_emits "y1: add_compile_options"     "( add_compile_options \"-Wall\" \"-Wextra\" )"
+    "add_compile_options(-Wall\n-Wextra)";
+  assert_parse_y1_emits "y1: add_link_options"        "( add_link_options \"-pie\" )"
+    "add_link_options(-pie)";
+  assert_parse_y1_emits "y1: add_definitions"         "( add_definitions \"-DFOO\" )"
+    "add_definitions(-DFOO)";
+  assert_parse_y1_emits "y1: link_directories"        "( link_directories \"/opt/lib\" )"
+    "link_directories( /opt/lib)";
 ])
 
 (* Phase 2a pair-wise oracle for the target family. *)
 let tier0_target_y1 = ("t0-target-y1", [
-  assert_parse_y1_equiv "y1: add_exe"      "( add_exe Target Foo )";
-  assert_parse_y1_equiv "y1: add_lib"      "( add_lib Target MathFunctions )";
-  assert_parse_y1_equiv "y1: link_lib"     "( link_lib Target Tutorial )";
-  assert_parse_y1_equiv "y1: link_lib scoped"
-    "( link_lib Target Tutorial PRIVATE \"m\" PUBLIC \"dep\" )";
-  assert_parse_y1_equiv "y1: include_dirs" "( include_dirs Target Tutorial )";
-  assert_parse_y1_equiv "y1: include_dirs scoped"
-    "( include_dirs Target Tutorial PRIVATE \"include\" INTERFACE \"iface\" )";
-  assert_parse_y1_equiv "y1: compile_defs" "( compile_defs Target Tutorial )";
-  assert_parse_y1_equiv "y1: compile_opts" "( compile_opts Target Tutorial )";
+  assert_parse_y1_emits "y1: add_exe"      "( add_exe Target Foo )"
+    "add_executable(Foo )";
+  assert_parse_y1_emits "y1: add_lib"      "( add_lib Target MathFunctions )"
+    "add_library(MathFunctions  )";
+  assert_parse_y1_emits "y1: link_lib"     "( link_lib Target Tutorial )"
+    "target_link_libraries(Tutorial PRIVATE )";
+  assert_parse_y1_emits "y1: link_lib scoped"
+    "( link_lib Target Tutorial PRIVATE \"m\" PUBLIC \"dep\" )"
+    "target_link_libraries(Tutorial PRIVATE m)\ntarget_link_libraries(Tutorial PUBLIC dep)";
+  assert_parse_y1_emits "y1: include_dirs" "( include_dirs Target Tutorial )"
+    "target_include_directories(Tutorial PRIVATE )";
+  assert_parse_y1_emits "y1: include_dirs scoped"
+    "( include_dirs Target Tutorial PRIVATE \"include\" INTERFACE \"iface\" )"
+    "target_include_directories(Tutorial PRIVATE include)\ntarget_include_directories(Tutorial INTERFACE iface)";
+  assert_parse_y1_emits "y1: compile_defs" "( compile_defs Target Tutorial )"
+    "target_compile_definitions(Tutorial PRIVATE )";
+  assert_parse_y1_emits "y1: compile_opts" "( compile_opts Target Tutorial )"
+    "target_compile_options(Tutorial PRIVATE )";
 ])
 
 (* Phase 2a pair-wise oracle for the file family. *)
 let tier4_file_y1 = ("t4-file-y1", [
-  assert_parse_y1_equiv "y1: read"              "( file_read \"f.txt\" ~out:OUT )";
-  assert_parse_y1_equiv "y1: write"             "( file_write \"f.txt\" 'content' )";
-  assert_parse_y1_equiv "y1: glob"              "( file_glob ~out:OUT \"*.cxx\" )";
-  assert_parse_y1_equiv "y1: copy"              "( file_copy \"src\" \"dst\" )";
-  assert_parse_y1_equiv "y1: rename"            "( file_rename \"old\" \"new\" )";
-  assert_parse_y1_equiv "y1: remove"            "( file_remove \"f.txt\" )";
-  assert_parse_y1_equiv "y1: real_path"         "( file_real_path \"f.txt\" ~out:OUT )";
-  assert_parse_y1_equiv "y1: size"              "( file_size \"f.txt\" ~out:OUT )";
-  assert_parse_y1_equiv "y1: timestamp"         "( file_timestamp \"f.txt\" ~out:OUT )";
-  assert_parse_y1_equiv "y1: make_directory"    "( file_make_directory \"dir\" )";
-  assert_parse_y1_equiv "y1: touch"             "( file_touch \"f.txt\" )";
+  assert_parse_y1_emits "y1: read"              "( file_read \"f.txt\" ~out:OUT )"
+    "file(READ f.txt OUT)";
+  assert_parse_y1_emits "y1: write"             "( file_write \"f.txt\" 'content' )"
+    "file(WRITE f.txt content)";
+  assert_parse_y1_emits "y1: glob"              "( file_glob ~out:OUT \"*.cxx\" )"
+    "file(GLOB OUT *.cxx)";
+  assert_parse_y1_emits "y1: copy"              "( file_copy \"src\" \"dst\" )"
+    "file(COPY_FILE src dst)";
+  assert_parse_y1_emits "y1: rename"            "( file_rename \"old\" \"new\" )"
+    "file(RENAME old new)";
+  assert_parse_y1_emits "y1: remove"            "( file_remove \"f.txt\" )"
+    "file(REMOVE f.txt)";
+  assert_parse_y1_emits "y1: real_path"         "( file_real_path \"f.txt\" ~out:OUT )"
+    "file(REAL_PATH f.txt OUT)";
+  assert_parse_y1_emits "y1: size"              "( file_size \"f.txt\" ~out:OUT )"
+    "file(SIZE f.txt OUT)";
+  assert_parse_y1_emits "y1: timestamp"         "( file_timestamp \"f.txt\" ~out:OUT )"
+    "file(TIMESTAMP f.txt OUT)";
+  assert_parse_y1_emits "y1: make_directory"    "( file_make_directory \"dir\" )"
+    "file(MAKE_DIRECTORY dir)";
+  assert_parse_y1_emits "y1: touch"             "( file_touch \"f.txt\" )"
+    "file(TOUCH f.txt)";
 ])
 
 (* Phase 2a pair-wise oracle for the path family. *)
 let tier5_path_y1 = ("t5-path-y1", [
-  assert_parse_y1_equiv "y1: get"                     "( path_get PV ~out:OUT )";
-  assert_parse_y1_equiv "y1: has"                     "( path_has PV ~out:OUT )";
-  assert_parse_y1_equiv "y1: is_absolute"             "( path_is_absolute PV ~out:OUT )";
-  assert_parse_y1_equiv "y1: is_relative"             "( path_is_relative PV ~out:OUT )";
-  assert_parse_y1_equiv "y1: set"                     "( path_set PV \"/tmp\" )";
-  assert_parse_y1_equiv "y1: append"                  "( path_append PV \"sub\" )";
-  assert_parse_y1_equiv "y1: compare"                 "( path_compare P1 P2 ~out:OUT )";
-  assert_parse_y1_equiv "y1: hash"                    "( path_hash PV ~out:OUT )";
-  assert_parse_y1_equiv "y1: get_filename_component"  "( get_filename_component \"file.txt\" ~out:OUT )";
+  assert_parse_y1_emits "y1: get"                     "( path_get PV ~out:OUT )"
+    "cmake_path(GET PV FILENAME OUT)";
+  assert_parse_y1_emits "y1: has"                     "( path_has PV ~out:OUT )"
+    "cmake_path(HAS_FILENAME PV OUT)";
+  assert_parse_y1_emits "y1: is_absolute"             "( path_is_absolute PV ~out:OUT )"
+    "cmake_path(IS_ABSOLUTE PV OUT)";
+  assert_parse_y1_emits "y1: is_relative"             "( path_is_relative PV ~out:OUT )"
+    "cmake_path(IS_RELATIVE PV OUT)";
+  assert_parse_y1_emits "y1: set"                     "( path_set PV \"/tmp\" )"
+    "cmake_path(SET PV /tmp)";
+  assert_parse_y1_emits "y1: append"                  "( path_append PV \"sub\" )"
+    "cmake_path(APPEND PV sub)";
+  assert_parse_y1_emits "y1: compare"                 "( path_compare P1 P2 ~out:OUT )"
+    "cmake_path(COMPARE ${P1} EQUAL ${P2} OUT)";
+  assert_parse_y1_emits "y1: hash"                    "( path_hash PV ~out:OUT )"
+    "cmake_path(HASH PV OUT)";
+  assert_parse_y1_emits "y1: get_filename_component"  "( get_filename_component \"file.txt\" ~out:OUT )"
+    "get_filename_component(OUT file.txt PATH)";
 ])
 
 (* Phase 2a pair-wise oracle for the list family. *)
 let tier3_list_y1 = ("t3-list-y1", [
-  assert_parse_y1_equiv "y1: append"             "( list_append MYLIST 'a' 'b' )";
-  assert_parse_y1_equiv "y1: length"             "( list_length MYLIST ~out:LEN )";
-  assert_parse_y1_equiv "y1: get"                "( list_get MYLIST 1 ~out:VAL )";
-  assert_parse_y1_equiv "y1: remove_item"        "( list_remove_item MYLIST 'a' )";
-  assert_parse_y1_equiv "y1: remove_duplicates"  "( list_remove_duplicates MYLIST )";
-  assert_parse_y1_equiv "y1: reverse"            "( list_reverse MYLIST )";
-  assert_parse_y1_equiv "y1: sort"               "( list_sort MYLIST )";
-  assert_parse_y1_equiv "y1: join"               "( list_join MYLIST ';' ~out:RESULT )";
-  assert_parse_y1_equiv "y1: find"               "( list_find MYLIST 'needle' ~out:IDX )";
-  assert_parse_y1_equiv "y1: prepend"            "( list_prepend MYLIST 'first' )";
-  assert_parse_y1_equiv "y1: insert"             "( list_insert MYLIST )";
-  assert_parse_y1_equiv "y1: remove_at"          "( list_remove_at MYLIST )";
-  assert_parse_y1_equiv "y1: pop_back"           "( list_pop_back MYLIST )";
-  assert_parse_y1_equiv "y1: pop_front"          "( list_pop_front MYLIST )";
+  assert_parse_y1_emits "y1: append"             "( list_append MYLIST 'a' 'b' )"
+    "list(APPEND MYLIST a b)\n";
+  assert_parse_y1_emits "y1: length"             "( list_length MYLIST ~out:LEN )"
+    "list(LENGTH MYLIST LEN)\n";
+  assert_parse_y1_emits "y1: get"                "( list_get MYLIST 1 ~out:VAL )"
+    "list(GET MYLIST 1 VAL)\n";
+  assert_parse_y1_emits "y1: remove_item"        "( list_remove_item MYLIST 'a' )"
+    "list(REMOVE_ITEM MYLIST a)\n";
+  assert_parse_y1_emits "y1: remove_duplicates"  "( list_remove_duplicates MYLIST )"
+    "list(REMOVE_DUPLICATES MYLIST)\n";
+  assert_parse_y1_emits "y1: reverse"            "( list_reverse MYLIST )"
+    "list(REVERSE MYLIST)\n";
+  assert_parse_y1_emits "y1: sort"               "( list_sort MYLIST )"
+    "list(SORT MYLIST)\n";
+  assert_parse_y1_emits "y1: join"               "( list_join MYLIST ';' ~out:RESULT )"
+    "list(JOIN MYLIST ; RESULT)\n";
+  assert_parse_y1_emits "y1: find"               "( list_find MYLIST 'needle' ~out:IDX )"
+    "list(FIND MYLIST needle IDX)\n";
+  assert_parse_y1_emits "y1: prepend"            "( list_prepend MYLIST 'first' )"
+    "list(PREPEND MYLIST first)\n";
+  assert_parse_y1_emits "y1: insert"             "( list_insert MYLIST )"
+    "list(INSERT MYLIST 0 )\n";
+  assert_parse_y1_emits "y1: remove_at"          "( list_remove_at MYLIST )"
+    "list(REMOVE_AT MYLIST )\n";
+  assert_parse_y1_emits "y1: pop_back"           "( list_pop_back MYLIST )"
+    "list(POP_BACK MYLIST)\n";
+  assert_parse_y1_emits "y1: pop_front"          "( list_pop_front MYLIST )"
+    "list(POP_FRONT MYLIST)\n";
 ])
 
 (* Phase 2a pair-wise oracle for the string family. Mirrors tier2_string
    inputs (~17 cases) through both parser paths. Where the parser
    matches the legacy, both sides should produce byte-identical text. *)
 let tier2_string_y1 = ("t2-string-y1", [
-  assert_parse_y1_equiv "y1: concat"            "( string_concat ~out:out_var 'a' 'b' )";
-  assert_parse_y1_equiv "y1: join"              "( string_join ';' ~out:out_var 'a' 'b' )";
-  assert_parse_y1_equiv "y1: toupper"           "( string_toupper 'hello' )";
-  assert_parse_y1_equiv "y1: tolower"           "( string_tolower 'HELLO' )";
-  assert_parse_y1_equiv "y1: length"            "( string_length 'hello' )";
-  assert_parse_y1_equiv "y1: replace"           "( string_replace 'old' 'new' 'input' )";
-  assert_parse_y1_equiv "y1: regex_match"       "( string_regex_match 'p.*' 'input' )";
-  assert_parse_y1_equiv "y1: find"              "( string_find 'sub' 'haystack' )";
-  assert_parse_y1_equiv "y1: timestamp"         "( string_timestamp )";
-  assert_parse_y1_equiv "y1: hex"               "( string_hex 'abc' )";
-  assert_parse_y1_equiv "y1: make_c_identifier" "( string_make_c_identifier 'my var' )";
-  assert_parse_y1_equiv "y1: toupper ~out"       "( string_toupper 'hello' ~out:OUT )";
-  assert_parse_y1_equiv "y1: toupper ~out first" "( string_toupper ~out:OUT 'hello' )";
-  assert_parse_y1_equiv "y1: concat ~out only"   "( string_concat ~out:OUT )";
-  assert_parse_y1_equiv "y1: tolower ~out"       "( string_tolower 'HELLO' ~out:OUT )";
-  assert_parse_y1_equiv "y1: hex ~out"           "( string_hex 'abc' ~out:OUT )";
-  assert_parse_y1_equiv "y1: length ~out"        "( string_length 'hello' ~out:OUT )";
+  assert_parse_y1_emits "y1: concat"            "( string_concat ~out:out_var 'a' 'b' )"
+    "string(CONCAT out_var a b)";
+  assert_parse_y1_emits "y1: join"              "( string_join ';' ~out:out_var 'a' 'b' )"
+    "string(JOIN ; out_var a b)";
+  assert_parse_y1_emits "y1: toupper"           "( string_toupper 'hello' )"
+    "string(TOUPPER hello ?)";
+  assert_parse_y1_emits "y1: tolower"           "( string_tolower 'HELLO' )"
+    "string(TOLOWER HELLO ?)";
+  assert_parse_y1_emits "y1: length"            "( string_length 'hello' )"
+    "string(LENGTH hello ?)";
+  assert_parse_y1_emits "y1: replace"           "( string_replace 'old' 'new' 'input' )"
+    "string(REPLACE old new ? input)";
+  assert_parse_y1_emits "y1: regex_match"       "( string_regex_match 'p.*' 'input' )"
+    "string(REGEX MATCH \"p.*\" ? input)";
+  assert_parse_y1_emits "y1: find"              "( string_find 'sub' 'haystack' )"
+    "string(FIND haystack sub ?)";
+  assert_parse_y1_emits "y1: timestamp"         "( string_timestamp )"
+    "string(TIMESTAMP ?)";
+  assert_parse_y1_emits "y1: hex"               "( string_hex 'abc' )"
+    "string(HEX abc ?)";
+  assert_parse_y1_emits "y1: make_c_identifier" "( string_make_c_identifier 'my var' )"
+    "string(MAKE_C_IDENTIFIER \"my var\" ?)";
+  assert_parse_y1_emits "y1: toupper ~out"       "( string_toupper 'hello' ~out:OUT )"
+    "string(TOUPPER hello OUT)";
+  assert_parse_y1_emits "y1: toupper ~out first" "( string_toupper ~out:OUT 'hello' )"
+    "string(TOUPPER hello OUT)";
+  assert_parse_y1_emits "y1: concat ~out only"   "( string_concat ~out:OUT )"
+    "string(CONCAT OUT )";
+  assert_parse_y1_emits "y1: tolower ~out"       "( string_tolower 'HELLO' ~out:OUT )"
+    "string(TOLOWER HELLO OUT)";
+  assert_parse_y1_emits "y1: hex ~out"           "( string_hex 'abc' ~out:OUT )"
+    "string(HEX abc OUT)";
+  assert_parse_y1_emits "y1: length ~out"        "( string_length 'hello' ~out:OUT )"
+    "string(LENGTH hello OUT)";
 ])
 
 let () =

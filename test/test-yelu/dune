@@ -5,7 +5,6 @@
   test_yelu_lexer
   test_yelu_cmake_parse
   test_yelu_lift_lower
-  test_yelu_bridge
   test_yelu_steps
   test_yelu_emit_debug
   test_yelu_emit

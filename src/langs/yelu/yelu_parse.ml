@@ -910,10 +910,10 @@ let p_install_command_y1 toks =
 let p_try_command_y1_inner name args _kwargs =
   match name, args with
   | "try_compile", [ result ] ->
-    Some (yc_try_compile (cvar_name_of_y1 result))
+    Some (yc_try_compile (cvar_name_of_y1 result) [])
   | "try_run", [ run_result; compile_result ] ->
     Some (yc_try_run (cvar_name_of_y1 run_result)
-            (cvar_name_of_y1 compile_result))
+            (cvar_name_of_y1 compile_result) [])
   | _ -> None
 
 let p_try_command_y1 toks =

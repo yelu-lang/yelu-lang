@@ -27,7 +27,10 @@ let ycvar (s : string) : string = s
 let ytarget (s : string) : string = s
 
 let yvar s = EVar s
-let yname s = EVar s
+(* yname is an unscoped name (Ns_unknown in legacy). Bridge maps
+   Yexpr_name{Ns_unknown} to EString (literal), distinct from EVar
+   (which emits as ${name}). *)
+let yname s = EString s
 let ycstr s = EVar s
 let ytval s = ETarget s
 let yfile s = EString s
@@ -437,8 +440,10 @@ let yc_set_target_properties target properties =
   ESeq (List.map properties ~f:(fun (property, value) ->
     ECmakeSetTargetProperty { target; property; value }))
 
+(* Legacy [Yprop_get_target.target] is a string; bridge wraps it
+   in ETarget for the IR. Mirror by accepting string and wrapping. *)
 let yc_get_target_property var target property =
-  ECmakeGetTargetProperty { var; target; property }
+  ECmakeGetTargetProperty { var; target = ETarget target; property }
 
 let yc_set_property ?(append = false) ~targets properties =
   ECmakeSetProperty { targets; append; properties }
@@ -650,18 +655,38 @@ let yc_string_regex_replace regex replace out inputs =
 
 open Yelu_cmake_try
 
-let yc_try_compile result_var =
-  ECmakeTryCompile { result_var; sources = [] }
+(* Legacy yc_try_compile carries the full keyword-arg payload;
+   bridge folds default-empty payload into the simple
+   [ECmakeTryCompile] and non-default into [ECmakeTryCompileEx].
+   Mirror that split here so call sites that pass no kwargs get
+   the simple ctor. *)
+let yc_try_compile
+    ?(compile_definitions = []) ?(link_libraries = [])
+    ?(link_options = []) ?(output_variable = None)
+    ?(no_cache = false) ?(c_standard = None) ?(cxx_standard = None)
+    result_var sources =
+  if List.is_empty compile_definitions
+     && List.is_empty link_libraries
+     && List.is_empty link_options
+     && Option.is_none output_variable
+     && (not no_cache)
+     && Option.is_none c_standard
+     && Option.is_none cxx_standard
+  then ECmakeTryCompile { result_var; sources }
+  else
+    ECmakeTryCompileEx
+      { result_var; sources; compile_definitions; link_libraries;
+        link_options; output_variable; no_cache; c_standard; cxx_standard }
 
-let yc_try_run run_result compile_result =
+let yc_try_run
+    ?(compile_definitions = []) ?(link_libraries = [])
+    ?(compile_output_variable = None) ?(run_output_variable = None)
+    ?(args = [])
+    run_result_var compile_result_var sources =
   ECmakeTryRun
-    { run_result_var = run_result;
-      compile_result_var = compile_result;
-      sources = []; compile_definitions = [];
-      link_libraries = [];
-      compile_output_variable = None;
-      run_output_variable = None;
-      args = [] }
+    { run_result_var; compile_result_var; sources;
+      compile_definitions; link_libraries;
+      compile_output_variable; run_output_variable; args }
 
 (* ============================================================
    Extern declarations — IR doesn't track these as ctors today;
@@ -693,3 +718,254 @@ let yexists path =
 let yis_directory path = ECmakeIsDirectory path
 let yis_absolute path = ECmakeIsAbsolute path
 let ypolicy_defined id = ECmakePolicyCheck id
+
+(* ============================================================
+   E1: helpers added so test_yelu_compile can drop legacy AST
+   construction. Each wraps the matching IR ctor 1:1; signatures
+   mirror the legacy [Lang_yelu_utils] equivalents so the swap is
+   a pure [open] change at the call site.
+
+   For helpers whose legacy API takes a typed enum but whose IR
+   ctor takes a [string], we either reuse [Lang_cmake_strings]
+   (for path enums shared with the bridge) or inline the match
+   (for enums only this module needs).
+   ============================================================ *)
+
+(* --- Path family --- *)
+
+open Yelu_cmake_path
+
+let yc_path_set ?(normalize = false) path_var input =
+  ECmakePathSet { path = path_var; input; normalize }
+
+let yc_path_get path_var field out =
+  match field with
+  | Lang_cmake.Cpf_filename ->
+    ECmakePathGetFilename { path = path_var; out }
+  | _ ->
+    ECmakePathGet
+      { path = path_var;
+        field = Lang_cmake_strings.of_cmake_path_get_field field;
+        out }
+
+let yc_path_has path_var field out =
+  ECmakePathHas
+    { path = path_var;
+      field = Lang_cmake_strings.of_cmake_path_has_field field;
+      out }
+
+let yc_path_is_absolute path_var out =
+  ECmakePathIsAbsolute { path = path_var; out }
+
+let yc_path_is_relative path_var out =
+  ECmakePathIsRelative { path = path_var; out }
+
+let yc_path_is_prefix ?(normalize = false) path_var input out =
+  ECmakePathIsPrefix { path = path_var; input; normalize; out }
+
+let yc_path_compare input1 op input2 out =
+  ECmakePathCompare
+    { input1;
+      op = Lang_cmake_strings.of_cmake_path_compare_op op;
+      input2;
+      out }
+
+let yc_path_append ?(out = None) path_var inputs =
+  ECmakePathAppend { path = path_var; inputs; out }
+
+let yc_path_append_string ?(out = None) path_var inputs =
+  ECmakePathAppendString { path = path_var; inputs; out }
+
+let yc_path_remove_filename ?(out = None) path_var =
+  ECmakePathRemoveFilename { path = path_var; out }
+
+let yc_path_replace_filename ?(out = None) path_var input =
+  ECmakePathReplaceFilename { path = path_var; input; out }
+
+let yc_path_remove_extension ?(last_only = false) ?(out = None) path_var =
+  ECmakePathRemoveExtension { path = path_var; last_only; out }
+
+let yc_path_replace_extension
+    ?(last_only = false) ?(out = None) path_var input =
+  ECmakePathReplaceExtension { path = path_var; last_only; input; out }
+
+let yc_path_normal_path ?(out = None) path_var =
+  ECmakePathNormalPath { path = path_var; out }
+
+let yc_path_relative_path ?(base_dir = None) ?(out = None) path_var =
+  ECmakePathRelativePath { path = path_var; base_dir; out }
+
+let yc_path_absolute_path
+    ?(base_dir = None) ?(normalize = false) ?(out = None) path_var =
+  ECmakePathAbsolutePath { path = path_var; base_dir; normalize; out }
+
+let yc_path_native_path ?(normalize = false) path_var out =
+  ECmakePathNativePath { path = path_var; normalize; out }
+
+let yc_path_convert_to_cmake ?(normalize = false) input out =
+  ECmakePathConvertToCmake { input; normalize; out }
+
+let yc_path_convert_to_native ?(normalize = false) input out =
+  ECmakePathConvertToNative { input; normalize; out }
+
+let yc_path_hash path_var out =
+  ECmakePathHash { path = path_var; out }
+
+(* --- String family additions --- *)
+
+let yc_string_concat out inputs = ECmakeStringConcat { inputs; out }
+let yc_string_length string out = ECmakeStringLength { input = string; out }
+let yc_string_strip string out = ECmakeStringStrip { input = string; out }
+let yc_string_join glue out inputs = ECmakeStringJoin { glue; out; inputs }
+
+let yc_string_substring string begin_ ?length out =
+  ECmakeStringSubstring { string; begin_; length; out }
+
+let yc_string_repeat string count out =
+  ECmakeStringRepeat { string; count; out }
+
+let yc_string_genex_strip string out =
+  ECmakeStringGenexStrip { input = string; out }
+
+let yc_string_make_c_identifier string out =
+  ECmakeStringMakeCIdentifier { input = string; out }
+
+let yc_string_timestamp ?(utc = false) ?format out =
+  ECmakeStringTimestamp { out; format; utc }
+
+let yc_string_compare op string1 string2 out =
+  let op_s = match op with
+    | Lang_cmake.Sco_less -> "LESS"
+    | Lang_cmake.Sco_greater -> "GREATER"
+    | Lang_cmake.Sco_equal -> "EQUAL"
+    | Lang_cmake.Sco_notequal -> "NOTEQUAL"
+    | Lang_cmake.Sco_less_equal -> "LESS_EQUAL"
+    | Lang_cmake.Sco_greater_equal -> "GREATER_EQUAL"
+  in
+  ECmakeStringCompare { op = op_s; string1; string2; out }
+
+let yc_string_append cvar inputs = ECmakeStringAppend { cvar; inputs }
+let yc_string_prepend cvar inputs = ECmakeStringPrepend { cvar; inputs }
+
+let yc_string_find ?(reverse = false) string substring out =
+  ECmakeStringFind { string; substring; out; reverse }
+
+let yc_string_regex_quote out inputs =
+  ECmakeStringRegexQuote { out; inputs }
+
+let yc_string_regex_match regex out inputs =
+  ECmakeStringRegexMatch { regex; out; inputs }
+
+(* Legacy [Ystr_replace] takes [inputs : yelu_expr list]; the IR
+   [ECmakeStringReplace] takes a single [input : expr]. Mirror the
+   bridge's [one_input] policy: if more than one, fail at construct
+   time. *)
+let yc_string_replace match_string replace_string out inputs =
+  let input = match inputs with
+    | [ x ] -> x
+    | [] -> EString ""
+    | _ -> failwith "yc_string_replace: exactly one input supported"
+  in
+  ECmakeStringReplace
+    { match_ = match_string; replace = replace_string; input; out }
+
+(* --- List family additions (sort + filter) --- *)
+
+let yc_list_sort ?order ?compare ?case cvar =
+  let order_s = Option.map order ~f:(function
+    | Lang_cmake.Ls_ascending -> "ASCENDING"
+    | Lang_cmake.Ls_descending -> "DESCENDING")
+  in
+  let compare_s = Option.map compare ~f:(function
+    | Lang_cmake.Ls_string -> "STRING"
+    | Lang_cmake.Ls_file_basename -> "FILE_BASENAME"
+    | Lang_cmake.Ls_natural -> "NATURAL")
+  in
+  let case_s = Option.map case ~f:(function
+    | Lang_cmake.Ls_sensitive -> "SENSITIVE"
+    | Lang_cmake.Ls_insensitive -> "INSENSITIVE")
+  in
+  Yelu_cmake_list.ECmakeListSort
+    { list = cvar; order = order_s; compare = compare_s; case = case_s }
+
+let yc_list_filter mode regex cvar =
+  let mode_s = match mode with
+    | Lang_cmake.Lf_include -> "INCLUDE"
+    | Lang_cmake.Lf_exclude -> "EXCLUDE"
+  in
+  Yelu_cmake_list.ECmakeListFilter { list = cvar; mode = mode_s; regex }
+
+(* --- cmake_op / misc additions --- *)
+
+(* Legacy [yc_block] takes [body : yelu_stmt list]; the IR's
+   [ECmakeBlock] carries a single body [expr]. Fold the list. *)
+let yc_block ?(scope_vars = []) ?(propagate = "") body =
+  ECmakeBlock { scope_vars; propagate; body = ycmd_of_list body }
+
+let yc_execute_process
+    ?(working_directory = None) ?(timeout = None)
+    ?(result_variable = None) ?(output_variable = None)
+    ?(error_variable = None) ?(input_file = None) ?(output_file = None)
+    ?(error_file = None) ?(output_quiet = false) ?(error_quiet = false)
+    ?(output_strip_trailing_whitespace = false)
+    ?(error_strip_trailing_whitespace = false)
+    ?(command_error_is_fatal = None) commands =
+  ECmakeExecuteProcess
+    { commands; working_directory; timeout;
+      result_variable; output_variable; error_variable;
+      input_file; output_file; error_file;
+      output_quiet; error_quiet;
+      output_strip_trailing_whitespace;
+      error_strip_trailing_whitespace;
+      command_error_is_fatal }
+
+let yc_separate_arguments ?(input = None) ~mode cvar =
+  let mode_s = match mode with
+    | Lang_cmake.Sa_plain -> "PLAIN"
+    | Lang_cmake.Sa_unix_command -> "UNIX_COMMAND"
+    | Lang_cmake.Sa_windows_command -> "WINDOWS_COMMAND"
+    | Lang_cmake.Sa_native_command -> "NATIVE_COMMAND"
+    | Lang_cmake.Sa_program -> "PROGRAM"
+    | Lang_cmake.Sa_args -> "ARGS"
+  in
+  ECmakeSeparateArguments { var = cvar; mode = mode_s; input }
+
+let yc_separate_arguments_plain cvar =
+  yc_separate_arguments ~mode:Lang_cmake.Sa_plain cvar
+
+let yc_language_call cmd args = ECmakeLanguageCall { cmd; args }
+let yc_language_eval code = ECmakeLanguageEval { code }
+let yc_language_get_log_level out = ECmakeLanguageGetLogLevel { out }
+
+let yc_variable_watch ?(command = None) var =
+  ECmakeVariableWatch { var; command }
+
+(* --- Property addition --- *)
+
+let yc_define_property
+    ?(inherited = false) ?(brief_docs = []) ?(full_docs = [])
+    ?(initialize_from = None) mode property_name =
+  let mode_s = match mode with
+    | Lang_cmake.Dp_global -> "GLOBAL"
+    | Lang_cmake.Dp_directory -> "DIRECTORY"
+    | Lang_cmake.Dp_target -> "TARGET"
+    | Lang_cmake.Dp_source -> "SOURCE"
+    | Lang_cmake.Dp_test -> "TEST"
+    | Lang_cmake.Dp_variable -> "VARIABLE"
+    | Lang_cmake.Dp_cached_variable -> "CACHED_VARIABLE"
+  in
+  ECmakeDefineProperty
+    { mode = mode_s; property_name; inherited;
+      brief_docs; full_docs; initialize_from }
+
+(* --- Target addition --- *)
+
+let yc_target_precompile_headers target items =
+  (* Legacy carries [items] as a [yelu_items_with_kind list]; the IR
+     [ECmakeTargetPrecompileHeaders] takes [visibility : string] and
+     [headers : expr list]. Mirror the bridge's per-group ESeq fold. *)
+  items
+  |> List.map ~f:(fun ({ kind; items } : items_with_kind) ->
+    ECmakeTargetPrecompileHeaders
+      { target; visibility = visibility_of_kind kind; headers = items })
+  |> (fun xs -> ESeq xs)

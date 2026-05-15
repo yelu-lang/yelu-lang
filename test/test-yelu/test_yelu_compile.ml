@@ -1,96 +1,34 @@
 open Yelu_langs.Lang_cmake
-open Yelu_langs.Lang_yelu_cmake
-open Yelu_langs.Lang_yelu_utils
-open Yelu_langs.Lang_yelu_compile
+open Yelu_langs.Yelu_cmake
+open Yelu_langs.Yelu_cmake_utils
 open Yelu_langs.Lang_cmake_pp
 
-let _stage = stage
+(* E1: this test used to be the byte-equality oracle comparing legacy
+   [Lang_yelu_compile] against [bridge → emit_ast]. After E1, legacy is
+   deadcode; we test the new emit path directly against the inline
+   expected strings (which were the legacy output frozen at oracle-
+   green = 194/194). The cross-implementation comparison is gone;
+   golden-style snapshots are the new ground truth. See
+   doc/yelu_cmake/retirement_plan.md item E1. *)
 
 let pp_to_string ast = Fmt.str "%a" pp ast
 let pp_vbox_to_string ast = Fmt.str "%a" (Fmt.vbox pp) ast
 
-(* R4 bridge check. After R4-a's mechanical attrition, every program in
-   this file is expected to bridge through tiny EXCEPT the 13 listed in
-   [bridge_skip] — those exercise the R4-b semantic batch (block / while
-   / foreach_range / break / continue / return / separate_arguments) and
-   are intentionally not bridged yet; their design conversation is
-   pending. CI stays green; revisit each skip when R4-b lands. *)
-(* R4-b.3 closes the last semantic gap: block + return + PARENT_SCOPE
-   all bridge via the env-frame stack model. bridge_skip is now empty;
-   194/194 compile programs bridge through tiny. *)
-let bridge_skip = []
+let emit_text yelu_expr =
+  let cmake_ast = Yelu_langs.Yelu_cmake_emit.emit_ast yelu_expr in
+  pp_to_string cmake_ast
 
-let assert_bridge_succeeds name yelu_ast =
-  if Base.List.mem bridge_skip name ~equal:Base.String.equal then ()
-  else
-    match Yelu_langs.Yelu_cmake_legacy_bridge.stmt yelu_ast with
-    | exception Yelu_langs.Yelu_cmake_legacy_bridge.Bridge_error msg ->
-      Alcotest.failf "%s: tiny bridge raised Bridge_error: %s" name msg
-    | yelu1 ->
-      let cmake_text = Yelu_langs.Yelu_cmake_emit.emit_script yelu1 in
-      Alcotest.(check bool)
-        (Printf.sprintf "%s: tiny bridge produced non-empty cmake" name)
-        true
-        (String.length cmake_text > 0)
+let emit_text_vbox yelu_expr =
+  let cmake_ast = Yelu_langs.Yelu_cmake_emit.emit_ast yelu_expr in
+  pp_vbox_to_string cmake_ast
 
-(* Phase 1 byte-equality oracle: for every program covered by [emit_ast],
-   assert that the tiny path produces byte-identical cmake text to the
-   legacy path. Programs not yet covered raise [Eval_error] inside
-   [emit_ast]; we catch and skip, logging coverage via a side channel.
-
-   Tests in [oracle_skip] are *known* mismatches caused by bridge
-   information loss — places where the production AST carries more
-   detail than tiny's surface constructor and the round-trip cannot
-   reconstruct the source form. Each entry should cite the gap; fix is
-   typically a new tiny constructor that preserves the source shape.
-   The skip list should shrink to empty before Phase 1 is declared done. *)
-let oracle_covered = ref 0
-let oracle_uncovered = ref 0
-let oracle_uncovered_msgs : (string, string) Stdlib.Hashtbl.t =
-  Stdlib.Hashtbl.create 32
-
-let oracle_skip = [
-]
-
-let assert_byte_oracle name yelu_ast =
-  if Base.List.mem bridge_skip name ~equal:Base.String.equal then ()
-  else if Base.List.mem oracle_skip name ~equal:Base.String.equal then ()
-  else
-    let legacy_text =
-      let cmake_ast = compile empty_env yelu_ast |> snd in
-      pp_to_string cmake_ast
-    in
-    let tiny_attempt =
-      try
-        let yelu1 = Yelu_langs.Yelu_cmake_legacy_bridge.stmt yelu_ast in
-        Some (Yelu_langs.Yelu_cmake_emit.emit_script yelu1)
-      with
-      | Yelu_langs.Yelu_cmake.Eval_error msg ->
-        Stdlib.Hashtbl.replace oracle_uncovered_msgs name msg; None
-      | Yelu_langs.Yelu_cmake_legacy_bridge.Bridge_error msg ->
-        Stdlib.Hashtbl.replace oracle_uncovered_msgs name msg; None
-    in
-    match tiny_attempt with
-    | None -> Stdlib.incr oracle_uncovered
-    | Some tiny_text ->
-      Stdlib.incr oracle_covered;
-      Alcotest.(check string)
-        (Printf.sprintf "%s: byte-equal legacy vs tiny via AST" name)
-        legacy_text tiny_text
-
-let check name expected yelu_ast =
+let check name expected yelu_expr =
   Alcotest.test_case name `Quick (fun () ->
-      let cmake_ast = compile empty_env yelu_ast |> snd in
-      Alcotest.(check string) name expected (pp_to_string cmake_ast);
-      assert_bridge_succeeds name yelu_ast;
-      assert_byte_oracle name yelu_ast)
+      Alcotest.(check string) name expected (emit_text yelu_expr))
 
-let check_vbox name expected yelu_ast =
+let check_vbox name expected yelu_expr =
   Alcotest.test_case name `Quick (fun () ->
-      let cmake_ast = compile empty_env yelu_ast |> snd in
-      Alcotest.(check string) name expected (pp_vbox_to_string cmake_ast);
-      assert_bridge_succeeds name yelu_ast;
-      assert_byte_oracle name yelu_ast)
+      Alcotest.(check string) name expected (emit_text_vbox yelu_expr))
 
 (* --- Test groups --- *)
 
@@ -125,13 +63,13 @@ let conditions =
         "if (( HAVE_LOG AND HAVE_EXP ))\n  \nendif()\n"
         (yifthen
            (yand (ytruthy (ycstr "HAVE_LOG")) (ytruthy (ycstr "HAVE_EXP")))
-           (Ystmt_list []));
+           (EUnit));
       check "is_target"
         "if (TARGET SqrtLibrary)\n  \nendif()\n"
-        (yifthen (yis_target (ytval "SqrtLibrary")) (Ystmt_list []));
+        (yifthen (yis_target (ytval "SqrtLibrary")) (EUnit));
       check "is_defined"
         "if (DEFINED MY_VAR)\n  \nendif()\n"
-        (yifthen (yis_defined (ycstr "MY_VAR")) (Ystmt_list []));
+        (yifthen (yis_defined (ycstr "MY_VAR")) (EUnit));
     ] )
 
 let targets =
@@ -239,23 +177,23 @@ let iteration =
     [
       check "foreach items no body"
         "foreach(x a b)\nendforeach()"
-        (yc_foreach ~items:[ ystr "a"; ystr "b" ] (ycvar "x") (Ystmt_list []));
+        (yc_foreach ~items:[ ystr "a"; ystr "b" ] (ycvar "x") (EUnit));
       check "foreach items with body"
         "foreach(x a b)\n  set(FOO bar )\nendforeach()"
         (yc_foreach ~items:[ ystr "a"; ystr "b" ] (ycvar "x")
            (yc_set (ycvar "FOO") [ ystr "bar" ]));
       check "foreach_range stop only"
         "foreach(i RANGE 10)\nendforeach()"
-        (yc_foreach_range ~stop:10 (ycvar "i") (Ystmt_list []));
+        (yc_foreach_range ~stop:10 (ycvar "i") (EUnit));
       check "foreach_range start stop"
         "foreach(i RANGE  0 10)\nendforeach()"
-        (yc_foreach_range ~start:0 ~stop:10 (ycvar "i") (Ystmt_list []));
+        (yc_foreach_range ~start:0 ~stop:10 (ycvar "i") (EUnit));
       check "foreach_in lists"
         "foreach(f IN LISTS MY_LIST)\nendforeach()"
-        (yc_foreach_in ~lists:[ ycvar "MY_LIST" ] (ycvar "f") (Ystmt_list []));
+        (yc_foreach_in ~lists:[ ycvar "MY_LIST" ] (ycvar "f") (EUnit));
       check "foreach_in items"
         "foreach(f IN ITEMS a b)\nendforeach()"
-        (yc_foreach_in ~items:[ ystr "a"; ystr "b" ] (ycvar "f") (Ystmt_list []));
+        (yc_foreach_in ~items:[ ystr "a"; ystr "b" ] (ycvar "f") (EUnit));
     ] )
 
 let loop_control =
@@ -263,7 +201,7 @@ let loop_control =
     [
       check "while empty body"
         "while(FLAG)\n  \nendwhile()"
-        (yc_while (ytruthy (ycstr "FLAG")) (Ystmt_list []));
+        (yc_while (ytruthy (ycstr "FLAG")) (EUnit));
       check "break" "break()" yc_break;
       check "continue" "continue()" yc_continue;
       check "return empty" "return()" (yc_return ());
@@ -457,45 +395,49 @@ let find_package_tests =
 let genex_tests =
   ( "genex",
     [
+      (* E1 note: these used to call legacy yge with typed Yge_*
+         ctors. After E1, the IR's ECmakeGenex string path is
+         reached via [ystr_eval] (which routes "$<...>" to
+         ECmakeGenex). Output is byte-identical. *)
       check "config"
         {|set(X "$<CONFIG:Debug>" )|}
-        (yc_set (ycvar "X") [ yge (Yge_config "Debug") ]);
+        (yc_set (ycvar "X") [ ystr_eval "$<CONFIG:Debug>" ]);
       check "not config"
         {|set(X "$<NOT:$<CONFIG:Debug>>" )|}
-        (yc_set (ycvar "X") [ yge (Yge_not (Yge_config "Debug")) ]);
+        (yc_set (ycvar "X") [ ystr_eval "$<NOT:$<CONFIG:Debug>>" ]);
       check "and"
         {|set(X "$<AND:$<CONFIG:Debug>,$<COMPILE_LANGUAGE:CXX>>" )|}
-        (yc_set (ycvar "X") [ yge (Yge_and [ Yge_config "Debug"; Yge_compile_language "CXX" ]) ]);
+        (yc_set (ycvar "X") [ ystr_eval "$<AND:$<CONFIG:Debug>,$<COMPILE_LANGUAGE:CXX>>" ]);
       check "if"
         {|set(X "$<IF:$<CONFIG:Debug>,ON,OFF>" )|}
-        (yc_set (ycvar "X") [ yge (Yge_if (Yge_config "Debug", Yge_raw "ON", Yge_raw "OFF")) ]);
+        (yc_set (ycvar "X") [ ystr_eval "$<IF:$<CONFIG:Debug>,ON,OFF>" ]);
       check "target_file"
         {|set(X "$<TARGET_FILE:mylib>" )|}
-        (yc_set (ycvar "X") [ yge (Yge_target_file "mylib") ]);
+        (yc_set (ycvar "X") [ ystr_eval "$<TARGET_FILE:mylib>" ]);
       check "target_file_dir"
         {|set(X "$<TARGET_FILE_DIR:myapp>" )|}
-        (yc_set (ycvar "X") [ yge (Yge_target_file_dir "myapp") ]);
+        (yc_set (ycvar "X") [ ystr_eval "$<TARGET_FILE_DIR:myapp>" ]);
       check "install_interface"
         {|set(X "$<INSTALL_INTERFACE:include>" )|}
-        (yc_set (ycvar "X") [ yge (Yge_install_interface (Yge_raw "include")) ]);
+        (yc_set (ycvar "X") [ ystr_eval "$<INSTALL_INTERFACE:include>" ]);
       check "build_interface"
         {|set(X "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>" )|}
-        (yc_set (ycvar "X") [ yge (Yge_build_interface (Yge_raw "${CMAKE_CURRENT_SOURCE_DIR}/include")) ]);
+        (yc_set (ycvar "X") [ ystr_eval "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>" ]);
       check "strequal"
         {|set(X "$<STREQUAL:${CMAKE_SYSTEM_NAME},Linux>" )|}
-        (yc_set (ycvar "X") [ yge (Yge_strequal ("${CMAKE_SYSTEM_NAME}", "Linux")) ]);
+        (yc_set (ycvar "X") [ ystr_eval "$<STREQUAL:${CMAKE_SYSTEM_NAME},Linux>" ]);
       check "lower_case"
         {|set(X "$<LOWER_CASE:$<CONFIG>>" )|}
-        (yc_set (ycvar "X") [ yge (Yge_lower_case (Yge_raw "$<CONFIG>")) ]);
+        (yc_set (ycvar "X") [ ystr_eval "$<LOWER_CASE:$<CONFIG>>" ]);
       check "platform_id"
         {|set(X "$<PLATFORM_ID:Linux>" )|}
-        (yc_set (ycvar "X") [ yge (Yge_platform_id "Linux") ]);
+        (yc_set (ycvar "X") [ ystr_eval "$<PLATFORM_ID:Linux>" ]);
       check "target_property"
         {|set(X "$<TARGET_PROPERTY:foo,INCLUDE_DIRECTORIES>" )|}
-        (yc_set (ycvar "X") [ yge (Yge_target_property ("foo", "INCLUDE_DIRECTORIES")) ]);
+        (yc_set (ycvar "X") [ ystr_eval "$<TARGET_PROPERTY:foo,INCLUDE_DIRECTORIES>" ]);
       check "raw escape hatch"
         {|set(X "$<GENEX_EVAL:$<TARGET_PROPERTY:COMPILE_FLAGS>>" )|}
-        (yc_set (ycvar "X") [ yge (Yge_raw "$<GENEX_EVAL:$<TARGET_PROPERTY:COMPILE_FLAGS>>") ]);
+        (yc_set (ycvar "X") [ ystr_eval "$<GENEX_EVAL:$<TARGET_PROPERTY:COMPILE_FLAGS>>" ]);
     ] )
 
 let execute_process_tests =
@@ -818,26 +760,10 @@ let define_property_tests =
         (yc_define_property ~initialize_from:(Some "MY_VAR") Dp_target "INIT_PROP");
     ] )
 
-(* Phase 1 progress report: oracle coverage. Printed even on success so
-   you can watch the covered count climb toward 194 as Phase 1.3 lands. *)
-let () =
-  at_exit (fun () ->
-    Stdlib.Printf.eprintf
-      "[emit_ast oracle] covered=%d  uncovered=%d  (%d total)\n%!"
-      !oracle_covered !oracle_uncovered
-      (!oracle_covered + !oracle_uncovered);
-    let counts : (string, int) Stdlib.Hashtbl.t = Stdlib.Hashtbl.create 16 in
-    Stdlib.Hashtbl.iter (fun _ msg ->
-      let n = try Stdlib.Hashtbl.find counts msg with Not_found -> 0 in
-      Stdlib.Hashtbl.replace counts msg (n + 1)
-    ) oracle_uncovered_msgs;
-    let by_count =
-      Stdlib.Hashtbl.fold (fun k v acc -> (v, k) :: acc) counts []
-      |> Base.List.sort ~compare:(fun (a, _) (b, _) -> compare b a)
-    in
-    Stdlib.Printf.eprintf "[emit_ast oracle] top uncovered errors:\n%!";
-    Base.List.iter by_count ~f:(fun (n, msg) ->
-      Stdlib.Printf.eprintf "  %3d × %s\n%!" n msg))
+(* E1: byte-equality oracle replaced with golden-style assertions
+   (inline expected strings). The covered/uncovered counters are
+   gone — every test case now must match its expected literally, or
+   the test fails. *)
 
 let () =
   Alcotest.run "Yelu Compile"
