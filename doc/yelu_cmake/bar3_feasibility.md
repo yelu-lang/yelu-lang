@@ -33,26 +33,72 @@ The `llvm/llvm` subtree is the natural minimum scope.
 
 ## Bar #3-lite results (Stage 1 + Stage 2, 2026-05-15)
 
-Stage 1 round-trip via tree-sitter (`tool/cmake_roundtrip/`):
+Stage 1 (untyped) and Stage 2 (typed via `Lang_cmake.exp`)
+round-trip results, both via the `tool/cmake_roundtrip/`
+pipeline. Per-file results are categorized by
+`test_corpus.sh` into four buckets:
 
-| corpus | files | structural pass | gersemi-diff pass |
-| --- | ---: | --- | --- |
-| tutorial step outputs | 25 | 25/25 | 25/25 |
-| z3 | 108 | **108/108** | partial (gersemi format-preservation differences) |
-| llvm/llvm | 596 | **596/596** | partial (same) |
+- **OK** — structural AND gersemi-diff pass
+- **FORMAT** — structural pass, gersemi-diff fail (formatting)
+- **STRUCT** — structural fail (real parser/printer/IR bug)
+- **PARSE** — tree-sitter or our reader fail
 
-**Structural pass** = the sequence of `(command_name, arg list)`
-tuples emitted by tree-sitter on the original input matches the
-sequence after our parse → reprint cycle. This is the strongest
-claim: the AST captures every command yelu's parser+printer
-roundtrip touches, with no command lost and no arg misclassified.
+| corpus | files | OK | FORMAT | STRUCT | PARSE |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| tutorial step outputs | 25 | 25 | 0 | **0** | 0 |
+| z3 | 108 | 14 | 94 | **0** | 0 |
+| llvm/llvm | 596 | 47 | 549 | **0** | 0 |
 
-**gersemi-diff pass** = the reprinted text, after gersemi
-normalization, is byte-identical to gersemi-normalized input.
-This is stricter and currently fails on many real-world files
-because gersemi preserves the user's multi-line vs single-line
-argument-list choice, and our trivial reprinter always emits
-single-line. Not a structural defect; a formatting one.
+**Structural pass = 100% across all three corpora.** The
+`(command_name, arg list)` sequence tree-sitter extracts from
+the original matches the sequence extracted from our reprinted
+output, for every file. AST + parser + printer capture every
+command yelu's parser+printer round-trip touches, with no
+command lost and no arg misclassified.
+
+**FORMAT** failures (94/108 z3, 549/596 llvm) are entirely
+gersemi formatting noise — gersemi preserves the user's
+multi-line vs single-line argument-list choice, and our
+reprinter always emits single-line. Not structural defects.
+Discussed separately as Stage 1-b.
+
+### Bugs surfaced and fixed during real-world round-trip
+
+Three real bugs in `Lang_cmake_pp` (in production, not just the
+prototype) — tutorial doesn't exercise them, real-world cmake
+does:
+
+1. **`Include.no_policy_scope` was typed `scope option`** — cmake's
+   `NO_POLICY_SCOPE` is a boolean flag; field type was wrong. Fixed
+   to `bool`. Commit `13d813c`.
+2. **`Configure_file.{@ONLY, ESCAPE_QUOTES}` flags wired to wrong
+   fields** — cross-swap in the printer. Fixed in `lang_cmake_pp.ml`.
+3. **`Include.result_var` printed without keyword** — emitted
+   `include(file var)` instead of `include(file RESULT_VARIABLE var)`.
+   Fixed in `lang_cmake_pp.ml`.
+
+Three printer-shape fixes that round-trip surfaced:
+
+4. **`pp_arg.Bracket` always added newlines** around content.
+   Now emits verbatim. Fixed in `lang_cmake_pp.ml`.
+5. **`Lang_cmake.arg.Bracket of string` lost the bracket level**
+   (number of `=`). Widened to `Bracket of int * string`. Fixed
+   in `lang_cmake.ml` + `lang_cmake_pp.ml` + 2 callers.
+
+Stage-2 prototype bail-outs (the parser routes to `Apply` to
+avoid lossy typed mapping):
+
+6. **`parse_target_*` injected `PRIVATE`** when source had no
+   visibility keyword (cmake's "plain" legacy form).
+7. **`parse_message` re-quoted bare text args** because
+   `Lang_cmake_pp.Message` always quotes.
+8. **`parse_configure_file` stripped quoting from path slots**
+   that the IR's `path : string` cannot carry.
+9. **`parse_cmake_minimum_required`/`parse_project` crashed on
+   non-numeric versions** (e.g., `project(... VERSION
+   ${Z3_VERSION_FROM_FILE})`).
+10. **`parse_cmd` lowercased commands** so `SET(...)` would
+    round-trip as `set(...)`.
 
 Stage 2 typed mapping coverage (`Lang_cmake.exp` ctors per
 command), with 15 typed parsers wired (`cmake_minimum_required`,

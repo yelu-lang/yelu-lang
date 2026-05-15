@@ -10,7 +10,7 @@ let version_of_string s =
 
 let str_ s = Bare s
 let quote s = Quoted s
-let bracket_str s = Bracket s
+let bracket_str ?(level = 1) s = Bracket (level, s)
 let bool_ b = str_ (if b then "ON" else "OFF")
 let target_def ?(kind = "PUBLIC") items = { kind; items }
 let target_feature ?(kind = "PUBLIC") feature = { kind; feature }

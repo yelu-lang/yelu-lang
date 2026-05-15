@@ -124,19 +124,20 @@ let arg_of_raw (s : string) : L.arg =
   if n >= 2 && Char.equal s.[0] '"' && Char.equal s.[n - 1] '"' then
     Quoted (String.sub s ~pos:1 ~len:(n - 2))
   else if n >= 4 && Char.equal s.[0] '[' then
-    (* match [=*[...]=*] *)
+    (* match [=*[...]=*] — `level` = number of `=` between the outer
+       [ and the inner [. *)
     let rec count_eq i =
       if i < n && Char.equal s.[i] '=' then count_eq (i + 1) else i - 1
     in
-    let eq_count = count_eq 1 - 0 in
-    if eq_count >= 0 && eq_count < n - 1
-       && Char.equal s.[eq_count + 1] '['
-       && Char.equal s.[n - eq_count - 2] ']'
+    let level = count_eq 1 in
+    if level >= 0 && level < n - 1
+       && Char.equal s.[level + 1] '['
+       && Char.equal s.[n - level - 2] ']'
        && Char.equal s.[n - 1] ']'
     then
-      let body_pos = eq_count + 2 in
-      let body_len = n - 2 * (eq_count + 2) in
-      Bracket (String.sub s ~pos:body_pos ~len:body_len)
+      let body_pos = level + 2 in
+      let body_len = n - 2 * (level + 2) in
+      Bracket (level, String.sub s ~pos:body_pos ~len:body_len)
     else
       Bare s
   else
@@ -146,7 +147,9 @@ let raw_of_arg (a : L.arg) : string =
   match a with
   | Bare s -> s
   | Quoted s -> "\"" ^ s ^ "\""
-  | Bracket s -> "[==[" ^ s ^ "]==]"
+  | Bracket (level, s) ->
+    let eqs = String.make level '=' in
+    "[" ^ eqs ^ "[" ^ s ^ "]" ^ eqs ^ "]"
 
 let _ = raw_of_arg  (* might be needed for fallback paths later *)
 
@@ -154,7 +157,7 @@ let _ = raw_of_arg  (* might be needed for fallback paths later *)
    [var] / [target] / [file] etc. Strips outer quoting / brackets. *)
 let str_of_raw (s : string) : string =
   match arg_of_raw s with
-  | Bare s | Quoted s | Bracket s -> s
+  | Bare s | Quoted s | Bracket (_, s) -> s
 
 (* True iff the raw arg has no quoting / bracket framing. Typed
    parsers that map to IR `string` slots (versus `arg`) lose the

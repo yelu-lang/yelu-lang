@@ -32,10 +32,12 @@ let pp_message = pp_string_quoted
 let pp_arg ff = function
   | Bare s -> Fmt.string ff s
   | Quoted s -> pp_string_quoted ff s
-  (* Bracket content: tree-sitter strips the leading-newline-after-`[=[`
-     and trailing-newline-before-`]=]` if present, so we don't need to
-     re-add them here. Emit content verbatim between the delimiters. *)
-  | Bracket s -> Fmt.pf ff "[=[%s]=]" s
+  (* Bracket content: emit verbatim between delimiters whose `=` count
+     matches the source. Tree-sitter strips the optional newline that
+     can follow `[=[` and precede `]=]`, so we don't re-add it. *)
+  | Bracket (level, s) ->
+      let eqs = String.make level '=' in
+      Fmt.pf ff "[%s[%s]%s]" eqs s eqs
 
 let string_of_scope = function
   | Function_scope -> "FUNCTION"

@@ -1132,7 +1132,9 @@ let rec emit_exp ~env (e : expr) : C.exp =
         match arg ~env e with
         | C.Bare s -> C.Var_exp s
         | C.Quoted s -> C.Quote (Fmt.str "\"%s\"" s)
-        | C.Bracket s -> C.Var_exp (Fmt.str "[=[%s]=]" s)
+        | C.Bracket (level, s) ->
+          let eqs = String.make level '=' in
+          C.Var_exp (Fmt.str "[%s[%s]%s]" eqs s eqs)
     in
     C.Cmake_cmd
       (C.Cmake_meta_lang

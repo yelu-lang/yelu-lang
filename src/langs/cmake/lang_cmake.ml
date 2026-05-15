@@ -20,7 +20,12 @@ type test = string
 type policy = Policy
 type var = string
 type output = string
-type arg = Bare of string | Quoted of string | Bracket of string
+(* [Bracket] carries the source-level bracket level (number of `=`
+   between the outer `[` and inner `[`/`]`). Level 0 = `[[...]]`,
+   level 1 = `[=[...]=]`, level 2 = `[==[...]==]`, etc. Preserving
+   the level lets parser/printer round-trip be byte-equal even on
+   bracket-arg variants. *)
+type arg = Bare of string | Quoted of string | Bracket of int * string
 type description = arg
 type cache_entry = Cache_entry
 
