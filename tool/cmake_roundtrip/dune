@@ -1,8 +1,9 @@
-; Stage 1 round-trip prototype: read tree-sitter CST JSON on stdin,
-; reprint cmake on stdout. Standalone — not wired into yelu_langs or
-; the main test suite yet.
-(executable
- (name print)
- (public_name yelu_cmake_roundtrip_print)
- (package yelu)
- (libraries base yojson))
+; cmake_roundtrip: tree-sitter CST JSON on stdin -> reprinted cmake.
+; - print.exe  (Stage 1): untyped pass-through. Used to validate the
+;   tree-sitter integration.
+; - print2.exe (Stage 2): per-command typed mapping into
+;   Lang_cmake.exp, reprinted via Lang_cmake_pp; un-implemented
+;   commands fall through to Stage-1 emission.
+(executables
+ (names print print2)
+ (libraries base yojson yelu_langs))

@@ -92,15 +92,69 @@ diff <(gersemi /tmp/tutorial_cmake/step1.cmake | grep -v "^$") \
   would be a Stage-2+ enhancement. TODO: tree-sitter-cmake
   upstream may also be teachable to accept `@VAR@` tokens.
 
-## Next (Stage 2)
+## Stage 2 — typed mapping into `Lang_cmake.exp`
 
-Typed mapping: `CST JSON → Lang_cmake.exp`. Each command's
-arguments parse into the per-command typed shape. Start with the
-~20 most common commands (`set`, `if`, `add_executable`,
+`print2.exe` (built from `print2.ml`) is the typed variant: walks
+the Stage-1 AST, dispatches each `Cmd` to a per-command parser
+that produces `Lang_cmake.exp`, and reprints via
+`Lang_cmake_pp`. Commands without a typed parser fall through to
+Stage-1 untyped emission, so the round-trip stays byte-equal
+even at partial coverage.
+
+Set `STAGE2_COVERAGE=1` for a one-line tally on stderr:
+
+```
+[stage2] typed=7 untyped=0 other=0
+```
+
+### Current coverage (tutorial corpus, 25 files, 213 cmds)
+
+| typed | untyped | block/raw | round-trip |
+| ---: | ---: | ---: | --- |
+| 155 (73%) | 35 (16%) | 23 (11%) | 25/25 byte-identical (gersemi) |
+
+**Typed commands** (15): `cmake_minimum_required`, `project`,
+`set`, `message`, `configure_file`, `add_executable`,
 `add_library`, `target_link_libraries`,
-`target_include_directories`, `target_compile_*`,
-`set_target_properties`, `configure_file`, `install`,
-`add_subdirectory`, `include`, `option`, `message`, `foreach`,
-`while`, `function`, `macro`, `list`, `string`). Grow
-incrementally; commands that fail to parse become the coverage
-TODO.
+`target_include_directories`, `target_compile_definitions`,
+`target_compile_options`, `target_compile_features`, `option`,
+`include`, `add_subdirectory`.
+
+**Untyped remainder** in the tutorial:
+- `install` × 14 — Install_targets / Install_files /
+  Install_export, multi-keyword. Worth adding.
+- `check_cxx_source_compiles` × 10 — a **cmake module function**
+  (defined in `CheckCXXSourceCompiles.cmake`), not a builtin.
+  `Lang_cmake.exp` has no ctor because the cmake AST only models
+  builtin commands. Correctly falls through to untyped.
+- `list` × 7, `set_target_properties` × 3,
+  `add_custom_command` × 1 — Stage 2 extensions; ctor exists,
+  just need argument parser.
+
+The 23 "block/raw" count is `if`/`foreach`/`while`/`function`/
+`macro`/`block` heads + tails + raw passthrough chunks. Typed
+mapping of block shapes (`If { cond; then_; else_ }` etc.) is
+Stage 2-b.
+
+### Gotchas surfaced during Stage 2
+
+- **`Bool true` printer mismatch.** `Lang_cmake_pp` emits
+  `Bool true` as `True`, but cmake idioms (e.g.
+  `option(... ON)`) want the original token preserved. Fix: map
+  `ON`/`OFF`/`TRUE`/etc. to `Var_exp "ON"` in `parse_option`
+  rather than `Bool true`. This is a printer-vs-source-style
+  decision that surfaces only via the round-trip oracle.
+- **`Include.no_policy_scope : scope option` is wrong shape.**
+  The IR field type is `scope option` (with scope =
+  Function_scope | Directory_scope) but `NO_POLICY_SCOPE` in
+  cmake is a boolean. Tutorial doesn't use it; the parser
+  bails to fallback if seen so we don't lossy-map. Real fix is
+  an IR field-type correction.
+
+### Next (Stage 2-b)
+
+- `install` parser (the biggest single bucket).
+- `list` parser (touches `list_cmd` subtypes).
+- Typed block mapping for `if` / `foreach` / `function` etc.
+- Try the round-trip on **z3's CMakeLists** corpus to surface
+  the next batch of missing commands and IR shape gaps.
