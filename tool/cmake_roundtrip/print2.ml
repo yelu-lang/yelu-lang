@@ -455,13 +455,9 @@ let parse_include args : L.exp option =
       | [] -> None
     in
     let result_var = find_result_var rest in
-    (* NO_POLICY_SCOPE: the IR field type is [scope option] but cmake
-       semantics make this a boolean. None of the tutorial files use
-       it; bail out of the typed path if seen so we don't lossy-map. *)
-    if List.exists rest ~f:(String.equal "NO_POLICY_SCOPE")
-    then None
-    else
-    let no_policy_scope = None in
+    let no_policy_scope =
+      List.exists rest ~f:(String.equal "NO_POLICY_SCOPE")
+    in
     Some (Include
             { file = arg_of_raw file;
               optional;

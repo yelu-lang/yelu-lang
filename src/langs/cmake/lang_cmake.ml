@@ -391,7 +391,11 @@ and exp =
       file : arg;
       optional : bool;
       result_var : var option;
-      no_policy_scope : scope option;
+      (* NO_POLICY_SCOPE is a flag in cmake; this field tracks whether
+         the call carried it. Previously typed as [scope option] which
+         conflated the flag with the unrelated function/directory scope
+         enum — fixed 2026-05-15 audit pass. *)
+      no_policy_scope : bool;
     }
   | Include_guard of { scope : include_guard_scope }
   (* State *)

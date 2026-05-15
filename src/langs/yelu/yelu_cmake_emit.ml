@@ -304,7 +304,7 @@ let rec emit_exp ~env (e : expr) : C.exp =
       { file = arg ~env file;
         optional;
         result_var = None;
-        no_policy_scope = None }
+        no_policy_scope = false }
   | ECmakeAtVar key ->
     (* @key@ literal: no first-class cmake AST ctor — render via Quote
        so it lands as a bare top-level line. *)

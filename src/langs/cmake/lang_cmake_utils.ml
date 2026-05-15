@@ -28,7 +28,7 @@ let find_package ?(version : string option = None) ?(exact = false) ?(quiet = fa
 let add_library_alias name ~alias_of =
   Project_cmd (Add_library_alias { name; target = alias_of })
 
-let include_ ?(optional = false) ?result_var ?no_policy_scope file =
+let include_ ?(optional = false) ?result_var ?(no_policy_scope = false) file =
   Include { file; optional; result_var; no_policy_scope }
 
 let ite cond then_ ?else_ () =

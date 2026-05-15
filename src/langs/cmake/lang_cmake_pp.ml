@@ -533,9 +533,10 @@ let rec pp ff e =
       Fmt.string ff "endforeach()"
   | Include { file; optional; result_var; no_policy_scope } ->
       Fmt.(
-        pf ff "include(%a%s%a%a)" pp_arg file
+        pf ff "include(%a%s%a%s)" pp_arg file
           (if optional then " OPTIONAL " else "")
-          (option pp_var) result_var (option pp_scope) no_policy_scope)
+          (option pp_var) result_var
+          (if no_policy_scope then " NO_POLICY_SCOPE" else ""))
   | Include_guard { scope } ->
       Fmt.pf ff "include_guard(%a)" pp_include_guard_scope scope
   (* state *)

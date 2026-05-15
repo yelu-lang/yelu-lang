@@ -140,16 +140,18 @@ Stage 2-b.
 
 - **`Bool true` printer mismatch.** `Lang_cmake_pp` emits
   `Bool true` as `True`, but cmake idioms (e.g.
-  `option(... ON)`) want the original token preserved. Fix: map
-  `ON`/`OFF`/`TRUE`/etc. to `Var_exp "ON"` in `parse_option`
-  rather than `Bool true`. This is a printer-vs-source-style
-  decision that surfaces only via the round-trip oracle.
-- **`Include.no_policy_scope : scope option` is wrong shape.**
-  The IR field type is `scope option` (with scope =
-  Function_scope | Directory_scope) but `NO_POLICY_SCOPE` in
-  cmake is a boolean. Tutorial doesn't use it; the parser
-  bails to fallback if seen so we don't lossy-map. Real fix is
-  an IR field-type correction.
+  `option(... ON)`) want the original token preserved. Workaround
+  in `parse_option`: map `ON`/`OFF`/`TRUE`/etc. to `Var_exp`
+  rather than `Bool`. Decide on the real fix once Stage 2-b
+  surfaces more contexts where `Bool true` round-trips (e.g.
+  inside `if(<expr>)`); the right answer may be position-sensitive
+  printing.
+- **`Include.no_policy_scope` was wrong-typed in the IR.** Fixed
+  2026-05-15: field changed from `scope option`
+  (`Function_scope`/`Directory_scope`, which is unrelated to
+  this flag) to `bool`. Single-field IR correction; updated
+  callers in `lang_cmake_utils`, `yelu_cmake_emit`, and
+  `yelu_legacy/lang_yelu_compile` (deadcode). Tests stay green.
 
 ### Next (Stage 2-b)
 

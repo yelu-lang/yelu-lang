@@ -1001,7 +1001,7 @@ let rec compile env : yelu_stmt -> env * Lang_cmake.exp = function
             file = erase_arg env file;
             optional;
             result_var = None;
-            no_policy_scope = None;
+            no_policy_scope = false;
           } )
   | Yc_function { name; args; body } ->
       let env = try_declare_cvar env name in
