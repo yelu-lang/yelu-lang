@@ -156,9 +156,104 @@ namespace; `set_property(TARGET ...)` as the older sibling of
 
 ---
 
+## Retirement (May 11 — May 14)
+
+After Bar #2, the second half of May closed out retirement of
+`src/langs/yelu_legacy/` from the production path. Items D, E-lite,
+E-utils, G, F all landed by 2026-05-11; E1 closed 2026-05-14.
+
+**What landed**
+
+- **Item D** — `yelu_tiny` renamed to `yelu` everywhere.
+- **Item E-lite** — legacy parser + lexer relocated to
+  `src/langs/yelu_legacy/`.
+- **Item E-utils** — 22 step binaries (`src/bin/yelu/v1`, `v2`,
+  top-level) emit Yelu1 IR directly via `Yelu_cmake_utils`;
+  `print_cmake` now uses `emit_ast` (no bridge call) for step
+  output.
+- **Item G** — language-name honesty. The two surfaces are
+  `yelu_cmake` (CMake-faithful) and `yelu_cmake_normal`
+  (normalized), with the bare prefix belonging to the workhorse.
+  Bridge moved to `yelu_legacy/`. Enum-string converters
+  extracted to `Lang_cmake_strings` in the cmake layer.
+  Fragments renamed (`yelu_theory_*` → `yelu_cmake_*` /
+  `yelu_cmake_normal_*`). Lexer relocated.
+- **Item F** — parser dispatchers route through `Yelu_cmake_utils`
+  (one source of truth for command-shape decisions; -86 LOC in
+  `yelu_parse.ml`).
+- **Item E1 (2026-05-14)** — legacy made deadcode. Four commits:
+  - `c85fb3d` — byte oracle (194 programs) and pair-wise parser
+    oracle (125 cases) rewritten with inline expected strings
+    frozen from the legacy reference; `test_yelu_bridge.ml`
+    deleted.
+  - `d0def93` — 22 step binaries + step-shaped tests off legacy
+    `Step_common`; legacy variant deleted; `ylet` fixed to
+    demote `EVar n → EString n` at bind time (mirrors the
+    bridge's `let_value`; without it `emit_debug.arg`
+    infinite-looped on `ylet "x" (ycstr "x")`).
+  - `a99d9f7` — `test/test-yelu` pool migrated;
+    `yelu_test_helpers.ml` shed bridge wrappers;
+    `test_yelu_cmake_parse.ml` structural helpers rewritten to
+    pattern-match `Yelu_cmake.expr` IR shapes;
+    `test_yelu_check.ml` deleted (it tested
+    legacy-only `Cmake_check` + `Lang_yelu_wellform`; Y17 is
+    the planned replacement); 15 legacy-only parser test cases
+    dropped.
+  - `5b11ae7` — 26 `test/test-runcmake/*` files migrated off
+    `Lang_yelu_compile` to the IR + `emit_ast` path;
+    `Yelu_cmake_utils` gap-fills (~150 lines: yc_string family
+    extensions, list_transform, ygreater/yless,
+    yc_link_libraries, math output_format accept-and-discard,
+    separate_arguments `?input` shape fix);
+    `ECmakeAddCustomCommand` added to `emit_ast`; `add_exe` /
+    `add_lib` `~exclude_from_all` silently drops;
+    `test_runcmake_yelu.ml` shed its dual-path
+    `check_tiny_matches_ref` machinery; `src/langs/dune`
+    excludes all 24 yelu_legacy modules from the `yelu_langs`
+    library.
+
+**E1 audit follow-up (2026-05-14)** — `fd9da5e` refreshed
+`status.md` + `retirement_plan.md` and added an audit prompt
+template; `659d6d0` actioned the audit's "fix before E2" items:
+wrong-shape stubs (`ystrless`/`ystrgreater` family, JSON ops,
+`yc_add_custom_command_target`) converted to explicit `failwith`;
+9 JSON tests + 4 string-comparison tests + 2 custom-command-target
+fixtures dropped; `test_yelu_utils_stubs.ml` added with 10
+pinning tests (3 accept-and-discard + 7 failwith) so future IR
+fixes produce visible test diffs.
+
+**Final state**
+- 1010 unit tests + 50 runcmake-yelu pairs + 12/12
+  cmake-only-check + 12 step tests green.
+- `yelu_legacy/` stays on disk but no `src/` or `test/` file
+  imports any of its 24 modules; `src/langs/dune` enforces
+  this via `(modules :standard \ …)`.
+- `make cmake-commands` was already broken pre-E1
+  (`Failure("expected target name")` on `a99d9f7`); the 12
+  post-E1 failures it shows are not regressions (verified by
+  `git stash` rollback).
+
+**Known IR shape gaps carried forward** (tracked in
+`doc/yelu_cmake/status.md`)
+- String-order conds (`STRLESS` / `STRGREATER` / etc.) — IR has
+  only `STREQUAL` via `ECmakeStringEqual`.
+- `add_executable` / `add_library` with `EXCLUDE_FROM_ALL` — IR
+  ctors don't carry the flag; helper drops silently.
+- `target_link_libraries` multi-target — IR surface still takes
+  a single target.
+- `add_custom_command(TARGET ...)` — IR has only OUTPUT form.
+- `math ~output_format` — IR doesn't carry the format; helper
+  emits decimal regardless.
+- JSON ops — IR's `ECmakeStringJson` is opaque (op_name + path
+  dropped).
+
+---
+
 ## Linked artifacts
 
 - `doc/yelu_cmake/status.md` — current open work (the slim living tracker).
 - `doc/yelu_cmake/design.md` — durable design notes.
 - `doc/yelu_cmake/structure.md` — code-anchored module guide.
-- `src/langs/yelu_tiny/` — the harness itself.
+- `src/langs/yelu/` — the production language (post-retirement rename).
+- `src/langs/yelu_legacy/` — retired reference, no longer in the
+  `yelu_langs` library.
