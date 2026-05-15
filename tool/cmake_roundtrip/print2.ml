@@ -156,46 +156,71 @@ let str_of_raw (s : string) : string =
   match arg_of_raw s with
   | Bare s | Quoted s | Bracket s -> s
 
+(* True iff the raw arg has no quoting / bracket framing. Typed
+   parsers that map to IR `string` slots (versus `arg`) lose the
+   quoting information, so they must bail to [Apply] if any of
+   their consumed args are quoted/bracketed. *)
+let is_bare (s : string) : bool =
+  match arg_of_raw s with Bare _ -> true | _ -> false
+
+let all_bare = List.for_all ~f:is_bare
+
 (* ============================================================
    Per-command typed mappers
    ============================================================ *)
 
-(* Parse a cmake version like "3.20" into {major; minor; patch}. *)
-let version_of_string s : L.version =
-  let parts = String.split s ~on:'.' in
-  match parts with
-  | [ maj ] -> { major = Int.of_string maj; minor = 0; patch = "" }
-  | [ maj; min ] ->
-    { major = Int.of_string maj; minor = Int.of_string min; patch = "" }
-  | maj :: min :: rest ->
-    { major = Int.of_string maj;
-      minor = Int.of_string min;
-      patch = String.concat ~sep:"." rest }
-  | [] -> failwith "version_of_string: empty"
+(* Parse a cmake version like "3.20" into {major; minor; patch}.
+   Returns None on anything that isn't dot-separated integers (e.g.,
+   variable refs like ${Z3_VERSION_FROM_FILE}). *)
+let version_of_string_opt s : L.version option =
+  try
+    let parts = String.split s ~on:'.' in
+    match parts with
+    | [ maj ] -> Some { major = Int.of_string maj; minor = 0; patch = "" }
+    | [ maj; min ] ->
+      Some { major = Int.of_string maj; minor = Int.of_string min; patch = "" }
+    | maj :: min :: rest ->
+      Some { major = Int.of_string maj;
+             minor = Int.of_string min;
+             patch = String.concat ~sep:"." rest }
+    | [] -> None
+  with _ -> None
 
 (* cmake_minimum_required(VERSION <min>[...<max>]) *)
 let parse_cmake_minimum_required args : L.exp option =
+  if not (all_bare args) then None
+  else
   match args with
   | [ "VERSION"; v ] ->
-    let min, max =
-      match String.lsplit2 v ~on:'.' with
-      | _ ->
-        (* support "MIN...MAX" form too *)
-        match String.substr_index v ~pattern:"..." with
-        | None -> (v, None)
-        | Some i ->
-          let lo = String.sub v ~pos:0 ~len:i in
-          let hi = String.sub v ~pos:(i + 3) ~len:(String.length v - i - 3) in
-          (lo, Some hi)
+    let min_s, max_s =
+      match String.substr_index v ~pattern:"..." with
+      | None -> (v, None)
+      | Some i ->
+        let lo = String.sub v ~pos:0 ~len:i in
+        let hi = String.sub v ~pos:(i + 3) ~len:(String.length v - i - 3) in
+        (lo, Some hi)
     in
-    Some (Cmake_cmd
-            (Cmake_minimum_required
-               { min = version_of_string min;
-                 max = Option.map max ~f:version_of_string }))
+    (match version_of_string_opt min_s with
+     | None -> None
+     | Some min ->
+       let max =
+         match max_s with
+         | None -> Some None
+         | Some s ->
+           (match version_of_string_opt s with
+            | None -> None | Some v -> Some (Some v))
+       in
+       (match max with
+        | None -> None
+        | Some max ->
+          Some (Cmake_cmd (Cmake_minimum_required { min; max }))))
   | _ -> None
 
 (* project(<name> [VERSION <v>] [LANGUAGES <langs>]) *)
 let parse_project args : L.exp option =
+  (* All slots map to [string]; bail on any quoting. *)
+  if not (all_bare args) then None
+  else
   let rec split_keywords acc_name version langs = function
     | [] -> Some (acc_name, version, List.rev langs)
     | "VERSION" :: v :: rest -> split_keywords acc_name (Some v) langs rest
@@ -203,22 +228,29 @@ let parse_project args : L.exp option =
       let langs = List.rev_append (List.rev rest) langs in
       Some (acc_name, version, List.rev langs)
     | "DESCRIPTION" :: _ :: rest | "HOMEPAGE_URL" :: _ :: rest ->
-      (* Drop for now; not in test corpus. Stage 2-b enhancement. *)
       split_keywords acc_name version langs rest
     | name :: rest when String.is_empty acc_name ->
-      split_keywords (str_of_raw name) version langs rest
+      split_keywords name version langs rest
     | _ -> None
   in
   match split_keywords "" None [] args with
-  | Some (name, version, langs) when not (String.is_empty name) ->
-    Some (Project_cmd
-            (Project
-               { name;
-                 version = Option.map version ~f:(fun v ->
-                             version_of_string (str_of_raw v));
-                 description = None;
-                 homepage_url = None;
-                 languages = List.map langs ~f:str_of_raw }))
+  | Some (name, version_str, langs) when not (String.is_empty name) ->
+    let version_parsed =
+      match version_str with
+      | None -> Some None
+      | Some s ->
+        (match version_of_string_opt s with
+         | None -> None       (* version like ${VAR} — bail to Apply *)
+         | Some v -> Some (Some v))
+    in
+    (match version_parsed with
+     | None -> None
+     | Some version ->
+       Some (Project_cmd
+               (Project
+                  { name; version;
+                    description = None; homepage_url = None;
+                    languages = langs })))
   | _ -> None
 
 (* set(<var> <value>... [PARENT_SCOPE]) — only the simple form. *)
@@ -251,7 +283,10 @@ let message_mode_of_first_arg = function
   | "CHECK_FAIL" -> Some Mm_check_fail
   | _ -> None
 
-(* message([mode] <text>...) *)
+(* message([mode] <text>...).
+   Lang_cmake_pp's Message printer ALWAYS quotes texts (`pp_string_quoted`),
+   so a typed parse only round-trips when every text arg was originally
+   quoted in source. Bail otherwise. *)
 let parse_message args : L.exp option =
   match args with
   | [] -> None
@@ -261,32 +296,31 @@ let parse_message args : L.exp option =
       | Some m -> m, rest
       | None -> Mm_none, args
     in
-    Some (Message { mode; texts = List.map texts ~f:str_of_raw })
+    let is_quoted s = match arg_of_raw s with Quoted _ -> true | _ -> false in
+    if not (List.for_all texts ~f:is_quoted) then None
+    else
+      Some (Message { mode; texts = List.map texts ~f:str_of_raw })
 
-(* configure_file(<input> <output> [COPYONLY] [...flags]) *)
+(* configure_file(<input> <output> [COPYONLY] [...flags]).
+   input/output are typed [path] (string); Lang_cmake_pp emits them
+   bare. Bail if source had them quoted. *)
 let parse_configure_file args : L.exp option =
-  let bool_of_flag flag rest =
-    List.exists rest ~f:(String.equal flag)
-  in
+  if not (all_bare args) then None
+  else
+  let bool_of_flag flag rest = List.exists rest ~f:(String.equal flag) in
   match args with
   | [ input; output ] ->
     Some (Cmake_cmd
             (Configure_file
-               { input = str_of_raw input;
-                 output = str_of_raw output;
-                 permission_level = None;
-                 permissions = [];
-                 copy_only = None;
-                 escape_quotes = None;
-                 only = None;
-                 newline_style = None }))
+               { input; output;
+                 permission_level = None; permissions = [];
+                 copy_only = None; escape_quotes = None;
+                 only = None; newline_style = None }))
   | input :: output :: rest ->
     Some (Cmake_cmd
             (Configure_file
-               { input = str_of_raw input;
-                 output = str_of_raw output;
-                 permission_level = None;
-                 permissions = [];
+               { input; output;
+                 permission_level = None; permissions = [];
                  copy_only = (if bool_of_flag "COPYONLY" rest then Some true else None);
                  escape_quotes = (if bool_of_flag "ESCAPE_QUOTES" rest then Some true else None);
                  only = (if bool_of_flag "@ONLY" rest then Some true else None);
@@ -294,29 +328,30 @@ let parse_configure_file args : L.exp option =
   | _ -> None
 
 (* add_executable(<name> <sources>...) — only the regular form; aliases
-   and imported go through a separate ctor. *)
+   and imported go through a separate ctor. name/sources are typed
+   [string]; bail if any arg is quoted to preserve source form. *)
 let parse_add_executable args : L.exp option =
+  if not (all_bare args) then None
+  else
   match args with
   | name :: sources when not (List.is_empty sources) ->
-    (* Skip when keywords like ALIAS / IMPORTED appear; let it fall through. *)
     if List.exists sources ~f:(fun s ->
         List.mem [ "ALIAS"; "IMPORTED" ] s ~equal:String.equal)
     then None
     else
       Some (Project_cmd
               (Add_executable
-                 { name = str_of_raw name;
-                   options = [];
-                   sources = List.map sources ~f:str_of_raw }))
+                 { name; options = []; sources }))
   | _ -> None
 
 (* add_library(<name> [STATIC|SHARED|...] [EXCLUDE_FROM_ALL] <sources>) *)
 let library_types = [ "STATIC"; "SHARED"; "MODULE"; "INTERFACE"; "OBJECT"; "UNKNOWN" ]
 
 let parse_add_library args : L.exp option =
+  if not (all_bare args) then None
+  else
   match args with
   | name :: rest ->
-    (* Skip aliases and imported for now. *)
     if List.exists rest ~f:(fun s ->
         List.mem [ "ALIAS"; "IMPORTED" ] s ~equal:String.equal)
     then None
@@ -334,10 +369,7 @@ let parse_add_library args : L.exp option =
       in
       Some (Project_cmd
               (Add_library
-                 { name = str_of_raw name;
-                   type_;
-                   exclude_from_all = exclude;
-                   sources = List.map sources ~f:str_of_raw }))
+                 { name; type_; exclude_from_all = exclude; sources }))
   | _ -> None
 
 (* Group args by visibility keyword. Default group "PRIVATE" (cmake
@@ -402,8 +434,11 @@ let parse_target_compile_options args : L.exp option =
                    items = group_by_visibility items }))
   | _ -> None
 
-(* target_compile_features(<target> <kind> <features>...) *)
+(* target_compile_features(<target> <kind> <features>...).
+   Features are typed [string]; bail on quoting. *)
 let parse_target_compile_features args : L.exp option =
+  if not (all_bare args) then None
+  else
   let is_kind = function
     | "PUBLIC" | "PRIVATE" | "INTERFACE" -> true
     | _ -> false
@@ -414,34 +449,29 @@ let parse_target_compile_features args : L.exp option =
       | [] -> List.rev acc
       | k :: rest' when is_kind k -> loop k acc rest'
       | f :: rest' ->
-        loop current_kind
-          ({ L.kind = current_kind; feature = str_of_raw f } :: acc)
-          rest'
+        loop current_kind ({ L.kind = current_kind; feature = f } :: acc) rest'
     in
     let features = loop "PRIVATE" [] rest in
     if List.is_empty features then None
     else
-      Some (Project_cmd
-              (Target_compile_features
-                 { target = str_of_raw target; features }))
+      Some (Project_cmd (Target_compile_features { target; features }))
   | _ -> None
 
-(* option(<var> <help_text> [ON|OFF]) *)
+(* option(<var> <help_text> [ON|OFF]). help_text is always quoted
+   in Lang_cmake_pp's output; bail if source had it bare. *)
 let parse_option args : L.exp option =
+  let help_quoted s = match arg_of_raw s with Quoted _ -> true | _ -> false in
   match args with
-  | [ var; help ] ->
+  | [ var; help ] when is_bare var && help_quoted help ->
     Some (Option
-            { var = str_of_raw var;
+            { var;
               help_text = [ str_of_raw help ];
-              value = Bool false })  (* cmake default *)
-  | [ var; help; v ] ->
-    (* Preserve the original token (`ON`/`OFF`/`TRUE`/...). Mapping
-       to Bool here would have Lang_cmake_pp emit `True`/`False`,
-       diverging from the input. *)
+              value = Bool false })
+  | [ var; help; v ] when is_bare var && help_quoted help && is_bare v ->
     Some (Option
-            { var = str_of_raw var;
+            { var;
               help_text = [ str_of_raw help ];
-              value = Var_exp (str_of_raw v) })
+              value = Var_exp v })
   | _ -> None
 
 (* include(<file> [OPTIONAL] [RESULT_VARIABLE <var>] [NO_POLICY_SCOPE]) *)
@@ -465,8 +495,11 @@ let parse_include args : L.exp option =
               no_policy_scope })
   | _ -> None
 
-(* add_subdirectory(<source_dir> [<binary_dir>] [EXCLUDE_FROM_ALL] [SYSTEM]) *)
+(* add_subdirectory(<source_dir> [<binary_dir>] [EXCLUDE_FROM_ALL] [SYSTEM]).
+   source_dir/binary_dir are typed [directory] (string); bail on quoting. *)
 let parse_add_subdirectory args : L.exp option =
+  if not (all_bare args) then None
+  else
   let extract_flags args =
     let exclude = List.exists args ~f:(String.equal "EXCLUDE_FROM_ALL") in
     let system = List.exists args ~f:(String.equal "SYSTEM") in
@@ -479,17 +512,13 @@ let parse_add_subdirectory args : L.exp option =
   | [ source_dir ] ->
     Some (Project_cmd
             (Add_subdirectory
-               { source_dir = str_of_raw source_dir;
-                 binary_dir = None;
-                 exclude_from_all = exclude;
-                 system }))
+               { source_dir; binary_dir = None;
+                 exclude_from_all = exclude; system }))
   | [ source_dir; binary_dir ] ->
     Some (Project_cmd
             (Add_subdirectory
-               { source_dir = str_of_raw source_dir;
-                 binary_dir = Some (str_of_raw binary_dir);
-                 exclude_from_all = exclude;
-                 system }))
+               { source_dir; binary_dir = Some binary_dir;
+                 exclude_from_all = exclude; system }))
   | _ -> None
 
 (* target_include_directories(<target> [SYSTEM] [BEFORE|AFTER] <items>...) *)
@@ -523,9 +552,15 @@ let parse_target_include_directories args : L.exp option =
    ============================================================ *)
 
 let parse_cmd (c : cmd) : L.exp option =
-  (* cmake commands are case-insensitive: set / SET / Set all dispatch
-     to the same builtin. *)
-  match String.lowercase c.name with
+  (* cmake commands are case-insensitive *at runtime*, but the
+     typed-then-reprint cycle always emits the lowercase canonical
+     form, so `SET(...)` would round-trip as `set(...)`. Bail for
+     anything not already lowercase; those flow through Apply and
+     preserve the source casing. *)
+  let name = c.name in
+  if not (String.equal name (String.lowercase name)) then None
+  else
+  match name with
   | "cmake_minimum_required" -> parse_cmake_minimum_required c.args
   | "project" -> parse_project c.args
   | "set" -> parse_set c.args
@@ -556,17 +591,25 @@ let print_stage1_cmd { name; args } =
 
 let indent depth = String.make (depth * 2) ' '
 
+(* Generic call-by-name. Used for unrecognized commands: user-defined
+   functions (function(...) endfunction()), user-defined macros, and
+   cmake-module functions (check_symbol_exists etc., defined by
+   include(SomeModule)). [Lang_cmake.Apply] already has the exact
+   shape we need; its eval is lenient about unresolved names. *)
+let untyped_to_apply (c : cmd) : L.exp =
+  Apply { name = c.name; args = List.map c.args ~f:arg_of_raw }
+
 let rec emit_stmt ~depth buf = function
   | Cmd c ->
-    (match parse_cmd c with
-     | Some exp ->
-       Buffer.add_string buf (indent depth);
-       Buffer.add_string buf (pp_exp_to_string exp);
-       Buffer.add_char buf '\n'
-     | None ->
-       Buffer.add_string buf (indent depth);
-       Buffer.add_string buf (print_stage1_cmd c);
-       Buffer.add_char buf '\n')
+    let exp =
+      match parse_cmd c with
+      | Some exp -> exp
+      | None -> untyped_to_apply c
+    in
+    Buffer.add_string buf (indent depth);
+    Buffer.add_string buf (pp_exp_to_string exp);
+    if not (String.is_suffix (pp_exp_to_string exp) ~suffix:"\n")
+    then Buffer.add_char buf '\n'
   | Block { head; body; clauses; tail; _ } ->
     Buffer.add_string buf (indent depth);
     Buffer.add_string buf (print_stage1_cmd head);
@@ -598,15 +641,20 @@ let emit stmts =
    Coverage report (optional, via env var)
    ============================================================ *)
 
+(* Coverage tally. Every cmd now lands somewhere typed:
+   - [typed]: a per-command Lang_cmake.exp ctor (full builtin shape)
+   - [generic]: Apply { name; args } — user-defined / module-defined
+                call. AST-carried, not semantically typed.
+   - [other]: block heads/tails + raw passthrough + unknown CST. *)
 let count_coverage stmts =
   let typed = ref 0 in
-  let untyped = ref 0 in
+  let generic = ref 0 in
   let other = ref 0 in
   let rec walk = function
     | Cmd c ->
       (match parse_cmd c with
        | Some _ -> Int.incr typed
-       | None -> Int.incr untyped)
+       | None -> Int.incr generic)
     | Block { body; clauses; _ } ->
       Int.incr other;
       List.iter body ~f:walk;
@@ -614,7 +662,7 @@ let count_coverage stmts =
     | Raw _ | Unknown _ -> Int.incr other
   in
   List.iter stmts ~f:walk;
-  !typed, !untyped, !other
+  !typed, !generic, !other
 
 (* ============================================================
    Driver
@@ -636,7 +684,7 @@ let () =
   let stmts = file_of_json json in
   (match Sys.getenv "STAGE2_COVERAGE" with
    | Some _ ->
-     let t, u, o = count_coverage stmts in
-     Stdlib.Printf.eprintf "[stage2] typed=%d untyped=%d other=%d\n" t u o
+     let t, g, o = count_coverage stmts in
+     Stdlib.Printf.eprintf "[stage2] typed=%d generic=%d other=%d\n" t g o
    | None -> ());
   Stdlib.print_string (emit stmts)
