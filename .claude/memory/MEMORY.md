@@ -20,6 +20,7 @@
 - [Ask before implementing semantically-loaded constructs](feedback_ask_on_semantic_design.md) — scope, binding, control flow, evaluation order: surface design choices before code (foreach 2026-05-10 miss)
 - [Web docs only on explicit ask](feedback_web_docs_explicit.md) — never auto-update docs/ as a side effect of internal work; wait for explicit instruction
 - [No eager push](feedback_no_eager_push.md) — commit freely on local main; user is solo dev and pushes explicitly
+- [Pause on model-unavailable](feedback_pause_on_model_unavailable.md) — surface auto-mode safety-check blocks; don't retry through them
 
 ## Quick Reference
 - `open Base` shadows `result`, `prefix`, `id`, `append` — rename in patterns

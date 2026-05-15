@@ -1,25 +1,25 @@
-(* Tutorial v1 step1-step12 bridge tests. Each test parses through
-   [Yelu_cmake_legacy_bridge.stmt], emits via [Yelu_cmake_emit_debug] (the
-   direct-text emitter, now diagnostic aid), and substring-asserts that
-   key cmake constructs appear in the output. The format-specific
-   substring assertions (e.g. always-quoted strings) are tuned to the
-   direct emitter's conventions, not [emit_ast]'s — these tests
-   intentionally cover the diagnostic path. Production-path coverage
-   lives in [test_yelu_compile.ml]'s byte-equality oracle. *)
+(* Tutorial v1 step1-step12 tests. Each test builds the program via
+   [Yelu_cmake_utils] / [Step_common_ir], emits via
+   [Yelu_cmake_emit_debug] (the direct-text emitter, now diagnostic
+   aid), and substring-asserts that key cmake constructs appear in
+   the output. The format-specific substring assertions (e.g.
+   always-quoted strings) are tuned to the direct emitter's
+   conventions, not [emit_ast]'s — these tests intentionally cover
+   the diagnostic path. Production-path coverage lives in
+   [test_yelu_compile.ml]'s byte-equality oracle. *)
 open Base
 let step1_bridge =
-  let module Old = Yelu_langs.Lang_yelu_cmake in
-  let open Yelu_langs.Lang_yelu_utils in
-  let cmd : Old.yelu_stmt =
+  let open Yelu_langs.Yelu_cmake_utils in
+  let cmd =
     ycmd_of_list
-      (Step_common.project_preamble
-       @ Step_common.cxx_standard_11
+      (Step_common_ir.project_preamble
+       @ Step_common_ir.cxx_standard_11
        @ [
            ylet "tut" (ytval "Tutorial");
-           Step_common.configure_tutorial_header;
+           Step_common_ir.configure_tutorial_header;
            add_exe ~sources:[ yfile "tutorial.cxx" ] (yvar "tut");
            include_dirs (yvar "tut")
-             [ ytarget_def [ dir Yelu_langs.Lang_yelu_utils.output_root ] ];
+             [ ytarget_def [ dir Yelu_langs.Yelu_cmake_utils.output_root ] ];
          ])
   in
   ( "step1_bridge",
@@ -27,7 +27,7 @@ let step1_bridge =
       Alcotest.test_case "v1 step1 program bridges to Yelu1 and emits cmake"
         `Quick
         (fun () ->
-          let yelu1 = Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd in
+          let yelu1 = cmd in
           let cmake_text =
             Yelu_langs.Yelu_cmake_emit_debug.emit_script yelu1
           in
@@ -53,15 +53,14 @@ let step1_bridge =
     ] )
 
 let step2_bridge =
-  let module Old = Yelu_langs.Lang_yelu_cmake in
-  let open Yelu_langs.Lang_yelu_utils in
-  let cmd : Old.yelu_stmt =
+  let open Yelu_langs.Yelu_cmake_utils in
+  let cmd =
     ycmd_of_list
-      (Step_common.project_preamble
-       @ Step_common.cxx_standard_11
+      (Step_common_ir.project_preamble
+       @ Step_common_ir.cxx_standard_11
        @ [
            ylet "tut" (ytval "Tutorial");
-           Step_common.configure_tutorial_header;
+           Step_common_ir.configure_tutorial_header;
            yc_add_subdirectory (ydir "MathFunctions");
            add_exe ~sources:[ yfile "tutorial.cxx" ] (yvar "tut");
            link_lib
@@ -71,8 +70,8 @@ let step2_bridge =
              [
                ytarget_def
                  [
-                   dir Yelu_langs.Lang_yelu_utils.output_root;
-                   dir_concat Yelu_langs.Lang_yelu_utils.source_root "MathFunctions";
+                   dir Yelu_langs.Yelu_cmake_utils.output_root;
+                   dir_concat Yelu_langs.Yelu_cmake_utils.source_root "MathFunctions";
                  ];
              ];
          ])
@@ -82,7 +81,7 @@ let step2_bridge =
       Alcotest.test_case "v1 step2 root program bridges to Yelu1 and emits cmake"
         `Quick
         (fun () ->
-          let yelu1 = Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd in
+          let yelu1 = cmd in
           let cmake_text =
             Yelu_langs.Yelu_cmake_emit_debug.emit_script yelu1
           in
@@ -109,9 +108,8 @@ let step2_bridge =
 	    ] )
 
 let step2_math_bridge =
-  let module Old = Yelu_langs.Lang_yelu_cmake in
-  let open Yelu_langs.Lang_yelu_utils in
-  let cmd : Old.yelu_stmt =
+  let open Yelu_langs.Yelu_cmake_utils in
+  let cmd =
     ycmd_of_list
       [
         ylet "math" (ytval "MathFunctions");
@@ -140,7 +138,7 @@ let step2_math_bridge =
       Alcotest.test_case "v1 step2 math program bridges to Yelu1 and emits cmake"
         `Quick
         (fun () ->
-          let yelu1 = Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd in
+          let yelu1 = cmd in
           let cmake_text =
             Yelu_langs.Yelu_cmake_emit_debug.emit_script yelu1
           in
@@ -163,26 +161,25 @@ let step2_math_bridge =
 	    ] )
 
 let step3_bridge =
-  let module Old = Yelu_langs.Lang_yelu_cmake in
-  let open Yelu_langs.Lang_yelu_utils in
-  let cmd : Old.yelu_stmt =
+  let open Yelu_langs.Yelu_cmake_utils in
+  let cmd =
     ycmd_of_list
-      (Step_common.project_preamble
+      (Step_common_ir.project_preamble
        @ [
            ylet "tut" (ytval "Tutorial");
            ylet "flags" (ytval "tutorial_compiler_flags");
          ]
-       @ Step_common.compiler_flags_lib
-       @ Step_common.cxx_standard_11
+       @ Step_common_ir.compiler_flags_lib
+       @ Step_common_ir.cxx_standard_11
        @ [
-           Step_common.configure_tutorial_header;
+           Step_common_ir.configure_tutorial_header;
            yc_add_subdirectory (ydir "MathFunctions");
            add_exe ~sources:[ yfile "tutorial.cxx" ] (yvar "tut");
            link_lib
              [ yvar "tut" ]
              [ ytarget_def [ ytval "MathFunctions"; yvar "flags" ] ];
            include_dirs (yvar "tut")
-             [ ytarget_def [ dir Yelu_langs.Lang_yelu_utils.output_root ] ];
+             [ ytarget_def [ dir Yelu_langs.Yelu_cmake_utils.output_root ] ];
          ])
   in
   ( "step3_bridge",
@@ -190,7 +187,7 @@ let step3_bridge =
       Alcotest.test_case "v1 step3 root program bridges to Yelu1 and emits cmake"
         `Quick
         (fun () ->
-          let yelu1 = Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd in
+          let yelu1 = cmd in
           let cmake_text =
             Yelu_langs.Yelu_cmake_emit_debug.emit_script yelu1
           in
@@ -210,9 +207,8 @@ let step3_bridge =
     ] )
 
 let step3_math_bridge =
-  let module Old = Yelu_langs.Lang_yelu_cmake in
-  let open Yelu_langs.Lang_yelu_utils in
-  let cmd : Old.yelu_stmt =
+  let open Yelu_langs.Yelu_cmake_utils in
+  let cmd =
     ycmd_of_list
       [
         ylet "flags" (ytval "tutorial_compiler_flags");
@@ -246,7 +242,7 @@ let step3_math_bridge =
       Alcotest.test_case "v1 step3 math program bridges to Yelu1 and emits cmake"
         `Quick
         (fun () ->
-          let yelu1 = Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd in
+          let yelu1 = cmd in
           let cmake_text =
             Yelu_langs.Yelu_cmake_emit_debug.emit_script yelu1
           in
@@ -265,25 +261,24 @@ let step3_math_bridge =
     ] )
 
 let step4_bridge =
-  let module Old = Yelu_langs.Lang_yelu_cmake in
-  let open Yelu_langs.Lang_yelu_utils in
-  let cmd : Old.yelu_stmt =
+  let open Yelu_langs.Yelu_cmake_utils in
+  let cmd =
     ycmd_of_list
-      (Step_common.project_preamble
+      (Step_common_ir.project_preamble
        @ [
            ylet "tut" (ytval "Tutorial");
            ylet "flags" (ytval "tutorial_compiler_flags");
          ]
-       @ Step_common.compiler_flags_lib
-       @ Step_common.compiler_warning_options
+       @ Step_common_ir.compiler_flags_lib
+       @ Step_common_ir.compiler_warning_options
        @ [
-           Step_common.configure_tutorial_header;
+           Step_common_ir.configure_tutorial_header;
            yc_add_subdirectory (ydir "MathFunctions");
            add_exe ~sources:[ yfile "tutorial.cxx" ] (yvar "tut");
            link_lib [ yvar "tut" ]
              [ ytarget_def [ ytval "MathFunctions"; yvar "flags" ] ];
            include_dirs (yvar "tut")
-             [ ytarget_def [ dir Yelu_langs.Lang_yelu_utils.output_root ] ];
+             [ ytarget_def [ dir Yelu_langs.Yelu_cmake_utils.output_root ] ];
          ])
   in
   ( "step4_bridge",
@@ -291,7 +286,7 @@ let step4_bridge =
       Alcotest.test_case "v1 step4 root program bridges to Yelu1 and emits cmake"
         `Quick
         (fun () ->
-          let yelu1 = Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd in
+          let yelu1 = cmd in
           let cmake_text =
             Yelu_langs.Yelu_cmake_emit_debug.emit_script yelu1
           in
@@ -308,36 +303,35 @@ let step4_bridge =
     ] )
 
 let step5_bridge =
-  let module Old = Yelu_langs.Lang_yelu_cmake in
-  let open Yelu_langs.Lang_yelu_utils in
-  let cmd : Old.yelu_stmt =
+  let open Yelu_langs.Yelu_cmake_utils in
+  let cmd =
     ycmd_of_list
-      (Step_common.project_preamble
+      (Step_common_ir.project_preamble
        @ [
            ylet "tut" (ytval "Tutorial");
            ylet "flags" (ytval "tutorial_compiler_flags");
            ylet "do_test" (ycstr "do_test");
          ]
-       @ Step_common.compiler_flags_lib
-       @ Step_common.compiler_warning_options
+       @ Step_common_ir.compiler_flags_lib
+       @ Step_common_ir.compiler_warning_options
        @ [
-           Step_common.configure_tutorial_header;
+           Step_common_ir.configure_tutorial_header;
            yc_add_subdirectory (ydir "MathFunctions");
            add_exe ~sources:[ yfile "tutorial.cxx" ] (yvar "tut");
            link_lib [ yvar "tut" ]
              [ ytarget_def [ ytval "MathFunctions"; yvar "flags" ] ];
            include_dirs (yvar "tut")
-             [ ytarget_def [ dir Yelu_langs.Lang_yelu_utils.output_root ] ];
+             [ ytarget_def [ dir Yelu_langs.Yelu_cmake_utils.output_root ] ];
          ]
-       @ Step_common.install_tutorial
-       @ Step_common.test_suite ~ctest:false)
+       @ Step_common_ir.install_tutorial
+       @ Step_common_ir.test_suite ~ctest:false)
   in
   ( "step5_bridge",
     [
       Alcotest.test_case "v1 step5 root program bridges to Yelu1 and emits cmake"
         `Quick
         (fun () ->
-          let yelu1 = Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd in
+          let yelu1 = cmd in
           let cmake_text =
             Yelu_langs.Yelu_cmake_emit_debug.emit_script yelu1
           in
@@ -353,9 +347,8 @@ let step5_bridge =
     ] )
 
 let step5_math_bridge =
-  let module Old = Yelu_langs.Lang_yelu_cmake in
-  let open Yelu_langs.Lang_yelu_utils in
-  let cmd : Old.yelu_stmt =
+  let open Yelu_langs.Yelu_cmake_utils in
+  let cmd =
     ycmd_of_list
       ([
          ylet "flags" (ytval "tutorial_compiler_flags");
@@ -384,14 +377,14 @@ let step5_math_bridge =
          link_lib [ yvar "math" ]
            [ ytarget_def ~kind:Public [ yvar "flags" ] ];
        ]
-       @ Step_common.math_install_libs ())
+       @ Step_common_ir.math_install_libs ())
   in
   ( "step5_math_bridge",
     [
       Alcotest.test_case "v1 step5 math program bridges to Yelu1 and emits cmake"
         `Quick
         (fun () ->
-          let yelu1 = Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd in
+          let yelu1 = cmd in
           let cmake_text =
             Yelu_langs.Yelu_cmake_emit_debug.emit_script yelu1
           in
@@ -407,36 +400,35 @@ let step5_math_bridge =
     ] )
 
 let step6_bridge =
-  let module Old = Yelu_langs.Lang_yelu_cmake in
-  let open Yelu_langs.Lang_yelu_utils in
-  let cmd : Old.yelu_stmt =
+  let open Yelu_langs.Yelu_cmake_utils in
+  let cmd =
     ycmd_of_list
-      (Step_common.project_preamble
+      (Step_common_ir.project_preamble
        @ [
            ylet "tut" (ytval "Tutorial");
            ylet "flags" (ytval "tutorial_compiler_flags");
            ylet "do_test" (ycstr "do_test");
          ]
-       @ Step_common.compiler_flags_lib
-       @ Step_common.compiler_warning_options
+       @ Step_common_ir.compiler_flags_lib
+       @ Step_common_ir.compiler_warning_options
        @ [
-           Step_common.configure_tutorial_header;
+           Step_common_ir.configure_tutorial_header;
            yc_add_subdirectory (ydir "MathFunctions");
            add_exe ~sources:[ yfile "tutorial.cxx" ] (yvar "tut");
            link_lib [ yvar "tut" ]
              [ ytarget_def [ ytval "MathFunctions"; yvar "flags" ] ];
            include_dirs (yvar "tut")
-             [ ytarget_def [ dir Yelu_langs.Lang_yelu_utils.output_root ] ];
+             [ ytarget_def [ dir Yelu_langs.Yelu_cmake_utils.output_root ] ];
          ]
-       @ Step_common.install_tutorial
-       @ Step_common.test_suite ~ctest:true)
+       @ Step_common_ir.install_tutorial
+       @ Step_common_ir.test_suite ~ctest:true)
   in
   ( "step6_bridge",
     [
       Alcotest.test_case "v1 step6 root program bridges to Yelu1 and emits cmake"
         `Quick
         (fun () ->
-          let yelu1 = Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd in
+          let yelu1 = cmd in
           let cmake_text =
             Yelu_langs.Yelu_cmake_emit_debug.emit_script yelu1
           in
@@ -453,9 +445,8 @@ let step6_bridge =
     ] )
 
 let step6_ctest_bridge =
-  let module Old = Yelu_langs.Lang_yelu_cmake in
-  let open Yelu_langs.Lang_yelu_utils in
-  let cmd : Old.yelu_stmt =
+  let open Yelu_langs.Yelu_cmake_utils in
+  let cmd =
     ycmd_of_list
       [
         yc_set (ycvar "CTEST_PROJECT_NAME") [ ystr "CMakeTutorial" ];
@@ -472,7 +463,7 @@ let step6_ctest_bridge =
       Alcotest.test_case "v1 step6_ctest config bridges to Yelu1 and emits cmake"
         `Quick
         (fun () ->
-          let yelu1 = Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd in
+          let yelu1 = cmd in
           let cmake_text =
             Yelu_langs.Yelu_cmake_emit_debug.emit_script yelu1
           in
@@ -490,36 +481,35 @@ let step6_ctest_bridge =
    exists to pin the contract: future divergence in the helpers should
    surface here, not in step6_bridge. *)
 let step7_bridge =
-  let module Old = Yelu_langs.Lang_yelu_cmake in
-  let open Yelu_langs.Lang_yelu_utils in
-  let cmd : Old.yelu_stmt =
+  let open Yelu_langs.Yelu_cmake_utils in
+  let cmd =
     ycmd_of_list
-      (Step_common.project_preamble
+      (Step_common_ir.project_preamble
        @ [
            ylet "tut" (ytval "Tutorial");
            ylet "flags" (ytval "tutorial_compiler_flags");
            ylet "do_test" (ycstr "do_test");
          ]
-       @ Step_common.compiler_flags_lib
-       @ Step_common.compiler_warning_options
+       @ Step_common_ir.compiler_flags_lib
+       @ Step_common_ir.compiler_warning_options
        @ [
-           Step_common.configure_tutorial_header;
+           Step_common_ir.configure_tutorial_header;
            yc_add_subdirectory (ydir "MathFunctions");
            add_exe ~sources:[ yfile "tutorial.cxx" ] (yvar "tut");
            link_lib [ yvar "tut" ]
              [ ytarget_def [ ytval "MathFunctions"; yvar "flags" ] ];
            include_dirs (yvar "tut")
-             [ ytarget_def [ dir Yelu_langs.Lang_yelu_utils.output_root ] ];
+             [ ytarget_def [ dir Yelu_langs.Yelu_cmake_utils.output_root ] ];
          ]
-       @ Step_common.install_tutorial
-       @ Step_common.test_suite ~ctest:true)
+       @ Step_common_ir.install_tutorial
+       @ Step_common_ir.test_suite ~ctest:true)
   in
   ( "step7_bridge",
     [
       Alcotest.test_case "v1 step7 root program bridges to Yelu1 and emits cmake"
         `Quick
         (fun () ->
-          let yelu1 = Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd in
+          let yelu1 = cmd in
           let cmake_text =
             Yelu_langs.Yelu_cmake_emit_debug.emit_script yelu1
           in
@@ -537,9 +527,8 @@ let step7_bridge =
    (no command_name short-circuit) and the lenient surface ECmakeApply
    semantics (the function body lives in the included module, not in env). *)
 let step7_math_bridge =
-  let module Old = Yelu_langs.Lang_yelu_cmake in
-  let open Yelu_langs.Lang_yelu_utils in
-  let cmd : Old.yelu_stmt =
+  let open Yelu_langs.Yelu_cmake_utils in
+  let cmd =
     ycmd_of_list
       ([
          ylet "flags" (ytval "tutorial_compiler_flags");
@@ -566,7 +555,7 @@ let step7_math_bridge =
                  link_lib [ yvar "sqrt" ]
                    [ ytarget_def ~kind:Public [ yvar "flags" ] ];
                ]
-              @ Step_common.math_check_cxx_features
+              @ Step_common_ir.math_check_cxx_features
               @ [
                   link_lib [ yvar "math" ]
                     [ ytarget_def ~kind:Private [ yvar "sqrt" ] ];
@@ -574,14 +563,14 @@ let step7_math_bridge =
          link_lib [ yvar "math" ]
            [ ytarget_def ~kind:Public [ yvar "flags" ] ];
        ]
-      @ Step_common.math_install_libs ())
+      @ Step_common_ir.math_install_libs ())
   in
   ( "step7_math_bridge",
     [
       Alcotest.test_case "v1 step7 MathFunctions bridges, including check_cxx apply"
         `Quick
         (fun () ->
-          let yelu1 = Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd in
+          let yelu1 = cmd in
           let cmake_text =
             Yelu_langs.Yelu_cmake_emit_debug.emit_script yelu1
           in
@@ -607,9 +596,8 @@ let step7_math_bridge =
    [DEPENDS]. The bridge already supports this via [Ytgt_add_custom_command]
    (vs the deferred TARGET-form sibling [Ytgt_add_custom_command_target]). *)
 let step8_table_bridge =
-  let module Old = Yelu_langs.Lang_yelu_cmake in
-  let open Yelu_langs.Lang_yelu_utils in
-  let cmd : Old.yelu_stmt =
+  let open Yelu_langs.Yelu_cmake_utils in
+  let cmd =
     ycmd_of_list
       [
         yc_extern_target "tutorial_compiler_flags";
@@ -627,7 +615,7 @@ let step8_table_bridge =
       Alcotest.test_case "v1 step8_table MathFunctions/MakeTable bridges to Yelu1"
         `Quick
         (fun () ->
-          let yelu1 = Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd in
+          let yelu1 = cmd in
           let cmake_text =
             Yelu_langs.Yelu_cmake_emit_debug.emit_script yelu1
           in
@@ -649,9 +637,8 @@ let step8_table_bridge =
    source ${CMAKE_CURRENT_BINARY_DIR}/Table.h passed to add_library. Both
    are existing pieces — this test confirms they compose. *)
 let step8_math_bridge =
-  let module Old = Yelu_langs.Lang_yelu_cmake in
-  let open Yelu_langs.Lang_yelu_utils in
-  let cmd : Old.yelu_stmt =
+  let open Yelu_langs.Yelu_cmake_utils in
+  let cmd =
     ycmd_of_list
       ([
          ylet "flags" (ytval "tutorial_compiler_flags");
@@ -686,7 +673,7 @@ let step8_math_bridge =
                  link_lib [ yvar "sqrt" ]
                    [ ytarget_def ~kind:Public [ yvar "flags" ] ];
                ]
-              @ Step_common.math_check_cxx_features
+              @ Step_common_ir.math_check_cxx_features
               @ [
                   link_lib [ yvar "math" ]
                     [ ytarget_def ~kind:Private [ yvar "sqrt" ] ];
@@ -694,14 +681,14 @@ let step8_math_bridge =
          link_lib [ yvar "math" ]
            [ ytarget_def ~kind:Public [ yvar "flags" ] ];
        ]
-      @ Step_common.math_install_libs ())
+      @ Step_common_ir.math_install_libs ())
   in
   ( "step8_math_bridge",
     [
       Alcotest.test_case "v1 step8 MathFunctions bridges to Yelu1"
         `Quick
         (fun () ->
-          let yelu1 = Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd in
+          let yelu1 = cmd in
           let cmake_text =
             Yelu_langs.Yelu_cmake_emit_debug.emit_script yelu1
           in
@@ -720,37 +707,36 @@ let step8_math_bridge =
    pieces — Tier A include(), set-to-cache, ystr_eval — are already
    bridged; this test pins composition. *)
 let step9_bridge =
-  let module Old = Yelu_langs.Lang_yelu_cmake in
-  let open Yelu_langs.Lang_yelu_utils in
-  let cmd : Old.yelu_stmt =
+  let open Yelu_langs.Yelu_cmake_utils in
+  let cmd =
     ycmd_of_list
-      (Step_common.project_preamble
+      (Step_common_ir.project_preamble
        @ [
            ylet "tut" (ytval "Tutorial");
            ylet "flags" (ytval "tutorial_compiler_flags");
            ylet "do_test" (ycstr "do_test");
          ]
-       @ Step_common.compiler_flags_lib
-       @ Step_common.compiler_warning_options
+       @ Step_common_ir.compiler_flags_lib
+       @ Step_common_ir.compiler_warning_options
        @ [
-           Step_common.configure_tutorial_header;
+           Step_common_ir.configure_tutorial_header;
            yc_add_subdirectory (ydir "MathFunctions");
            add_exe ~sources:[ yfile "tutorial.cxx" ] (yvar "tut");
            link_lib [ yvar "tut" ]
              [ ytarget_def [ ytval "MathFunctions"; yvar "flags" ] ];
            include_dirs (yvar "tut")
-             [ ytarget_def [ dir Yelu_langs.Lang_yelu_utils.output_root ] ];
+             [ ytarget_def [ dir Yelu_langs.Yelu_cmake_utils.output_root ] ];
          ]
-       @ Step_common.install_tutorial
-       @ Step_common.test_suite ~ctest:true
-       @ Step_common.cpack_basic)
+       @ Step_common_ir.install_tutorial
+       @ Step_common_ir.test_suite ~ctest:true
+       @ Step_common_ir.cpack_basic)
   in
   ( "step9_bridge",
     [
       Alcotest.test_case "v1 step9 root program bridges to Yelu1 (adds cpack_basic)"
         `Quick
         (fun () ->
-          let yelu1 = Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd in
+          let yelu1 = cmd in
           let cmake_text =
             Yelu_langs.Yelu_cmake_emit_debug.emit_script yelu1
           in
@@ -768,38 +754,37 @@ let step9_bridge =
 (* step10 adds [shared_libs_output_dirs] (three more yc_set to standard
    cmake cache vars + BUILD_SHARED_LIBS option) on top of step9. *)
 let step10_bridge =
-  let module Old = Yelu_langs.Lang_yelu_cmake in
-  let open Yelu_langs.Lang_yelu_utils in
-  let cmd : Old.yelu_stmt =
+  let open Yelu_langs.Yelu_cmake_utils in
+  let cmd =
     ycmd_of_list
-      (Step_common.project_preamble
+      (Step_common_ir.project_preamble
        @ [
            ylet "tut" (ytval "Tutorial");
            ylet "flags" (ytval "tutorial_compiler_flags");
            ylet "do_test" (ycstr "do_test");
          ]
-       @ Step_common.shared_libs_output_dirs
-       @ Step_common.compiler_flags_lib
-       @ Step_common.compiler_warning_options
+       @ Step_common_ir.shared_libs_output_dirs
+       @ Step_common_ir.compiler_flags_lib
+       @ Step_common_ir.compiler_warning_options
        @ [
-           Step_common.configure_tutorial_header;
+           Step_common_ir.configure_tutorial_header;
            yc_add_subdirectory (ydir "MathFunctions");
            add_exe ~sources:[ yfile "tutorial.cxx" ] (yvar "tut");
            link_lib [ yvar "tut" ]
              [ ytarget_def [ ytval "MathFunctions"; yvar "flags" ] ];
            include_dirs (yvar "tut")
-             [ ytarget_def [ dir Yelu_langs.Lang_yelu_utils.output_root ] ];
+             [ ytarget_def [ dir Yelu_langs.Yelu_cmake_utils.output_root ] ];
          ]
-       @ Step_common.install_tutorial
-       @ Step_common.test_suite ~ctest:true
-       @ Step_common.cpack_basic)
+       @ Step_common_ir.install_tutorial
+       @ Step_common_ir.test_suite ~ctest:true
+       @ Step_common_ir.cpack_basic)
   in
   ( "step10_bridge",
     [
       Alcotest.test_case "v1 step10 root program bridges (adds shared_libs_output_dirs)"
         `Quick
         (fun () ->
-          let yelu1 = Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd in
+          let yelu1 = cmd in
           let cmake_text =
             Yelu_langs.Yelu_cmake_emit_debug.emit_script yelu1
           in
@@ -823,14 +808,13 @@ let step10_bridge =
    running over a *.cmake.in template — at script-emit time it's plain
    text [@PACKAGE_INIT@]. *)
 let step11_config_bridge =
-  let module Old = Yelu_langs.Lang_yelu_cmake in
-  let open Yelu_langs.Lang_yelu_utils in
-  let cmd : Old.yelu_stmt =
+  let open Yelu_langs.Yelu_cmake_utils in
+  let cmd =
     ycmd_of_list
       [
         yc_at_var "PACKAGE_INIT";
         yc_include
-          (dir_concat Yelu_langs.Lang_yelu_utils.list_this
+          (dir_concat Yelu_langs.Yelu_cmake_utils.list_this
              "MathFunctionsTargets.cmake");
       ]
   in
@@ -839,7 +823,7 @@ let step11_config_bridge =
       Alcotest.test_case "v1 step11_config bridges yc_at_var and include"
         `Quick
         (fun () ->
-          let yelu1 = Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd in
+          let yelu1 = cmd in
           let cmake_text =
             Yelu_langs.Yelu_cmake_emit_debug.emit_script yelu1
           in
@@ -857,31 +841,30 @@ let step11_config_bridge =
    install(FILES ...), a second install(EXPORT), and an export(EXPORT).
    All four constructs are Tier F additions. *)
 let step11_bridge =
-  let module Old = Yelu_langs.Lang_yelu_cmake in
-  let open Yelu_langs.Lang_yelu_utils in
-  let cmd : Old.yelu_stmt =
+  let open Yelu_langs.Yelu_cmake_utils in
+  let cmd =
     ycmd_of_list
-      (Step_common.project_preamble
+      (Step_common_ir.project_preamble
        @ [
            ylet "tut" (ytval "Tutorial");
            ylet "flags" (ytval "tutorial_compiler_flags");
            ylet "do_test" (ycstr "do_test");
          ]
-       @ Step_common.shared_libs_output_dirs
-       @ Step_common.compiler_flags_lib
-       @ Step_common.compiler_warning_options
+       @ Step_common_ir.shared_libs_output_dirs
+       @ Step_common_ir.compiler_flags_lib
+       @ Step_common_ir.compiler_warning_options
        @ [
-           Step_common.configure_tutorial_header;
+           Step_common_ir.configure_tutorial_header;
            yc_add_subdirectory (ydir "MathFunctions");
            add_exe ~sources:[ yfile "tutorial.cxx" ] (yvar "tut");
            link_lib [ yvar "tut" ]
              [ ytarget_def [ ytval "MathFunctions"; yvar "flags" ] ];
            include_dirs (yvar "tut")
-             [ ytarget_def [ dir Yelu_langs.Lang_yelu_utils.output_root ] ];
+             [ ytarget_def [ dir Yelu_langs.Yelu_cmake_utils.output_root ] ];
          ]
-       @ Step_common.install_tutorial
-       @ Step_common.test_suite ~ctest:true
-       @ Step_common.cpack_basic
+       @ Step_common_ir.install_tutorial
+       @ Step_common_ir.test_suite ~ctest:true
+       @ Step_common_ir.cpack_basic
        @ [
            yc_install_export
              ~file:(yfile "MathFunctionsTargets.cmake")
@@ -892,13 +875,13 @@ let step11_bridge =
              ~no_check_required_components_macro:true
              (ydir "lib/cmake/MathFunctions")
              (yfile "${CMAKE_CURRENT_SOURCE_DIR}/Config.cmake.in")
-             (dir_concat Yelu_langs.Lang_yelu_utils.output_this
+             (dir_concat Yelu_langs.Yelu_cmake_utils.output_this
                 "MathFunctionsConfig.cmake");
            yc_write_basic_package_version_file
              ~compatibility:Yelu_langs.Lang_cmake.Any_newer_version
              ~version:(ystr_eval
                          "${Tutorial_VERSION_MAJOR}.${Tutorial_VERSION_MINOR}")
-             (dir_concat Yelu_langs.Lang_yelu_utils.output_this
+             (dir_concat Yelu_langs.Yelu_cmake_utils.output_this
                 "MathFunctionsConfigVersion.cmake");
            yc_install_files
              [
@@ -911,7 +894,7 @@ let step11_bridge =
              (ystr "MathFunctionsTargets")
              (ydir "lib/cmake/MathFunctions");
            yc_export_export (ystr "MathFunctionsTargets")
-             ~file:(dir_concat Yelu_langs.Lang_yelu_utils.output_this
+             ~file:(dir_concat Yelu_langs.Yelu_cmake_utils.output_this
                       "MathFunctionsTargets.cmake");
          ])
   in
@@ -920,7 +903,7 @@ let step11_bridge =
       Alcotest.test_case "v1 step11 root bridges package-config family"
         `Quick
         (fun () ->
-          let yelu1 = Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd in
+          let yelu1 = cmd in
           let cmake_text =
             Yelu_langs.Yelu_cmake_emit_debug.emit_script yelu1
           in
@@ -950,22 +933,21 @@ let step11_bridge =
 (* step12 adds set_target_properties(DEBUG_POSTFIX) and an extra
    CMAKE_DEBUG_POSTFIX set on top of step11. Same package-config family. *)
 let step12_bridge =
-  let module Old = Yelu_langs.Lang_yelu_cmake in
-  let open Yelu_langs.Lang_yelu_utils in
-  let cmd : Old.yelu_stmt =
+  let open Yelu_langs.Yelu_cmake_utils in
+  let cmd =
     ycmd_of_list
-      (Step_common.project_preamble
+      (Step_common_ir.project_preamble
        @ [
            ylet "tut" (ytval "Tutorial");
            ylet "flags" (ytval "tutorial_compiler_flags");
            ylet "do_test" (ycstr "do_test");
          ]
-       @ Step_common.shared_libs_output_dirs
+       @ Step_common_ir.shared_libs_output_dirs
        @ [ yc_set (ycvar "CMAKE_DEBUG_POSTFIX") [ ystr "d" ] ]
-       @ Step_common.compiler_flags_lib
-       @ Step_common.compiler_warning_options
+       @ Step_common_ir.compiler_flags_lib
+       @ Step_common_ir.compiler_warning_options
        @ [
-           Step_common.configure_tutorial_header;
+           Step_common_ir.configure_tutorial_header;
            yc_add_subdirectory (ydir "MathFunctions");
            add_exe ~sources:[ yfile "tutorial.cxx" ] (yvar "tut");
            yc_set_target_properties (yvar "tut")
@@ -973,11 +955,11 @@ let step12_bridge =
            link_lib [ yvar "tut" ]
              [ ytarget_def [ ytval "MathFunctions"; yvar "flags" ] ];
            include_dirs (yvar "tut")
-             [ ytarget_def [ dir Yelu_langs.Lang_yelu_utils.output_root ] ];
+             [ ytarget_def [ dir Yelu_langs.Yelu_cmake_utils.output_root ] ];
          ]
-       @ Step_common.install_tutorial
-       @ Step_common.test_suite ~ctest:true
-       @ Step_common.cpack_basic
+       @ Step_common_ir.install_tutorial
+       @ Step_common_ir.test_suite ~ctest:true
+       @ Step_common_ir.cpack_basic
        @ [
            yc_install_export
              ~file:(yfile "MathFunctionsTargets.cmake")
@@ -988,13 +970,13 @@ let step12_bridge =
              ~no_check_required_components_macro:true
              (ydir "lib/cmake/MathFunctions")
              (yfile "${CMAKE_CURRENT_SOURCE_DIR}/Config.cmake.in")
-             (dir_concat Yelu_langs.Lang_yelu_utils.output_this
+             (dir_concat Yelu_langs.Yelu_cmake_utils.output_this
                 "MathFunctionsConfig.cmake");
            yc_write_basic_package_version_file
              ~compatibility:Yelu_langs.Lang_cmake.Same_major_version
              ~version:(ystr_eval
                          "${Tutorial_VERSION_MAJOR}.${Tutorial_VERSION_MINOR}")
-             (dir_concat Yelu_langs.Lang_yelu_utils.output_this
+             (dir_concat Yelu_langs.Yelu_cmake_utils.output_this
                 "MathFunctionsConfigVersion.cmake");
            yc_install_files
              [
@@ -1007,7 +989,7 @@ let step12_bridge =
              (ystr "MathFunctionsTargets")
              (ydir "lib/cmake/MathFunctions");
            yc_export_export (ystr "MathFunctionsTargets")
-             ~file:(dir_concat Yelu_langs.Lang_yelu_utils.output_this
+             ~file:(dir_concat Yelu_langs.Yelu_cmake_utils.output_this
                       "MathFunctionsTargets.cmake");
          ])
   in
@@ -1016,7 +998,7 @@ let step12_bridge =
       Alcotest.test_case "v1 step12 root bridges (adds DEBUG_POSTFIX)"
         `Quick
         (fun () ->
-          let yelu1 = Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd in
+          let yelu1 = cmd in
           let cmake_text =
             Yelu_langs.Yelu_cmake_emit_debug.emit_script yelu1
           in
@@ -1036,9 +1018,8 @@ let step12_bridge =
    strings, etc.). *)
 
 let step4_math_bridge =
-  let module Old = Yelu_langs.Lang_yelu_cmake in
-  let open Yelu_langs.Lang_yelu_utils in
-  let cmd : Old.yelu_stmt =
+  let open Yelu_langs.Yelu_cmake_utils in
+  let cmd =
     ycmd_of_list
       ([
          ylet "flags" (ytval "tutorial_compiler_flags");
@@ -1073,7 +1054,7 @@ let step4_math_bridge =
       Alcotest.test_case "v1 step4 math program bridges to Yelu1"
         `Quick
         (fun () ->
-          let yelu1 = Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd in
+          let yelu1 = cmd in
           let cmake_text =
             Yelu_langs.Yelu_cmake_emit_debug.emit_script yelu1
           in
@@ -1085,9 +1066,8 @@ let step4_math_bridge =
     ] )
 
 let step6_math_bridge =
-  let module Old = Yelu_langs.Lang_yelu_cmake in
-  let open Yelu_langs.Lang_yelu_utils in
-  let cmd : Old.yelu_stmt =
+  let open Yelu_langs.Yelu_cmake_utils in
+  let cmd =
     ycmd_of_list
       ([
          ylet "flags" (ytval "tutorial_compiler_flags");
@@ -1116,14 +1096,14 @@ let step6_math_bridge =
          link_lib [ yvar "math" ]
            [ ytarget_def ~kind:Public [ yvar "flags" ] ];
        ]
-       @ Step_common.math_install_libs ())
+       @ Step_common_ir.math_install_libs ())
   in
   ( "step6_math_bridge",
     [
       Alcotest.test_case "v1 step6 math program bridges to Yelu1"
         `Quick
         (fun () ->
-          let yelu1 = Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd in
+          let yelu1 = cmd in
           let cmake_text =
             Yelu_langs.Yelu_cmake_emit_debug.emit_script yelu1
           in
@@ -1135,9 +1115,8 @@ let step6_math_bridge =
 (* step10_math adds POSITION_INDEPENDENT_CODE + EXPORTING_MYMATH on top
    of step8_math. *)
 let step10_math_bridge =
-  let module Old = Yelu_langs.Lang_yelu_cmake in
-  let open Yelu_langs.Lang_yelu_utils in
-  let cmd : Old.yelu_stmt =
+  let open Yelu_langs.Yelu_cmake_utils in
+  let cmd =
     ycmd_of_list
       ([
          ylet "flags" (ytval "tutorial_compiler_flags");
@@ -1173,7 +1152,7 @@ let step10_math_bridge =
                  link_lib [ yvar "sqrt" ]
                    [ ytarget_def ~kind:Public [ yvar "flags" ] ];
                ]
-              @ Step_common.math_check_cxx_features
+              @ Step_common_ir.math_check_cxx_features
               @ [
                   compile_defs (yvar "math")
                     [ ytarget_def ~kind:Private
@@ -1184,14 +1163,14 @@ let step10_math_bridge =
          link_lib [ yvar "math" ]
            [ ytarget_def ~kind:Public [ yvar "flags" ] ];
        ]
-       @ Step_common.math_install_libs ())
+       @ Step_common_ir.math_install_libs ())
   in
   ( "step10_math_bridge",
     [
       Alcotest.test_case "v1 step10 math program bridges (POSITION_INDEPENDENT_CODE)"
         `Quick
         (fun () ->
-          let yelu1 = Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd in
+          let yelu1 = cmd in
           let cmake_text =
             Yelu_langs.Yelu_cmake_emit_debug.emit_script yelu1
           in
@@ -1207,9 +1186,8 @@ let step10_math_bridge =
    [ystr], i.e. [EString], so no new theory needed) and the EXPORT
    parameter to math_install_libs. *)
 let step11_math_bridge =
-  let module Old = Yelu_langs.Lang_yelu_cmake in
-  let open Yelu_langs.Lang_yelu_utils in
-  let cmd : Old.yelu_stmt =
+  let open Yelu_langs.Yelu_cmake_utils in
+  let cmd =
     ycmd_of_list
       ([
          ylet "flags" (ytval "tutorial_compiler_flags");
@@ -1251,7 +1229,7 @@ let step11_math_bridge =
                  link_lib [ yvar "sqrt" ]
                    [ ytarget_def ~kind:Public [ yvar "flags" ] ];
                ]
-              @ Step_common.math_check_cxx_features
+              @ Step_common_ir.math_check_cxx_features
               @ [
                   compile_defs (yvar "math")
                     [ ytarget_def ~kind:Private
@@ -1262,14 +1240,14 @@ let step11_math_bridge =
          link_lib [ yvar "math" ]
            [ ytarget_def ~kind:Public [ yvar "flags" ] ];
        ]
-       @ Step_common.math_install_libs ~export:(ystr "MathFunctionsTargets") ())
+       @ Step_common_ir.math_install_libs ~export:(ystr "MathFunctionsTargets") ())
   in
   ( "step11_math_bridge",
     [
       Alcotest.test_case "v1 step11 math program bridges (BUILD_INTERFACE genex)"
         `Quick
         (fun () ->
-          let yelu1 = Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd in
+          let yelu1 = cmd in
           let cmake_text =
             Yelu_langs.Yelu_cmake_emit_debug.emit_script yelu1
           in
@@ -1286,9 +1264,8 @@ let step11_math_bridge =
    parent step's root differs in DEBUG_POSTFIX). Kept as its own test
    so future divergence surfaces here. *)
 let step12_math_bridge =
-  let module Old = Yelu_langs.Lang_yelu_cmake in
-  let open Yelu_langs.Lang_yelu_utils in
-  let cmd : Old.yelu_stmt =
+  let open Yelu_langs.Yelu_cmake_utils in
+  let cmd =
     ycmd_of_list
       ([
          ylet "flags" (ytval "tutorial_compiler_flags");
@@ -1330,7 +1307,7 @@ let step12_math_bridge =
                  link_lib [ yvar "sqrt" ]
                    [ ytarget_def ~kind:Public [ yvar "flags" ] ];
                ]
-              @ Step_common.math_check_cxx_features
+              @ Step_common_ir.math_check_cxx_features
               @ [
                   compile_defs (yvar "math")
                     [ ytarget_def ~kind:Private
@@ -1341,14 +1318,14 @@ let step12_math_bridge =
          link_lib [ yvar "math" ]
            [ ytarget_def ~kind:Public [ yvar "flags" ] ];
        ]
-       @ Step_common.math_install_libs ~export:(ystr "MathFunctionsTargets") ())
+       @ Step_common_ir.math_install_libs ~export:(ystr "MathFunctionsTargets") ())
   in
   ( "step12_math_bridge",
     [
       Alcotest.test_case "v1 step12 math program bridges"
         `Quick
         (fun () ->
-          let yelu1 = Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd in
+          let yelu1 = cmd in
           let cmake_text =
             Yelu_langs.Yelu_cmake_emit_debug.emit_script yelu1
           in
@@ -1360,9 +1337,8 @@ let step12_math_bridge =
 (* step12_multi is just include + a multi-config CPACK_INSTALL_CMAKE_PROJECTS
    set — no new constructs. *)
 let step12_multi_bridge =
-  let module Old = Yelu_langs.Lang_yelu_cmake in
-  let open Yelu_langs.Lang_yelu_utils in
-  let cmd : Old.yelu_stmt =
+  let open Yelu_langs.Yelu_cmake_utils in
+  let cmd =
     ycmd_of_list
       [
         yc_include (yfile "release/CPackConfig.cmake");
@@ -1375,7 +1351,7 @@ let step12_multi_bridge =
       Alcotest.test_case "v1 step12_multi multi-config CPack bridges"
         `Quick
         (fun () ->
-          let yelu1 = Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd in
+          let yelu1 = cmd in
           let cmake_text =
             Yelu_langs.Yelu_cmake_emit_debug.emit_script yelu1
           in
@@ -1395,9 +1371,8 @@ let step12_multi_bridge =
    demand-order; see comments per test. *)
 
 let v2_root_bridge =
-  let module Old = Yelu_langs.Lang_yelu_cmake in
-  let open Yelu_langs.Lang_yelu_utils in
-  let cmd : Old.yelu_stmt =
+  let open Yelu_langs.Yelu_cmake_utils in
+  let cmd =
     ycmd_of_list [
       yc_project ~version:{ major = 1; minor = 0; patch = "0" } "Tutorial";
       yc_option ~value:(ybool true)
@@ -1453,7 +1428,7 @@ let v2_root_bridge =
       Alcotest.test_case "v2 root program bridges to Yelu1"
         `Quick
         (fun () ->
-          let yelu1 = Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd in
+          let yelu1 = cmd in
           let cmake_text =
             Yelu_langs.Yelu_cmake_emit_debug.emit_script yelu1
           in
@@ -1475,9 +1450,8 @@ let v2_root_bridge =
    non-empty cmake. *)
 
 let v2_mathlogger_bridge =
-  let module Old = Yelu_langs.Lang_yelu_cmake in
-  let open Yelu_langs.Lang_yelu_utils in
-  let cmd : Old.yelu_stmt =
+  let open Yelu_langs.Yelu_cmake_utils in
+  let cmd =
     ycmd_of_list [
       add_lib (ytval "MathLogger");
       yc_target_sources_fs (ytval "MathLogger") [
@@ -1493,7 +1467,7 @@ let v2_mathlogger_bridge =
       Alcotest.test_case "v2 MathLogger bridges (target_sources_fs)"
         `Quick
         (fun () ->
-          let yelu1 = Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd in
+          let yelu1 = cmd in
           let cmake_text =
             Yelu_langs.Yelu_cmake_emit_debug.emit_script yelu1
           in
@@ -1506,9 +1480,8 @@ let v2_mathlogger_bridge =
 
 (* v2_mathext: just 3 add_subdirectory calls. *)
 let v2_mathext_bridge =
-  let module Old = Yelu_langs.Lang_yelu_cmake in
-  let open Yelu_langs.Lang_yelu_utils in
-  let cmd : Old.yelu_stmt =
+  let open Yelu_langs.Yelu_cmake_utils in
+  let cmd =
     ycmd_of_list [
       yc_add_subdirectory (ydir "OpAdd");
       yc_add_subdirectory (ydir "OpMul");
@@ -1520,7 +1493,7 @@ let v2_mathext_bridge =
       Alcotest.test_case "v2 MathExtensions bridges (three add_subdirectory)"
         `Quick
         (fun () ->
-          let yelu1 = Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd in
+          let yelu1 = cmd in
           let cmake_text =
             Yelu_langs.Yelu_cmake_emit_debug.emit_script yelu1
           in
@@ -1532,9 +1505,8 @@ let v2_mathext_bridge =
 (* v2_opadd / v2_opmul / v2_opsub are structurally identical. One test
    for OpAdd; the others would only diverge if the file generators do. *)
 let v2_opadd_bridge =
-  let module Old = Yelu_langs.Lang_yelu_cmake in
-  let open Yelu_langs.Lang_yelu_utils in
-  let cmd : Old.yelu_stmt =
+  let open Yelu_langs.Yelu_cmake_utils in
+  let cmd =
     ycmd_of_list [
       add_lib ~type_:Yelu_langs.Lang_cmake.Lib_object (ytval "OpAdd");
       yc_target_sources_fs (ytval "OpAdd") [
@@ -1548,7 +1520,7 @@ let v2_opadd_bridge =
       Alcotest.test_case "v2 OpAdd bridges (OBJECT lib + FILE_SET HEADERS)"
         `Quick
         (fun () ->
-          let yelu1 = Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd in
+          let yelu1 = cmd in
           let cmake_text =
             Yelu_langs.Yelu_cmake_emit_debug.emit_script yelu1
           in
@@ -1558,9 +1530,8 @@ let v2_opadd_bridge =
     ] )
 
 let v2_opmul_bridge =
-  let module Old = Yelu_langs.Lang_yelu_cmake in
-  let open Yelu_langs.Lang_yelu_utils in
-  let cmd : Old.yelu_stmt =
+  let open Yelu_langs.Yelu_cmake_utils in
+  let cmd =
     ycmd_of_list [
       add_lib ~type_:Yelu_langs.Lang_cmake.Lib_object (ytval "OpMul");
       yc_target_sources_fs (ytval "OpMul") [
@@ -1572,14 +1543,13 @@ let v2_opmul_bridge =
   ( "v2_opmul_bridge",
     [ Alcotest.test_case "v2 OpMul bridges" `Quick
         (fun () ->
-          let yelu1 = Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd in
+          let yelu1 = cmd in
           let _ = Yelu_langs.Yelu_cmake_emit_debug.emit_script yelu1 in
           ()) ] )
 
 let v2_opsub_bridge =
-  let module Old = Yelu_langs.Lang_yelu_cmake in
-  let open Yelu_langs.Lang_yelu_utils in
-  let cmd : Old.yelu_stmt =
+  let open Yelu_langs.Yelu_cmake_utils in
+  let cmd =
     ycmd_of_list [
       add_lib ~type_:Yelu_langs.Lang_cmake.Lib_object (ytval "OpSub");
       yc_target_sources_fs (ytval "OpSub") [
@@ -1591,16 +1561,15 @@ let v2_opsub_bridge =
   ( "v2_opsub_bridge",
     [ Alcotest.test_case "v2 OpSub bridges" `Quick
         (fun () ->
-          let yelu1 = Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd in
+          let yelu1 = cmd in
           let _ = Yelu_langs.Yelu_cmake_emit_debug.emit_script yelu1 in
           ()) ] )
 
 (* v2_maketable: add_custom_command(OUTPUT ...) + add_custom_target +
    add_dependencies + FILE_SET HEADERS with BASE_DIRS. *)
 let v2_maketable_bridge =
-  let module Old = Yelu_langs.Lang_yelu_cmake in
-  let open Yelu_langs.Lang_yelu_utils in
-  let cmd : Old.yelu_stmt =
+  let open Yelu_langs.Yelu_cmake_utils in
+  let cmd =
     ycmd_of_list [
       add_exe (ytval "MakeTable");
       yc_target_sources_fs (ytval "MakeTable") [
@@ -1627,7 +1596,7 @@ let v2_maketable_bridge =
       Alcotest.test_case "v2 MakeTable bridges (custom_command + add_dependencies)"
         `Quick
         (fun () ->
-          let yelu1 = Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd in
+          let yelu1 = cmd in
           let cmake_text =
             Yelu_langs.Yelu_cmake_emit_debug.emit_script yelu1
           in
@@ -1643,9 +1612,8 @@ let v2_maketable_bridge =
 
 (* v2_mathfuncs: alias library + many target_sources_fs + check_include_files. *)
 let v2_mathfuncs_bridge =
-  let module Old = Yelu_langs.Lang_yelu_cmake in
-  let open Yelu_langs.Lang_yelu_utils in
-  let cmd : Old.yelu_stmt =
+  let open Yelu_langs.Yelu_cmake_utils in
+  let cmd =
     ycmd_of_list [
       add_lib (ytval "MathFunctions");
       add_lib_alias ~alias_of:"MathFunctions" "Tutorial::MathFunctions";
@@ -1676,7 +1644,7 @@ let v2_mathfuncs_bridge =
       Alcotest.test_case "v2 MathFunctions bridges (alias + many target ops)"
         `Quick
         (fun () ->
-          let yelu1 = Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd in
+          let yelu1 = cmd in
           let cmake_text =
             Yelu_langs.Yelu_cmake_emit_debug.emit_script yelu1
           in
@@ -1687,9 +1655,8 @@ let v2_mathfuncs_bridge =
 
 (* v2_simpletest: install + write_basic_package_version_file ~arch_independent. *)
 let v2_simpletest_bridge =
-  let module Old = Yelu_langs.Lang_yelu_cmake in
-  let open Yelu_langs.Lang_yelu_utils in
-  let cmd : Old.yelu_stmt =
+  let open Yelu_langs.Yelu_cmake_utils in
+  let cmd =
     ycmd_of_list [
       yc_project ~version:{ major = 0; minor = 0; patch = "1" } "SimpleTest";
       add_lib ~type_:Yelu_langs.Lang_cmake.Lib_interface (ytval "SimpleTest");
@@ -1709,7 +1676,7 @@ let v2_simpletest_bridge =
       Alcotest.test_case "v2 SimpleTest bridges (ARCH_INDEPENDENT)"
         `Quick
         (fun () ->
-          let yelu1 = Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd in
+          let yelu1 = cmd in
           let cmake_text =
             Yelu_langs.Yelu_cmake_emit_debug.emit_script yelu1
           in
@@ -1719,13 +1686,12 @@ let v2_simpletest_bridge =
 
 (* v2_tutorial_exe: yif (else branch) + compile_opts + find_path via apply. *)
 let v2_tutorial_exe_bridge =
-  let module Old = Yelu_langs.Lang_yelu_cmake in
-  let open Yelu_langs.Lang_yelu_utils in
+  let open Yelu_langs.Yelu_cmake_utils in
   let msvc_cond =
     yor (ystrequal (ycstr "CMAKE_CXX_COMPILER_ID") (ystr "MSVC"))
       (ystrequal (ycstr "CMAKE_CXX_COMPILER_FRONTEND_VARIANT") (ystr "MSVC"))
   in
-  let cmd : Old.yelu_stmt =
+  let cmd =
     ycmd_of_list [
       add_exe (ytval "Tutorial");
       yc_target_sources_fs (ytval "Tutorial") [
@@ -1746,7 +1712,7 @@ let v2_tutorial_exe_bridge =
       Alcotest.test_case "v2 Tutorial exe bridges"
         `Quick
         (fun () ->
-          let yelu1 = Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd in
+          let yelu1 = cmd in
           let cmake_text =
             Yelu_langs.Yelu_cmake_emit_debug.emit_script yelu1
           in
@@ -1757,9 +1723,8 @@ let v2_tutorial_exe_bridge =
 
 (* v2_tests: find_package + apply (for simpletest_discover_tests). *)
 let v2_tests_bridge =
-  let module Old = Yelu_langs.Lang_yelu_cmake in
-  let open Yelu_langs.Lang_yelu_utils in
-  let cmd : Old.yelu_stmt =
+  let open Yelu_langs.Yelu_cmake_utils in
+  let cmd =
     ycmd_of_list [
       add_exe (ytval "TestMathFunctions");
       yc_target_sources_fs (ytval "TestMathFunctions") [
@@ -1778,7 +1743,7 @@ let v2_tests_bridge =
       Alcotest.test_case "v2 Tests bridges"
         `Quick
         (fun () ->
-          let yelu1 = Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd in
+          let yelu1 = cmd in
           let cmake_text =
             Yelu_langs.Yelu_cmake_emit_debug.emit_script yelu1
           in
@@ -1801,7 +1766,7 @@ let cmakeonly_bridge ~name ~description cmd =
     [
       Alcotest.test_case description `Quick
         (fun () ->
-          let yelu1 = Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd in
+          let yelu1 = cmd in
           let cmake_text =
             Yelu_langs.Yelu_cmake_emit_debug.emit_script yelu1
           in
@@ -1810,7 +1775,7 @@ let cmakeonly_bridge ~name ~description cmd =
     ] )
 
 let project_include_bridge =
-  let open Yelu_langs.Lang_yelu_utils in
+  let open Yelu_langs.Yelu_cmake_utils in
   cmakeonly_bridge
     ~name:"project_include_bridge"
     ~description:"CMakeOnly/ProjectInclude bridges"
@@ -1821,7 +1786,7 @@ let project_include_bridge =
        ])
 
 let project_include_before_bridge =
-  let open Yelu_langs.Lang_yelu_utils in
+  let open Yelu_langs.Yelu_cmake_utils in
   cmakeonly_bridge
     ~name:"project_include_before_bridge"
     ~description:"CMakeOnly/ProjectIncludeBefore bridges"
@@ -1833,7 +1798,7 @@ let project_include_before_bridge =
        ])
 
 let target_scope_bridge =
-  let open Yelu_langs.Lang_yelu_utils in
+  let open Yelu_langs.Yelu_cmake_utils in
   cmakeonly_bridge
     ~name:"target_scope_bridge"
     ~description:"CMakeOnly/TargetScope (top) bridges"
@@ -1853,7 +1818,7 @@ let target_scope_bridge =
        ])
 
 let target_scope_sib_bridge =
-  let open Yelu_langs.Lang_yelu_utils in
+  let open Yelu_langs.Yelu_cmake_utils in
   cmakeonly_bridge
     ~name:"target_scope_sib_bridge"
     ~description:"CMakeOnly/TargetScope/Sib bridges"
@@ -1869,7 +1834,7 @@ let target_scope_sib_bridge =
        ])
 
 let fetch_content_bridge =
-  let open Yelu_langs.Lang_yelu_utils in
+  let open Yelu_langs.Yelu_cmake_utils in
   cmakeonly_bridge
     ~name:"fetch_content_bridge"
     ~description:"CMakeOnly/FetchContent (apply-based) bridges"
@@ -1887,7 +1852,7 @@ let fetch_content_bridge =
        ])
 
 let target_scope_sub_bridge =
-  let open Yelu_langs.Lang_yelu_utils in
+  let open Yelu_langs.Yelu_cmake_utils in
   cmakeonly_bridge
     ~name:"target_scope_sub_bridge"
     ~description:"CMakeOnly/TargetScope/Sub bridges (add_lib_imported)"
@@ -1906,7 +1871,7 @@ let target_scope_sub_bridge =
        ])
 
 let target_scope_sub_sub_bridge =
-  let open Yelu_langs.Lang_yelu_utils in
+  let open Yelu_langs.Yelu_cmake_utils in
   cmakeonly_bridge
     ~name:"target_scope_sub_sub_bridge"
     ~description:"CMakeOnly/TargetScope/Sub/Sub bridges"
@@ -1922,7 +1887,7 @@ let target_scope_sub_sub_bridge =
        ])
 
 let major_version_selection_bridge =
-  let open Yelu_langs.Lang_yelu_utils in
+  let open Yelu_langs.Yelu_cmake_utils in
   let version_check =
     ycmd_of_list
       [
@@ -1960,7 +1925,7 @@ let major_version_selection_bridge =
    single test invocation. Full file has multiple `notype_*`/`debug_*`
    etc. blocks built from the same primitives. *)
 let select_library_configurations_bridge =
-  let open Yelu_langs.Lang_yelu_utils in
+  let open Yelu_langs.Yelu_cmake_utils in
   let check_slc_macro =
     yc_macro (ystr "check_slc") ~args:[ "basename"; "expect" ]
       [
@@ -1997,7 +1962,7 @@ let select_library_configurations_bridge =
    the production file (those are repetitive set + foreach + apply
    sequences that don't add new constructs once one is bridged). *)
 let find_library_bridge =
-  let open Yelu_langs.Lang_yelu_utils in
+  let open Yelu_langs.Yelu_cmake_utils in
   let inner_if =
     yif
       (ynot (ystrequal (ystr_eval "${REL_LIB}") (ystr_eval "${expected}")))
@@ -2066,7 +2031,7 @@ let find_library_bridge =
    a literal list. The production file builds the module list via
    yc_file_glob; we keep one yc_file_glob call to exercise that path. *)
 let all_find_modules_bridge =
-  let open Yelu_langs.Lang_yelu_utils in
+  let open Yelu_langs.Yelu_cmake_utils in
   let do_find_macro =
     yc_macro (ystr "do_find") ~args:[ "MODULE_NAME" ]
       [ yc_message ~mode:Mm_status [ "   Checking Find${MODULE_NAME}" ];
@@ -2091,7 +2056,7 @@ let all_find_modules_bridge =
        ])
 
 let find_path_bridge =
-  let open Yelu_langs.Lang_yelu_utils in
+  let open Yelu_langs.Yelu_cmake_utils in
   let inner_if =
     yif
       (ynot (ystrequal (ystr_eval "${REL_HDR}") (ystr_eval "${expected}")))
@@ -2138,7 +2103,7 @@ let find_path_bridge =
        ])
 
 let link_interface_loop_bridge =
-  let open Yelu_langs.Lang_yelu_utils in
+  let open Yelu_langs.Yelu_cmake_utils in
   cmakeonly_bridge
     ~name:"link_interface_loop_bridge"
     ~description:"CMakeOnly/LinkInterfaceLoop bridges (set_property + imported lib)"

@@ -17,6 +17,25 @@ open Base
 open Yelu_cmake
 open Yelu_cmake_normal_target  (* ETarget *)
 
+(* Re-export the cmake-level visibility / library / language enums so
+   step files (which used to [open Yelu_langs.Lang_yelu_cmake] for
+   [Private], [Lib_static], etc.) can get them via this module alone.
+   The legacy [Lang_yelu_cmake] file does the same trick. *)
+type target_kind = Lang_cmake.target_kind =
+  | Public
+  | Private
+  | Interface
+  | Plain
+
+type library_type = Lang_cmake.library_type =
+  | Lib_static
+  | Lib_shared
+  | Lib_module
+  | Lib_unknown
+  | Lib_object
+  | Lib_interface
+  | Lib_global
+
 (* ============================================================
    Expression helpers — return [expr]. Mirror legacy 1:1.
    ============================================================ *)
@@ -70,7 +89,18 @@ let dir_concat d suffix = ycref_path d suffix
    ([yelu_cmake_legacy_bridge.ml:1056]).
    ============================================================ *)
 
-let ylet name value = ELet { var = name; value; body = EUnit }
+(* Mirror the legacy bridge's [let_value] transformation
+   (yelu_cmake_legacy_bridge.ml). In argument position, [ycstr "X"] / [EVar "X"]
+   means "deref the cmake var X" (emits [${X}]); in let-value position the
+   user means "bind the compile-time name to the cmake symbol [X]". Without
+   the demotion, [emit_debug.arg] would loop expanding [EVar "X"] under an
+   env that maps [X] back to [EVar "X"]. *)
+let ylet name value =
+  let value = match value with
+    | EVar n -> EString n
+    | v -> v
+  in
+  ELet { var = name; value; body = EUnit }
 
 let rec ycmd_of_list = function
   | [] -> EUnit

@@ -432,22 +432,20 @@ let yelu2_configure_lowering =
             "TutorialConfig.h.in", "#define TUTORIAL_VERSION_MAJOR 1\n";
           ]
         (ESeq [
-          (let module Old = Yelu_langs.Lang_yelu_cmake in
-           let open Yelu_langs.Lang_yelu_utils in
-           let cmd : Old.yelu_stmt =
+          (let open Yelu_langs.Yelu_cmake_utils in
+           let cmd =
              ycmd_of_list
-               (Step_common.project_preamble
-                @ Step_common.cxx_standard_11
+               (Step_common_ir.project_preamble
+                @ Step_common_ir.cxx_standard_11
                 @ [
-                    Step_common.configure_tutorial_header;
+                    Step_common_ir.configure_tutorial_header;
                     add_exe ~sources:[ yfile "tutorial.cxx" ] (ytval "Tutorial");
                     include_dirs (ytval "Tutorial")
                       [ ytarget_def
-                          [ dir Yelu_langs.Lang_yelu_utils.output_root ] ];
+                          [ dir Yelu_langs.Yelu_cmake_utils.output_root ] ];
                   ])
            in
-          Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd
-          |> to_normal);
+          to_normal cmd);
           ESetVar ("OUT", EStringUpper (EString "yes"));
           EVar "OUT";
         ]);
@@ -463,15 +461,14 @@ let yelu2_configure_lowering =
               "int mathfunctions_dummy(void) { return 0; }\n";
           ]
         (ESeq [
-          (let module Old = Yelu_langs.Lang_yelu_cmake in
-           let open Yelu_langs.Lang_yelu_utils in
-           let cmd : Old.yelu_stmt =
+          (let open Yelu_langs.Yelu_cmake_utils in
+           let cmd =
              ycmd_of_list
-               (Step_common.project_preamble
-                @ Step_common.cxx_standard_11
+               (Step_common_ir.project_preamble
+                @ Step_common_ir.cxx_standard_11
                 @ [
                     ylet "tut" (ytval "Tutorial");
-                    Step_common.configure_tutorial_header;
+                    Step_common_ir.configure_tutorial_header;
                     yc_add_subdirectory (ydir "MathFunctions");
                     add_exe ~sources:[ yfile "tutorial.cxx" ] (yvar "tut");
                     link_lib
@@ -481,16 +478,15 @@ let yelu2_configure_lowering =
                       [
                         ytarget_def
                           [
-                            dir Yelu_langs.Lang_yelu_utils.output_root;
+                            dir Yelu_langs.Yelu_cmake_utils.output_root;
                             dir_concat
-                              Yelu_langs.Lang_yelu_utils.source_root
+                              Yelu_langs.Yelu_cmake_utils.source_root
                               "MathFunctions";
                           ];
                       ];
                   ])
            in
-           Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd
-           |> to_normal);
+           to_normal cmd);
 	          ESetVar ("OUT", EStringUpper (EString "yes"));
 	          EVar "OUT";
 	        ]);
@@ -504,9 +500,8 @@ let yelu2_configure_lowering =
               "double mysqrt(double x) { return x; }\n";
           ]
         (ESeq [
-          (let module Old = Yelu_langs.Lang_yelu_cmake in
-           let open Yelu_langs.Lang_yelu_utils in
-           let cmd : Old.yelu_stmt =
+          (let open Yelu_langs.Yelu_cmake_utils in
+           let cmd =
              ycmd_of_list
                [
                  ylet "math" (ytval "MathFunctions");
@@ -531,8 +526,7 @@ let yelu2_configure_lowering =
                       ]);
                ]
            in
-           Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd
-           |> to_normal);
+           to_normal cmd);
           ESetVar ("OUT", EStringUpper (EString "yes"));
           EVar "OUT";
         ]);
@@ -548,19 +542,18 @@ let yelu2_configure_lowering =
               "int mathfunctions_dummy(void) { return 0; }\n";
           ]
         (ESeq [
-          (let module Old = Yelu_langs.Lang_yelu_cmake in
-           let open Yelu_langs.Lang_yelu_utils in
-           let cmd : Old.yelu_stmt =
+          (let open Yelu_langs.Yelu_cmake_utils in
+           let cmd =
              ycmd_of_list
-               (Step_common.project_preamble
+               (Step_common_ir.project_preamble
                 @ [
                     ylet "tut" (ytval "Tutorial");
                     ylet "flags" (ytval "tutorial_compiler_flags");
                   ]
-                @ Step_common.compiler_flags_lib
-                @ Step_common.cxx_standard_11
+                @ Step_common_ir.compiler_flags_lib
+                @ Step_common_ir.cxx_standard_11
                 @ [
-                    Step_common.configure_tutorial_header;
+                    Step_common_ir.configure_tutorial_header;
                     yc_add_subdirectory (ydir "MathFunctions");
                     add_exe ~sources:[ yfile "tutorial.cxx" ] (yvar "tut");
                     link_lib
@@ -568,11 +561,10 @@ let yelu2_configure_lowering =
                       [ ytarget_def [ ytval "MathFunctions"; yvar "flags" ] ];
                     include_dirs (yvar "tut")
                       [ ytarget_def
-                          [ dir Yelu_langs.Lang_yelu_utils.output_root ] ];
+                          [ dir Yelu_langs.Yelu_cmake_utils.output_root ] ];
                   ])
            in
-           Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd
-           |> to_normal);
+           to_normal cmd);
           ESetVar ("OUT", EStringUpper (EString "yes"));
           EVar "OUT";
         ]);
@@ -592,9 +584,8 @@ let yelu2_configure_lowering =
               type_ = Some "INTERFACE";
               sources = [];
             };
-          (let module Old = Yelu_langs.Lang_yelu_cmake in
-           let open Yelu_langs.Lang_yelu_utils in
-           let cmd : Old.yelu_stmt =
+          (let open Yelu_langs.Yelu_cmake_utils in
+           let cmd =
              ycmd_of_list
                [
                  ylet "flags" (ytval "tutorial_compiler_flags");
@@ -628,8 +619,7 @@ let yelu2_configure_lowering =
                    [ ytarget_def ~kind:Public [ yvar "flags" ] ];
                ]
            in
-           Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd
-           |> to_normal);
+           to_normal cmd);
           ESetVar ("OUT", EStringUpper (EString "yes"));
           EVar "OUT";
         ]);
@@ -645,30 +635,28 @@ let yelu2_configure_lowering =
               "int mathfunctions_dummy(void) { return 0; }\n";
           ]
         (ESeq [
-          (let module Old = Yelu_langs.Lang_yelu_cmake in
-           let open Yelu_langs.Lang_yelu_utils in
-           let cmd : Old.yelu_stmt =
+          (let open Yelu_langs.Yelu_cmake_utils in
+           let cmd =
              ycmd_of_list
-               (Step_common.project_preamble
+               (Step_common_ir.project_preamble
                 @ [
                     ylet "tut" (ytval "Tutorial");
                     ylet "flags" (ytval "tutorial_compiler_flags");
                   ]
-                @ Step_common.compiler_flags_lib
-                @ Step_common.compiler_warning_options
+                @ Step_common_ir.compiler_flags_lib
+                @ Step_common_ir.compiler_warning_options
                 @ [
-                    Step_common.configure_tutorial_header;
+                    Step_common_ir.configure_tutorial_header;
                     yc_add_subdirectory (ydir "MathFunctions");
                     add_exe ~sources:[ yfile "tutorial.cxx" ] (yvar "tut");
                     link_lib [ yvar "tut" ]
                       [ ytarget_def [ ytval "MathFunctions"; yvar "flags" ] ];
                     include_dirs (yvar "tut")
                       [ ytarget_def
-                          [ dir Yelu_langs.Lang_yelu_utils.output_root ] ];
+                          [ dir Yelu_langs.Yelu_cmake_utils.output_root ] ];
                   ])
            in
-           Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd
-           |> to_normal);
+           to_normal cmd);
           ESetVar ("OUT", EStringUpper (EString "yes"));
           EVar "OUT";
         ]);
@@ -684,33 +672,31 @@ let yelu2_configure_lowering =
               "int mathfunctions_dummy(void) { return 0; }\n";
           ]
         (ESeq [
-          (let module Old = Yelu_langs.Lang_yelu_cmake in
-           let open Yelu_langs.Lang_yelu_utils in
-           let cmd : Old.yelu_stmt =
+          (let open Yelu_langs.Yelu_cmake_utils in
+           let cmd =
              ycmd_of_list
-               (Step_common.project_preamble
+               (Step_common_ir.project_preamble
                 @ [
                     ylet "tut" (ytval "Tutorial");
                     ylet "flags" (ytval "tutorial_compiler_flags");
                     ylet "do_test" (ycstr "do_test");
                   ]
-                @ Step_common.compiler_flags_lib
-                @ Step_common.compiler_warning_options
+                @ Step_common_ir.compiler_flags_lib
+                @ Step_common_ir.compiler_warning_options
                 @ [
-                    Step_common.configure_tutorial_header;
+                    Step_common_ir.configure_tutorial_header;
                     yc_add_subdirectory (ydir "MathFunctions");
                     add_exe ~sources:[ yfile "tutorial.cxx" ] (yvar "tut");
                     link_lib [ yvar "tut" ]
                       [ ytarget_def [ ytval "MathFunctions"; yvar "flags" ] ];
                     include_dirs (yvar "tut")
                       [ ytarget_def
-                          [ dir Yelu_langs.Lang_yelu_utils.output_root ] ];
+                          [ dir Yelu_langs.Yelu_cmake_utils.output_root ] ];
                   ]
-                @ Step_common.install_tutorial
-                @ Step_common.test_suite ~ctest:false)
+                @ Step_common_ir.install_tutorial
+                @ Step_common_ir.test_suite ~ctest:false)
            in
-           Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd
-           |> to_normal);
+           to_normal cmd);
           ESetVar ("OUT", EStringUpper (EString "yes"));
           EVar "OUT";
         ]);
@@ -731,9 +717,8 @@ let yelu2_configure_lowering =
               type_ = Some "INTERFACE";
               sources = [];
             };
-          (let module Old = Yelu_langs.Lang_yelu_cmake in
-           let open Yelu_langs.Lang_yelu_utils in
-           let cmd : Old.yelu_stmt =
+          (let open Yelu_langs.Yelu_cmake_utils in
+           let cmd =
              ycmd_of_list
                ([
                   ylet "flags" (ytval "tutorial_compiler_flags");
@@ -767,10 +752,9 @@ let yelu2_configure_lowering =
                   link_lib [ yvar "math" ]
                     [ ytarget_def ~kind:Public [ yvar "flags" ] ];
                 ]
-                @ Step_common.math_install_libs ())
+                @ Step_common_ir.math_install_libs ())
            in
-           Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd
-           |> to_normal);
+           to_normal cmd);
           ESetVar ("OUT", EStringUpper (EString "yes"));
           EVar "OUT";
         ]);
@@ -786,33 +770,31 @@ let yelu2_configure_lowering =
               "int mathfunctions_dummy(void) { return 0; }\n";
           ]
         (ESeq [
-          (let module Old = Yelu_langs.Lang_yelu_cmake in
-           let open Yelu_langs.Lang_yelu_utils in
-           let cmd : Old.yelu_stmt =
+          (let open Yelu_langs.Yelu_cmake_utils in
+           let cmd =
              ycmd_of_list
-               (Step_common.project_preamble
+               (Step_common_ir.project_preamble
                 @ [
                     ylet "tut" (ytval "Tutorial");
                     ylet "flags" (ytval "tutorial_compiler_flags");
                     ylet "do_test" (ycstr "do_test");
                   ]
-                @ Step_common.compiler_flags_lib
-                @ Step_common.compiler_warning_options
+                @ Step_common_ir.compiler_flags_lib
+                @ Step_common_ir.compiler_warning_options
                 @ [
-                    Step_common.configure_tutorial_header;
+                    Step_common_ir.configure_tutorial_header;
                     yc_add_subdirectory (ydir "MathFunctions");
                     add_exe ~sources:[ yfile "tutorial.cxx" ] (yvar "tut");
                     link_lib [ yvar "tut" ]
                       [ ytarget_def [ ytval "MathFunctions"; yvar "flags" ] ];
                     include_dirs (yvar "tut")
                       [ ytarget_def
-                          [ dir Yelu_langs.Lang_yelu_utils.output_root ] ];
+                          [ dir Yelu_langs.Yelu_cmake_utils.output_root ] ];
                   ]
-                @ Step_common.install_tutorial
-                @ Step_common.test_suite ~ctest:true)
+                @ Step_common_ir.install_tutorial
+                @ Step_common_ir.test_suite ~ctest:true)
            in
-           Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd
-           |> to_normal);
+           to_normal cmd);
           ESetVar ("OUT", EStringUpper (EString "yes"));
           EVar "OUT";
         ]);
@@ -828,33 +810,31 @@ let yelu2_configure_lowering =
               "int mathfunctions_dummy(void) { return 0; }\n";
           ]
         (ESeq [
-          (let module Old = Yelu_langs.Lang_yelu_cmake in
-           let open Yelu_langs.Lang_yelu_utils in
-           let cmd : Old.yelu_stmt =
+          (let open Yelu_langs.Yelu_cmake_utils in
+           let cmd =
              ycmd_of_list
-               (Step_common.project_preamble
+               (Step_common_ir.project_preamble
                 @ [
                     ylet "tut" (ytval "Tutorial");
                     ylet "flags" (ytval "tutorial_compiler_flags");
                     ylet "do_test" (ycstr "do_test");
                   ]
-                @ Step_common.compiler_flags_lib
-                @ Step_common.compiler_warning_options
+                @ Step_common_ir.compiler_flags_lib
+                @ Step_common_ir.compiler_warning_options
                 @ [
-                    Step_common.configure_tutorial_header;
+                    Step_common_ir.configure_tutorial_header;
                     yc_add_subdirectory (ydir "MathFunctions");
                     add_exe ~sources:[ yfile "tutorial.cxx" ] (yvar "tut");
                     link_lib [ yvar "tut" ]
                       [ ytarget_def [ ytval "MathFunctions"; yvar "flags" ] ];
                     include_dirs (yvar "tut")
                       [ ytarget_def
-                          [ dir Yelu_langs.Lang_yelu_utils.output_root ] ];
+                          [ dir Yelu_langs.Yelu_cmake_utils.output_root ] ];
                   ]
-                @ Step_common.install_tutorial
-                @ Step_common.test_suite ~ctest:true)
+                @ Step_common_ir.install_tutorial
+                @ Step_common_ir.test_suite ~ctest:true)
            in
-           Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd
-           |> to_normal);
+           to_normal cmd);
           ESetVar ("OUT", EStringUpper (EString "yes"));
           EVar "OUT";
         ]);
@@ -871,35 +851,33 @@ let yelu2_configure_lowering =
               "int mathfunctions_dummy(void) { return 0; }\n";
           ]
         (ESeq [
-          (let module Old = Yelu_langs.Lang_yelu_cmake in
-           let open Yelu_langs.Lang_yelu_utils in
-           let cmd : Old.yelu_stmt =
+          (let open Yelu_langs.Yelu_cmake_utils in
+           let cmd =
              ycmd_of_list
-               (Step_common.project_preamble
+               (Step_common_ir.project_preamble
                 @ [
                     ylet "tut" (ytval "Tutorial");
                     ylet "flags" (ytval "tutorial_compiler_flags");
                     ylet "do_test" (ycstr "do_test");
                   ]
-                @ Step_common.shared_libs_output_dirs
-                @ Step_common.compiler_flags_lib
-                @ Step_common.compiler_warning_options
+                @ Step_common_ir.shared_libs_output_dirs
+                @ Step_common_ir.compiler_flags_lib
+                @ Step_common_ir.compiler_warning_options
                 @ [
-                    Step_common.configure_tutorial_header;
+                    Step_common_ir.configure_tutorial_header;
                     yc_add_subdirectory (ydir "MathFunctions");
                     add_exe ~sources:[ yfile "tutorial.cxx" ] (yvar "tut");
                     link_lib [ yvar "tut" ]
                       [ ytarget_def [ ytval "MathFunctions"; yvar "flags" ] ];
                     include_dirs (yvar "tut")
                       [ ytarget_def
-                          [ dir Yelu_langs.Lang_yelu_utils.output_root ] ];
+                          [ dir Yelu_langs.Yelu_cmake_utils.output_root ] ];
                   ]
-                @ Step_common.install_tutorial
-                @ Step_common.test_suite ~ctest:true
-                @ Step_common.cpack_basic)
+                @ Step_common_ir.install_tutorial
+                @ Step_common_ir.test_suite ~ctest:true
+                @ Step_common_ir.cpack_basic)
            in
-           Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd
-           |> to_normal);
+           to_normal cmd);
           ESetVar ("OUT", EStringUpper (EString "yes"));
           EVar "OUT";
         ]);
@@ -922,22 +900,21 @@ let yelu2_configure_lowering =
               "int mathfunctions_dummy(void) { return 0; }\n";
           ]
         (ESeq [
-          (let module Old = Yelu_langs.Lang_yelu_cmake in
-           let open Yelu_langs.Lang_yelu_utils in
-           let cmd : Old.yelu_stmt =
+          (let open Yelu_langs.Yelu_cmake_utils in
+           let cmd =
              ycmd_of_list
-               (Step_common.project_preamble
+               (Step_common_ir.project_preamble
                 @ [
                     ylet "tut" (ytval "Tutorial");
                     ylet "flags" (ytval "tutorial_compiler_flags");
                     ylet "do_test" (ycstr "do_test");
                   ]
-                @ Step_common.shared_libs_output_dirs
+                @ Step_common_ir.shared_libs_output_dirs
                 @ [ yc_set (ycvar "CMAKE_DEBUG_POSTFIX") [ ystr "d" ] ]
-                @ Step_common.compiler_flags_lib
-                @ Step_common.compiler_warning_options
+                @ Step_common_ir.compiler_flags_lib
+                @ Step_common_ir.compiler_warning_options
                 @ [
-                    Step_common.configure_tutorial_header;
+                    Step_common_ir.configure_tutorial_header;
                     yc_add_subdirectory (ydir "MathFunctions");
                     add_exe ~sources:[ yfile "tutorial.cxx" ] (yvar "tut");
                     yc_set_target_properties (yvar "tut")
@@ -946,11 +923,11 @@ let yelu2_configure_lowering =
                       [ ytarget_def [ ytval "MathFunctions"; yvar "flags" ] ];
                     include_dirs (yvar "tut")
                       [ ytarget_def
-                          [ dir Yelu_langs.Lang_yelu_utils.output_root ] ];
+                          [ dir Yelu_langs.Yelu_cmake_utils.output_root ] ];
                   ]
-                @ Step_common.install_tutorial
-                @ Step_common.test_suite ~ctest:true
-                @ Step_common.cpack_basic
+                @ Step_common_ir.install_tutorial
+                @ Step_common_ir.test_suite ~ctest:true
+                @ Step_common_ir.cpack_basic
                 @ [
                     yc_install_export
                       ~file:(yfile "MathFunctionsTargets.cmake")
@@ -961,13 +938,13 @@ let yelu2_configure_lowering =
                       ~no_check_required_components_macro:true
                       (ydir "lib/cmake/MathFunctions")
                       (yfile "${CMAKE_CURRENT_SOURCE_DIR}/Config.cmake.in")
-                      (dir_concat Yelu_langs.Lang_yelu_utils.output_this
+                      (dir_concat Yelu_langs.Yelu_cmake_utils.output_this
                          "MathFunctionsConfig.cmake");
                     yc_write_basic_package_version_file
                       ~compatibility:Yelu_langs.Lang_cmake.Same_major_version
                       ~version:(ystr_eval
                                   "${Tutorial_VERSION_MAJOR}.${Tutorial_VERSION_MINOR}")
-                      (dir_concat Yelu_langs.Lang_yelu_utils.output_this
+                      (dir_concat Yelu_langs.Yelu_cmake_utils.output_this
                          "MathFunctionsConfigVersion.cmake");
                     yc_install_files
                       [
@@ -980,12 +957,11 @@ let yelu2_configure_lowering =
                       (ystr "MathFunctionsTargets")
                       (ydir "lib/cmake/MathFunctions");
                     yc_export_export (ystr "MathFunctionsTargets")
-                      ~file:(dir_concat Yelu_langs.Lang_yelu_utils.output_this
+                      ~file:(dir_concat Yelu_langs.Yelu_cmake_utils.output_this
                                "MathFunctionsTargets.cmake");
                   ])
            in
-           Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd
-           |> to_normal);
+           to_normal cmd);
           ESetVar ("OUT", EStringUpper (EString "yes"));
           EVar "OUT";
         ]);
@@ -1001,11 +977,10 @@ let yelu2_configure_lowering =
               "#include <cstdio>\nint main(int, char**) { return 0; }\n";
           ]
         (ESeq [
-          (let module Old = Yelu_langs.Lang_yelu_cmake in
-           let open Yelu_langs.Lang_yelu_utils in
-           let cmd : Old.yelu_stmt =
+          (let open Yelu_langs.Yelu_cmake_utils in
+           let cmd =
              ycmd_of_list
-               (Step_common.project_preamble
+               (Step_common_ir.project_preamble
                 @ [
                     add_exe ~sources:[ yfile "MakeTable.cxx" ]
                       (ytval "MakeTable");
@@ -1016,8 +991,7 @@ let yelu2_configure_lowering =
                           [ "${CMAKE_CURRENT_BINARY_DIR}/Table.h" ] ];
                   ])
            in
-           Yelu_langs.Yelu_cmake_legacy_bridge.stmt cmd
-           |> to_normal);
+           to_normal cmd);
           ESetVar ("OUT", EStringUpper (EString "yes"));
           EVar "OUT";
         ]);

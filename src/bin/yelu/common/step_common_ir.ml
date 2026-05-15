@@ -1,9 +1,7 @@
-(* IR-backed parallel of [Step_common]. Same building blocks, but
-   typed against Yelu1 IR ([Yelu_cmake.expr]) instead of legacy
-   [Lang_yelu_cmake.yelu_stmt]. Step files in [src/bin/yelu/] use
-   this module; tests on the bridge side keep using [Step_common]
-   (legacy AST). E-utils pilot (2026-05-11). *)
-open Yelu_langs.Lang_yelu_cmake
+(* Step-file utilities typed against the Yelu1 IR ([Yelu_cmake.expr]).
+   Step binaries in [src/bin/yelu/] all use this module to assemble
+   tutorial CMakeLists at the IR level and emit through
+   [Yelu_cmake_emit]. *)
 open Yelu_langs.Yelu_cmake_utils
 
 (* --- Root CMakeLists blocks --- *)
