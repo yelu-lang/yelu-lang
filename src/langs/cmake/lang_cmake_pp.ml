@@ -32,7 +32,10 @@ let pp_message = pp_string_quoted
 let pp_arg ff = function
   | Bare s -> Fmt.string ff s
   | Quoted s -> pp_string_quoted ff s
-  | Bracket s -> Fmt.pf ff "[=[\n%s\n]=]" s
+  (* Bracket content: tree-sitter strips the leading-newline-after-`[=[`
+     and trailing-newline-before-`]=]` if present, so we don't need to
+     re-add them here. Emit content verbatim between the delimiters. *)
+  | Bracket s -> Fmt.pf ff "[=[%s]=]" s
 
 let string_of_scope = function
   | Function_scope -> "FUNCTION"
@@ -776,15 +779,18 @@ and pp_cmake_cmd ff cmd =
   | Cmake_minimum_required { min; max = _ } ->
       Fmt.pf ff "cmake_minimum_required(VERSION %s)" (Lang_cmake_strings.of_version min)
   | Configure_file { input; output; permission_level; copy_only; escape_quotes; only; newline_style; _ } ->
+      (* Pre-2026-05-15 this had @ONLY and ESCAPE_QUOTES wired to the
+         wrong fields (cross-swap). Tutorial doesn't use these flags;
+         llvm's docs/CMakeLists.txt surfaced it via round-trip. *)
       Fmt.(
         pf ff "configure_file(%a %a%a%a%a%a%a)" string input string output
           (pp_with_key "" pp_configure_file_permission)
           permission_level
           (pp_flag "COPYONLY")
           (Option.value ~default:false copy_only)
-          (pp_flag "@ONLY")
-          (Option.value ~default:false escape_quotes)
           (pp_flag "ESCAPE_QUOTES")
+          (Option.value ~default:false escape_quotes)
+          (pp_flag "@ONLY")
           (Option.value ~default:false only)
           (pp_with_key "NEWLINE_STYLE" pp_newline_style)
           newline_style)

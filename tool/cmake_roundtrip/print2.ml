@@ -303,9 +303,11 @@ let parse_message args : L.exp option =
 
 (* configure_file(<input> <output> [COPYONLY] [...flags]).
    input/output are typed [path] (string); Lang_cmake_pp emits them
-   bare. Bail if source had them quoted. *)
+   bare. Bail if source had them quoted, or if it carried NEWLINE_STYLE
+   (which the parser doesn't yet read). *)
 let parse_configure_file args : L.exp option =
   if not (all_bare args) then None
+  else if List.exists args ~f:(String.equal "NEWLINE_STYLE") then None
   else
   let bool_of_flag flag rest = List.exists rest ~f:(String.equal flag) in
   match args with
@@ -396,27 +398,40 @@ let group_by_visibility args : L.items_with_kind list =
   in
   loop "PRIVATE" [] [] args
 
-(* target_link_libraries(<target> <items>...) *)
+(* target_link_libraries(<target> <items>...).
+   Bail if no visibility keyword present (cmake's "plain" legacy
+   form); Lang_cmake_pp's pp_args_with_kind always emits the kind
+   string, so a defaulted PRIVATE would inject a keyword the source
+   didn't have. *)
+let has_visibility_keyword args =
+  List.exists args ~f:(fun s ->
+    match s with "PUBLIC" | "PRIVATE" | "INTERFACE" -> true | _ -> false)
+
 let parse_target_link_libraries args : L.exp option =
   match args with
   | target :: items when not (List.is_empty items) ->
-    Some (Project_cmd
-            (Target_link_libraries
-               { targets = [ str_of_raw target ];
-                 items = group_by_visibility items }))
+    if not (has_visibility_keyword items) then None
+    else
+      Some (Project_cmd
+              (Target_link_libraries
+                 { targets = [ str_of_raw target ];
+                   items = group_by_visibility items }))
   | _ -> None
 
-(* target_compile_definitions(<target> <items>...) *)
+(* target_compile_definitions(<target> <items>...).
+   Same plain-form bail as target_link_libraries. *)
 let parse_target_compile_definitions args : L.exp option =
   match args with
   | target :: items when not (List.is_empty items) ->
-    Some (Project_cmd
-            (Target_compile_definitions
-               { target = str_of_raw target;
-                 items = group_by_visibility items }))
+    if not (has_visibility_keyword items) then None
+    else
+      Some (Project_cmd
+              (Target_compile_definitions
+                 { target = str_of_raw target;
+                   items = group_by_visibility items }))
   | _ -> None
 
-(* target_compile_options(<target> [BEFORE] <items>...) *)
+(* target_compile_options(<target> [BEFORE] <items>...). *)
 let parse_target_compile_options args : L.exp option =
   match args with
   | target :: rest when not (List.is_empty rest) ->
@@ -425,7 +440,7 @@ let parse_target_compile_options args : L.exp option =
       | "BEFORE" :: rest' -> true, rest'
       | _ -> false, rest
     in
-    if List.is_empty items then None
+    if List.is_empty items || not (has_visibility_keyword items) then None
     else
       Some (Project_cmd
               (Target_compile_options
@@ -539,12 +554,14 @@ let parse_target_include_directories args : L.exp option =
     (match rest with
      | [] -> None
      | _ ->
-       Some (Project_cmd
-               (Target_include_directories
-                  { target = str_of_raw target;
-                    system;
-                    before_or_after;
-                    items = group_by_visibility rest })))
+       if not (has_visibility_keyword rest) then None
+       else
+         Some (Project_cmd
+                 (Target_include_directories
+                    { target = str_of_raw target;
+                      system;
+                      before_or_after;
+                      items = group_by_visibility rest })))
   | _ -> None
 
 (* ============================================================
