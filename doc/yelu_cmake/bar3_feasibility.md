@@ -25,11 +25,109 @@ Both projects checked at the heads currently on disk
 
 | | files | cmake LOC | unique commands |
 | --- | ---: | ---: | ---: |
-| z3 (root) | 89 `CMakeLists.txt` + 111 `.cmake` | 7,919 | ~88 |
+| z3 (root) | 108 (`CMakeLists.txt` + `.cmake`) | 7,919 | ~88 |
 | llvm/llvm subtree only | 596 | 27,795 | 243 |
 
 llvm-project is much larger if Clang / MLIR / etc. are added.
 The `llvm/llvm` subtree is the natural minimum scope.
+
+## Bar #3-lite results (Stage 1 + Stage 2, 2026-05-15)
+
+Stage 1 round-trip via tree-sitter (`tool/cmake_roundtrip/`):
+
+| corpus | files | structural pass | gersemi-diff pass |
+| --- | ---: | --- | --- |
+| tutorial step outputs | 25 | 25/25 | 25/25 |
+| z3 | 108 | **108/108** | partial (gersemi format-preservation differences) |
+| llvm/llvm | 596 | **596/596** | partial (same) |
+
+**Structural pass** = the sequence of `(command_name, arg list)`
+tuples emitted by tree-sitter on the original input matches the
+sequence after our parse → reprint cycle. This is the strongest
+claim: the AST captures every command yelu's parser+printer
+roundtrip touches, with no command lost and no arg misclassified.
+
+**gersemi-diff pass** = the reprinted text, after gersemi
+normalization, is byte-identical to gersemi-normalized input.
+This is stricter and currently fails on many real-world files
+because gersemi preserves the user's multi-line vs single-line
+argument-list choice, and our trivial reprinter always emits
+single-line. Not a structural defect; a formatting one.
+
+Stage 2 typed mapping coverage (`Lang_cmake.exp` ctors per
+command), with 15 typed parsers wired (`cmake_minimum_required`,
+`project`, `set`, `message`, `configure_file`,
+`add_executable`, `add_library`, `target_link_libraries`,
+`target_include_directories`, `target_compile_definitions`,
+`target_compile_options`, `target_compile_features`, `option`,
+`include`, `add_subdirectory`):
+
+| corpus | total cmds | typed | untyped | block/raw | typed % |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| tutorial | 213 | 155 | 35 | 23 | **73%** |
+| z3 | 2,992 | 764 | 763 | 1,465 | **50%** |
+| llvm/llvm | 9,296 | 2,422 | 3,248 | 3,626 | **43%** |
+
+The "block/raw" bucket is control-flow heads (`if`/`foreach`/
+`function` markers) + raw passthrough for `.cmake.in` template
+content + tree-sitter ERROR fragments.
+
+z3 / llvm typed % is lower than tutorial because real-world
+cmake uses much more diverse builtins plus heavy reliance on
+cmake-module functions and project-specific DSL macros, which
+correctly remain untyped (Lang_cmake.exp models cmake
+builtins, not module-defined or user-defined functions).
+
+### Untyped breakdown — z3
+
+| category | example | count | notes |
+| --- | --- | ---: | --- |
+| common builtins not yet typed | `list` / `string` / `unset` / `set_target_properties` / `set_property` / `install` / `file` / `find_package` / `add_custom_*` / `add_dependencies` / `execute_process` | ~500 | each command needs a per-command argument grammar; mostly mechanical |
+| cmake module functions (correctly untyped) | `check_symbol_exists` / `check_include_file` / `check_function_exists` / `cmake_parse_arguments` / `find_package_handle_standard_args` / `cmake_push_check_state` etc. | ~150 | defined in cmake modules, NOT builtins; `Lang_cmake.exp` shouldn't model |
+| z3-specific user-defined functions | `z3_add_component` (×70) / `z3_add_cxx_flag` / `z3_expand_dependencies` | ~110 | declared via cmake `function()`; correctly untyped |
+
+### Untyped breakdown — llvm/llvm
+
+| category | example | count | notes |
+| --- | --- | ---: | --- |
+| common builtins not yet typed | `list` / `string` / `set_target_properties` / `set_property` / `add_dependencies` / `add_custom_target` / `file` / `get_property` / `execute_process` / `include_directories` / `install` / `find_package` / `add_compile_definitions` | ~1,400 | same shape as z3 |
+| cmake module functions | `cmake_parse_arguments` / `check_symbol_exists` / `mark_as_advanced` | ~150 | same as z3 |
+| **TableGen** | `tablegen` (×379) / `add_public_tablegen_target` (×68) | ~450 | LLVM-specific build tool; cmake AST cannot represent it as a builtin |
+| LLVM-specific DSL | `add_llvm_component_library` (×204) / `add_llvm_tool` (×75) / `add_llvm_library` / `add_llvm_unittest` / `add_llvm_*` family + `append` (LLVM's variadic-flag helper) | ~700 | user-defined cmake functions; correctly untyped |
+
+### Two parser/printer findings surfaced
+
+1. **`Bool true` prints as `True` instead of `ON`** — printer
+   convention vs cmake idiom. Workaround in `parse_option`:
+   map `ON`/`OFF`/`TRUE`/etc. to `Var_exp`. Real fix decision
+   deferred until more contexts (`if(<expr>)` etc.) have
+   data — likely Stage 2-b.
+2. **`Include.no_policy_scope : scope option`** — wrong-typed
+   IR field. Fixed 2026-05-15 (commit 13d813c): now `bool`.
+3. **Case-insensitive command dispatch** — cmake commands are
+   case-insensitive; `SET`/`set`/`Set` all dispatch to the
+   same builtin. Fixed in `parse_cmd` by lowercasing the name.
+   Lifted z3 Stage-2 coverage from 45.1% to 50.0%.
+
+### Adjacent argument concatenation (open)
+
+Tree-sitter gives adjacent (no-whitespace) argument nodes as
+separate `argument` children. Our reprinter inserts a space
+between them. Example:
+
+```
+/p:Configuration="${DOTNET_CONFIG}"     # one cmake arg
+```
+
+is reprinted as
+
+```
+/p:Configuration= "${DOTNET_CONFIG}"    # two cmake args (semantically different)
+```
+
+Real round-trip needs to detect adjacency via byte-position
+comparison (`prev.end_byte == next.start_byte`) and emit
+concatenated. Open Stage 1-b item.
 
 ---
 

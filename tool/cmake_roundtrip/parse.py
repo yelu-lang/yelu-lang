@@ -76,8 +76,7 @@ def parse_command_head(node, src, expected_type):
 def parse_body(node, src):
     """A `body` node contains a flat list of statements. Same shape as
     `source_file` children."""
-    return [parse_stmt(c, src) for c in node.children
-            if c.type not in ('line_comment', 'bracket_comment')]
+    return [parse_stmt(c, src) for c in node.children]
 
 
 def parse_block(node, src, head_type, tail_type, mid_types=()):
@@ -141,7 +140,10 @@ def parse_stmt(node, src):
     if t == 'block_def':
         return parse_block(node, src, 'block_command', 'endblock_command')
     if t in ('line_comment', 'bracket_comment'):
-        return None
+        # Preserve comments verbatim. The CST already gives us the
+        # exact byte range; reprinting it preserves whatever comment
+        # form the source used (line `#...` vs bracket `#[==[...]==]`).
+        return {'kind': 'raw', 'text': get_text(node, src)}
     if t == 'ERROR':
         # tree-sitter couldn't parse this fragment. Preserve the raw
         # source so the round-trip is still byte-identical (modulo

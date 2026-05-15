@@ -523,7 +523,9 @@ let parse_target_include_directories args : L.exp option =
    ============================================================ *)
 
 let parse_cmd (c : cmd) : L.exp option =
-  match c.name with
+  (* cmake commands are case-insensitive: set / SET / Set all dispatch
+     to the same builtin. *)
+  match String.lowercase c.name with
   | "cmake_minimum_required" -> parse_cmake_minimum_required c.args
   | "project" -> parse_project c.args
   | "set" -> parse_set c.args
