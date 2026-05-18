@@ -23,6 +23,14 @@ parse_py="${2:-$(dirname "$0")/parse.py}"
 yelu_root="${YELU_ROOT:-$(cd "$(dirname "$0")/../.." && pwd)}"
 print2="${3:-$yelu_root/_build/default/tool/cmake_roundtrip/print2.exe}"
 gersemi="${GERSEMI:-/home/red/.venvs/default/bin/gersemi}"
+# gersemi flags. Default empty; override with GERSEMI_ARGS to e.g.
+# `--line-length 999` for a single-line normalized view. Even with
+# that, gersemi keeps multi-line layouts when source has comments
+# INSIDE argument lists (which our parser drops). So FORMAT is
+# fundamentally a measure of byte-equivalence-under-gersemi-default
+# and is sensitive to comment placement; STRUCT is the canonical
+# content-equivalence oracle. See bar3_feasibility.md.
+gersemi_args="${GERSEMI_ARGS:-}"
 
 ok=0; format=0; struct=0; parse=0
 typed_total=0; generic_total=0; other_total=0
@@ -93,9 +101,17 @@ while IFS= read -r f; do
     continue
   fi
 
-  # gersemi-diff oracle: stricter, sensitive to formatting
-  ref=$("$gersemi" "$f" 2>/dev/null | grep -v "^$")
-  got=$(echo "$stage2" | "$gersemi" - 2>/dev/null | grep -v "^$")
+  # gersemi-diff oracle (cosmetic, byte-level). Strip blank lines
+  # plus the stderr-style "Warning: unknown command" header that
+  # gersemi prints with different file paths on the two sides.
+  strip() {
+    grep -v "^$" \
+      | grep -v "^Warning:" \
+      | grep -v "^/" \
+      | grep -v "^<stdin>"
+  }
+  ref=$("$gersemi" $gersemi_args "$f" 2>/dev/null | strip)
+  got=$(echo "$stage2" | "$gersemi" $gersemi_args - 2>/dev/null | strip)
   if [ "$ref" = "$got" ]; then
     echo "OK     $rel  $t/$g/$o"
     ok=$((ok+1))

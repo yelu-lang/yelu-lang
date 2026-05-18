@@ -56,11 +56,53 @@ output, for every file. AST + parser + printer capture every
 command yelu's parser+printer round-trip touches, with no
 command lost and no arg misclassified.
 
-**FORMAT** failures (94/108 z3, 549/596 llvm) are entirely
-gersemi formatting noise — gersemi preserves the user's
-multi-line vs single-line argument-list choice, and our
-reprinter always emits single-line. Not structural defects.
-Discussed separately as Stage 1-b.
+**FORMAT** failures (94/108 z3, 549/596 llvm) measure
+cosmetic byte-equivalence under gersemi-default formatting,
+not content equivalence. Three contributing causes:
+
+1. **Multi-line vs single-line wrap choice.** Gersemi
+   preserves the source's multi-line layout when args exceed
+   `--line-length` (default 80) OR when an arg list contains
+   inline comments. Our reprinter always emits single-line.
+   So a source like:
+
+   ```cmake
+   set(MY_LIST
+       FOO
+       BAR
+       BAZ
+   )
+   ```
+
+   round-trips through us as `set(MY_LIST FOO BAR BAZ)` and
+   gersemi keeps both forms (multi-line vs single-line) on
+   their respective sides — diff fires.
+
+2. **Comments inside argument lists.** Our parser drops
+   `line_comment` and `bracket_comment` nodes inside
+   `argument_list`. Even with `--line-length 999`, gersemi
+   keeps the call multi-line when inline comments are
+   present in source, because the comments occupy lines.
+   Our reprint without those comments collapses to single
+   line.
+
+3. **Gersemi `Warning:` lines.** When gersemi sees a user-
+   defined function (no builtin registry hit) it prints a
+   warning to stderr referencing either the file path or
+   `<stdin>`. The harness filters these out so the diff is
+   content-only.
+
+The Stage 1-b options to close FORMAT are:
+
+| approach | cost | gives |
+| --- | --- | --- |
+| Preserve comments-inside-args in our AST | per-arg union type extension + printer arms | true byte-perfect round-trip |
+| Match gersemi's wrap heuristic in our printer | ~100 lines tracking byte length | prettier output; doesn't address comments |
+| Pre-strip comments before gersemi on both sides | need a real cmake comment stripper | gersemi-diff stops being comment-sensitive |
+| Accept FORMAT measures cosmetic equivalence | zero | clear claim: STRUCT is the content oracle |
+
+Currently we take the last position. STRUCT is the
+load-bearing claim; FORMAT is informational.
 
 ### Bugs surfaced and fixed during real-world round-trip
 
