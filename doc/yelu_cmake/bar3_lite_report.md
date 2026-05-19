@@ -100,27 +100,159 @@ Definitions (no ratio is reported — see § 5):
   Body commands inside blocks recurse and contribute to
   modeled/generic normally.
 
-### Reproducing locally
+### 3.1 Running locally
 
 ```sh
 # Build
 dune build tool/cmake_roundtrip/print2.exe
 
-# tutorial
-bash tool/cmake_roundtrip/test_corpus.sh \
-  /home/red/code/contrib/cmake-all/cmake/Tests/Tutorial \
-  # (adjust to wherever the tutorial step output corpus lives)
+# Run on a corpus (corpus_root must contain CMakeLists.txt / *.cmake)
+bash tool/cmake_roundtrip/test_corpus.sh /path/to/corpus
 
-# z3
+# Use a gersemi on $PATH instead of the hardcoded default
+GERSEMI=gersemi bash tool/cmake_roundtrip/test_corpus.sh /path/to/corpus
+
+# Reproduce the three audit corpora (adjust paths to your checkouts)
+bash tool/cmake_roundtrip/test_corpus.sh \
+  /home/red/code/contrib/cmake-all/cmake/Tests/Tutorial
 bash tool/cmake_roundtrip/test_corpus.sh /home/red/code/contrib/z3-all/z3
-
-# llvm (5–10 min)
 bash tool/cmake_roundtrip/test_corpus.sh \
-  /home/red/code/contrib/llvm-all/llvm-project/llvm
+  /home/red/code/contrib/llvm-all/llvm-project/llvm    # 5–10 min
+
+# Single-file invocation (round-trip text on stdout)
+python3 tool/cmake_roundtrip/parse.py path/to/CMakeLists.txt \
+  | _build/default/tool/cmake_roundtrip/print2.exe
+
+# Single-file coverage (modeled/generic/other on stderr)
+python3 tool/cmake_roundtrip/parse.py path/to/CMakeLists.txt \
+  | STAGE2_COVERAGE=1 _build/default/tool/cmake_roundtrip/print2.exe \
+    >/dev/null
+# → [stage2] modeled=N generic=N other=N
 ```
 
-A summary line ends each run; per-file verdicts are printed
-above it.
+The harness exits with status 2 (before processing any file) if
+`gersemi` or `print2.exe` is missing — without those pre-flight
+checks a broken formatter could produce empty output on both
+sides and the FORMAT oracle would pass spuriously.
+
+### 3.2 What the harness does per file
+
+```
+for each .cmake / CMakeLists.txt under corpus_root:
+
+  ┌─ 1. parse ─────────────────────────────────────────────────┐
+  │  python3 parse.py file.cmake                               │
+  │    → tree-sitter-cmake CST → JSON on stdout                │
+  │  empty stdout → verdict PARSE, count, next file            │
+  └────────────────────────────────────────────────────────────┘
+  ┌─ 2. typed reprint ─────────────────────────────────────────┐
+  │  echo $json | STAGE2_COVERAGE=1 print2.exe                 │
+  │    → reprinted cmake on stdout                             │
+  │    → [stage2] modeled=N generic=N other=N on stderr        │
+  │  accumulate modeled/generic/other totals                   │
+  └────────────────────────────────────────────────────────────┘
+  ┌─ 3. STRUCT oracle ─────────────────────────────────────────┐
+  │  ref_struct = extract_struct < file.cmake                  │
+  │  got_struct = extract_struct < $reprint                    │
+  │  ref ≠ got → verdict STRUCT, next file                     │
+  │                                                            │
+  │  extract_struct walks tree-sitter and emits one line per   │
+  │  command of the form `name(a1 a2 ...)`. The comparison is  │
+  │  exact string match over concatenated lines.               │
+  └────────────────────────────────────────────────────────────┘
+  ┌─ 4. FORMAT oracle ─────────────────────────────────────────┐
+  │  ref = strip_comments < file.cmake | gersemi | normalize   │
+  │  got = $reprint                    | gersemi | normalize   │
+  │  ref = got → verdict OK; else verdict FORMAT               │
+  │                                                            │
+  │  normalize() = drop Warning:/path/<stdin>/comment lines    │
+  │              + tr -s whitespace + strip space around parens│
+  └────────────────────────────────────────────────────────────┘
+```
+
+The STRUCT oracle is the load-bearing claim (purely a function of
+`Lang_cmake.exp` expressiveness + `Lang_cmake_pp` correctness).
+The FORMAT oracle is informational — gersemi preserves the user's
+multi-line vs single-line wrap choice independently of
+`--line-length`, so a true byte-equality oracle would need to
+match the source's layout. `normalize()` permits content
+equivalence modulo whitespace.
+
+### 3.3 Reading per-file output
+
+Each file prints one line:
+
+```
+OK     relpath  modeled/generic/other
+FORMAT relpath  modeled/generic/other
+STRUCT relpath
+PARSE  relpath
+```
+
+The trailing `m/g/o` triple is the per-file coverage tally from
+step 2 (only on OK / FORMAT lines; STRUCT and PARSE short-circuit
+before the tally is informative).
+
+Summary block at the end:
+
+```
+====
+TOTAL: 596
+  OK     596    (structural pass AND gersemi-diff pass)
+  FORMAT 0    (structural pass, gersemi-diff fail)
+  STRUCT 0    (structural fail — real parser/printer bug)
+  PARSE  0    (tree-sitter or reader fail)
+Stage 2 cmds: modeled=3573 generic=2609 other=4029
+```
+
+### 3.4 Debugging a single failure
+
+**STRUCT** — IR or printer dropped, added, or reordered a
+command/arg. The fastest localizer is a direct diff of the
+source against the round-trip text:
+
+```sh
+f=path/to/file.cmake
+diff <(cat "$f") \
+     <(python3 tool/cmake_roundtrip/parse.py "$f" \
+         | _build/default/tool/cmake_roundtrip/print2.exe)
+```
+
+The first diverging command is the bug locus. Every historical
+STRUCT failure during this work (the five production-IR bugs in
+§ 7) was found this way.
+
+**FORMAT** — content matches, layout doesn't. Diff the
+gersemi-normalized outputs:
+
+```sh
+f=path/to/file.cmake
+diff <(python3 tool/cmake_roundtrip/strip_comments.py "$f" | gersemi -) \
+     <(python3 tool/cmake_roundtrip/parse.py "$f" \
+         | _build/default/tool/cmake_roundtrip/print2.exe \
+         | gersemi -)
+```
+
+FORMAT is currently 0 across all 729 files; any new FORMAT
+failure on a fresh corpus would be the first surfacing of a
+gersemi normalization gap (e.g. wrap heuristic divergence,
+comment-driven layout) — informative but not load-bearing.
+
+**PARSE** — tree-sitter or the JSON reader failed. Run the parse
+step in isolation and look at stderr:
+
+```sh
+python3 tool/cmake_roundtrip/parse.py path/to/file.cmake \
+  >/dev/null
+# inspect any stderr from tree-sitter
+```
+
+The most common PARSE-class issue is a `.cmake.in` template whose
+`@VAR@` placeholders make tree-sitter mis-lex the whole file as
+one bracket-argument. `parse.py` detects this (root has-error AND
+every child is ERROR) and emits the file as a single `Raw` node,
+which `print2.ml` reprints verbatim. So `.cmake.in` files do not
+hit the PARSE bucket — they pass as OK with `other > 0`.
 
 ## 4. Architecture
 
