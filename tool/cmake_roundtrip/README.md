@@ -1,162 +1,124 @@
-# cmake_roundtrip — Stage 1 prototype
+# cmake_roundtrip
 
-Round-trip cmake source through a tree-sitter-cmake parser and an
-OCaml reprinter, using gersemi as the normalization oracle. The
-manifesto-level framing lives in
+Syntactic round-trip oracle for real-world cmake. Parses cmake source
+via tree-sitter-cmake, reprints it through `Lang_cmake.exp` +
+`Lang_cmake_pp` (production yelu IR), and verifies tree-sitter
+re-extracts the same `(command_name, args)` sequence on both sides.
+
+The manifesto-level framing lives in
 `doc/yelu_cmake/bar3_feasibility.md` (Bar #3-lite).
 
 ## Pipeline
 
 ```
 input.cmake
-  → parse.py (tree-sitter-cmake)        → CST JSON on stdout
-  → print.exe (OCaml: yojson + Buffer)  → reprinted cmake on stdout
-  → gersemi -                            → canonicalized cmake on stdout
+  → parse.py        (tree-sitter-cmake)    → CST JSON on stdout
+  → print2.exe      (OCaml, Lang_cmake.exp + Apply fallback) → reprinted cmake
+  → gersemi -                                              → canonicalized
 ```
 
-Compared against `gersemi input.cmake`. Stage 1 strips blank
-lines on both sides before diffing — blank-line preservation is a
-Stage 2 item.
+Per-file verdict from `test_corpus.sh`:
 
-## Current status
+- **OK** — STRUCT match (tree-sitter extracts same command/arg
+  sequence from source and reprint) AND gersemi-normalized text
+  matches modulo whitespace.
+- **FORMAT** — STRUCT match but gersemi-diff fail. Cosmetic.
+- **STRUCT** — STRUCT fail. Real parser/printer/IR bug.
+- **PARSE** — tree-sitter or our reader fails.
 
-- All 14 covered statement shapes round-trip: `normal_command`,
-  `if_condition` (with `elseif`/`else`), `foreach_loop`,
-  `while_loop`, `function_def`, `macro_def`, `block_def`. Each
-  preserves: identifier name, ordered arguments, raw argument
-  text (so quoting / bracket framing is byte-identical), and
-  literal `(`/`)` tokens used for inner grouping (e.g.
-  `if((A AND B))`).
-- `.cmake.in` templates with `@VAR@` placeholders are handled
-  via a tree-sitter-ERROR fallback: when the root has an ERROR
-  spanning the whole file, the source is preserved verbatim as
-  a `raw` chunk. Gersemi is idempotent on this kind of opaque
-  text, so the round-trip stays byte-identical.
-- 25/25 yelu-emitted tutorial step files round-trip with
-  byte-identical output after gersemi normalization.
-- Untyped AST: each argument is a string of raw source text.
-  Typed mapping into `Lang_cmake.exp` is Stage 2.
+## Current results (2026-05-19)
+
+| corpus | files | OK | FORMAT | STRUCT | PARSE | modeled | generic |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| tutorial step outputs | 25 | 25 | 0 | 0 | 0 | 165 | 25 |
+| z3 | 108 | 108 | 0 | 0 | 0 | 1,057 | 706 |
+| llvm/llvm | 596 | 596 | 0 | 0 | 0 | 3,573 | 2,609 |
+
+STRUCT=0 / FORMAT=0 across all three corpora. `modeled` = command
+mapped to a typed `Lang_cmake.exp` constructor; `generic` =
+preserved verbatim via `Apply { name; args }`. No ratio is
+reported — many `generic` calls are project- or module-defined
+cmake functions (`z3_add_component`, `tablegen`, `add_llvm_*`,
+`CheckXxx`) that *should* stay generic.
 
 ## Files
 
-- `parse.py` — Python wrapper. ~140 lines. Reads cmake on
-  stdin or from argv[1]; writes CST JSON on stdout.
-- `print.ml` — OCaml reprinter. ~155 lines. Reads JSON on
-  stdin; writes cmake on stdout. Untyped AST.
-- `dune` — builds `print.exe` (depends on base + yojson).
+| file | purpose |
+| --- | --- |
+| `parse.py` | Python wrapper around `tree-sitter-cmake`. Reads cmake on stdin or argv[1]; writes CST JSON on stdout. |
+| `strip_comments.py` | Tree-sitter–based comment stripper, used by the gersemi-diff oracle preprocessor (our parser drops inline-arg comments). |
+| `print2.ml` | OCaml driver. JSON reader → per-command typed parsers → `Lang_cmake_pp` → untyped `Apply` fallback. |
+| `test_corpus.sh` | Harness. Runs the pipeline on every `CMakeLists.txt`/`*.cmake` in a directory tree, applies the STRUCT + FORMAT oracles, prints per-file verdicts + summary. |
+| `dune` | Builds `print2.exe` (deps: `base`, `yojson`, `yelu_langs`). |
 
 ## Reproducing locally
 
 ```sh
-# generate the tutorial corpus
-mkdir -p /tmp/tutorial_cmake
-for f in _build/default/src/bin/yelu/v1/*.exe; do
-  "$f" > "/tmp/tutorial_cmake/$(basename "$f" .exe).cmake"
-done
+# Build
+dune build tool/cmake_roundtrip/print2.exe
 
-# round-trip one file
-python3 tool/cmake_roundtrip/parse.py /tmp/tutorial_cmake/step1.cmake \
-  | _build/default/tool/cmake_roundtrip/print.exe \
-  | gersemi -
+# Round-trip one file
+python3 tool/cmake_roundtrip/parse.py path/to/CMakeLists.txt \
+  | _build/default/tool/cmake_roundtrip/print2.exe
 
-# diff against the gersemi-normalized original
-diff <(gersemi /tmp/tutorial_cmake/step1.cmake | grep -v "^$") \
-     <(python3 tool/cmake_roundtrip/parse.py /tmp/tutorial_cmake/step1.cmake \
-       | _build/default/tool/cmake_roundtrip/print.exe \
-       | gersemi - | grep -v "^$")
+# Run the full oracle on a corpus
+bash tool/cmake_roundtrip/test_corpus.sh path/to/cmake_corpus
+
+# Coverage tally only (stderr line per file)
+python3 tool/cmake_roundtrip/parse.py path/to/CMakeLists.txt \
+  | STAGE2_COVERAGE=1 _build/default/tool/cmake_roundtrip/print2.exe \
+    >/dev/null
+```
+
+Output of the coverage flag:
+
+```
+[stage2] modeled=7 generic=2 other=0
 ```
 
 ## Dependencies
 
-- `tree-sitter` and `tree-sitter-cmake` Python packages (install
-  via `uv pip install tree-sitter tree-sitter-cmake`)
-- `gersemi` (install via `uv pip install gersemi`)
-- OCaml: `base`, `yojson` (both already common deps)
+- Python: `tree-sitter`, `tree-sitter-cmake`
+- `gersemi` (cmake formatter; used as the normalization oracle)
+- OCaml: `base`, `yojson`, `yelu_langs` (in-tree)
 
-## Known limitations (Stage 1)
+Harness defaults to `gersemi` at `/home/red/.venvs/default/bin/gersemi`;
+override via `GERSEMI=/path/to/gersemi`.
 
-- **Untyped args** — each arg is raw source text. Doesn't test
-  `Lang_cmake.exp` expressiveness; that's Stage 2.
-- **Blank lines collapsed** — tree-sitter exposes them only as
-  extra whitespace, not nodes. Diff strips them on both sides.
-- **Comments dropped** — tree-sitter parses `line_comment` /
-  `bracket_comment` nodes but the parser skips them. Stage 2 or
-  later.
-- **`.cmake.in` template handling is coarse** — when tree-sitter
-  flags the whole root as ERROR (mis-lexing `@VAR@` placeholders
-  as an unclosed bracket argument), the source is preserved
-  verbatim as a single `raw` chunk. We lose any inner structure
-  the file might have had. Acceptable for the round-trip claim
-  (gersemi is idempotent on the same opaque text), but a finer
-  pass-through that parses non-template chunks structurally
-  would be a Stage-2+ enhancement. TODO: tree-sitter-cmake
-  upstream may also be teachable to accept `@VAR@` tokens.
+## Known shape gaps
 
-## Stage 2 — typed mapping into `Lang_cmake.exp`
+Builtins deliberately routed to `Apply` because the production
+printer in `Lang_cmake_pp` is lossy or shape inversion is brittle
+for a parser-only patch (full list in `bar3_feasibility.md`):
 
-`print2.exe` (built from `print2.ml`) is the typed variant: walks
-the Stage-1 AST, dispatches each `Cmd` to a per-command parser
-that produces `Lang_cmake.exp`, and reprints via
-`Lang_cmake_pp`. Commands without a typed parser fall through to
-Stage-1 untyped emission, so the round-trip stays byte-equal
-even at partial coverage.
+- `set_property` / `get_property` — printer drops most IR fields
+- `execute_process` — multi-line keyword shape, hard to invert safely
+- `file` (`READ` / `STRINGS` / `COPY*` / `DOWNLOAD` / `UPLOAD` /
+  `LOCK` / path-query subcommands)
 
-Set `STAGE2_COVERAGE=1` for a one-line tally on stderr:
+Closing these is downstream work — they belong with the production
+IR cleanup (Y17, `doc/yelu_cmake/status.md` "Known IR shape gaps"),
+not as parser-only patches.
 
-```
-[stage2] typed=7 untyped=0 other=0
-```
+## Comment handling
 
-### Current coverage (tutorial corpus, 25 files, 213 cmds)
+Comments inside `argument_list` are dropped by both `parse.py` and
+the production IR. The gersemi-diff oracle compensates by running
+`strip_comments.py` on the source side too, so the comparison is
+content-equivalent modulo comments. Top-level comments
+(between commands) are preserved as `raw` nodes and reprinted
+verbatim.
 
-| typed | untyped | block/raw | round-trip |
-| ---: | ---: | ---: | --- |
-| 155 (73%) | 35 (16%) | 23 (11%) | 25/25 byte-identical (gersemi) |
+Whether `yelu_cmake` / `yelu_cmake_normal` should carry comments
+as AST metadata is a separate, deferred design question.
 
-**Typed commands** (15): `cmake_minimum_required`, `project`,
-`set`, `message`, `configure_file`, `add_executable`,
-`add_library`, `target_link_libraries`,
-`target_include_directories`, `target_compile_definitions`,
-`target_compile_options`, `target_compile_features`, `option`,
-`include`, `add_subdirectory`.
+## Next: Class A resolution
 
-**Untyped remainder** in the tutorial:
-- `install` × 14 — Install_targets / Install_files /
-  Install_export, multi-keyword. Worth adding.
-- `check_cxx_source_compiles` × 10 — a **cmake module function**
-  (defined in `CheckCXXSourceCompiles.cmake`), not a builtin.
-  `Lang_cmake.exp` has no ctor because the cmake AST only models
-  builtin commands. Correctly falls through to untyped.
-- `list` × 7, `set_target_properties` × 3,
-  `add_custom_command` × 1 — Stage 2 extensions; ctor exists,
-  just need argument parser.
-
-The 23 "block/raw" count is `if`/`foreach`/`while`/`function`/
-`macro`/`block` heads + tails + raw passthrough chunks. Typed
-mapping of block shapes (`If { cond; then_; else_ }` etc.) is
-Stage 2-b.
-
-### Gotchas surfaced during Stage 2
-
-- **`Bool true` printer mismatch.** `Lang_cmake_pp` emits
-  `Bool true` as `True`, but cmake idioms (e.g.
-  `option(... ON)`) want the original token preserved. Workaround
-  in `parse_option`: map `ON`/`OFF`/`TRUE`/etc. to `Var_exp`
-  rather than `Bool`. Decide on the real fix once Stage 2-b
-  surfaces more contexts where `Bool true` round-trips (e.g.
-  inside `if(<expr>)`); the right answer may be position-sensitive
-  printing.
-- **`Include.no_policy_scope` was wrong-typed in the IR.** Fixed
-  2026-05-15: field changed from `scope option`
-  (`Function_scope`/`Directory_scope`, which is unrelated to
-  this flag) to `bool`. Single-field IR correction; updated
-  callers in `lang_cmake_utils`, `yelu_cmake_emit`, and
-  `yelu_legacy/lang_yelu_compile` (deadcode). Tests stay green.
-
-### Next (Stage 2-b)
-
-- `install` parser (the biggest single bucket).
-- `list` parser (touches `list_cmd` subtypes).
-- Typed block mapping for `if` / `foreach` / `function` etc.
-- Try the round-trip on **z3's CMakeLists** corpus to surface
-  the next batch of missing commands and IR shape gaps.
+Calls into project-defined `function()` / `macro()` bodies
+(`z3_add_component`, `tablegen`, the `add_llvm_*` family,
+`CheckXxx` standard-module helpers) round-trip correctly today
+but stay in the `generic` bucket. The next milestone is a
+corpus-level pass that collects function/macro definitions across
+all `.cmake` files and tags Apply calls as `resolved` (known
+project-defined) vs `external` (truly unknown). See the Class A
+section in `bar3_feasibility.md`.

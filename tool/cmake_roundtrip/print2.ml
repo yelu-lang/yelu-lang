@@ -1,22 +1,32 @@
-(* Stage 2: typed mapping of Stage-1 untyped cmake AST into
+(* cmake_roundtrip: typed mapping of Stage-1 untyped cmake AST into
    [Lang_cmake.exp], then reprint via [Lang_cmake_pp].
 
    Pipeline:
-     stdin (Stage-1 JSON)
-       -> Stage1.file_of_json    (existing)
-       -> typed_map               (per-command Lang_cmake.exp where possible)
-       -> Lang_cmake_pp.pp        (existing emitter) for typed commands
-       -> Stage-1 text fallback   for un-implemented commands
+     stdin (Stage-1 JSON from parse.py)
+       -> file_of_json     (this file)
+       -> parse_cmd        (per-command Lang_cmake.exp when modeled)
+       -> Lang_cmake_pp.pp (production cmake printer)
+       -> untyped_emit     (verbatim fallback for un-modeled commands)
+     stdout: reprinted cmake
 
-   For each Stage-1 `Cmd`, we try `parse_cmd` which returns
-   `Some Lang_cmake.exp` if the command is in our typed coverage,
-   else `None`. Blocks (`if`/`foreach`/`while`/`function`/`macro`/
-   `block`) currently fall through to Stage-1 emission (their head /
-   body / tail are emitted as separate text chunks); typed
-   block mapping is a Stage 2-b expansion.
+   For each Stage-1 [Cmd], [parse_cmd] returns [Some Lang_cmake.exp]
+   when the command is one of the modeled builtins, else [None]. The
+   None branch routes to [untyped_emit] which renders the raw
+   tokens (this is the "generic Apply" bucket in coverage tallies —
+   correct destination for project- or module-defined cmake calls
+   like z3_add_component, tablegen, the add_llvm_* family).
 
-   The goal is the same byte-equality oracle as Stage 1: after
-   gersemi normalization on both sides, output == input. *)
+   Block shapes (if / foreach / while / function / macro / block)
+   walk recursively into their head / body / clauses / tail — head
+   and tail dispatch to [parse_cmd] like any other command (block
+   keywords have their own [Lang_cmake.exp] ctors); the body is a
+   nested statement list reprinted with the same dispatcher.
+
+   The byte-equality oracle: tree-sitter on both source and reprint
+   must extract the same (command_name, arg-list) sequence (STRUCT),
+   and gersemi-normalized both sides must match modulo
+   whitespace/comment layout (FORMAT). Both held at 0 across
+   tutorial + z3 + llvm as of Stage 2-c. *)
 
 open Base
 module L = Yelu_langs.Lang_cmake

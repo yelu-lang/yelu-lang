@@ -1,9 +1,8 @@
 ; cmake_roundtrip: tree-sitter CST JSON on stdin -> reprinted cmake.
-; - print.exe  (Stage 1): untyped pass-through. Used to validate the
-;   tree-sitter integration.
-; - print2.exe (Stage 2): per-command typed mapping into
-;   Lang_cmake.exp, reprinted via Lang_cmake_pp; un-implemented
-;   commands fall through to Stage-1 emission.
+; print2.exe walks the Stage-1 untyped AST, dispatches each Cmd to a
+; per-command parser producing Lang_cmake.exp, and reprints via
+; Lang_cmake_pp. Commands without a typed parser flow through
+; Apply { name; args } which untyped_emit reprints verbatim.
 (executables
- (names print print2)
+ (names print2)
  (libraries base yojson yelu_langs))
