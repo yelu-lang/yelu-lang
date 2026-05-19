@@ -568,6 +568,215 @@ let parse_target_include_directories args : L.exp option =
   | _ -> None
 
 (* ============================================================
+   Stage 2-b — extra builtins (mechanical typed parsers).
+   Each follows the "bail on lossy / unknown shape" discipline:
+   route to Apply rather than emit lossy typed output.
+   ============================================================ *)
+
+(* unset(<var> [CACHE | PARENT_SCOPE]) *)
+let parse_unset args : L.exp option =
+  if not (all_bare args) then None
+  else
+  match args with
+  | [ var ] -> Some (Unset { var; cache = false; parent_scope = false })
+  | [ var; "CACHE" ] -> Some (Unset { var; cache = true; parent_scope = false })
+  | [ var; "PARENT_SCOPE" ] -> Some (Unset { var; cache = false; parent_scope = true })
+  | _ -> None
+
+(* add_dependencies(<target> <dep>...) — IR carries one dep at a time *)
+let parse_add_dependencies args : L.exp option =
+  if not (all_bare args) then None
+  else
+  match args with
+  | [ target; dep ] ->
+    Some (Project_cmd (Add_dependencies { target; dep }))
+  | _ -> None
+
+(* find_package(<name> [VERSION] [EXACT] [QUIET] [REQUIRED] [CONFIG]
+                [COMPONENTS <c>...] [OPTIONAL_COMPONENTS <c>...]) *)
+let parse_find_package args : L.exp option =
+  if not (all_bare args) then None
+  else
+  match args with
+  | name :: rest ->
+    let exact = ref false in
+    let quiet = ref false in
+    let config_mode = ref false in
+    let required = ref false in
+    let version = ref None in
+    let components = ref [] in
+    let optional_components = ref [] in
+    let mode : [`Top | `Components | `Optional] ref = ref `Top in
+    let ok = ref true in
+    (* Once COMPONENTS / OPTIONAL_COMPONENTS has been opened, a top-level
+       keyword like REQUIRED would force reordering on reprint (printer
+       emits flags before COMPONENTS). Bail in that case. *)
+    let bail_if_after_components () =
+      if not (Poly.equal !mode `Top) then ok := false
+    in
+    List.iter rest ~f:(fun a ->
+      if not !ok then ()
+      else match a with
+        | "EXACT" -> bail_if_after_components (); exact := true
+        | "QUIET" -> bail_if_after_components (); quiet := true
+        | "REQUIRED" -> bail_if_after_components (); required := true
+        | "CONFIG" | "NO_MODULE" -> bail_if_after_components (); config_mode := true
+        | "MODULE" -> bail_if_after_components (); config_mode := false
+        | "COMPONENTS" -> mode := `Components
+        | "OPTIONAL_COMPONENTS" -> mode := `Optional
+        | "GLOBAL" | "BYPASS_PROVIDER" | "NO_POLICY_SCOPE"
+        | "NO_DEFAULT_PATH" | "NO_PACKAGE_ROOT_PATH" | "NO_CMAKE_PATH"
+        | "NO_CMAKE_ENVIRONMENT_PATH" | "NO_SYSTEM_ENVIRONMENT_PATH"
+        | "NO_CMAKE_PACKAGE_REGISTRY" | "NO_CMAKE_BUILDS_PATH"
+        | "NO_CMAKE_SYSTEM_PATH" | "NO_CMAKE_SYSTEM_PACKAGE_REGISTRY"
+        | "CMAKE_FIND_ROOT_PATH_BOTH" | "ONLY_CMAKE_FIND_ROOT_PATH"
+        | "NO_CMAKE_FIND_ROOT_PATH" | "REGISTRY_VIEW"
+        | "HINTS" | "PATHS" | "PATH_SUFFIXES" | "NAMES" ->
+          (* These keywords introduce sub-lists we don't model;
+             bail to Apply. *)
+          ok := false
+        | v when Poly.equal !mode `Top && Option.is_none !version ->
+          version := Some v
+        | v when Poly.equal !mode `Components ->
+          components := v :: !components
+        | v when Poly.equal !mode `Optional ->
+          optional_components := v :: !optional_components
+        | _ -> ok := false);
+    if not !ok then None
+    else
+      Some (Find_package
+              { name;
+                version = !version;
+                exact = !exact;
+                quiet = !quiet;
+                config_mode = !config_mode;
+                required = !required;
+                components = List.rev !components;
+                optional_components = List.rev !optional_components })
+  | _ -> None
+
+(* get_filename_component(<var> <filename> <mode> [CACHE]) *)
+let parse_get_filename_component args : L.exp option =
+  if not (all_bare args) then None
+  else
+  let valid_modes = [
+    "DIRECTORY"; "NAME"; "EXT"; "NAME_WE";
+    "LAST_EXT"; "NAME_WLE"; "PATH"; "ABSOLUTE"; "REALPATH"; "PROGRAM";
+  ] in
+  match args with
+  | [ var; filename; mode ] when List.mem valid_modes mode ~equal:String.equal ->
+    Some (Get_filename_component { var; filename; mode; cache = false })
+  | [ var; filename; mode; "CACHE" ] when List.mem valid_modes mode ~equal:String.equal ->
+    Some (Get_filename_component { var; filename; mode; cache = true })
+  | _ -> None
+
+(* set_target_properties(<target> PROPERTIES <k> <v> [<k> <v>]...) *)
+let parse_set_target_properties args : L.exp option =
+  match args with
+  | target :: "PROPERTIES" :: rest when is_bare target ->
+    (* Parse remaining as key/value pairs. Keys must be bare; values
+       can be quoted. *)
+    let rec pairs acc = function
+      | [] -> Some (List.rev acc)
+      | k :: v :: rest when is_bare k ->
+        pairs ({ L.prop = k; value = arg_of_raw v } :: acc) rest
+      | _ -> None
+    in
+    (match pairs [] rest with
+     | None -> None
+     | Some properties ->
+       Some (Project_cmd
+               (Set_target_properties { target; properties })))
+  | _ -> None
+
+(* add_custom_target(<name> [ALL] [DEPENDS <dep>...]).
+   IR has many fields; we support only the minimal form (name + optional
+   ALL + optional DEPENDS list of bare deps). Bail on COMMAND, BYPRODUCTS,
+   WORKING_DIRECTORY, etc. — any unknown keyword routes to generic Apply. *)
+let parse_add_custom_target args : L.exp option =
+  match args with
+  | name :: rest when is_bare name ->
+    let all, rest =
+      match rest with "ALL" :: r -> true, r | _ -> false, rest
+    in
+    let depends =
+      match rest with
+      | [] -> Some []
+      | "DEPENDS" :: deps when List.for_all deps ~f:is_bare -> Some deps
+      | _ -> None
+    in
+    (match depends with
+     | None -> None
+     | Some depends ->
+       Some (Project_cmd
+               (Add_custom_target
+                  { name; all;
+                    commands = []; depends; byproducts = [];
+                    working_directory = None; comment = None;
+                    job_pool = []; job_server_aware = false;
+                    verbatim = false; uses_terminal = false;
+                    command_expand_list = []; sources = [] })))
+  | _ -> None
+
+(* list(<subcommand> <args>) — dispatch on subcommand *)
+let parse_list args : L.exp option =
+  if not (all_bare args) then None
+  else
+  match args with
+  | [ "LENGTH"; var; out ] ->
+    Some (List_cmd (Lc_length { var; out }))
+  | [ "REVERSE"; var ] ->
+    Some (List_cmd (Lc_reverse { var }))
+  | [ "REMOVE_DUPLICATES"; var ] ->
+    Some (List_cmd (Lc_remove_duplicates { var }))
+  | "APPEND" :: var :: values when not (List.is_empty values) ->
+    Some (List_cmd
+            (Lc_append { var; values = List.map values ~f:arg_of_raw }))
+  | "PREPEND" :: var :: values when not (List.is_empty values) ->
+    Some (List_cmd
+            (Lc_prepend { var; values = List.map values ~f:arg_of_raw }))
+  | "REMOVE_ITEM" :: var :: values when not (List.is_empty values) ->
+    Some (List_cmd
+            (Lc_remove_item { var; values = List.map values ~f:arg_of_raw }))
+  | "FIND" :: [ var; value; out ] ->
+    Some (List_cmd
+            (Lc_find { var; value = arg_of_raw value; out }))
+  | "JOIN" :: [ var; glue; out ] ->
+    Some (List_cmd
+            (Lc_join { var; glue = arg_of_raw glue; out }))
+  | _ -> None
+
+(* string(<subcommand> <args>) — common subcommands only *)
+let parse_string args : L.exp option =
+  match args with
+  | [ "TOUPPER"; s; out ] when is_bare out ->
+    Some (String_cmd (Sc_toupper { string = arg_of_raw s; out }))
+  | [ "TOLOWER"; s; out ] when is_bare out ->
+    Some (String_cmd (Sc_tolower { string = arg_of_raw s; out }))
+  | [ "LENGTH"; s; out ] when is_bare out ->
+    Some (String_cmd (Sc_length { string = arg_of_raw s; out }))
+  | [ "STRIP"; s; out ] when is_bare out ->
+    Some (String_cmd (Sc_strip { string = arg_of_raw s; out }))
+  | "CONCAT" :: out :: inputs when is_bare out && not (List.is_empty inputs) ->
+    Some (String_cmd
+            (Sc_concat { out; inputs = List.map inputs ~f:arg_of_raw }))
+  | "APPEND" :: var :: inputs when is_bare var && not (List.is_empty inputs) ->
+    Some (String_cmd
+            (Sc_append { var; inputs = List.map inputs ~f:arg_of_raw }))
+  | "PREPEND" :: var :: prefix :: rest when is_bare var ->
+    Some (String_cmd
+            (Sc_prepend { var; prefix = arg_of_raw prefix;
+                          inputs = List.map rest ~f:arg_of_raw }))
+  | "REPLACE" :: m :: r :: out :: inputs when is_bare out ->
+    Some (String_cmd
+            (Sc_replace
+               { match_string = arg_of_raw m;
+                 replace_string = arg_of_raw r;
+                 out;
+                 inputs = List.map inputs ~f:arg_of_raw }))
+  | _ -> None
+
+(* ============================================================
    Dispatch
    ============================================================ *)
 
@@ -596,6 +805,15 @@ let parse_cmd (c : cmd) : L.exp option =
   | "option" -> parse_option c.args
   | "include" -> parse_include c.args
   | "add_subdirectory" -> parse_add_subdirectory c.args
+  (* Stage 2-b *)
+  | "unset" -> parse_unset c.args
+  | "add_dependencies" -> parse_add_dependencies c.args
+  | "find_package" -> parse_find_package c.args
+  | "get_filename_component" -> parse_get_filename_component c.args
+  | "set_target_properties" -> parse_set_target_properties c.args
+  | "add_custom_target" -> parse_add_custom_target c.args
+  | "list" -> parse_list c.args
+  | "string" -> parse_string c.args
   | _ -> None
 
 (* ============================================================
