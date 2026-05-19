@@ -38,6 +38,27 @@ strip_comments="${STRIP_COMMENTS:-$(dirname "$0")/strip_comments.py}"
 # oracle we strip; for future tooling we may revisit.
 gersemi_args="${GERSEMI_ARGS:---line-length 99999}"
 
+# Pre-flight: gersemi must be available and executable. Without this
+# guard, a missing or broken gersemi produces empty output on both
+# the reference and the generated path, and the FORMAT oracle would
+# pass spuriously (empty == empty) on every file.
+if ! [ -x "$gersemi" ] && ! command -v "$gersemi" >/dev/null 2>&1; then
+  echo "FATAL: gersemi not found or not executable at: $gersemi" >&2
+  echo "  Override with: GERSEMI=/path/to/gersemi $0 $*" >&2
+  exit 2
+fi
+if ! "$gersemi" --version >/dev/null 2>&1; then
+  echo "FATAL: gersemi at $gersemi failed --version probe" >&2
+  exit 2
+fi
+
+# Pre-flight: print2.exe must be built.
+if ! [ -x "$print2" ]; then
+  echo "FATAL: print2.exe not found at: $print2" >&2
+  echo "  Run: dune build tool/cmake_roundtrip/print2.exe" >&2
+  exit 2
+fi
+
 ok=0; format=0; struct=0; parse=0
 modeled_total=0; generic_total=0; other_total=0
 
@@ -58,6 +79,10 @@ HEADS = ('if_command','elseif_command','else_command','endif_command',
 HEADWORDS = ('if','elseif','else','endif','foreach','endforeach','while','endwhile',
              'function','endfunction','macro','endmacro','block','endblock')
 def cmd(node):
+    # Match parse.py's parse_command_head shape: block heads/tails
+    # (e.g. endforeach(x)) can expose `argument` children directly on
+    # the command node rather than wrapped in argument_list. Collect
+    # both shapes so the oracle doesn't silently drop args.
     name=None; args=[]
     for cc in node.children:
         if cc.type=='identifier' or (cc.type in HEADWORDS and name is None):
@@ -66,6 +91,8 @@ def cmd(node):
             for arg in cc.children:
                 if arg.type=='argument':
                     args.append(src[arg.start_byte:arg.end_byte].decode('utf-8'))
+        elif cc.type=='argument':
+            args.append(src[cc.start_byte:cc.end_byte].decode('utf-8'))
     return (name or '?') + '(' + ' '.join(args) + ')'
 def walk(node):
     out=[]

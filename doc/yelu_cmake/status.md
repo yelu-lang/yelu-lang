@@ -125,13 +125,13 @@ In order of value:
 ## Project-level milestones (separate from retirement)
 
 - **Bar #3-lite — syntactic round-trip.** *Stages 1 / 2 / 2-b / 2-c
-  shipped.* STRUCT=0 / FORMAT=0 across tutorial (25/25),
-  z3 (108/108), llvm (596/596). Modeled-builtin counts:
-  tutorial 165, z3 1,057, llvm 3,573. Per-stage results,
-  deliberately-untyped builtin list, and the Class A
-  (`function()` / `macro()`-defined calls) next-step plan
-  (resolved-apply bucket) are in `bar3_feasibility.md` §
-  2026-05-19.
+  shipped; audit-ready.* STRUCT=0 / FORMAT=0 across tutorial
+  (25/25), z3 (108/108), llvm (596/596). Modeled-builtin counts:
+  tutorial 165, z3 1,057, llvm 3,573. **Audit-ready summary lives
+  at [`bar3_lite_report.md`](bar3_lite_report.md)** — a self-
+  contained writeup for both progress and code-quality reviewers.
+  Stage-by-stage history and the (deferred) Class A plan remain
+  in [`bar3_feasibility.md`](bar3_feasibility.md).
 - **Bar #3 — real-world cmake.** Rewrite z3 / llvm / torch
   builds in `yelu_cmake`, prove structural equivalence with the
   original CMakeLists. Not started; the manifesto-level "does

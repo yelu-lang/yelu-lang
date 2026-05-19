@@ -82,7 +82,20 @@ deferred until the IR printers are tightened. Fixing them belongs in
 the same change as the production IR work (Y17 typing surfaces /
 status.md "Known IR shape gaps"), not as a parser-only patch.
 
-### Class A — project-defined functions (next milestone)
+### Class A — project-defined functions (DEFERRED 2026-05-19)
+
+> **Status:** deferred. Phase 1 (function-name table → `resolved`
+> accounting bucket) is purely scaffolding for Phase 2 (dynamic
+> dispatch resolution: macro substitution, function-scope modeling,
+> include-graph resolution) — and Phase 2 is the dynamic-semantics
+> step that belongs in a later milestone. Without Phase 2, Phase 1
+> gives only an informational tweak to the coverage tally. Calls
+> into project- or module-defined cmake functions already round-trip
+> byte-faithfully through `Apply`; the syntactic-equivalence claim
+> stands without this work. The two-phase plan below is recorded
+> for future reference.
+
+#### Original plan (recorded; not active)
 
 The remaining typed-% gap is now dominated by **Class A**: calls into
 project-defined `function()` / `macro()` bodies (e.g.

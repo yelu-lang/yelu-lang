@@ -11,16 +11,23 @@
 
    For each Stage-1 [Cmd], [parse_cmd] returns [Some Lang_cmake.exp]
    when the command is one of the modeled builtins, else [None]. The
-   None branch routes to [untyped_emit] which renders the raw
-   tokens (this is the "generic Apply" bucket in coverage tallies —
-   correct destination for project- or module-defined cmake calls
-   like z3_add_component, tablegen, the add_llvm_* family).
+   None branch routes to [untyped_emit] which constructs a real
+   [Lang_cmake.Apply { name; args }] and reprints via the production
+   [Lang_cmake_pp] Apply arm. This is the "generic" bucket in
+   coverage tallies — correct destination for project- or
+   module-defined cmake calls like z3_add_component, tablegen, the
+   add_llvm_* family.
 
    Block shapes (if / foreach / while / function / macro / block)
-   walk recursively into their head / body / clauses / tail — head
-   and tail dispatch to [parse_cmd] like any other command (block
-   keywords have their own [Lang_cmake.exp] ctors); the body is a
-   nested statement list reprinted with the same dispatcher.
+   walk recursively. The body is a nested statement list reprinted
+   by the same dispatcher (modeled / generic / other recursively
+   apply). Block heads and tails are NOT dispatched through
+   [parse_cmd] today — they're reprinted by [print_block_head] as
+   raw `name(args)` text. They contribute to neither the modeled
+   nor generic counts; the `other` bucket counts the block wrapper
+   node itself (one per block), not its head/tail. Body commands
+   inside blocks still count toward modeled / generic via
+   recursive walk.
 
    The byte-equality oracle: tree-sitter on both source and reprint
    must extract the same (command_name, arg-list) sequence (STRUCT),
@@ -1057,21 +1064,28 @@ let pp_exp_to_string (e : L.exp) : string =
   Stdlib.Format.fprintf ff "%a%!" Pp.pp e;
   Buffer.contents buf
 
-let print_stage1_cmd { name; args } =
-  Printf.sprintf "%s(%s)" name (String.concat ~sep:" " args)
-
 let indent depth = String.make (depth * 2) ' '
 
-(* Generic call-by-name. The conceptual mapping is
-   [Lang_cmake.Apply { name; args }] (lenient call-by-name); for the
-   round-trip oracle we emit it directly as `name(arg1 arg2 ...)` on
-   a single line. The detour through [Lang_cmake_pp.Apply] would use
-   [Fmt.sp] separators that introduce soft breaks, breaking line
-   composition. *)
+(* Generic call-by-name. Route un-modeled commands through the real
+   [Lang_cmake.Apply] constructor and the production [Lang_cmake_pp]
+   Apply printer so the generic path exercises the same IR shape as
+   modeled commands. [Lang_cmake_pp] uses [Fmt.sp] soft breaks, but
+   [pp_exp_to_string] sets margin/max-indent to 1M so they never
+   fire — output is single-line `name(a1 a2 ...)\n`. *)
 let untyped_emit (c : cmd) : string =
   let args = List.map c.args ~f:arg_of_raw in
-  let args_str = String.concat ~sep:" " (List.map args ~f:raw_of_arg) in
-  Printf.sprintf "%s(%s)" c.name args_str
+  pp_exp_to_string (L.Apply { name = c.name; args })
+
+(* Block heads/tails are not currently dispatched through [parse_cmd]:
+   they're free-form command records bound to a block shape, and the
+   block walker reprints them as raw text. The args field is already
+   the source's raw token sequence (preserved by [parse.py]), so this
+   is byte-faithful — but it does mean a head like `if(FOO STREQUAL
+   "bar")` is reprinted with whitespace exactly as tree-sitter laid
+   it out, with no typed-IR detour. Live with this until block-head
+   typing is needed; the STRUCT oracle catches any drift. *)
+let print_block_head { name; args } =
+  Printf.sprintf "%s(%s)" name (String.concat ~sep:" " args)
 
 let rec emit_stmt ~depth buf = function
   | Cmd c ->
@@ -1085,16 +1099,16 @@ let rec emit_stmt ~depth buf = function
     if not (String.is_suffix s ~suffix:"\n") then Buffer.add_char buf '\n'
   | Block { head; body; clauses; tail; _ } ->
     Buffer.add_string buf (indent depth);
-    Buffer.add_string buf (print_stage1_cmd head);
+    Buffer.add_string buf (print_block_head head);
     Buffer.add_char buf '\n';
     List.iter body ~f:(emit_stmt ~depth:(depth + 1) buf);
     List.iter clauses ~f:(fun (chead, cbody) ->
       Buffer.add_string buf (indent depth);
-      Buffer.add_string buf (print_stage1_cmd chead);
+      Buffer.add_string buf (print_block_head chead);
       Buffer.add_char buf '\n';
       List.iter cbody ~f:(emit_stmt ~depth:(depth + 1) buf));
     Buffer.add_string buf (indent depth);
-    Buffer.add_string buf (print_stage1_cmd tail);
+    Buffer.add_string buf (print_block_head tail);
     Buffer.add_char buf '\n'
   | Raw text ->
     Buffer.add_string buf text;
@@ -1114,16 +1128,18 @@ let emit stmts =
    Coverage report (optional, via env var)
    ============================================================ *)
 
-(* Coverage tally. Every cmd lands in one of:
-   - [modeled]: a per-command Lang_cmake.exp ctor (full builtin shape)
-   - [generic]: Apply { name; args } — user-defined / module-defined
-                call. AST-carried, not semantically modeled.
-   - [other]:   block heads/tails + raw passthrough + unknown CST.
+(* Coverage tally. Each top-level statement contributes as follows:
+   - [Cmd] -> [modeled] if [parse_cmd] returns [Some _], else [generic].
+   - [Block] -> [other] += 1 for the wrapper itself. Body and clause
+     bodies recurse: contained [Cmd]s contribute to modeled/generic.
+     Heads and tails are NOT counted in any bucket (they're reprinted
+     by [print_block_head] without dispatch).
+   - [Raw] / [Unknown] -> [other] += 1.
    Deliberately no ratio is reported: many generic calls are
    project-defined functions that are correctly never modeled by
-   [Lang_cmake.exp]. The numerator counts modeled builtins; the
-   denominator (modeled + generic) would conflate "not yet modeled"
-   with "shouldn't be modeled". Raw counts are the honest signal. *)
+   [Lang_cmake.exp]. A modeled / (modeled + generic) ratio would
+   conflate "not yet modeled" with "shouldn't be modeled". Raw
+   counts are the honest signal. *)
 let count_coverage stmts =
   let modeled = ref 0 in
   let generic = ref 0 in
