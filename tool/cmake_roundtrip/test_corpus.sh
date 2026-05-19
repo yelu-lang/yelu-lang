@@ -23,14 +23,20 @@ parse_py="${2:-$(dirname "$0")/parse.py}"
 yelu_root="${YELU_ROOT:-$(cd "$(dirname "$0")/../.." && pwd)}"
 print2="${3:-$yelu_root/_build/default/tool/cmake_roundtrip/print2.exe}"
 gersemi="${GERSEMI:-/home/red/.venvs/default/bin/gersemi}"
-# gersemi flags. Default empty; override with GERSEMI_ARGS to e.g.
-# `--line-length 999` for a single-line normalized view. Even with
-# that, gersemi keeps multi-line layouts when source has comments
-# INSIDE argument lists (which our parser drops). So FORMAT is
-# fundamentally a measure of byte-equivalence-under-gersemi-default
-# and is sensitive to comment placement; STRUCT is the canonical
-# content-equivalence oracle. See bar3_feasibility.md.
-gersemi_args="${GERSEMI_ARGS:-}"
+strip_comments="${STRIP_COMMENTS:-$(dirname "$0")/strip_comments.py}"
+# Pre-strip comments via tree-sitter on both sides before gersemi.
+# Our parser already drops comments inside argument lists, so
+# gersemi-on-the-reprint sees comment-free args. Stripping the
+# source side too makes gersemi's wrap decisions consistent: no
+# more multi-line layouts driven by inline comments only present
+# in the source. This is the cleanest way to make FORMAT measure
+# content equivalence (modulo wrap heuristic) rather than
+# comment-driven layout drift. See bar3_feasibility.md.
+#
+# Whether yelu_cmake / yelu_cmake_normal should carry comments
+# as AST metadata is a separate, deferred question — for the
+# oracle we strip; for future tooling we may revisit.
+gersemi_args="${GERSEMI_ARGS:---line-length 99999}"
 
 ok=0; format=0; struct=0; parse=0
 typed_total=0; generic_total=0; other_total=0
@@ -101,17 +107,26 @@ while IFS= read -r f; do
     continue
   fi
 
-  # gersemi-diff oracle (cosmetic, byte-level). Strip blank lines
-  # plus the stderr-style "Warning: unknown command" header that
-  # gersemi prints with different file paths on the two sides.
-  strip() {
-    grep -v "^$" \
-      | grep -v "^Warning:" \
+  # gersemi-diff oracle. Pre-strip cmake comments on both sides
+  # via tree-sitter (since our parser drops them) and gersemi-
+  # normalize. Then collapse all whitespace runs to a single space
+  # for comparison — gersemi preserves the user's multi-line vs
+  # single-line argument-list choice regardless of --line-length,
+  # so we can't byte-compare; whitespace normalization gives
+  # content equivalence modulo layout. Also strip the
+  # stderr-style "Warning: unknown command" header that gersemi
+  # prints with different file paths.
+  normalize() {
+    grep -v "^Warning:" \
       | grep -v "^/" \
-      | grep -v "^<stdin>"
+      | grep -v "^<stdin>" \
+      | grep -v "^[[:space:]]*#" \
+      | tr -s '[:space:]' ' ' \
+      | sed 's/^ //; s/ $//; s/ )/)/g; s/( /(/g'
   }
-  ref=$("$gersemi" $gersemi_args "$f" 2>/dev/null | strip)
-  got=$(echo "$stage2" | "$gersemi" $gersemi_args - 2>/dev/null | strip)
+  ref=$(python3 "$strip_comments" "$f" 2>/dev/null \
+        | "$gersemi" $gersemi_args - 2>/dev/null | normalize)
+  got=$(echo "$stage2" | "$gersemi" $gersemi_args - 2>/dev/null | normalize)
   if [ "$ref" = "$got" ]; then
     echo "OK     $rel  $t/$g/$o"
     ok=$((ok+1))

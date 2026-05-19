@@ -604,32 +604,45 @@ let parse_cmd (c : cmd) : L.exp option =
    ============================================================ *)
 
 let pp_exp_to_string (e : L.exp) : string =
-  Stdlib.Format.asprintf "%a" Pp.pp e
+  (* Default formatter line width is 80, which causes [Fmt.sp]
+     break hints in arms like [Apply] / multi-arg builtins to wrap
+     long calls across lines. For the round-trip oracle we want
+     single-line output everywhere; gersemi handles the wrap
+     downstream (or on the comparison side). Set both max_indent
+     and margin to a large value — Format clamps margin to
+     max_indent if you only set one. *)
+  let buf = Buffer.create 256 in
+  let ff = Stdlib.Format.formatter_of_buffer buf in
+  Stdlib.Format.pp_set_geometry ff ~max_indent:999_999 ~margin:1_000_000;
+  Stdlib.Format.fprintf ff "%a%!" Pp.pp e;
+  Buffer.contents buf
 
 let print_stage1_cmd { name; args } =
   Printf.sprintf "%s(%s)" name (String.concat ~sep:" " args)
 
 let indent depth = String.make (depth * 2) ' '
 
-(* Generic call-by-name. Used for unrecognized commands: user-defined
-   functions (function(...) endfunction()), user-defined macros, and
-   cmake-module functions (check_symbol_exists etc., defined by
-   include(SomeModule)). [Lang_cmake.Apply] already has the exact
-   shape we need; its eval is lenient about unresolved names. *)
-let untyped_to_apply (c : cmd) : L.exp =
-  Apply { name = c.name; args = List.map c.args ~f:arg_of_raw }
+(* Generic call-by-name. The conceptual mapping is
+   [Lang_cmake.Apply { name; args }] (lenient call-by-name); for the
+   round-trip oracle we emit it directly as `name(arg1 arg2 ...)` on
+   a single line. The detour through [Lang_cmake_pp.Apply] would use
+   [Fmt.sp] separators that introduce soft breaks, breaking line
+   composition. *)
+let untyped_emit (c : cmd) : string =
+  let args = List.map c.args ~f:arg_of_raw in
+  let args_str = String.concat ~sep:" " (List.map args ~f:raw_of_arg) in
+  Printf.sprintf "%s(%s)" c.name args_str
 
 let rec emit_stmt ~depth buf = function
   | Cmd c ->
-    let exp =
+    let s =
       match parse_cmd c with
-      | Some exp -> exp
-      | None -> untyped_to_apply c
+      | Some exp -> pp_exp_to_string exp
+      | None -> untyped_emit c
     in
     Buffer.add_string buf (indent depth);
-    Buffer.add_string buf (pp_exp_to_string exp);
-    if not (String.is_suffix (pp_exp_to_string exp) ~suffix:"\n")
-    then Buffer.add_char buf '\n'
+    Buffer.add_string buf s;
+    if not (String.is_suffix s ~suffix:"\n") then Buffer.add_char buf '\n'
   | Block { head; body; clauses; tail; _ } ->
     Buffer.add_string buf (indent depth);
     Buffer.add_string buf (print_stage1_cmd head);

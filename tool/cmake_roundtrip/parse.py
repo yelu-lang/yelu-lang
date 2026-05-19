@@ -32,13 +32,33 @@ def collect_args(arg_list_node, src):
     """Walk an argument_list, preserving both `argument` nodes and the
     parenthesis tokens used for grouping (cmake `if((A AND B))` shape).
     The literal `(` / `)` are kept as args so reprinting reproduces the
-    original grouping."""
+    original grouping.
+
+    cmake allows adjacent (no-whitespace) argument tokens to form a
+    single composite argument, e.g. `/key="${VAR}"` is one arg made of
+    `/key=` (unquoted) and `"${VAR}"` (quoted). Tree-sitter exposes
+    them as separate `argument` children; we detect adjacency via
+    byte-position comparison and concatenate into one string so the
+    reprinter doesn't inject a space between them."""
     out = []
+    prev_end = None
+    prev_was_arg = False
     for child in arg_list_node.children:
         if child.type == 'argument':
-            out.append(parse_argument(child, src))
+            text = parse_argument(child, src)
+            if prev_was_arg and prev_end == child.start_byte and out:
+                # adjacent to previous arg — concatenate
+                out[-1] = out[-1] + text
+            else:
+                out.append(text)
+            prev_end = child.end_byte
+            prev_was_arg = True
         elif child.type in ('(', ')'):
             out.append(child.type)
+            prev_end = child.end_byte
+            prev_was_arg = False
+        else:
+            prev_was_arg = False
     return out
 
 
@@ -56,7 +76,11 @@ def parse_normal_command(node, src):
 
 def parse_command_head(node, src, expected_type):
     """The head of a control-flow block is itself a normal_command-like
-    node (e.g. `if_command`, `endif_command`). Parse it the same way."""
+    node (e.g. `if_command`, `endif_command`). Parse it the same way.
+
+    Some end-* nodes (e.g. `endforeach(x)`) expose `argument` children
+    directly on the head node rather than wrapping them in an
+    `argument_list` — handle both shapes."""
     name = None
     args = []
     for child in node.children:
@@ -70,6 +94,9 @@ def parse_command_head(node, src, expected_type):
                 name = get_text(child, src)
         elif child.type == 'argument_list':
             args = collect_args(child, src)
+        elif child.type == 'argument':
+            # Direct argument child (e.g., `endforeach(x)`).
+            args.append(parse_argument(child, src))
     return {'kind': 'cmd', 'name': name, 'args': args}
 
 
