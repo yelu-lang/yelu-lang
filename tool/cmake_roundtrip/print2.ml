@@ -1104,19 +1104,24 @@ let emit stmts =
    Coverage report (optional, via env var)
    ============================================================ *)
 
-(* Coverage tally. Every cmd now lands somewhere typed:
-   - [typed]: a per-command Lang_cmake.exp ctor (full builtin shape)
+(* Coverage tally. Every cmd lands in one of:
+   - [modeled]: a per-command Lang_cmake.exp ctor (full builtin shape)
    - [generic]: Apply { name; args } — user-defined / module-defined
-                call. AST-carried, not semantically typed.
-   - [other]: block heads/tails + raw passthrough + unknown CST. *)
+                call. AST-carried, not semantically modeled.
+   - [other]:   block heads/tails + raw passthrough + unknown CST.
+   Deliberately no ratio is reported: many generic calls are
+   project-defined functions that are correctly never modeled by
+   [Lang_cmake.exp]. The numerator counts modeled builtins; the
+   denominator (modeled + generic) would conflate "not yet modeled"
+   with "shouldn't be modeled". Raw counts are the honest signal. *)
 let count_coverage stmts =
-  let typed = ref 0 in
+  let modeled = ref 0 in
   let generic = ref 0 in
   let other = ref 0 in
   let rec walk = function
     | Cmd c ->
       (match parse_cmd c with
-       | Some _ -> Int.incr typed
+       | Some _ -> Int.incr modeled
        | None -> Int.incr generic)
     | Block { body; clauses; _ } ->
       Int.incr other;
@@ -1125,7 +1130,7 @@ let count_coverage stmts =
     | Raw _ | Unknown _ -> Int.incr other
   in
   List.iter stmts ~f:walk;
-  !typed, !generic, !other
+  !modeled, !generic, !other
 
 (* ============================================================
    Driver
@@ -1147,7 +1152,7 @@ let () =
   let stmts = file_of_json json in
   (match Sys.getenv "STAGE2_COVERAGE" with
    | Some _ ->
-     let t, g, o = count_coverage stmts in
-     Stdlib.Printf.eprintf "[stage2] typed=%d generic=%d other=%d\n" t g o
+     let m, g, o = count_coverage stmts in
+     Stdlib.Printf.eprintf "[stage2] modeled=%d generic=%d other=%d\n" m g o
    | None -> ());
   Stdlib.print_string (emit stmts)

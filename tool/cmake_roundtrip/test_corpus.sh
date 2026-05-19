@@ -39,7 +39,7 @@ strip_comments="${STRIP_COMMENTS:-$(dirname "$0")/strip_comments.py}"
 gersemi_args="${GERSEMI_ARGS:---line-length 99999}"
 
 ok=0; format=0; struct=0; parse=0
-typed_total=0; generic_total=0; other_total=0
+modeled_total=0; generic_total=0; other_total=0
 
 # Extract (command, args) tuples from a cmake source via tree-sitter.
 # Output: one line per command of the form `name(a1 a2 ...)`.
@@ -89,12 +89,21 @@ while IFS= read -r f; do
     continue
   fi
 
-  # Stage 2: emit + coverage tally
+  # Stage 2: emit + coverage tally.
+  # `modeled` = command mapped to a typed Lang_cmake.exp ctor.
+  # `generic` = flowed through Apply (preserved verbatim, no IR shape).
+  # `other`   = control-flow heads, raw passthrough, tree-sitter errors.
+  # We deliberately do NOT report a modeled / (modeled+generic) ratio.
+  # Many generic calls (z3_add_component, tablegen, add_llvm_*, CheckXxx)
+  # are project/module-defined cmake functions that are correctly never
+  # "typed" by Lang_cmake.exp — the ratio conflates "we haven't modeled
+  # this builtin yet" with "this is user-defined and should stay
+  # generic". Raw counts are the honest indicator.
   stage2=$(echo "$json" | STAGE2_COVERAGE=1 "$print2" 2>/tmp/_cov_$$.tmp)
-  t=$(grep -oE "typed=[0-9]+" /tmp/_cov_$$.tmp | head -1 | cut -d= -f2); t=${t:-0}
+  t=$(grep -oE "modeled=[0-9]+" /tmp/_cov_$$.tmp | head -1 | cut -d= -f2); t=${t:-0}
   g=$(grep -oE "generic=[0-9]+" /tmp/_cov_$$.tmp | head -1 | cut -d= -f2); g=${g:-0}
   o=$(grep -oE "other=[0-9]+" /tmp/_cov_$$.tmp | head -1 | cut -d= -f2); o=${o:-0}
-  typed_total=$((typed_total + t))
+  modeled_total=$((modeled_total + t))
   generic_total=$((generic_total + g))
   other_total=$((other_total + o))
 
@@ -145,5 +154,4 @@ echo "  OK     $ok    (structural pass AND gersemi-diff pass)"
 echo "  FORMAT $format    (structural pass, gersemi-diff fail)"
 echo "  STRUCT $struct    (structural fail — real parser/printer bug)"
 echo "  PARSE  $parse    (tree-sitter or reader fail)"
-echo "Stage 2 cmds: typed=$typed_total generic=$generic_total other=$other_total"
-echo "  typed/(typed+generic) = $(awk "BEGIN{printf \"%.1f%%\", $typed_total*100/($typed_total+$generic_total+0.0001)}")"
+echo "Stage 2 cmds: modeled=$modeled_total generic=$generic_total other=$other_total"

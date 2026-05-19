@@ -31,7 +31,135 @@ Both projects checked at the heads currently on disk
 llvm-project is much larger if Clang / MLIR / etc. are added.
 The `llvm/llvm` subtree is the natural minimum scope.
 
-## Bar #3-lite results (Stage 1 + Stage 2, 2026-05-15)
+## Bar #3-lite results (Stage 2-b/2-c, 2026-05-19)
+
+Round-trip oracle remains **STRUCT=0 / FORMAT=0** across all three
+corpora; Stage 2-b and 2-c added typed parsers for an additional
+~20 cmake builtins.
+
+| corpus | files | OK | FORMAT | STRUCT | PARSE | modeled | generic |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| tutorial step outputs | 25 | 25 | 0 | 0 | 0 | 165 | 25 |
+| z3 | 108 | 108 | 0 | 0 | 0 | 1,057 | 706 |
+| llvm/llvm | 596 | 596 | 0 | 0 | 0 | 3,573 | 2,609 |
+
+**Why no `modeled / (modeled + generic)` ratio.** The earlier "typed %"
+column conflated "we haven't modeled this builtin yet" with
+"this is project- or module-defined and *should* stay generic" —
+`z3_add_component`, `tablegen`, `add_llvm_*`, `check_symbol_exists`
+etc. are real cmake functions defined in `.cmake` files; their
+correct destination is `Apply { name; args }`. The honest signal
+is the raw counts. (See Class A discussion below.)
+
+Parsers added in Stage 2-b (commit `7c1d8a9`): `unset`,
+`add_dependencies`, `find_package`, `get_filename_component`,
+`set_target_properties`, `add_custom_target`, `list` (subcommands),
+`string` (subcommands).
+
+Parsers added in Stage 2-c (commit `3217f9b`): `return`,
+`include_directories`, `find_program` (NAMES form), `find_path`
+(NAMES form), `install` (`TARGETS … DESTINATION` and
+`FILES … DESTINATION`), `add_custom_command` (TARGET form only),
+`file` (`WRITE` / `APPEND` / `MAKE_DIRECTORY` / `REMOVE` /
+`REMOVE_RECURSE` / `TOUCH` / `TOUCH_NOCREATE` / `GLOB` /
+`GLOB_RECURSE`).
+
+### Deliberately untyped builtins (Stage 2-c skips)
+
+The following builtins were left to flow through generic `Apply` —
+their existing printers in `Lang_cmake_pp` are lossy or shape
+inversion is too brittle for a safe parser:
+
+| command | reason |
+| --- | --- |
+| `set_property` | printer (`lang_cmake_pp.ml:620`) drops most IR fields — `directory`, `sources`, `installs`, `tests`, `caches` are typed but not emitted; multi-property calls are also split into N statements |
+| `get_property` | printer (`lang_cmake_pp.ml:591`) covers a subset of `Lang_cmake.Get_property` fields with `_` pattern; round-trip risks losing args |
+| `execute_process` | multi-line keyword shape with `\n  COMMAND …` separators; safe inversion requires modeling several keyword sublists |
+| `file` (`READ`, `STRINGS`, `COPY*`, `DOWNLOAD`, `UPLOAD`, `LOCK`, path-query subcommands) | many IR ctors with keyword-rich shapes; mechanical but not on the critical path |
+
+These are not "STRUCT failures" — they're typed-coverage opportunities
+deferred until the IR printers are tightened. Fixing them belongs in
+the same change as the production IR work (Y17 typing surfaces /
+status.md "Known IR shape gaps"), not as a parser-only patch.
+
+### Class A — project-defined functions (next milestone)
+
+The remaining typed-% gap is now dominated by **Class A**: calls into
+project-defined `function()` / `macro()` bodies (e.g.
+`z3_add_component` ×70, llvm's `tablegen` ×379, `add_llvm_*` family
+×~500, `check_symbol_exists` and the `CheckXxx` standard-module
+helpers). These are valid cmake — cmake-the-binary dispatches them
+dynamically against a name table built from `include(...)` and
+`find_package(...)` Module loads. They round-trip byte-faithfully
+through `Apply { name; args }` already; they just don't bump the
+`modeled` count because `Lang_cmake.exp` only models cmake
+**builtins**, not user-defined callables.
+
+**The two-phase plan** for handling Class A:
+
+1. **Function-aware round-trip** (preparation, cheap).
+   The corpus driver (`test_corpus.sh`) already round-trips both
+   `CMakeLists.txt` and `*.cmake` files independently. The
+   `function()` and `macro()` *definitions* in those `.cmake` files
+   are already typed at the builtin-call level inside their bodies.
+   What's missing is **call-site annotation**: at a call to
+   `z3_add_component(api)`, know that the name binds to a
+   `function()` defined elsewhere in the corpus, vs an unresolved
+   external symbol.
+
+   Mechanical steps:
+   - One pass over the corpus: collect every
+     `function(<name> <params>...)` / `macro(<name> <params>...)`
+     and the file it appears in.
+   - During Stage-2 parse, when a call to an Apply name resolves
+     against this table, tag it as `Apply { name; args; resolved =
+     true; def_file = … }`.
+   - Add a new coverage bucket: `resolved` between `modeled`
+     and `generic`. Class A calls move from `generic` into
+     `resolved`; the bucket distinguishes "we know what this calls,
+     it's defined elsewhere in the corpus" from "we have no idea
+     where this name binds" (truly external symbols).
+
+   No semantic interpretation yet — just a name table. Confidence
+   high; round-trip oracle stays STRUCT=0 trivially since the
+   reprint is unchanged.
+
+2. **Function-body expansion / semantic check** (deferred, larger).
+   The harder direction: given a call site `z3_add_component(api)`,
+   resolve to the function body and either inline-substitute (macro
+   semantics) or push a scope with bound parameters
+   (function semantics) for further analysis.
+
+   Blockers worth flagging *before* starting:
+   - **Conditional includes**: `if(WIN32) include(WinHelpers)` — the
+     def-use binding depends on cmake state. Static resolution needs
+     either flow analysis or a closed-world assumption.
+   - **`CMAKE_MODULE_PATH` is itself dynamic**: a `find_package(Foo)`
+     can pull from a directory computed at configure time.
+   - **macro vs function semantics differ**: `macro()` is textual
+     substitution with caller scope; `function()` is a new scope
+     with named-parameter binding. PARENT_SCOPE propagation matters.
+   - **Generator expressions** delay evaluation to generate time.
+
+   Phase 2 is the real semantic step (and where the "more meaningful
+   check" the manifesto wants lives). Phase 1 is its scaffolding.
+
+### Pre-existing unrelated test failure
+
+`test_yelu_compile.ml::ylet chain` expects `add_executable(App …)`
+but currently produces `add_executable(name …)`. Present on
+commit `7c1d8a9` and earlier; not introduced by Stage 2-b/2-c.
+Unit-test suite is 193/194 passing as a result. Tracked separately
+under `doc/yelu_cmake/status.md` — Y14-ish symptom, real fix lives
+in the yelu compile path, not the cmake round-trip prototype.
+
+---
+
+## Bar #3-lite earlier results (Stage 1 + Stage 2, 2026-05-15)
+
+> Historical snapshot. The "typed %" metric in this section is the
+> superseded ratio — see the 2026-05-19 section above for the
+> current convention (raw `modeled` / `generic` counts, no ratio).
 
 Stage 1 (untyped) and Stage 2 (typed via `Lang_cmake.exp`)
 round-trip results, both via the `tool/cmake_roundtrip/`
