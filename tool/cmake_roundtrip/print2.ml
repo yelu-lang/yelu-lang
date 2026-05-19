@@ -777,6 +777,210 @@ let parse_string args : L.exp option =
   | _ -> None
 
 (* ============================================================
+   Stage 2-c — more builtins. Same bail-on-lossy discipline.
+
+   Deliberately NOT typed in this stage (printer is lossy or
+   shape complexity outweighs the typed-coverage win):
+     - set_property / get_property — printer drops most IR fields
+     - execute_process — multi-line shape, hard to invert safely
+     - file — too many subcommand IRs; pick a few easy ones only
+
+   These flow through generic Apply, preserving the call byte-faithfully.
+   ============================================================ *)
+
+(* return() | return(PROPAGATE <var>...) *)
+let parse_return args : L.exp option =
+  if not (all_bare args) then None
+  else match args with
+    | [] -> Some (Return { propogate_vars = [] })
+    | "PROPAGATE" :: vars when not (List.is_empty vars) ->
+      Some (Return { propogate_vars = vars })
+    | _ -> None
+
+(* include_directories([AFTER|BEFORE] [SYSTEM] <dir>...).
+   Printer emits `include_directories(<ba><sys> dir dirs)` with
+   [ba]/[sys] keywords or empty. We only accept the no-keyword form
+   to dodge tree-sitter argument re-ordering and avoid emitting the
+   leading-empty-space shape on extra keywords. *)
+let parse_include_directories args : L.exp option =
+  if not (all_bare args) then None
+  else match args with
+    | first :: rest_dirs
+      when not (List.mem ["AFTER"; "BEFORE"; "SYSTEM"] first ~equal:String.equal) ->
+      Some (Project_cmd
+              (Include_directories
+                 { before_or_after = Default_order;
+                   system = false;
+                   dir = first;
+                   dirs = rest_dirs }))
+    | _ -> None
+
+(* find_program(<var> NAMES <n>...) — explicit NAMES form only.
+   Printer always emits NAMES, so the bare `find_program(VAR name)`
+   shape can't be typed without restructuring. Bail on HINTS/PATHS/
+   PATH_SUFFIXES/DOC/etc. *)
+let parse_find_var_names ctor args : L.exp option =
+  if not (all_bare args) then None
+  else match args with
+    | var :: "NAMES" :: names when not (List.is_empty names) ->
+      let required = List.mem names "REQUIRED" ~equal:String.equal in
+      (* If REQUIRED is in the names list, it has to be at the end and
+         we strip it. Otherwise printer reorder risk. *)
+      let names, ok = match List.rev names with
+        | "REQUIRED" :: rest -> List.rev rest, true
+        | _ -> names, not required
+      in
+      if not ok || List.exists names ~f:(fun n ->
+        List.mem ["HINTS";"PATHS";"PATH_SUFFIXES";"DOC";"NO_CACHE";
+                  "NO_DEFAULT_PATH";"NO_PACKAGE_ROOT_PATH";"NO_CMAKE_PATH";
+                  "NO_CMAKE_ENVIRONMENT_PATH";"NO_SYSTEM_ENVIRONMENT_PATH";
+                  "NO_CMAKE_SYSTEM_PATH";"NO_CMAKE_INSTALL_PREFIX";
+                  "REGISTRY_VIEW"] n ~equal:String.equal)
+      then None
+      else
+        Some (ctor
+                { L.var;
+                  names = List.map names ~f:arg_of_raw;
+                  hints = []; paths = []; path_suffixes = [];
+                  doc = None;
+                  required;
+                  no_cache = false; no_default_path = false;
+                  no_package_root_path = false; no_cmake_path = false;
+                  no_cmake_environment_path = false;
+                  no_system_environment_path = false;
+                  no_cmake_system_path = false;
+                  no_cmake_install_prefix = false })
+    | _ -> None
+
+let parse_find_program args = parse_find_var_names (fun a -> L.Find_program a) args
+let parse_find_path args = parse_find_var_names (fun a -> L.Find_path a) args
+
+(* add_custom_command(TARGET <t> PRE_BUILD|PRE_LINK|POST_BUILD COMMAND <prog> <args>...)
+   The TARGET form (Add_custom_command_target). Bail on COMMENT/VERBATIM/
+   USES_TERMINAL keywords and on multiple COMMAND blocks. *)
+let parse_add_custom_command args : L.exp option =
+  match args with
+  | "TARGET" :: target :: when_s :: "COMMAND" :: rest
+    when is_bare target
+         && List.mem ["PRE_BUILD"; "PRE_LINK"; "POST_BUILD"]
+              when_s ~equal:String.equal ->
+    (* All of rest must be plain args with no further COMMAND or trailing
+       keywords. *)
+    if List.exists rest ~f:(fun a ->
+      List.mem ["COMMAND"; "COMMENT"; "VERBATIM"; "USES_TERMINAL"]
+        a ~equal:String.equal)
+    then None
+    else (match rest with
+      | [] -> None
+      | prog :: cmd_args when is_bare prog && List.for_all cmd_args ~f:is_bare ->
+        let when_ = match when_s with
+          | "PRE_BUILD" -> L.Cw_pre_build
+          | "PRE_LINK" -> L.Cw_pre_link
+          | _ -> L.Cw_post_build
+        in
+        Some (Project_cmd
+                (Add_custom_command_target
+                   { target; when_;
+                     commands = [ { command = prog; args = cmd_args } ];
+                     comment = None;
+                     verbatim = false; uses_terminal = false }))
+      | _ -> None)
+  | _ -> None
+
+(* file(<subcommand> <args>) — pick safe forms. Bail on subcommands with
+   keyword-heavy IR (READ/STRINGS/COPY/DOWNLOAD/UPLOAD/LOCK/etc.) *)
+let parse_file args : L.exp option =
+  match args with
+  | "WRITE" :: file :: content when not (List.is_empty content) ->
+    Some (File_write { file = arg_of_raw file; append = false;
+                       content = List.map content ~f:arg_of_raw })
+  | "APPEND" :: file :: content when not (List.is_empty content) ->
+    Some (File_write { file = arg_of_raw file; append = true;
+                       content = List.map content ~f:arg_of_raw })
+  | "MAKE_DIRECTORY" :: dirs when not (List.is_empty dirs) ->
+    Some (File_make_directory { dirs = List.map dirs ~f:arg_of_raw })
+  | "REMOVE" :: files when not (List.is_empty files) ->
+    Some (File_remove { files = List.map files ~f:arg_of_raw; recurse = false })
+  | "REMOVE_RECURSE" :: files when not (List.is_empty files) ->
+    Some (File_remove { files = List.map files ~f:arg_of_raw; recurse = true })
+  | "TOUCH" :: files when not (List.is_empty files) ->
+    Some (File_touch { files = List.map files ~f:arg_of_raw; nocreate = false })
+  | "TOUCH_NOCREATE" :: files when not (List.is_empty files) ->
+    Some (File_touch { files = List.map files ~f:arg_of_raw; nocreate = true })
+  | "GLOB" :: var :: patterns
+    when is_bare var
+         && List.for_all patterns ~f:(fun p ->
+              not (List.mem ["CONFIGURE_DEPENDS"; "RELATIVE"; "LIST_DIRECTORIES";
+                             "FOLLOW_SYMLINKS"] p ~equal:String.equal)) ->
+    Some (File_glob { var; recurse = false;
+                      relative = None; configure_depends = false;
+                      patterns = List.map patterns ~f:arg_of_raw })
+  | "GLOB_RECURSE" :: var :: patterns
+    when is_bare var
+         && List.for_all patterns ~f:(fun p ->
+              not (List.mem ["CONFIGURE_DEPENDS"; "RELATIVE"; "LIST_DIRECTORIES";
+                             "FOLLOW_SYMLINKS"] p ~equal:String.equal)) ->
+    Some (File_glob { var; recurse = true;
+                      relative = None; configure_depends = false;
+                      patterns = List.map patterns ~f:arg_of_raw })
+  | _ -> None
+
+(* install(TARGETS <t>... [EXPORT <name>] DESTINATION <d>) — simple form *)
+let parse_install args : L.exp option =
+  match args with
+  | "TARGETS" :: rest ->
+    (* Targets, optional EXPORT, then DESTINATION. *)
+    let rec take_targets acc = function
+      | [] -> None
+      | t :: r when is_bare t
+                    && not (List.mem ["EXPORT";"DESTINATION";"COMPONENT";
+                                      "RENAME";"PERMISSIONS";"OPTIONAL";
+                                      "NAMELINK_SKIP";"NAMELINK_ONLY";
+                                      "INCLUDES";"ARCHIVE";"LIBRARY";"RUNTIME";
+                                      "OBJECTS";"FRAMEWORK";"BUNDLE";"PUBLIC_HEADER";
+                                      "PRIVATE_HEADER";"RESOURCE";"FILE_SET";"CXX_MODULES_BMI"]
+                            t ~equal:String.equal) ->
+        take_targets (t :: acc) r
+      | r -> Some (List.rev acc, r)
+    in
+    (match take_targets [] rest with
+     | Some (targets, rest) when not (List.is_empty targets) ->
+       let export, rest =
+         match rest with
+         | "EXPORT" :: e :: r when is_bare e -> Some e, r
+         | _ -> None, rest
+       in
+       (match rest with
+        | [ "DESTINATION"; dest ] ->
+          Some (Project_cmd
+                  (Install_targets
+                     { targets;
+                       destination = arg_of_raw dest;
+                       component = None; rename = None; export;
+                       permissions = [] }))
+        | _ -> None)
+     | _ -> None)
+  | "FILES" :: rest ->
+    let rec take_files acc = function
+      | [] -> None
+      | f :: r when not (List.mem ["DESTINATION";"COMPONENT";"RENAME";
+                                   "PERMISSIONS";"OPTIONAL";"CONFIGURATIONS"]
+                           f ~equal:String.equal) ->
+        take_files (f :: acc) r
+      | r -> Some (List.rev acc, r)
+    in
+    (match take_files [] rest with
+     | Some (files, [ "DESTINATION"; dest ]) when not (List.is_empty files) ->
+       Some (Project_cmd
+               (Install_files
+                  { files = List.map files ~f:arg_of_raw;
+                    destination = arg_of_raw dest;
+                    component = None; rename = None;
+                    permissions = [] }))
+     | _ -> None)
+  | _ -> None
+
+(* ============================================================
    Dispatch
    ============================================================ *)
 
@@ -814,6 +1018,14 @@ let parse_cmd (c : cmd) : L.exp option =
   | "add_custom_target" -> parse_add_custom_target c.args
   | "list" -> parse_list c.args
   | "string" -> parse_string c.args
+  (* Stage 2-c *)
+  | "return" -> parse_return c.args
+  | "include_directories" -> parse_include_directories c.args
+  | "find_program" -> parse_find_program c.args
+  | "find_path" -> parse_find_path c.args
+  | "install" -> parse_install c.args
+  | "add_custom_command" -> parse_add_custom_command c.args
+  | "file" -> parse_file c.args
   | _ -> None
 
 (* ============================================================
