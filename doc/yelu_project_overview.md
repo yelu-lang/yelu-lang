@@ -1,6 +1,6 @@
 # Yelu — Project Overview
 
-> Last updated: 2026-04-30
+> Last updated: 2026-05-20
 
 ## Scope
 
@@ -14,200 +14,188 @@ system.
 
 ## Architecture
 
-```
-                    ┌─────────────────────────────┐
-                    │     yelu_stmt (pack)         │
-                    │  Ys_target | Ys_var | ...    │
-                    │  Yc_include | Yc_foreach ... │
-                    └──────────┬──────────────────┘
-                               │ compile (type erasure)
-                    ┌──────────▼──────────────────┐
-                    │     cmake AST               │
-                    │  (stringly-typed)           │
-                    └──────────┬──────────────────┘
-                               │ pretty-print
-                    ┌──────────▼──────────────────┐
-                    │     CMakeLists.txt           │
-                    └─────────────────────────────┘
-```
-
-**Two-layer architecture**:
-
-1. **Core layer** (language-agnostic): `LANG_TYPES` substrate signature,
-   `Make_*_op` / `Make_*_check` functor pairs per theory — each theory
-   defines typed statement constructors and validates expression-level
-   types independently.
-
-2. **Pack layer** (per-target): cmake-pack (`lang_yelu_cmake.ml`) instantiates
-   all 14 theories against `Cmake_types` and composes the top-level `yelu_stmt`
-   sum type. A future json-pack or nix-pack would reuse the core with its own
-   statement type.
-
-### Compositional checking
-
-| Stage         | What it checks                                                     | Status                   |
-| ------------- | ------------------------------------------------------------------ | ------------------------ |
-| `typecheck`   | Expression-level type constraints — per-theory, per-statement      | ✅ 14 theories complete  |
-| `wellform`    | Name binding: cvar/target declarations and cross-theory references | ✅ done (2026-05-04)     |
-| `effect`      | cmake execution-mode constraints                                   | ⏳ not started           |
-| `lower`       | Structural validity during AST → cmake                             | ⚠️ partial               |
-| `configure`   | cmake itself: REQUIRED, math, policy                               | ✅ via RunCMake compat   |
-
-Each theory's `Make_*_check` exposes `let stage = Stage_typecheck` and is
-enforced via `CHECKER_BASE` module signature in `Cmake_check`.
-
-### Parallel harness: yelu_tiny
-
-Since 2026-05-01 a second implementation track has been growing
-alongside the production layers: `src/langs/yelu_tiny/`. It re-shapes
-the production AST into two axles:
+The project hosts two cmake-domain languages and a stringly-typed cmake AST
+underneath:
 
 ```
-Yelu1 = tiny core + cmake-shaped surfaces  (production-compatible)
-Yelu2 = tiny core + idealized theories     (refinement target)
+  yelu_cmake (cmake-faithful compatibility form)
+       ⇅  Yelu_cmake_convert.{to_normal, from_normal}
+  yelu_cmake_normal (normalized / reorganized form of the same language)
+       │  Yelu_cmake_emit (or Yelu_cmake_emit_debug)
+       ▼
+  Lang_cmake.exp (stringly-typed AST, mirrors all 133 cmake commands)
+       │  Lang_cmake_pp
+       ▼
+  CMakeLists.txt
 ```
 
-The bridge `yelu_cmake_to_yelu1.ml` maps production `yelu_cmake` AST →
-Yelu1; `yelu_tiny_translate.ml` lifts Yelu1 ↔ Yelu2; `yelu_tiny_cmake_emit.ml`
-renders Yelu1 back to cmake. Each fragment provides a matched
-`yelu_theory_*` (Yelu2 ideal) and `yelu_surface_cmake_*` (Yelu1
-cmake-shaped) pair.
+- **`yelu_cmake`** — the cmake-command-faithful form. Production text generation
+  routes through it: step files build it, the concrete-syntax parser produces
+  it, `Yelu_cmake_emit` lowers it to `Lang_cmake.exp`. Code lives in
+  `src/langs/yelu/yelu_cmake*.ml` plus `src/langs/yelu/fragments/yelu_cmake_<theory>.ml`.
+- **`yelu_cmake_normal`** — a normalized decomposition that doesn't have to
+  mirror cmake's statement / output-variable shape. Code lives in
+  `src/langs/yelu/yelu_cmake_normal_*` and per-theory
+  `src/langs/yelu/fragments/yelu_cmake_normal_<theory>.ml`.
+- Translation between the two lives in `Yelu_cmake_convert` (`to_normal` /
+  `from_normal`).
 
-Milestone status (as of 2026-05-10):
+### Theories
 
-- **Bar #1 — tutorial v1 step1–step12 (root)** ✅ all bridge through tiny;
-  step1, 2, 3, 4, 5, 6, 7, 8_table, 10, 12 also configure through real cmake.
-- **Bar #2 — every production theory has at least a first slice** ✅ all 14.
-- **Bar #3 — real-world cmake rewrites (z3, llvm, torch)** ⏳ not started.
+The language is organized in **theories** — per-domain fragments that contribute
+constructors, eval arms, and emit arms. Each theory exists in two forms (one in
+`yelu_cmake`, one in `yelu_cmake_normal`), composed via `Yelu_cmake_convert`.
 
-Full implementation history → `doc/worklog/worklog_2026_05.md`.
-Current TODO → `doc/yelu_cmake/status.md`.
+- 14 cmake-faithful fragments: `var`, `target`, `string`, `path`, `file`,
+  `list`, `find`, `install`, `test`, `try`, `if`, `dir`, `property`, `cmake_op`,
+  `store`.
+- 16 normalized fragments including the cmake-faithful set plus a small
+  general-purpose subset (`bool`, `int`) that is theory-agnostic and a candidate
+  for future re-use across packs.
+
+Forward architectural plan (theory-fragment split) at
+[`yelu_theory/plan.md`](yelu_theory/plan.md).
+
+### Layered checking
+
+| Stage         | What it checks                                                     | Status                |
+| ------------- | ------------------------------------------------------------------ | --------------------- |
+| `typecheck`   | Expression-level type constraints — per-theory, per-statement      | retired with Y17 pending |
+| `wellform`    | Name binding: cvar/target declarations and cross-theory references | retired with Y17 pending |
+| `effect`      | cmake execution-mode constraints                                   | ⏳ not started        |
+| `lower`       | Structural validity during AST → cmake                             | ⚠️ partial            |
+| `configure`   | cmake itself: REQUIRED, math, policy                               | ✅ via RunCMake compat |
+
+The earlier per-fragment `Stage_typecheck` pass was retired alongside the legacy
+production AST (commits up to E1, 2026-05-14). Y17 — a fresh typing pass over
+the post-retirement `yelu_cmake` / `yelu_cmake_normal` IR — is the replacement;
+tracked in [`yelu_cmake/status.md`](yelu_cmake/status.md) "Open work".
 
 ## Current State
 
-### Code inventory
+### Code layout
 
-| Layer               | Files | Lines | Description                          |
-| ------------------- | ----- | ----- | ------------------------------------ |
-| cmake AST + PP      | 3     | 2,715 | All 133 cmake commands, stringly-typed |
-| yelu core           | 5     | 2,080 | Types, compiler, utils, cmake-pack   |
-| fragments (theories)| 15    | 1,194 | Per-theory functors, 14 theories     |
-| yelu_tiny harness   | ~25   | 4,001 | Two-axle composition harness (May 2026) |
-| cmake step files    | 36    | 1,560 | Tutorial v1/v2 + CMakeOnly           |
-| yelu step files     | 36    | 1,332 | Same, in yelu DSL                    |
-| **Total**           | ~120  | ~12,900 |                                    |
+| Layer                                                  | Notes                                                     |
+| ------------------------------------------------------ | --------------------------------------------------------- |
+| `src/langs/cmake/`                                     | Stringly-typed cmake AST + pretty-printer (`Lang_cmake.exp`, `Lang_cmake_pp`). |
+| `src/langs/yelu/`                                      | Production: `yelu_cmake` + `yelu_cmake_normal` + parser + emit. |
+| `src/langs/yelu/fragments/`                            | 30 per-theory fragments (14 cmake-faithful + 16 normalized). |
+| `src/langs/yelu_legacy/`                               | Retired reference; excluded from the `yelu_langs` library via `dune` negative-module list. E2 will `git rm` it after Y17. |
+| `src/bin/cmake/v1/`, `src/bin/cmake/v2/`, `src/bin/yelu/v1/`, `src/bin/yelu/v2/`, `src/bin/yelu/` | Tutorial step files + CMakeOnly generators. |
+| `tool/cmake_roundtrip/`                                | Bar #3-lite syntactic round-trip oracle (Python + OCaml). |
 
 ### Test infrastructure
 
-| Suite                 | Count  | What it verifies                           |
-| --------------------- | ------ | ------------------------------------------ |
-| `test_cmake_pp`       | 72     | cmake pretty-printer output                |
-| `test_yelu_compile`   | 194    | yelu → cmake compilation correctness       |
-| `test_yelu_check`     | 57     | per-theory type checking + wellform        |
-| `test_yelu_lexer`     | 25     | lexer for concrete syntax                  |
-| `test_yelu_parser`    | 170    | parser for concrete syntax                 |
-| `test_yelu_tiny_*`    | 137    | bridge / emit / lift_lower / steps / function |
-| **Unit tests total**  | **655**|                                           |
-| RunCMake compat       | 61     | yelu scripts vs cmake reference output     |
-| cmake-check (v1+v2)   | 35     | structural equivalence via gersemi         |
-| CMakeOnly check       | 12     | structural equivalence for CMakeOnly suite |
-| file-api-test         | 12     | codemodel-v2 JSON diff (steps 1–12)        |
-| end-to-end (`stepN`)  | 12     | Generate → configure → build → run         |
-| `test_yelu_tiny_cmake`| 40     | tiny lowerings configure through real cmake |
+| Suite                              | Count    | What it verifies                                              |
+| ---------------------------------- | -------: | ------------------------------------------------------------- |
+| Unit tests (`dune test`)           | ~1,010   | Pretty-printer, compile, parse, eval, lift/lower, steps, etc. |
+| `make runcmake-yelu`               | 50 / 50  | yelu-generated scripts vs cmake reference output.             |
+| `make cmake-only-check`            | 12 / 12  | Structural equivalence for `Tests/CMakeOnly/`.                |
+| `make cmake-check-v1`              | 24 / 24  | Tutorial v1 structural-equivalence via gersemi.               |
+| `make cmake-check-v2`              | 11 / 11  | Tutorial v2 structural-equivalence via gersemi.               |
+| `make file-api-test`               | 12 / 12  | codemodel-v2 JSON diff on tutorial steps.                     |
+| End-to-end (`make step1`–`step12`) | 12       | Generate → configure → build → run.                           |
+| Bar #3-lite syntactic round-trip   | 729 / 729 | tutorial + z3 + llvm: STRUCT=0 / FORMAT=0.                   |
 
-### 14 Theories
+`make cmake-commands` has pre-existing cmake build issues (not blocking).
+`test_yelu_compile::ylet chain` has a pre-existing single-test failure
+unrelated to recent work.
 
-| Theory       | Typecheck        | Declares      | References cross-theory     |
-| ------------ | ---------------- | ------------- | --------------------------- |
-| `var`        | ✅ non-trivial    | cvars         | —                           |
-| `target`     | ✅ non-trivial    | targets       | target names (link, target_*) |
-| `install`    | ✅ non-trivial    | —             | declared targets            |
-| `test`       | ⚠️ minimal       | —             | declared targets            |
-| `property`   | ✗ stub           | output cvars  | target names                |
-| `string`     | ✅ non-trivial    | output cvars  | —                           |
-| `file`       | ✅ non-trivial    | output cvars  | —                           |
-| `path`       | ✅ non-trivial    | output cvars  | —                           |
-| `list`       | ✅ non-trivial    | output cvars  | cvars must exist            |
-| `find`       | ⚠️ partial       | output cvars  | —                           |
-| `try`        | ✅ non-trivial    | output cvars  | —                           |
-| `cmake_op`   | ⚠️ partial       | output cvars  | —                           |
-| `cond`       | ✅ non-trivial    | —             | —                           |
-| `dir`        | ✅ non-trivial    | —             | —                           |
+### Project-level milestones
+
+- **Bar #1 — tutorial v1 step1–step12.** ✅ All bridge through `yelu_cmake`;
+  all 12 configure through real cmake; 12 file-api JSON diffs match.
+- **Bar #2 — every production theory has at least a first slice.** ✅ All 14.
+- **Bar #3-lite — syntactic cmake round-trip on z3 + llvm.** ✅ Shipped
+  2026-05-15..20. STRUCT=0 / FORMAT=0 across 729 files in tutorial + z3 +
+  llvm. Surfaced and fixed 5 production-IR bugs along the way. Audit-ready
+  writeup at [`yelu_cmake/bar3_lite.md`](yelu_cmake/bar3_lite.md).
+- **Bar #3 — real-world cmake hand-rewrites (z3 / llvm / torch).** ⏳ Not
+  started; the manifesto-level "does this scale" test.
+
+Full chronological history in [`worklog/worklog_2026_05.md`](worklog/worklog_2026_05.md)
+and [`worklog/worklog_2026_04.md`](worklog/worklog_2026_04.md). Current TODOs
+in [`yelu_cmake/status.md`](yelu_cmake/status.md).
 
 ## Gaps
 
-| Gap                       | Category     | Impact                                  |
-| ------------------------- | ------------ | --------------------------------------- |
-| No CI                     | Infra        | Yelu can break silently                 |
-| Website live              | Infra        | ✅ GitHub Pages at yelu-lang.github.io/yelu-lang |
-| No concrete parser        | Language     | Yelu is OCaml-hosted, no standalone `.yl` |
-| ~~No name binding pass~~  | Checker      | ✅ Done: `lang_yelu_wellform.ml`, 41 tests |
-| No effect pass            | Checker      | No execution-mode validation            |
-| No systematic lower pass  | Compiler     | Panics on malformed input               |
-| Property check is stub    | Checker      | All property ops pass unchecked         |
+| Gap                              | Category     | Notes                                                |
+| -------------------------------- | ------------ | ---------------------------------------------------- |
+| No CI                            | Infra        | Yelu can break silently.                             |
+| ~~No concrete-syntax parser~~    | Language     | ✅ `Yelu_parse` (Angstrom + pure OCaml, 2026-05-04). |
+| ~~Retirement of yelu_legacy~~    | Refactor     | ✅ Through E1 (2026-05-14); E2 (delete) pending Y17. |
+| No fresh typing pass             | Checker      | Y17 — design ground prepared by theory-fragment split. |
+| Lossy `Lang_cmake_pp` arms       | Compiler     | Surfaced by Bar #3-lite; tracked in `yelu_cmake/status.md`. |
+| No effect pass                   | Checker      | No execution-mode validation.                        |
+| No systematic lower pass         | Compiler     | Panics on malformed input.                           |
+| Comments inside argument lists   | IR shape     | Currently dropped; whether IR should carry them is open. |
 
 ## Implementation Queue
 
-### Implementation (code-ready)
+### Code-ready next steps
 
-| ID   | Title                                   | Description                                  |
-| ---- | --------------------------------------- | -------------------------------------------- |
-| ✅    | Name binding pass                       | Whole-program cvar/target def-use check      |
-| —    | Yelu CI                                 | Build + test on push to yelu/**              |
-| Y2   | Option combination enumeration          | 2^n boolean combos for step4+, File API diff |
-| Y5   | File API cache-v2 diff                  | Extend oracle beyond codemodel-v2            |
-| Y12  | Cmake-layer test mirroring              | Sync cmake PP tests with yelu coverage       |
+| ID  | Title                                | Description                                                   |
+| --- | ------------------------------------ | ------------------------------------------------------------- |
+| —   | IR-printer cleanup (Bar #3-lite follow-up) | Tier 1/2/3 plan in [`yelu_cmake/status.md`](yelu_cmake/status.md). |
+| —   | Yelu CI                              | Build + test on push.                                         |
+| Y2  | Option combination enumeration       | 2^n boolean combos for step4+, File API diff.                 |
+| Y5  | File API cache-v2 diff               | Extend oracle beyond codemodel-v2.                            |
+| Y12 | Cmake-layer test mirroring           | Sync cmake PP tests with yelu coverage.                       |
+| E2  | Delete `yelu_legacy/`                | Mechanical follow-up to E1; gated on Y17 not needing it.      |
 
 ### Design (before coding)
 
-| ID   | Title                                   | Description                                  |
-| ---- | --------------------------------------- | -------------------------------------------- |
-| Y6   | Semantics hardest to preserve           | Genex, policy stack, find_package search     |
-| Y7   | Cache-sensitivity annotations           | `Cache_breaking | Cache_safe | Cache_partial` |
-| Y11  | Policy-aware compiler                   | Auto-emit policy preamble per construct      |
-| Y13  | Persistent value primitive              | `@cached` with content-addressed store       |
-| Y14  | Reserved keyword validation             | Enumerate cmake keywords, warn on clashes    |
-| Y15  | Binding feature library                 | Design space (lexical vs global, mutable vs immutable, expr vs stmt). Current: `let` + `set` |
-| Y16  | Real-world cmake rewrite                | z3 / llvm / torch builds in yelu, prove structural equivalence |
-| Y17  | Types on yelu_tiny                      | Post-retirement: fresh typing pass over tiny once yelu1↔cmake / yelu2↔yelu1 are stable |
+| ID  | Title                          | Description                                                          |
+| --- | ------------------------------ | -------------------------------------------------------------------- |
+| Y6  | Semantics hardest to preserve  | Genex, policy stack, find_package search.                            |
+| Y7  | Cache-sensitivity annotations  | `Cache_breaking | Cache_safe | Cache_partial`.                       |
+| Y11 | Policy-aware compiler          | Auto-emit policy preamble per construct.                             |
+| Y13 | Persistent value primitive     | `@cached` with content-addressed store.                              |
+| Y14 | Reserved keyword validation    | Enumerate cmake keywords, warn on clashes.                           |
+| Y15 | Binding feature library        | Design space (lexical/global, mutable/immutable, expr/stmt).         |
+| Y16 | Real-world cmake hand-rewrite  | z3 / llvm / torch builds in yelu, prove structural equivalence.      |
+| Y17 | Types on yelu_cmake            | Fresh typing pass over post-retirement IR (replaces retired per-fragment `Stage_typecheck`). |
 
-### Research (likely papers/material)
+### Research (likely papers / material)
 
-| ID   | Title                                   | Description                                  |
-| ---- | --------------------------------------- | -------------------------------------------- |
-| Y3   | Z3 symbolic equivalence                 | Prove equivalence for all boolean-option inputs |
-| Y4   | E-graph investigation                   | Equality saturation over state-transformers  |
-| Y8   | Multi-stage core                        | Quote/splice staging across compile/configure |
-
-## Next Steps (suggested order)
-
-1. **CI** — lowest effort, prevents silent regressions. One workflow file.
-2. **Name binding** — completes `Stage_typecheck` milestone. ~200 lines, clear interface.
-3. **Parser** — Menhir grammar design exists. Makes yelu a standalone language.
-4. **Design queue** — Y6, Y7, Y11, Y14: design passes before touching code.
+| ID  | Title                   | Description                                          |
+| --- | ----------------------- | ---------------------------------------------------- |
+| Y3  | Z3 symbolic equivalence | Prove equivalence for all boolean-option inputs.     |
+| Y4  | E-graph investigation   | Equality saturation over state-transformers.         |
+| Y8  | Multi-stage core        | Quote/splice staging across compile/configure.       |
 
 ## Documentation Map
 
-| File                            | Purpose                                          |
-| ------------------------------- | ------------------------------------------------ |
-| `yelu_lang_design.md`           | Language design: staging, types, surface syntax  |
-| `yelu_typed_design.md`          | Type system, compositional checking architecture |
-| `yelu_lang_coverage.md`         | cmake command coverage, 4-tier roadmap           |
-| `yelu_concrete_syntax_parser.md`| Menhir grammar design for concrete syntax        |
-| `cmake/comparison.md`           | cmake PL properties, equivalence levels          |
-| `cmake/painpoints.md`           | 27 documented cmake pain points                  |
-| `cmake/policy.md`               | cmake policy system, CMP* history                |
-| `cmake/genex.md`                | Generator expressions design                     |
-| `cmake/script.md`               | cmake -P script vs configure mode                |
-| `cmake/cache_semantics.md`      | Cache vs normal variable namespace               |
-| `cmake/scope_and_control_flow.md` | block / return / PARENT_SCOPE / macro          |
-| `cmake/equiv_research.md`       | Z3 / e-graph equivalence research prompts        |
-| `yelu_cmake/design.md`          | yelu_cmake harness design notes                  |
-| `yelu_cmake/structure.md`       | yelu_cmake module guide                          |
-| `yelu_cmake/status.md`          | yelu_cmake current open work                     |
-| `yelu_cmake/bar3_lite.md`       | Bar #3-lite audit-ready report (z3 + llvm round-trip; per-parser contract sheet) |
-| `yelu_beyond.md`                | Multi-pack architecture, AI language stacks      |
-| `yelu_research_framing.md`      | Benchmark design, contamination-aware eval       |
-| `yelu_infra_test.md`            | Test harness, dune aliases, gotchas              |
-| `worklog/worklog_2026_04.md`    | Completed items (Y1, Y9, Y10)                    |
-| `worklog/worklog_2026_05.md`    | yelu_cmake harness Tier A–F + retirement archive |
+| File                                       | Purpose                                                            |
+| ------------------------------------------ | ------------------------------------------------------------------ |
+| `yelu_manifesto.md`                        | Project manifesto: thesis, falsifiability, layered argument.       |
+| `yelu_research_framing.md`                 | Benchmark design, contamination-aware eval (distilled framing).    |
+| `yelu_beyond.md`                           | Multi-pack architecture, AI language stacks (speculative, 中文).   |
+| `yelu_infra_test.md`                       | Test harness, dune aliases, gotchas.                               |
+| `yelu_lang_design.md`                      | Language design: staging, types, surface syntax.                   |
+| `yelu_lang_coverage.md`                    | cmake command coverage tracker.                                    |
+| `yelu_typed_design.md`                     | Type system design space (deferred; Y17 substrate).                |
+| `yelu_syntax_tiers.md`                     | Concrete syntax tier plan.                                         |
+| `yelu_concrete_syntax_parser.md`           | Implemented parser (Angstrom + pure OCaml).                        |
+| `yelu_cmake/design.md`                     | Durable design notes for the yelu_cmake harness.                   |
+| `yelu_cmake/structure.md`                  | Code-anchored guide to the yelu_cmake modules.                     |
+| `yelu_cmake/status.md`                     | Living tracker for current open work (IR cleanup, Y17, E2, etc.).  |
+| `yelu_cmake/bar3_lite.md`                  | Bar #3-lite audit-ready report + per-parser contract sheet.        |
+| `yelu_theory/plan.md`                      | Theory-fragment structural split plan.                             |
+| `yelu_boolean_and_theories.md`             | Post-mortem of the `yelu_cond` / `yelu_expr` merge; design conclusions. |
+| `extensible_expr_design.md`                | Original framing of the extensible-expression problem.             |
+| `cmake/painpoints.md`                      | 27 documented cmake pain points.                                   |
+| `cmake/comparison.md`                      | cmake PL properties, equivalence levels.                           |
+| `cmake/policy.md`                          | cmake policy system, CMP* history.                                 |
+| `cmake/genex.md`                           | Generator expressions design.                                      |
+| `cmake/script.md`                          | cmake -P script vs configure mode.                                 |
+| `cmake/cache_semantics.md`                 | Cache vs normal variable namespace.                                |
+| `cmake/scope_and_control_flow.md`          | Block / return / PARENT_SCOPE / macro semantics.                   |
+| `cmake/equiv_research.md`                  | Z3 / e-graph equivalence research prompts.                         |
+| `worklog/worklog_2026_04.md`               | Completed items (Y1, Y9, Y10).                                     |
+| `worklog/worklog_2026_05.md`               | yelu_cmake harness Tier A–F + retirement + Bar #3-lite archive.    |
+
+> A doc-reorg commit will move language docs into `doc/lang/`,
+> framing docs into `doc/research/`, and the two theory-architecture
+> docs (`yelu_boolean_and_theories.md`, `extensible_expr_design.md`)
+> into `doc/yelu_theory/`. This table will be updated in that commit.
