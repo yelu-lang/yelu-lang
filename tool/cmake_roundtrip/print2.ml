@@ -1069,9 +1069,10 @@ let indent depth = String.make (depth * 2) ' '
 (* Generic call-by-name. Route un-modeled commands through the real
    [Lang_cmake.Apply] constructor and the production [Lang_cmake_pp]
    Apply printer so the generic path exercises the same IR shape as
-   modeled commands. [Lang_cmake_pp] uses [Fmt.sp] soft breaks, but
-   [pp_exp_to_string] sets margin/max-indent to 1M so they never
-   fire — output is single-line `name(a1 a2 ...)\n`. *)
+   modeled commands. [pp_exp_to_string] sets margin/max-indent high to
+   avoid incidental wrapping where the printer permits it, but the
+   production Apply printer may still choose a multi-line layout for
+   some argument-list shapes. *)
 let untyped_emit (c : cmd) : string =
   let args = List.map c.args ~f:arg_of_raw in
   pp_exp_to_string (L.Apply { name = c.name; args })

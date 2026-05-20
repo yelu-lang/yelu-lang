@@ -6,6 +6,9 @@
 > and code-quality reviewers.
 >
 > Companion documents:
+> [`bar3_lite_audit_kit.md`](bar3_lite_audit_kit.md) — per-parser
+> contract sheet + paste-ready audit-prompt template + reproducer
+> recipe;
 > [`bar3_feasibility.md`](bar3_feasibility.md) — feasibility study
 > and historical stage-by-stage results;
 > [`status.md`](status.md) — living tracker;
@@ -89,7 +92,7 @@ Definitions (no ratio is reported — see § 5):
   `Find_package`, …).
 - **generic** — command constructed as `Lang_cmake.Apply { name;
   args }` and reprinted via the production `Lang_cmake_pp` Apply
-  arm (single-line `name(a1 a2 …)` under the 1M margin setting).
+  arm.
 - **other** — one per block wrapper node
   (`if_condition`/`foreach_loop`/`while_loop`/`function_def`/
   `macro_def`/`block_def`) + one per raw passthrough chunk
@@ -103,6 +106,10 @@ Definitions (no ratio is reported — see § 5):
 ### 3.1 Running locally
 
 ```sh
+# If using the project-local Python tool env, put it first so
+# python3 can import tree_sitter / tree_sitter_cmake and gersemi is found.
+export PATH=/home/red/.venvs/default/bin:$PATH
+
 # Build
 dune build tool/cmake_roundtrip/print2.exe
 
@@ -253,6 +260,31 @@ one bracket-argument. `parse.py` detects this (root has-error AND
 every child is ERROR) and emits the file as a single `Raw` node,
 which `print2.ml` reprints verbatim. So `.cmake.in` files do not
 hit the PARSE bucket — they pass as OK with `other > 0`.
+
+Targeted regression probes for the Appendix A fixes:
+
+```sh
+# Build the round-trip driver first.
+export PATH=/home/red/.venvs/default/bin:$PATH
+dune build tool/cmake_roundtrip/print2.exe
+
+# 1. STRUCT extractor includes direct block-head/tail args.
+#    The file should report OK, not hide `endforeach(x)`'s argument.
+d=$(mktemp -d)
+printf 'foreach(x a)\nendforeach(x)\n' > "$d/CMakeLists.txt"
+bash tool/cmake_roundtrip/test_corpus.sh "$d"
+
+# 2. Gersemi pre-flight check fails hard before the corpus loop.
+GERSEMI=/does/not/exist bash tool/cmake_roundtrip/test_corpus.sh "$d"
+# expected: FATAL ... and exit status 2
+
+# 3. Generic calls route through Lang_cmake.Apply and count generic=1.
+printf 'project(P)\nmy_project_macro("x" y)\n' > "$d/CMakeLists.txt"
+python3 tool/cmake_roundtrip/parse.py "$d/CMakeLists.txt" \
+  | STAGE2_COVERAGE=1 _build/default/tool/cmake_roundtrip/print2.exe \
+    >/tmp/yelu_bar3_probe.cmake
+# expected stderr: modeled=1 generic=1 other=0
+```
 
 ## 4. Architecture
 
@@ -645,12 +677,12 @@ oracle would have passed spuriously.
 `Lang_cmake.Apply { name; args }` value and emits via the
 production `Lang_cmake_pp` Apply printer (rather than a bespoke
 string concatenation). The wrapper `pp_exp_to_string` sets
-`max_indent`/`margin` to 1M so `Fmt.sp` soft breaks never fire;
-output is single-line `name(a1 a2 …)\n`. The text emitted is
-byte-identical to the previous `print_stage1_cmd`-based output on
-the three corpora (729/729 still OK), but the generic path now
-exercises the same IR shape and printer as modeled commands,
-which makes the "Apply bucket" framing accurate.
+`max_indent`/`margin` high to avoid incidental wrapping where the
+printer permits it, but the production Apply arm may still choose a
+multi-line layout in some shapes. The three corpora remain 729/729
+OK, and the generic path now exercises the same IR shape and
+printer as modeled commands, which makes the "Apply bucket"
+framing accurate.
 
 ### B4. `other` bucket and print2.ml header — fixed
 
@@ -688,4 +720,3 @@ blocking the audit claim.
   rewrite, `count_coverage` doc-comment rewrite.
 - This document — § 3 bucket definitions, § 4 data flow, § 5
   Class A wording; Appendix B added.
-
