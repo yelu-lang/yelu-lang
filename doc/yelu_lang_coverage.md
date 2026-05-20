@@ -1,12 +1,22 @@
 # Yelu Language Coverage Plan
 
+> **Snapshot note (2026-05-20).** The detailed test-suite tables
+> below were maintained during the cmake 3.28 → 4.3 transition and
+> the pre-retirement IR era. They remain accurate as a **coverage
+> map** — what test directories are tractable, which commands hit
+> which testing level, what is blocked on `cmake_policy` (Y11) —
+> but specific test counts and "X / Y done" numbers may lag the
+> code by a few weeks. See `yelu_project_overview.md` for current
+> per-suite totals (~1,010 unit tests; 729/729 Bar #3-lite round-
+> trip; 50/50 `make runcmake-yelu`; etc.).
+
 ## Current State
 
 Runtime: cmake 4.3.1 (`/usr/bin/cmake`, Kitware apt).
 
 | Axis                      | Metric                                     | Done               | Ceiling   | Notes                                                                                     |
 | ------------------------- | ------------------------------------------ | ------------------ | --------- | ----------------------------------------------------------------------------------------- |
-| **Test depth**            | text unit tests                            | 266 (72+194)       | unbounded | cmake PP (72) + yelu compile (194)                                                        |
+| **Test depth**            | text unit tests                            | ~1,010             | unbounded | full `dune test` total; pre-retirement number was 266 (72+194) |
 | **Test depth**            | script compat tests                        | 64 / ~67           | ~67       | cmake 4.3 unblocked GET, newline, RegexEmptyMatch, KnownComponents                        |
 | **Test depth**            | script-pair tests                          | 50 / ~65           | ~65       | 12 command groups; remaining gaps blocked                                                 |
 | **Test depth**            | configure tests                            | 23 / ~30           | ~30       | Properties, try_compile, FetchContent, export                                             |
@@ -121,12 +131,12 @@ Unlocks: CMP0186 (regex empty match), CMP0140 (`return(PROPAGATE)`), CMP0124 (`f
 
 Pipeline layers and checkpoints:
 
-| Column        | File                                    | What "✓" means                                        |
-| ------------- | --------------------------------------- | ----------------------------------------------------- |
-| **cmake AST** | `lang_cmake.ml`                         | Typed constructor exists with all fields (not a stub) |
-| **utils**     | `lang_cmake_utils.ml`                   | Ergonomic constructor with optional-argument defaults |
-| **yelu AST**  | `lang_yelu.ml` + `lang_yelu_compile.ml` | Typed yelu node + type-erasing compile case           |
-| **tests**     | see level key below                     | Highest testing level reached                         |
+| Column        | File                                                      | What "✓" means                                        |
+| ------------- | --------------------------------------------------------- | ----------------------------------------------------- |
+| **cmake AST** | `src/langs/cmake/lang_cmake.ml`                           | Typed constructor exists with all fields (not a stub) |
+| **utils**     | `src/langs/cmake/lang_cmake_utils.ml`                     | Ergonomic constructor with optional-argument defaults |
+| **yelu AST**  | `src/langs/yelu/yelu_cmake.ml` + `src/langs/yelu/yelu_cmake_emit.ml` | Typed yelu node + emit case (pre-retirement: `lang_yelu.ml` + `lang_yelu_compile.ml`) |
+| **tests**     | see level key below                                       | Highest testing level reached                         |
 
 Testing levels — see [`cmake/comparison.md`](cmake/comparison.md) for full definitions and PL vocabulary.
 
