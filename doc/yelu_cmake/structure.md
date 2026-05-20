@@ -305,9 +305,9 @@ identical text against the legacy compile output.
 - `retirement_plan.md` — record of how we got here + remaining
   retirement items (F, final E) + post-retirement design queue.
 - `status.md` — living tracker for current work.
-- `../worklog_2026_05.md` — chronological history of the harness
-  (uses older "Yelu1 / Yelu2 / yelu_tiny" vocabulary; left as
-  historical record).
+- `../worklog/worklog_2026_05.md` — chronological history of the
+  harness (uses older "Yelu1 / Yelu2 / yelu_tiny" vocabulary; left
+  as historical record).
 - `../cmake/scope_and_control_flow.md` — frame-stack design, 26
   probes.
 - `../cmake/cache_semantics.md` — cache namespace deferred behavior.

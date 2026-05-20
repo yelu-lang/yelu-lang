@@ -154,12 +154,14 @@ Total unit: 655. Total cmake-backed: 40.
 | `doc/yelu_beyond.md`                 | Multi-pack architecture, AI language stacks         |
 | `doc/yelu_research_framing.md`       | Benchmark design, contamination-aware eval          |
 | `doc/yelu_infra_test.md`             | Test harness, dune aliases, gotchas                 |
-| `doc/worklog_2026_04.md`             | Completed items (Y1, Y9, Y10)                       |
-| `doc/worklog_2026_05.md`             | yelu_tiny harness Tier A–F (Bar #1 + Bar #2)        |
+| `doc/worklog/worklog_2026_04.md`     | Completed items (Y1, Y9, Y10)                       |
+| `doc/worklog/worklog_2026_05.md`     | yelu_cmake harness Tier A–F + retirement archive    |
 | `doc/yelu_cmake/design.md`            | Durable design notes for the yelu_cmake harness     |
 | `doc/yelu_cmake/structure.md`         | Code-anchored guide to the yelu_cmake modules       |
 | `doc/yelu_cmake/status.md`            | Living tracker: current open work for yelu_cmake    |
-| `doc/yelu_cmake/retirement_plan.md`   | Two-phase plan for moving production off yelu_cmake |
+| `doc/yelu_cmake/retirement_plan.md`   | yelu_legacy retirement record (E1 done; E2 + Y17 remaining) |
+| `doc/yelu_cmake/bar3_lite_report.md`  | Bar #3-lite audit-ready report (z3 + llvm round-trip) |
+| `doc/yelu_cmake/bar3_lite_audit_kit.md` | Per-parser contract sheet + audit prompt template |
 
 ## Architecture
 
@@ -189,7 +191,7 @@ Yelu2 = tiny core + idealized theories) and bridges from production
 `yelu_cmake` AST → Yelu1 → cmake. Each fragment provides a matched
 `yelu_theory_*` / `yelu_surface_cmake_*` pair. As of 2026-05-10:
 v1 step1–step12 all bridge through tiny; six configure through real cmake.
-Details in `doc/worklog_2026_05.md` and `THEORY_COMPOSITION_PLAN.md`.
+Details in `doc/worklog/worklog_2026_05.md` and `THEORY_COMPOSITION_PLAN.md`.
 
 ### Type system (key types in `lang_yelu_cmake.ml`)
 
@@ -232,7 +234,7 @@ See [doc/yelu_typed_design.md](doc/yelu_typed_design.md) for the full design.
 
 ## Current State
 
-> Session history → [doc/worklog_2026_04.md](doc/worklog_2026_04.md).
+> Session history → [doc/worklog/worklog_2026_04.md](doc/worklog/worklog_2026_04.md).
 > Full audit → [doc/yelu_project_overview.md](doc/yelu_project_overview.md).
 
 Key milestones: wellform pass (Y1), parser + concrete syntax (in progress), 408 tests.
@@ -300,7 +302,7 @@ Numbers are stable (never renumbered). Priority order tracks `yelu_project_overv
 
 ### Done
 
-Y1, Y9, Y10 — see `doc/worklog_2026_04.md`.
+Y1, Y9, Y10 — see `doc/worklog/worklog_2026_04.md`.
 
 ---
 

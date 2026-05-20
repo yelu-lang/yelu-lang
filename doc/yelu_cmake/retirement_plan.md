@@ -28,8 +28,8 @@ sibling tree.
 
 Detailed retirement journey — Phase 1, Phase 2a, 2c, items A,
 B, C, D, E-lite, E-utils, G, F, E1 — lives in
-[`../worklog_2026_05.md`](../worklog_2026_05.md) under the
-"Retirement (May 11 — May 14)" section. Each item was a
+[`../worklog/worklog_2026_05.md`](../worklog/worklog_2026_05.md)
+under the "Retirement (May 11 — May 14)" section. Each item was a
 PR-sized transition; the worklog captures what landed, in what
 commit, and why.
 

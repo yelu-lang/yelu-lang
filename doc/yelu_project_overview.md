@@ -80,7 +80,7 @@ Milestone status (as of 2026-05-10):
 - **Bar #2 — every production theory has at least a first slice** ✅ all 14.
 - **Bar #3 — real-world cmake rewrites (z3, llvm, torch)** ⏳ not started.
 
-Full implementation history → `doc/worklog_2026_05.md`.
+Full implementation history → `doc/worklog/worklog_2026_05.md`.
 Current TODO → `doc/yelu_cmake/status.md`.
 
 ## Current State
@@ -202,10 +202,14 @@ Current TODO → `doc/yelu_cmake/status.md`.
 | `cmake/cache_semantics.md`      | Cache vs normal variable namespace               |
 | `cmake/scope_and_control_flow.md` | block / return / PARENT_SCOPE / macro          |
 | `cmake/equiv_research.md`       | Z3 / e-graph equivalence research prompts        |
-| `yelu_tiny/design.md`           | yelu_tiny harness design notes                   |
-| `yelu_tiny/structure.md`        | yelu_tiny module guide                           |
-| `yelu_tiny/status.md`           | yelu_tiny current open work                      |
+| `yelu_cmake/design.md`          | yelu_cmake harness design notes                  |
+| `yelu_cmake/structure.md`       | yelu_cmake module guide                          |
+| `yelu_cmake/status.md`          | yelu_cmake current open work                     |
+| `yelu_cmake/retirement_plan.md` | yelu_legacy retirement record (E1 done; E2 + Y17 remaining) |
+| `yelu_cmake/bar3_lite_report.md` | Bar #3-lite audit-ready report (z3 + llvm round-trip) |
+| `yelu_cmake/bar3_lite_audit_kit.md` | Per-parser contract sheet + audit prompt template |
 | `yelu_beyond.md`                | Multi-pack architecture, AI language stacks      |
 | `yelu_research_framing.md`      | Benchmark design, contamination-aware eval       |
 | `yelu_infra_test.md`            | Test harness, dune aliases, gotchas              |
-| `worklog_2026_04.md`            | Completed items (Y1, Y9, Y10)                    |
+| `worklog/worklog_2026_04.md`    | Completed items (Y1, Y9, Y10)                    |
+| `worklog/worklog_2026_05.md`    | yelu_cmake harness Tier A–F + retirement archive |

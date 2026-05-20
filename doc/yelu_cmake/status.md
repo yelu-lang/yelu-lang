@@ -2,8 +2,8 @@
 
 Living tracker. Strip and update freely; durable design is in
 `design.md`, code-anchored module guide in `structure.md`,
-chronological history in `../worklog_2026_05.md` (includes the
-retirement archive).
+chronological history in `../worklog/worklog_2026_05.md` (includes
+the retirement archive).
 
 ## Current state (2026-05-14)
 
@@ -61,6 +61,16 @@ full cmake surface. E1 left these as either `failwith` (helper
 refuses to emit) or accept-and-discard (helper emits cmake that
 ignores the unmodeled option). Pinned by
 `test/test-yelu/test_yelu_utils_stubs.ml`.
+
+The Bar #3-lite round-trip work surfaced a parallel list of
+**printer-side lossy fields** — places where the IR carries data
+the printer drops or where the printer emits a shape the IR can't
+faithfully ingest. See `bar3_lite_audit_kit.md` § 5 (per-parser
+contract sheet) for the current catalogue. The two sets overlap
+(`add_executable` options, `add_dependencies` single dep,
+`Cmake_minimum_required.max`, `set_property`, `get_property`,
+`execute_process`, several `file` subcommands) and would be
+closed by the same upcoming IR-printer cleanup pass.
 
 - **String-comparison conds beyond equality** — `STRLESS` /
   `STRGREATER` / `STRLESS_EQUAL` / `STRGREATER_EQUAL`. IR has
