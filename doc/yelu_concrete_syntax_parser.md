@@ -1,8 +1,10 @@
 # Yelu Concrete Syntax — Parser
 
-> Status: **Implemented** (2026-05-04). Two-pass architecture: Angstrom lexer
-> produces `token list`, pure OCaml parser over tokens. 18 parser tests, 15 lexer
-> tests, all 357 project tests pass.
+> Status: **Implemented** (2026-05-04; renamed to `yelu_lexer.ml` /
+> `yelu_parse.ml` during retirement, 2026-05-14). Two-pass architecture:
+> Angstrom lexer produces `token list`, pure OCaml parser over tokens.
+> Now part of the production path; integrated into `dune test` (~1,010
+> unit tests pass).
 
 ## Architecture
 
@@ -11,16 +13,16 @@ input string
     │
     ▼
 ┌──────────────────┐
-│  Angstrom lexer  │  lang_yelu_lexer.ml  (~160 lines)
+│  Angstrom lexer  │  yelu_lexer.ml  (~160 lines)
 │  char → tokens   │  scannerless, whitespace + comment skipping
 └──────┬───────────┘
        │ token list
        ▼
 ┌──────────────────┐
-│  Pure OCaml      │  lang_yelu_parse.ml  (~350 lines)
+│  Pure OCaml      │  yelu_parse.ml  (~350 lines)
 │  token parser    │  no Angstrom, no backtracking issues
 └──────┬───────────┘
-       │ yelu_stmt AST
+       │ yelu_cmake.expr AST
        ▼
    (compile / check)
 ```
@@ -38,10 +40,10 @@ consuming it.
 
 | File | Lines | Purpose |
 |---|---|---|
-| `src/langs/yelu/lang_yelu_lexer.ml` | ~160 | Token type, Angstrom lexer, whitespace/comment handling |
-| `src/langs/yelu/lang_yelu_parse.ml` | ~350 | Pure OCaml parser over token list, statement/expression/condition parsing |
-| `test/test-yelu/test_yelu_lexer.ml` | ~80 | 15 lexer tests |
-| `test/test-yelu/test_yelu_parse.ml` | ~80 | 18 parser tests |
+| `src/langs/yelu/yelu_lexer.ml` | ~160 | Token type, Angstrom lexer, whitespace/comment handling |
+| `src/langs/yelu/yelu_parse.ml` | ~350 | Pure OCaml parser over token list, statement/expression/condition parsing |
+| `test/test-yelu/test_yelu_lexer.ml` | ~80 | lexer tests |
+| `test/test-yelu/test_yelu_cmake_parse.ml` | — | parser tests + pair-wise oracle vs legacy parser |
 
 ## Token type
 

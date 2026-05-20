@@ -1,10 +1,13 @@
 # Yelu Typed AST — Design Space
 
-> Status: **Deferred, design settled.** AST has stabilized (group
-> restructuring complete, April 2026). Preferred direction: first-class
-> types as AST data, gradual static→dynamic spectrum, per-theory
-> isolation before integration. Implementation begins when a concrete
-> research question requires it.
+> Status: **Deferred, design settled.** Group restructuring complete
+> April 2026; retirement to `yelu_cmake` / `yelu_cmake_normal`
+> complete May 2026 (E1 in `worklog/worklog_2026_05.md`). Preferred
+> direction: first-class types as AST data, gradual static→dynamic
+> spectrum, per-theory isolation before integration. Implementation
+> begins under Y17 ("Types on yelu_cmake") when a concrete research
+> question requires it. Theory-fragment structural prerequisites
+> tracked in [`yelu_theory/plan.md`](yelu_theory/plan.md).
 
 ## Why deferred
 
@@ -18,10 +21,10 @@ sharpen the edges but aren't prerequisites.
 
 ## Rejected options
 
-**(a) Typed smart constructors only** — helpers in `lang_yelu_utils.ml`
-carry rich OCaml types, AST stays untyped. The constraint dies at the
-helper boundary; downstream consumers of `yelu_exp` can't tell what a
-node was supposed to be. Useful as a tactical addition; not a type
+**(a) Typed smart constructors only** — helpers (in
+`yelu_cmake_utils.ml` today) carry rich OCaml types, AST stays
+untyped. The constraint dies at the helper boundary; downstream
+consumers of the expr type can't tell what a node was supposed to be. Useful as a tactical addition; not a type
 system.
 
 **(b) GADT-encoded AST with OCaml-level type parameters** — e.g.
@@ -282,7 +285,9 @@ closer to `check`-level value-shape typing (`math → Ty_int`); deeper semantics
 opaque. May be refactored when we work through it — `execute_process` is
 arguably closer to Level 1 than to `message`/`include_guard`.
 
-**Level 3 — Generator expressions** (`yelu_genex` in `lang_yelu_cmake`):
+**Level 3 — Generator expressions** (currently flow as opaque
+`EString` via `Ycs_eval` in `yelu_cmake`; a dedicated `genex`
+fragment is deferred — see `yelu_cmake/status.md` "Deferred"):
 Generator expressions are cmake's embedded *functional* sublanguage — composed
 at configure-time, evaluated lazily at build-time. They are structurally
 different from both Level 1 and Level 2: pure, applicative, no side effects,

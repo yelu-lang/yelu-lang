@@ -1,5 +1,13 @@
 # Design problem: extensible expression types in a theory-based language
 
+> Originally drafted in the legacy IR era (`lang_yelu_*` modules in
+> `src/langs/yelu_legacy/`). The architectural question carries
+> forward unchanged into the post-retirement `yelu_cmake` /
+> `yelu_cmake_normal` IR: extensible expression types is still the
+> open design question, and informs Y17. The code snippets below use
+> the legacy names for historical fidelity; see `yelu_theory/plan.md`
+> for the current structural-split plan that addresses parts of this.
+
 **Context.** I'm building yelu, a programmable configuration shell language with a
 two-layer architecture: a *control side* (binding, branching, iteration) and
 *theories* (domain-specific operations over typed namespaces). The first pack
@@ -7,11 +15,11 @@ targets cmake and has 14 theories: var, target, string, path, file, list, find,
 install, test, try, cond, dir, property, cmake_op.
 
 Each theory is an OCaml functor pair `Make_*_op(T) / Make_*_check(T)` over a
-shared `LANG_TYPES` substrate. The pack (`lang_yelu_cmake.ml`) instantiates all
-14 and composes the top-level statement sum type `yelu_stmt`.
+shared `LANG_TYPES` substrate. The pack (`lang_yelu_cmake.ml` in the legacy IR)
+instantiates all 14 and composes the top-level statement sum type `yelu_stmt`.
 
 ```ocaml
-(* In lang_yelu_cmake.ml *)
+(* In lang_yelu_cmake.ml — legacy IR *)
 type yelu_stmt =
   | Ys_string of yelu_string_stmt   (* string theory *)
   | Ys_list of yelu_list_stmt       (* list theory *)

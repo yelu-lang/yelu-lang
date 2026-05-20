@@ -47,7 +47,7 @@ distinction dissolves — both satisfy the same structural contract:
 - Semantics: an interpreter or compiler to a target language
 
 A compound language (`cmake-pack`) is just a language that `include`s several
-fragments at its substrate. A fragment (`lang_yelu_cond`, `lang_yelu_genex`) is
+fragments at its substrate. A fragment (e.g. `yelu_cmake_if`, `yelu_cmake_string`) is
 a language with a restricted domain. From the outside — from the perspective of
 a type checker, an interpreter, or a user — they are indistinguishable in kind.
 

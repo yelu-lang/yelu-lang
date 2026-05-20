@@ -1,8 +1,15 @@
 # Boolean expressions and theories — design discussion
 
-> Status: analysis done, implementation deferred. The current code works (382 tests)
-> but the `yelu_cond` merge into `yelu_expr` was architectural overreach.
-> This doc captures the conclusions for the next attempt.
+> Status: analysis done, implementation deferred. Captures the
+> conclusions for a future Y17 ("Types on yelu_cmake") substrate.
+>
+> Originally written 2026-05-06 against the pre-retirement IR; the
+> `yelu_cond` / `yelu_expr` merge analyzed here lives in
+> `src/langs/yelu_legacy/` post-retirement (May 2026). The design
+> conclusions inform how the bool/cond/equality theories should
+> structure in the post-retirement `yelu_cmake` /
+> `yelu_cmake_normal` IR; the test counts cited below are
+> historical snapshots, not current numbers.
 
 ## The problem
 

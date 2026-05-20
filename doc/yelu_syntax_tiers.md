@@ -1,7 +1,7 @@
 # Yelu-Cmake Concrete Syntax — Complete Design & Tiers
 
 Concrete syntax names are derived 1:1 from the OCaml DSL in
-`lang_yelu_utils.ml`. Drop the `yc_`/`ys_`/`yl_`/`yf_`/`yp_`/`yd_`/`yr_`
+`yelu_cmake_utils.ml`. Drop the `yc_`/`ys_`/`yl_`/`yf_`/`yp_`/`yd_`/`yr_`
 prefix; use space-separated args and `~label:value` / `~flag` for labeled args.
 
 ## Tier 0 — Core (done, 35 tests)
