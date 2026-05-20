@@ -9,8 +9,6 @@
 > [`bar3_lite_audit_kit.md`](bar3_lite_audit_kit.md) — per-parser
 > contract sheet + paste-ready audit-prompt template + reproducer
 > recipe;
-> [`bar3_feasibility.md`](bar3_feasibility.md) — feasibility study
-> and historical stage-by-stage results;
 > [`status.md`](status.md) — living tracker;
 > [`../../tool/cmake_roundtrip/README.md`](../../tool/cmake_roundtrip/README.md)
 > — tool-level quickstart.
@@ -376,14 +374,31 @@ contributing to the `generic` count. They are not a
 modeling gap; they are correctly never modeled by
 `Lang_cmake.exp`, which is by design an IR for cmake **builtins**.
 
-A planned Phase 1 (function-name table + a `resolved` accounting
-bucket) and Phase 2 (actual dynamic dispatch resolution: macro
-substitution + function-scope modeling + include-graph
-resolution) are **deferred**. They are scaffolding for
-behavior-level analyses (semantic equivalence, type checking
-across user functions, etc.) that belong in a later milestone.
-See [`bar3_feasibility.md`](bar3_feasibility.md) § Class A for
-the two-phase sketch.
+A planned **two-phase Class A** is **deferred** as it inherently
+steps into cmake configure-time behavior (function/macro dispatch
+modeling), and belongs alongside the test-infra design conversation
+for behavior-level oracles rather than as a parser-only patch.
+Recorded for future reference:
+
+- **Phase 1 — function-aware accounting (cheap, no semantics).**
+  Single pass over the corpus collects every
+  `function(<name> <params>...)` / `macro(<name> <params>...)`
+  definition and the file it appears in. Stage-2 parse then tags
+  Apply calls whose name resolves against the table as `resolved`
+  (corpus-defined) vs `external` (truly unknown). New coverage
+  bucket between `modeled` and `generic`. The round-trip oracle
+  is unchanged (the reprint text doesn't depend on the tag);
+  only the tally becomes more honest.
+- **Phase 2 — dynamic dispatch resolution (semantic, expensive).**
+  Given a call site like `z3_add_component(api)`, resolve to the
+  function body and either inline-substitute (macro semantics) or
+  push a scope with bound parameters (function semantics) for
+  further analysis. Blockers worth flagging in advance: conditional
+  `include()` (def-use depends on cmake state), dynamic
+  `CMAKE_MODULE_PATH`, macro vs function scope semantics (incl.
+  PARENT_SCOPE), generator-expression delay until generate time.
+  This is the dynamic-semantics step where behavior-level oracles
+  become useful.
 
 ### Why no `modeled / (modeled + generic)` ratio
 
@@ -507,9 +522,9 @@ Items an external code reviewer should examine.
 - **`parse.py` is the only Python in the project.** A Python
   dependency for the OCaml round-trip is awkward. The
   alternative is `ocaml-tree-sitter` bindings (pure OCaml
-  runtime), which we considered and deferred to avoid the
-  bindings-build complexity. See
-  [`bar3_feasibility.md`](bar3_feasibility.md) § "Option B".
+  runtime), considered and deferred to avoid the
+  bindings-build complexity. If the Python dependency becomes
+  load-bearing, revisit.
 - **Corpus locations are hard-coded** in shell commands (this
   document and the README list absolute paths under
   `/home/red/code/contrib/`). Reproducing on another machine

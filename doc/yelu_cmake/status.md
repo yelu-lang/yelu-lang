@@ -126,16 +126,17 @@ In order of value:
 
 - **Bar #3-lite — syntactic round-trip.** *Stages 1 / 2 / 2-b / 2-c
   shipped; audit-ready.* STRUCT=0 / FORMAT=0 across tutorial
-  (25/25), z3 (108/108), llvm (596/596). Modeled-builtin counts:
-  tutorial 165, z3 1,057, llvm 3,573. Three documents:
+  (25/25), z3 (108/108 — modeled 1,056 / generic 707), llvm
+  (596/596 — modeled 3,572 / generic 2,610). Two documents:
   - [`bar3_lite_report.md`](bar3_lite_report.md) — self-contained
     audit-ready writeup (claim, oracles, results, code-quality
-    posture).
+    posture). § 5 contains the deferred Class A two-phase plan
+    (function-name table → resolved bucket → dynamic dispatch
+    resolution).
   - [`bar3_lite_audit_kit.md`](bar3_lite_audit_kit.md) — per-parser
     contract sheet + paste-ready audit prompt template + reproducer
-    recipe, for delegating a deeper per-parser correctness review.
-  - [`bar3_feasibility.md`](bar3_feasibility.md) — feasibility
-    study, stage-by-stage history, deferred Class A plan.
+    recipe. Appendix records the 2026-05-20 external review +
+    eight resolved findings.
 - **Bar #3 — real-world cmake.** Rewrite z3 / llvm / torch
   builds in `yelu_cmake`, prove structural equivalence with the
   original CMakeLists. Not started; the manifesto-level "does

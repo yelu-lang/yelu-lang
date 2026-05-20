@@ -22,9 +22,9 @@
 >    actually correspond to what the source meant. **STRUCT can
 >    pass while typed meaning is misclassified** (e.g. an option
 >    keyword dumped into the sources list of `Add_executable`).
->    This is the major audit lesson — see
->    [`bar3_lite_audit_review.md`](bar3_lite_audit_review.md) for
->    concrete examples that motivated the dual axis.
+>    This is the major audit lesson — see the Appendix at the end
+>    of this document for the concrete examples (2026-05-20 review)
+>    that motivated the dual axis.
 
 ## 1. How to use this kit
 
@@ -709,10 +709,9 @@ cleaned up, both the contract sheet here and the report's § 3 +
 
 ## Appendix. Audit-kit review 2026-05-20
 
-The first external review of this kit
-([`bar3_lite_audit_review.md`](bar3_lite_audit_review.md)) surfaced
-several real bugs and process gaps. All findings were verified
-empirically and addressed before the second-round audit. Summary:
+The first external review of this kit (2026-05-20) surfaced several
+real bugs and process gaps. All findings were verified empirically
+and addressed before the next audit round. Summary:
 
 | # | finding | severity | resolution |
 | -: | --- | --- | --- |

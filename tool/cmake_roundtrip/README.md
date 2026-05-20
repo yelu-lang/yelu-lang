@@ -5,8 +5,10 @@ via tree-sitter-cmake, reprints it through `Lang_cmake.exp` +
 `Lang_cmake_pp` (production yelu IR), and verifies tree-sitter
 re-extracts the same `(command_name, args)` sequence on both sides.
 
-The manifesto-level framing lives in
-`doc/yelu_cmake/bar3_feasibility.md` (Bar #3-lite).
+The audit-ready writeup lives in
+[`doc/yelu_cmake/bar3_lite_report.md`](../../doc/yelu_cmake/bar3_lite_report.md);
+per-parser contracts + audit prompt template are in
+[`doc/yelu_cmake/bar3_lite_audit_kit.md`](../../doc/yelu_cmake/bar3_lite_audit_kit.md).
 
 ## Pipeline
 
@@ -89,7 +91,8 @@ override via `GERSEMI=/path/to/gersemi`.
 
 Builtins deliberately routed to `Apply` because the production
 printer in `Lang_cmake_pp` is lossy or shape inversion is brittle
-for a parser-only patch (full list in `bar3_feasibility.md`):
+for a parser-only patch (per-parser detail in
+[`doc/yelu_cmake/bar3_lite_audit_kit.md`](../../doc/yelu_cmake/bar3_lite_audit_kit.md) § 5):
 
 - `set_property` / `get_property` — printer drops most IR fields
 - `execute_process` — multi-line keyword shape, hard to invert safely
@@ -112,13 +115,14 @@ verbatim.
 Whether `yelu_cmake` / `yelu_cmake_normal` should carry comments
 as AST metadata is a separate, deferred design question.
 
-## Next: Class A resolution
+## Class A resolution (deferred)
 
 Calls into project-defined `function()` / `macro()` bodies
 (`z3_add_component`, `tablegen`, the `add_llvm_*` family,
 `CheckXxx` standard-module helpers) round-trip correctly today
-but stay in the `generic` bucket. The next milestone is a
-corpus-level pass that collects function/macro definitions across
-all `.cmake` files and tags Apply calls as `resolved` (known
-project-defined) vs `external` (truly unknown). See the Class A
-section in `bar3_feasibility.md`.
+through `Lang_cmake.Apply` and stay in the `generic` bucket. A
+two-phase plan (corpus-wide function-name table, then dynamic
+dispatch resolution) is deferred — it steps into cmake
+configure-time behavior and belongs alongside behavior-level
+oracles rather than as a parser-only patch. See
+[`doc/yelu_cmake/bar3_lite_report.md`](../../doc/yelu_cmake/bar3_lite_report.md) § 5.
