@@ -4,13 +4,27 @@
 > establishes the claim, oracle, and current results; this document is
 > the surface a reviewer attacks the **per-parser contracts**.
 >
-> **Scope.** 32 modeled cmake builtins in
-> [`tool/cmake_roundtrip/print2.ml`](../../tool/cmake_roundtrip/print2.ml).
-> Each parser maps a Stage-1 untyped command into a `Lang_cmake.exp`
-> constructor, then `Lang_cmake_pp` reprints. The parser is correct
-> iff every accept-set input round-trips byte-faithfully through the
-> typed path, AND every bail-set input correctly returns `None` so
-> the generic `Lang_cmake.Apply` fallback can preserve it verbatim.
+> **Scope.** 30 cmake builtins modeled in
+> [`tool/cmake_roundtrip/print2.ml`](../../tool/cmake_roundtrip/print2.ml),
+> dispatched in `parse_cmd` (some via shared helpers like
+> `parse_find_var_names` which backs both `find_program` and
+> `find_path`). Each parser maps a Stage-1 untyped command into a
+> `Lang_cmake.exp` constructor, then `Lang_cmake_pp` reprints.
+>
+> A parser is correct iff:
+>
+> 1. **STRUCT preservation** — every accept-set input round-trips
+>    such that tree-sitter re-extracts the same `(name, args)`
+>    sequence; every bail-set input takes the generic
+>    `Lang_cmake.Apply` path and preserves the sequence.
+> 2. **Typed-IR classification** — for accept-set inputs, the
+>    chosen `Lang_cmake.exp` constructor and field assignments
+>    actually correspond to what the source meant. **STRUCT can
+>    pass while typed meaning is misclassified** (e.g. an option
+>    keyword dumped into the sources list of `Add_executable`).
+>    This is the major audit lesson — see
+>    [`bar3_lite_audit_review.md`](bar3_lite_audit_review.md) for
+>    concrete examples that motivated the dual axis.
 
 ## 1. How to use this kit
 
@@ -39,13 +53,18 @@ read prompt (§ 3) → pick parsers (or all) → for each:
 ## 2. Vocabulary
 
 - **Accept set.** Inputs the parser maps to `Some Lang_cmake.exp e`.
-  Each must satisfy: `tree_sitter(print(e)) ⊇ tree_sitter(input)` at
-  the command/arg sequence level (STRUCT oracle), and ideally
-  `parse(print(e)) = Some e'` with `e ≡ e'` (round-trip fixpoint).
+  Each must satisfy: `tree_sitter(print(e)) = tree_sitter(input)` at
+  the command/arg sequence level (STRUCT oracle), AND the chosen
+  `e` correctly classifies the source semantics (typed-IR check —
+  no keyword tokens dropped into the wrong field, no silently
+  discarded sub-clauses).
 - **Bail set.** Inputs the parser returns `None` on. Each must
-  satisfy: `tree_sitter(Apply_print(input)) = tree_sitter(input)` —
-  i.e. the generic fallback (`Lang_cmake.Apply { name; args }` +
-  `Lang_cmake_pp.Apply` arm) round-trips it byte-faithfully.
+  satisfy: the generic fallback (`Lang_cmake.Apply { name; args }`
+  emitted via the production `Lang_cmake_pp` Apply arm) is
+  **STRUCT-faithful** — tree-sitter re-extracts the same
+  `(name, args)` sequence. It is **not** byte-faithful: the
+  production printer may choose a multi-line layout for some
+  argument lists.
 - **Accept-set hole.** An input in the accept set whose typed path
   loses information or reorders args — i.e. the parser should have
   bailed but didn't. Severity: **major** (the STRUCT oracle could
@@ -110,6 +129,11 @@ placeholders with the scope of work.
 Build once:
 
 ```sh
+# The project's tree-sitter / tree-sitter-cmake / gersemi live in a
+# project-local venv. Put it on PATH so `python3` can import the
+# tree-sitter bindings and the harness can find gersemi.
+export PATH=/home/red/.venvs/default/bin:$PATH
+
 dune build tool/cmake_roundtrip/print2.exe
 ```
 
@@ -150,13 +174,18 @@ bash tool/cmake_roundtrip/test_corpus.sh /path/to/corpus
 
 ## 5. Parser contract sheet
 
-Coverage by stage (32 parsers total):
+Coverage by stage (30 dispatched commands, 15 + 8 + 7):
 
 | stage | count | parsers |
 | --- | ---: | --- |
 | original Stage 2 | 15 | `cmake_minimum_required`, `project`, `set`, `message`, `configure_file`, `add_executable`, `add_library`, `target_link_libraries`, `target_include_directories`, `target_compile_definitions`, `target_compile_options`, `target_compile_features`, `option`, `include`, `add_subdirectory` |
 | Stage 2-b | 8 | `unset`, `add_dependencies`, `find_package`, `get_filename_component`, `set_target_properties`, `add_custom_target`, `list`, `string` |
-| Stage 2-c | 9 | `return`, `include_directories`, `find_program`, `find_path`, `install`, `add_custom_command`, `file` |
+| Stage 2-c | 7 | `return`, `include_directories`, `find_program`, `find_path`, `install`, `add_custom_command`, `file` |
+
+(Helper functions like `parse_find_var_names` back two dispatched
+commands; subcommand dispatchers like `parse_list` / `parse_string`
+/ `parse_file` enumerate many cmake subcommands within a single
+dispatched name.)
 
 Conventions:
 
@@ -172,16 +201,19 @@ Conventions:
 - **Printer arm**: [`lang_cmake_pp.ml:781`](../../src/langs/cmake/lang_cmake_pp.ml#L781)
 - **Accepts**:
   - `cmake_minimum_required(VERSION <ver>)` with `<ver>` matching
-    `MAJ[.MIN[.PATCH]]` (numeric, dot-separated).
+    `MAJ[.MIN[.PATCH]]` (numeric, dot-separated, no `...` range).
 - **Bails on**:
   - Non-numeric `<ver>` (e.g. `${VAR}`) — `version_of_string_opt`
-    returns `None`. Bails to Apply.
-  - `... VERSION <min>...<max>` with explicit max — IR drops `max`
-    in the printer (`max = _`), so any non-`None` max would lose
-    information.
+    returns `None`.
+  - **Range form `<min>...<max>`** — the printer drops `max`
+    (`max = _` at `lang_cmake_pp.ml:781`), so a typed round-trip
+    would silently lose the upper bound. **Parser now detects
+    `...` in version and bails** (was previously an accept-set
+    hole; fixed 2026-05-20, commit `<TBD>`).
   - Trailing `FATAL_ERROR` / other tokens — not in IR.
 - **Known gaps**: IR's `max : version option` is dead from the
-  printer's perspective. Could be removed or wired up.
+  printer's perspective. Either wire it up in the printer or
+  remove it from the IR.
 
 ### 5.2 project
 
@@ -190,15 +222,24 @@ Conventions:
 - **Printer arm**: [`lang_cmake_pp.ml:966`](../../src/langs/cmake/lang_cmake_pp.ml#L966)
 - **Accepts**:
   - `project(<name>)`
-  - `project(<name> [VERSION <ver>] [DESCRIPTION <s>] [HOMEPAGE_URL <s>]
-    [LANGUAGES <lang>...])`
+  - `project(<name> [VERSION <ver>] [LANGUAGES <lang>...])`
   - VERSION must match numeric `MAJ[.MIN[.PATCH]]`.
 - **Bails on**:
   - Non-numeric VERSION (e.g. `${Z3_VERSION_FROM_FILE}`).
+  - **`DESCRIPTION <s>` and `HOMEPAGE_URL <s>`** — IR has these
+    fields but the printer always quotes them (`pp_string_quoted`),
+    so a source `DESCRIPTION desc` would re-emit as
+    `DESCRIPTION "desc"` and `arg_of_raw` would classify those as
+    different `arg` shapes (Bare vs Quoted). Bail until the
+    printer's quoting policy is reconciled with bare-source
+    inputs. (Was previously an accept-set hole that silently
+    dropped both fields; fixed 2026-05-20.)
   - Unknown keyword (e.g. `META_LICENSES`).
-- **Known gaps**: Quoting on DESCRIPTION / HOMEPAGE_URL flows
-  through `string` IR slots — quoting preserved by `arg_of_raw`
-  but encoded as the same shape on reprint; verify.
+- **Known gaps**: LANGUAGES previously round-tripped reversed
+  due to a double-reverse bug in `split_keywords` — `langs` was
+  built forward and then `List.rev`'d at the return. Fixed
+  2026-05-20: LANGUAGES is consumed as the remaining-tokens
+  list and returned in source order.
 
 ### 5.3 set
 
@@ -257,15 +298,22 @@ Conventions:
 - **IR ctor**: [`Add_executable` at `lang_cmake.ml:682`](../../src/langs/cmake/lang_cmake.ml#L682)
 - **Printer arm**: [`lang_cmake_pp.ml:975`](../../src/langs/cmake/lang_cmake_pp.ml#L975)
 - **Accepts**:
-  - `add_executable(<name> [WIN32] [MACOSX_BUNDLE] [EXCLUDE_FROM_ALL]
-    <src>...)`
+  - `add_executable(<name> <src>...)` — no option keywords.
 - **Bails on**:
+  - **`WIN32` / `MACOSX_BUNDLE` / `EXCLUDE_FROM_ALL` tokens
+    anywhere in the arg list** — the IR has an `options` field
+    for these but the parser does not currently populate it.
+    Without bailing, these tokens would be misclassified as
+    sources (typed-IR bug even though STRUCT preserves). Fixed
+    2026-05-20: parser bails when any reserved keyword is
+    present.
   - `add_executable(<name> IMPORTED [GLOBAL])` — separate
-    `Add_executable_imported` ctor.
+    `Add_executable_imported` ctor (also bailed via keyword set).
   - `add_executable(<name> ALIAS <target>)` — separate
-    `Add_executable_alias` ctor.
-- **Known gaps**: imported / alias forms have IR ctors but no
-  parser; mechanically addable.
+    `Add_executable_alias` ctor (also bailed via keyword set).
+- **Known gaps**: imported / alias / option forms have IR ctors
+  (and `Ae_win32` / `Ae_macos_bundle` option variants) but no
+  parser populates them; mechanically addable.
 
 ### 5.7 add_library
 
@@ -289,13 +337,19 @@ Conventions:
 - **Printer arm**: [`lang_cmake_pp.ml:1034`](../../src/langs/cmake/lang_cmake_pp.ml#L1034)
 - **Accepts**:
   - `target_link_libraries(<target> [PRIVATE|PUBLIC|INTERFACE] <lib>...)`
-    with explicit visibility keyword.
+    with at least one visibility keyword.
+  - **Mixed visibility groups**:
+    `target_link_libraries(t PRIVATE a PUBLIC b)`. The printer
+    emits each group as `KIND items` in order via
+    `pp_args_with_kind`, so the round-trip is STRUCT-faithful.
+    (Audit-review correction: an earlier contract row claimed
+    mixed groups bailed; they do not. Verified 2026-05-20.)
 - **Bails on**:
   - Plain (legacy) form `target_link_libraries(<target> <lib>...)`
-    without visibility — `parse_target_*` previously injected
-    `PRIVATE` and lost the form; now bails.
-  - Mixed visibility groups across multiple keywords.
-- **Known gaps**: plain form is byte-faithful via Apply, but
+    without any visibility — printer always emits a kind keyword,
+    so a defaulted `PRIVATE` would inject one the source didn't
+    have.
+- **Known gaps**: plain form is STRUCT-faithful via Apply, but
   loses typed access to the link graph.
 
 ### 5.9 target_include_directories
@@ -615,13 +669,19 @@ When an IR/printer bug is fixed downstream:
 When acting on an audit finding:
 
 ```sh
-# 1. Reproducer must fail on main before the fix
-git checkout main -- tool/cmake_roundtrip/print2.ml
+export PATH=/home/red/.venvs/default/bin:$PATH
+
+# 1. Reproducer must fail on main before the fix. Use a
+#    non-destructive baseline extraction (do NOT `git checkout
+#    main -- file` — that overwrites the working tree).
+git show main:tool/cmake_roundtrip/print2.ml > /tmp/print2.main.ml
+#    Optionally build the main-baseline binary in a worktree or
+#    a throwaway branch if you need to run it end-to-end.
 echo '<reproducer>' | python3 tool/cmake_roundtrip/parse.py - \
   | _build/default/tool/cmake_roundtrip/print2.exe
-# Confirm: STRUCT-style divergence visible.
+# Confirm: STRUCT or typed-IR divergence visible.
 
-# 2. Apply the fix; reproducer should now pass.
+# 2. Apply the fix; reproducer should now behave correctly.
 
 # 3. Full-corpus regression — must not increase STRUCT or PARSE.
 for c in /home/red/code/contrib/cmake-all/cmake/Tests/Tutorial \
@@ -630,10 +690,14 @@ for c in /home/red/code/contrib/cmake-all/cmake/Tests/Tutorial \
   bash tool/cmake_roundtrip/test_corpus.sh "$c" | tail -8
 done
 
-# 4. Coverage tally — modeled count should not decrease
-#    (a parser fix typically moves shapes from bail to accept,
-#    increasing modeled). If it decreases, the fix tightened a
-#    bail-set overreach — fine, but document it.
+# 4. Coverage tally. A parser fix that closes an accept-set
+#    hole typically MOVES shapes from `modeled` into `generic`
+#    (e.g. cmake_minimum_required range form, project DESCRIPTION,
+#    add_executable WIN32 — all moved from modeled to generic on
+#    2026-05-20). That is a CORRECTION, not a regression. A fix
+#    that closes a bail-set overreach instead moves shapes
+#    from `generic` into `modeled`. Either direction is fine
+#    as long as the move is documented in the contract row.
 ```
 
 ---
@@ -642,3 +706,40 @@ This kit is the bridge between the claim-level audit (the report)
 and per-parser correctness review. As parsers are added or IR is
 cleaned up, both the contract sheet here and the report's § 3 +
 § 4 should be kept in sync.
+
+## Appendix. Audit-kit review 2026-05-20
+
+The first external review of this kit
+([`bar3_lite_audit_review.md`](bar3_lite_audit_review.md)) surfaced
+several real bugs and process gaps. All findings were verified
+empirically and addressed before the second-round audit. Summary:
+
+| # | finding | severity | resolution |
+| -: | --- | --- | --- |
+| 1 | Stage table counts inconsistent (32 vs 30 dispatched; 2-c was 9 but had 7 names) | major | Stage table corrected; helper/dispatcher relationship documented in § 5 prelude |
+| 2 | `cmake_minimum_required` accepted `<min>...<max>`; printer drops max (accept-set hole) | major | Parser detects `...` and bails; § 5.1 row updated |
+| 3 | `project` silently dropped DESCRIPTION / HOMEPAGE_URL; LANGUAGES emitted reversed | major | Parser now bails on DESCRIPTION/HOMEPAGE_URL; LANGUAGES ordering bug (double-reverse) fixed; § 5.2 row updated |
+| 4 | `add_executable` put `WIN32`/`MACOSX_BUNDLE`/`EXCLUDE_FROM_ALL` into the sources list (typed-IR misclassification under STRUCT pass) | major | Parser now bails when any reserved option keyword is present; § 5.6 row updated. **This is the canonical example of "STRUCT pass ≠ typed correctness"** and motivated the dual-axis review framing in § 1 and § 2 |
+| 5 | `target_link_libraries` mixed visibility groups round-trip correctly; contract row was wrong | medium | § 5.8 row corrected — mixed groups are an accept-set member, not a bail condition |
+| 6 | Reproducer commands assumed `python3` had tree-sitter installed | medium | All reproducers prefixed with `export PATH=/home/red/.venvs/default/bin:$PATH` |
+| 7 | "Byte-faithful Apply" framing was too strong (production Apply printer can emit multi-line) | medium | Replaced with "STRUCT-faithful" in § 2 vocabulary and elsewhere |
+| 8 | Pre-commit recipe used destructive `git checkout main -- file` | nit / process | Replaced with non-mutating `git show main:file > /tmp/...` in § 7 |
+
+**Corpus impact of the parser tightenings.** Tutorial 25/25 OK
+unchanged; z3 108/108 OK with `modeled` 1057 → 1056 / `generic`
+706 → 707 (one shape moved); llvm 596/596 OK with `modeled` 3573 →
+3572 / `generic` 2609 → 2610 (one shape moved). All three corpora
+remain STRUCT=0 / FORMAT=0. The tiny modeled-count drops reflect
+the dual-axis correction: those shapes now route through
+`Lang_cmake.Apply` (STRUCT-faithful, accurate typed classification)
+instead of misclassifying into the typed IR.
+
+**The major lesson.** Until this audit, the kit conflated STRUCT
+preservation with typed-IR classification. STRUCT only checks that
+tree-sitter re-extracts the same `(name, args)` sequence — it does
+not check that an accepted command was put in the *right*
+`Lang_cmake.exp` shape. `add_executable WIN32 main.c` round-trips
+STRUCT-perfectly with `WIN32` in `sources` instead of `options`;
+the bug is invisible to the round-trip oracle but real for any
+downstream consumer that reads the typed IR. Future audits must
+score both axes explicitly.

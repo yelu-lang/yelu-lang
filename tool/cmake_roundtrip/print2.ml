@@ -212,43 +212,35 @@ let parse_cmake_minimum_required args : L.exp option =
   else
   match args with
   | [ "VERSION"; v ] ->
-    let min_s, max_s =
-      match String.substr_index v ~pattern:"..." with
-      | None -> (v, None)
-      | Some i ->
-        let lo = String.sub v ~pos:0 ~len:i in
-        let hi = String.sub v ~pos:(i + 3) ~len:(String.length v - i - 3) in
-        (lo, Some hi)
-    in
-    (match version_of_string_opt min_s with
-     | None -> None
-     | Some min ->
-       let max =
-         match max_s with
-         | None -> Some None
-         | Some s ->
-           (match version_of_string_opt s with
-            | None -> None | Some v -> Some (Some v))
-       in
-       (match max with
-        | None -> None
-        | Some max ->
-          Some (Cmake_cmd (Cmake_minimum_required { min; max }))))
+    (* `<min>...<max>` range form: bail. The IR carries [max] but the
+       printer drops it (`max = _` at lang_cmake_pp.ml:781), so a typed
+       round-trip would silently lose the upper bound. *)
+    if String.is_substring v ~substring:"..." then None
+    else (match version_of_string_opt v with
+      | None -> None
+      | Some min ->
+        Some (Cmake_cmd (Cmake_minimum_required { min; max = None })))
   | _ -> None
 
-(* project(<name> [VERSION <v>] [LANGUAGES <langs>]) *)
+(* project(<name> [VERSION <v>] [LANGUAGES <langs>]).
+   The IR also carries DESCRIPTION / HOMEPAGE_URL, but the printer
+   always quotes them (`pp_string_quoted`). Since `arg_of_raw` would
+   classify a bare token as `Bare` and a quoted token as `Quoted`,
+   re-emitting a source `DESCRIPTION desc` as `DESCRIPTION "desc"`
+   would change the argument shape under STRUCT extraction. Bail
+   on any DESCRIPTION / HOMEPAGE_URL until the printer is fixed. *)
 let parse_project args : L.exp option =
-  (* All slots map to [string]; bail on any quoting. *)
   if not (all_bare args) then None
+  else if List.exists args ~f:(fun a ->
+    String.equal a "DESCRIPTION" || String.equal a "HOMEPAGE_URL")
+  then None
   else
   let rec split_keywords acc_name version langs = function
-    | [] -> Some (acc_name, version, List.rev langs)
+    | [] -> Some (acc_name, version, langs)
     | "VERSION" :: v :: rest -> split_keywords acc_name (Some v) langs rest
     | "LANGUAGES" :: rest ->
-      let langs = List.rev_append (List.rev rest) langs in
-      Some (acc_name, version, List.rev langs)
-    | "DESCRIPTION" :: _ :: rest | "HOMEPAGE_URL" :: _ :: rest ->
-      split_keywords acc_name version langs rest
+      (* All remaining tokens are languages, in source order. *)
+      Some (acc_name, version, rest)
     | name :: rest when String.is_empty acc_name ->
       split_keywords name version langs rest
     | _ -> None
@@ -349,16 +341,23 @@ let parse_configure_file args : L.exp option =
                  newline_style = None }))
   | _ -> None
 
-(* add_executable(<name> <sources>...) — only the regular form; aliases
-   and imported go through a separate ctor. name/sources are typed
-   [string]; bail if any arg is quoted to preserve source form. *)
+(* add_executable(<name> <sources>...) — only the regular form with no
+   option keywords. The IR carries an [options] field for WIN32 /
+   MACOSX_BUNDLE / EXCLUDE_FROM_ALL etc., but this parser does not
+   populate it — it would silently put those keywords into [sources],
+   misclassifying the typed IR. Bail when any reserved option token
+   is present; let the generic Apply path preserve the form. *)
+let add_executable_option_keywords =
+  [ "WIN32"; "MACOSX_BUNDLE"; "EXCLUDE_FROM_ALL";
+    "ALIAS"; "IMPORTED"; "GLOBAL" ]
+
 let parse_add_executable args : L.exp option =
   if not (all_bare args) then None
   else
   match args with
   | name :: sources when not (List.is_empty sources) ->
     if List.exists sources ~f:(fun s ->
-        List.mem [ "ALIAS"; "IMPORTED" ] s ~equal:String.equal)
+        List.mem add_executable_option_keywords s ~equal:String.equal)
     then None
     else
       Some (Project_cmd
