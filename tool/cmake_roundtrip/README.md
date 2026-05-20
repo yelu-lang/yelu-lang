@@ -5,10 +5,9 @@ via tree-sitter-cmake, reprints it through `Lang_cmake.exp` +
 `Lang_cmake_pp` (production yelu IR), and verifies tree-sitter
 re-extracts the same `(command_name, args)` sequence on both sides.
 
-The audit-ready writeup lives in
-[`doc/yelu_cmake/bar3_lite_report.md`](../../doc/yelu_cmake/bar3_lite_report.md);
-per-parser contracts + audit prompt template are in
-[`doc/yelu_cmake/bar3_lite_audit_kit.md`](../../doc/yelu_cmake/bar3_lite_audit_kit.md).
+The audit-ready writeup (claim, oracles, per-parser contract
+sheet, code-quality posture) is at
+[`doc/yelu_cmake/bar3_lite.md`](../../doc/yelu_cmake/bar3_lite.md).
 
 ## Pipeline
 
@@ -92,7 +91,7 @@ override via `GERSEMI=/path/to/gersemi`.
 Builtins deliberately routed to `Apply` because the production
 printer in `Lang_cmake_pp` is lossy or shape inversion is brittle
 for a parser-only patch (per-parser detail in
-[`doc/yelu_cmake/bar3_lite_audit_kit.md`](../../doc/yelu_cmake/bar3_lite_audit_kit.md) § 5):
+[`doc/yelu_cmake/bar3_lite.md`](../../doc/yelu_cmake/bar3_lite.md) § 8):
 
 - `set_property` / `get_property` — printer drops most IR fields
 - `execute_process` — multi-line keyword shape, hard to invert safely
@@ -125,4 +124,4 @@ two-phase plan (corpus-wide function-name table, then dynamic
 dispatch resolution) is deferred — it steps into cmake
 configure-time behavior and belongs alongside behavior-level
 oracles rather than as a parser-only patch. See
-[`doc/yelu_cmake/bar3_lite_report.md`](../../doc/yelu_cmake/bar3_lite_report.md) § 5.
+[`doc/yelu_cmake/bar3_lite.md`](../../doc/yelu_cmake/bar3_lite.md) § 6.

@@ -249,6 +249,147 @@ fixes produce visible test diffs.
 
 ---
 
+## Bar #3-lite — syntactic cmake round-trip (May 15 — May 20)
+
+The Bar #3-lite milestone built a tree-sitter-based round-trip
+oracle for real-world cmake source, exercising the production
+`Lang_cmake.exp` IR + `Lang_cmake_pp` printer end to end. Audit-
+ready state lives at `doc/yelu_cmake/bar3_lite.md`; this section
+is the chronological record.
+
+### Stages
+
+| stage | commit | what landed |
+| --- | --- | --- |
+| Stage 1 | `730bb56` | Untyped tree-sitter round-trip; CST-JSON via Python wrapper; verbatim reprint. |
+| `.cmake.in` fallback | `e86d64c` | ERROR-root templates passed through as raw text. |
+| Stage 2 | `56f01c2` | Typed mapping into `Lang_cmake.exp` via per-command parsers + production printer. |
+| IR fix #1 | `13d813c` | `Include.no_policy_scope`: `scope option` → `bool`. |
+| Comments + casing | `c52b782` | Comment preservation; lowercase guard in dispatch. |
+| Apply fallthrough | `46eea0c` | Generic-bucket routing through `Lang_cmake.Apply` + first batch of structural bug fixes. |
+| IR fixes #2-4 | `6a6295a` | `Configure_file @ONLY/ESCAPE_QUOTES` cross-swap; `Include.result_var` keyword emission; `pp_arg.Bracket` newline stripping. |
+| IR fix #5 | `91cb43e` | `Lang_cmake.arg.Bracket` widened to `int * string`. |
+| FORMAT closed | `155e8e3` | All 729 files OK across tutorial + z3 + llvm. |
+| Stage 2-b | `7c1d8a9` | 8 mechanical typed parsers (`unset`, `add_dependencies`, `find_package`, `get_filename_component`, `set_target_properties`, `add_custom_target`, `list`, `string`). |
+| Stage 2-c | `3217f9b` | 7 more typed parsers (`return`, `include_directories`, `find_program`, `find_path`, `install`, `add_custom_command`, `file` subcommands). |
+| Terminology | `5ef9eb9` | `typed` → `modeled`; dropped the misleading ratio. |
+| Audit pass | `b9a4c38` | Deleted dead `print.ml`; refreshed README + headers. |
+
+### Production IR bugs surfaced
+
+Five bugs in the production IR + printer that the synthetic
+tutorial corpus did not exercise — caught only by running the
+round-trip on z3 and especially llvm:
+
+1. `Include.no_policy_scope` typed as `scope option` (irrelevant
+   enum); cmake's `NO_POLICY_SCOPE` is a boolean flag. (`13d813c`)
+2. `Configure_file` flags `@ONLY` and `ESCAPE_QUOTES` wired to
+   wrong fields in the printer (cross-swap). (`6a6295a`)
+3. `Include.result_var` printed without the `RESULT_VARIABLE`
+   keyword. (`6a6295a`)
+4. `pp_arg.Bracket` added surrounding newlines around content.
+   (`6a6295a`)
+5. `Lang_cmake.arg.Bracket of string` lost the bracket-quote level
+   (`[==[…]==]` vs `[=[…]=]`). Widened to `Bracket of int * string`.
+   (`91cb43e`)
+
+### Codex audit 2026-05-19 (audit-ready report review)
+
+External review of the report doc raised four findings, all
+addressed in commit `f931086`:
+
+1. STRUCT extractor in `test_corpus.sh` only collected `argument`
+   children inside `argument_list`. Block heads/tails (e.g.
+   `endforeach(x)`) can expose `argument` directly on the
+   command node. Could silently mask STRUCT failures. Fixed.
+2. No gersemi pre-flight check — a missing/broken formatter
+   would make both `ref` and `got` empty and FORMAT would pass
+   spuriously. Hard `--version` probe + executable check added.
+3. `untyped_emit` constructed `name(args)` via string
+   concatenation, not via real `Lang_cmake.Apply`. Rerouted
+   through the real ctor + production printer.
+4. `other` bucket counter incremented once per `Block` wrapper
+   plus raw/unknown — comment misdescribed it as "block
+   heads/tails". Corrected.
+
+### Codex audit 2026-05-20 (audit-kit review)
+
+Second-round external review surfaced parser-side accept-set
+holes that the kit's own discipline said shouldn't exist, plus
+process gaps in the kit. All resolved in commit `db83c7e`:
+
+1. **Parser bug**: `cmake_minimum_required` accepted `<min>...<max>`
+   but printer drops `max`. Parser now detects `...` and bails.
+2. **Parser bug**: `project` silently dropped DESCRIPTION /
+   HOMEPAGE_URL; LANGUAGES emitted reversed due to a
+   double-reverse in `split_keywords`. Bail on DESC/HU; LANG
+   ordering fixed.
+3. **Parser bug (typed-IR misclassification)**: `add_executable`
+   put `WIN32`/`MACOSX_BUNDLE`/`EXCLUDE_FROM_ALL` into the
+   `sources` field — STRUCT-faithful but the typed IR was wrong.
+   Parser now bails on any reserved option keyword. **Canonical
+   example of "STRUCT pass ≠ typed correctness"** — motivated
+   the dual-axis review framing in the kit.
+4. Stage table count inconsistency; reproducers missing the venv
+   PATH; "byte-faithful Apply" overclaim; destructive `git
+   checkout main -- file` in pre-commit recipe;
+   `target_link_libraries` mixed-visibility groups contract row
+   was wrong (they round-trip correctly). All corrected.
+
+Corpus impact: tutorial 25/25 unchanged; z3 108/108 OK,
+modeled 1057→1056, generic 706→707; llvm 596/596 OK,
+modeled 3573→3572, generic 2609→2610. Both corpora still
+STRUCT=0 / FORMAT=0. The −1 modeled drops are the dual-axis
+correction landing.
+
+### Doc consolidation
+
+Bar #3-lite produced four overlapping docs during the build:
+`bar3_feasibility.md`, `bar3_lite_report.md`,
+`bar3_lite_audit_kit.md`, `bar3_lite_audit_review.md`. Collapsed
+in two passes to a single durable doc `bar3_lite.md` (commit
+`d63d7dc` + this commit), with audit history archived to this
+worklog section.
+
+### Final state
+
+| corpus | files | OK | FORMAT | STRUCT | PARSE | modeled | generic |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| tutorial step outputs | 25 | 25 | 0 | 0 | 0 | 165 | 25 |
+| z3 | 108 | 108 | 0 | 0 | 0 | 1,056 | 707 |
+| llvm/llvm | 596 | 596 | 0 | 0 | 0 | 3,572 | 2,610 |
+
+30 cmake builtins modeled in `tool/cmake_roundtrip/print2.ml`.
+Audit-ready writeup at `doc/yelu_cmake/bar3_lite.md`.
+
+### Retirement final state (from the archived retirement_plan.md)
+
+Retirement is complete through E1 (2026-05-14). The doc is now
+folded into this worklog section and into `status.md`:
+
+- `src/langs/yelu/` is the production language. No legacy
+  imports anywhere in `src/` or `test/`.
+- `src/langs/dune` excludes 24 `yelu_legacy/` modules from the
+  `yelu_langs` library via `(modules :standard \ …)`. The
+  modules stay on disk for reference.
+- Production text generation routes through
+  `Yelu_cmake_utils → Yelu_cmake → Yelu_cmake_emit →
+  Lang_cmake_pp`. Pair-wise oracle and byte oracle are retired;
+  byte-equality signal lives on as inline expected strings
+  (frozen during E1) in `test_yelu_compile.ml` and
+  `test_yelu_cmake_parse.ml`.
+
+What remains, tracked in `status.md` "Open work":
+
+- **E2 — delete `yelu_legacy/`.** Mechanical: `git rm -r
+  src/langs/yelu_legacy/`, revert `src/langs/dune` to plain
+  `(include_subdirs unqualified)`, drop the negative module
+  list. Gated on E1 soak time and Y17 not needing legacy as a
+  reference.
+- **Y17 — types on yelu_cmake.** Post-retirement typing pass.
+
+---
+
 ## Linked artifacts
 
 - `doc/yelu_cmake/status.md` — current open work (the slim living tracker).

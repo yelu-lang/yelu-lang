@@ -24,9 +24,11 @@ source.yelu → parse → bridge → Yelu1 → emit_ast → Lang_cmake.exp → c
 with the byte-equality oracle in `test_yelu_compile.ml` asserting every
 program produces byte-identical text against the legacy `Lang_yelu_compile`
 reference. Watch for the `[emit_ast oracle] covered=194 uncovered=0`
-line at the end of `dune test` — any drift is a Phase 1 regression. See
-[doc/yelu_cmake/retirement_plan.md](doc/yelu_cmake/retirement_plan.md) for
-the full happy path + invocation guide.
+line at the end of `dune test` — any drift is a Phase 1 regression. The
+retirement journey is archived in
+[doc/worklog/worklog_2026_05.md](doc/worklog/worklog_2026_05.md);
+[doc/yelu_cmake/status.md](doc/yelu_cmake/status.md) tracks any
+remaining items (E2, Y17).
 
 Make targets (from repo root):
 
@@ -159,9 +161,7 @@ Total unit: 655. Total cmake-backed: 40.
 | `doc/yelu_cmake/design.md`            | Durable design notes for the yelu_cmake harness     |
 | `doc/yelu_cmake/structure.md`         | Code-anchored guide to the yelu_cmake modules       |
 | `doc/yelu_cmake/status.md`            | Living tracker: current open work for yelu_cmake    |
-| `doc/yelu_cmake/retirement_plan.md`   | yelu_legacy retirement record (E1 done; E2 + Y17 remaining) |
-| `doc/yelu_cmake/bar3_lite_report.md`  | Bar #3-lite audit-ready report (z3 + llvm round-trip) |
-| `doc/yelu_cmake/bar3_lite_audit_kit.md` | Per-parser contract sheet + audit prompt template |
+| `doc/yelu_cmake/bar3_lite.md`         | Bar #3-lite audit-ready report (z3 + llvm round-trip; per-parser contract sheet) |
 
 ## Architecture
 

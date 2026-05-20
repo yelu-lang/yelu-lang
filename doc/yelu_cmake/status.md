@@ -2,17 +2,23 @@
 
 Living tracker. Strip and update freely; durable design is in
 `design.md`, code-anchored module guide in `structure.md`,
-chronological history in `../worklog/worklog_2026_05.md` (includes
-the retirement archive).
+chronological history (retirement archive + Bar #3-lite audit
+trail) in `../worklog/worklog_2026_05.md`.
 
-## Current state (2026-05-14)
+## Current state (2026-05-20)
 
-Retirement complete through E1. `src/langs/yelu_legacy/` is on
-disk but excluded from the `yelu_langs` library; no `src/` or
-`test/` file imports it. Production binaries route through
-`Yelu_cmake_utils → Yelu_cmake → Yelu_cmake_emit → Lang_cmake_pp`.
+- Retirement of `src/langs/yelu_legacy/` complete through E1.
+  `src/langs/yelu_legacy/` is on disk but excluded from the
+  `yelu_langs` library; no `src/` or `test/` file imports it.
+  Production binaries route through
+  `Yelu_cmake_utils → Yelu_cmake → Yelu_cmake_emit → Lang_cmake_pp`.
+  Detail in `worklog_2026_05.md` "Retirement (May 11 — May 14)".
+- Bar #3-lite syntactic round-trip shipped through Stage 2-c.
+  STRUCT=0 / FORMAT=0 across tutorial (25/25), z3 (108/108 —
+  modeled 1,056 / generic 707), llvm (596/596 — modeled 3,572 /
+  generic 2,610). Audit-ready at `bar3_lite.md`.
 
-Verification:
+Verification baseline:
 - 1010 unit tests pass
 - 50/50 `make runcmake-yelu`
 - 12/12 `make cmake-only-check`
@@ -22,13 +28,57 @@ Verification:
 
 ## Open work
 
+### IR-printer cleanup (Bar #3-lite follow-up)
+
+The round-trip work surfaced a catalogue of cases where the
+production `Lang_cmake_pp` printer drops, reorders, or
+emits-keyword-the-source-didn't-have. Each forces the
+corresponding `print2.ml` parser to bail to generic Apply
+(STRUCT-faithful but loses typed access). Closing them
+mechanically moves shapes from `generic` into `modeled` and
+makes the IR a closer fit for real-world cmake. Per-parser
+detail in `bar3_lite.md` § 8.
+
+**Tier 1 — quick wins, expected to bump modeled count noticeably.**
+
+| # | command | issue | shape of fix |
+| -: | --- | --- | --- |
+| A1 | `cmake_minimum_required` | `Cmake_minimum_required.max` field exists; printer drops via `max = _` at `lang_cmake_pp.ml:781` | Wire the printer to emit `<min>...<max>` when `max = Some _`. |
+| B1 | `add_dependencies` | `Add_dependencies.dep : depend` single; cmake allows N | Widen to `deps : depend list` in IR + printer + parser. |
+| B2 | `set_target_properties` | `Set_target_properties.target` single; cmake allows N | Widen to `targets : target list`. |
+| C1 | `find_program` / `find_path` | Printer always emits `NAMES` keyword; bare `find_program(VAR name)` form unmodeled | Either skip NAMES when single bare name, or add a flag on the IR. |
+| C2 | `include_directories` | Printer always emits `BEFORE`/`AFTER`/`SYSTEM` prefix | Make printer respect `before_or_after = Default_order` and `system = false` by emitting cleanly. |
+
+**Tier 2 — larger, more design.**
+
+- A2 / A3 `get_property` / `set_property` printer rewrite (the
+  biggest single hit — `set_property` had 105 calls in llvm,
+  all routed to generic today). Printer uses `_` on most IR
+  fields; multi-property calls split into N statements.
+- D1 `execute_process` typed (50 calls in llvm, 31 in z3).
+  Multi-line keyword layout (`\n  COMMAND <args>`); requires
+  modeling several keyword sublists.
+
+**Tier 3 — typed-IR misclassification opportunities.**
+
+- E1 / E2 add_executable / add_library variant parsers
+  (`Add_executable_imported`, `Add_library_alias`, etc. — IR
+  ctors exist but no parser populates them).
+- E3 add_executable `options` (`Ae_win32` / `Ae_macos_bundle`
+  ctors exist; parser currently bails on them).
+- D2 `file READ` / `file STRINGS` (slot order reversed vs source).
+
+**Ordering recommendation:** Tier 1 as five small per-fix commits
+(each with a corpus delta in the commit message). Tier 2 + 3 as
+deeper investments after Tier 1's modeled count delta is visible.
+
 ### E2 — delete yelu_legacy/
 
 Mechanical follow-up to E1: `git rm -r src/langs/yelu_legacy/`,
 revert `src/langs/dune` to plain `(include_subdirs unqualified)`,
 remove the negative-module list. Removes the brittle dune
 exclusion the audit flagged. Gated on:
-- E1 holding green for some soak time (currently 1 day)
+- E1 holding green for some soak time
 - Y17 not needing legacy as a reference (decide as Y17 takes
   shape)
 
@@ -54,7 +104,7 @@ either way; the question is whether forcing the split first
 makes per-theory test isolation and per-theory typing cleaner,
 or whether it's reorganization for its own sake.
 
-## Known IR shape gaps
+## Known IR shape gaps (emit side)
 
 Documented gaps where the IR + `emit_ast` path cannot model the
 full cmake surface. E1 left these as either `failwith` (helper
@@ -62,15 +112,10 @@ refuses to emit) or accept-and-discard (helper emits cmake that
 ignores the unmodeled option). Pinned by
 `test/test-yelu/test_yelu_utils_stubs.ml`.
 
-The Bar #3-lite round-trip work surfaced a parallel list of
-**printer-side lossy fields** — places where the IR carries data
-the printer drops or where the printer emits a shape the IR can't
-faithfully ingest. See `bar3_lite_audit_kit.md` § 5 (per-parser
-contract sheet) for the current catalogue. The two sets overlap
-(`add_executable` options, `add_dependencies` single dep,
-`Cmake_minimum_required.max`, `set_property`, `get_property`,
-`execute_process`, several `file` subcommands) and would be
-closed by the same upcoming IR-printer cleanup pass.
+The Bar #3-lite round-trip surfaced a parallel list of
+printer-side lossy fields (see "Open work — IR-printer cleanup"
+above; per-parser detail in `bar3_lite.md` § 8). The two sets
+overlap and would be closed by the same cleanup pass.
 
 - **String-comparison conds beyond equality** — `STRLESS` /
   `STRGREATER` / `STRLESS_EQUAL` / `STRGREATER_EQUAL`. IR has
@@ -134,19 +179,10 @@ In order of value:
 
 ## Project-level milestones (separate from retirement)
 
-- **Bar #3-lite — syntactic round-trip.** *Stages 1 / 2 / 2-b / 2-c
-  shipped; audit-ready.* STRUCT=0 / FORMAT=0 across tutorial
-  (25/25), z3 (108/108 — modeled 1,056 / generic 707), llvm
-  (596/596 — modeled 3,572 / generic 2,610). Two documents:
-  - [`bar3_lite_report.md`](bar3_lite_report.md) — self-contained
-    audit-ready writeup (claim, oracles, results, code-quality
-    posture). § 5 contains the deferred Class A two-phase plan
-    (function-name table → resolved bucket → dynamic dispatch
-    resolution).
-  - [`bar3_lite_audit_kit.md`](bar3_lite_audit_kit.md) — per-parser
-    contract sheet + paste-ready audit prompt template + reproducer
-    recipe. Appendix records the 2026-05-20 external review +
-    eight resolved findings.
+- **Bar #3-lite — syntactic round-trip.** *Shipped; audit-ready.*
+  See [`bar3_lite.md`](bar3_lite.md) — claim, oracles, results,
+  per-parser contract sheet, code-quality posture, deferred items.
+  History (audits, retirement, stages) in `worklog_2026_05.md`.
 - **Bar #3 — real-world cmake.** Rewrite z3 / llvm / torch
   builds in `yelu_cmake`, prove structural equivalence with the
   original CMakeLists. Not started; the manifesto-level "does

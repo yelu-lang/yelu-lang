@@ -132,10 +132,10 @@ dispatchers.
 
 The helper module reuses `Lang_cmake_strings.of_*` for cmake
 enum→string conversion (`message_mode`, `supported_lang`,
-`compatibility`, etc.). Long-tail post-retirement cleanup is item F
-in retirement_plan: have the parser call these helpers too, so the
-project has one source of truth for "what does this command shape
-become in the IR".
+`compatibility`, etc.). Long-tail post-retirement cleanup
+(tracked in `status.md`): have the parser call these helpers too,
+so the project has one source of truth for "what does this
+command shape become in the IR".
 
 ### `yelu_parse.ml`
 
@@ -302,8 +302,8 @@ identical text against the legacy compile output.
 
 - `design.md` — the *why* behind the two-language model, theory
   invariants, let-binding architecture, F2 function semantics.
-- `retirement_plan.md` — record of how we got here + remaining
-  retirement items (F, final E) + post-retirement design queue.
+- `bar3_lite.md` — Bar #3-lite syntactic round-trip audit
+  (claim, oracles, per-parser contract sheet, code-quality posture).
 - `status.md` — living tracker for current work.
 - `../worklog/worklog_2026_05.md` — chronological history of the
   harness (uses older "Yelu1 / Yelu2 / yelu_tiny" vocabulary; left

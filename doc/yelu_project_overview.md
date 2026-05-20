@@ -205,9 +205,7 @@ Current TODO → `doc/yelu_cmake/status.md`.
 | `yelu_cmake/design.md`          | yelu_cmake harness design notes                  |
 | `yelu_cmake/structure.md`       | yelu_cmake module guide                          |
 | `yelu_cmake/status.md`          | yelu_cmake current open work                     |
-| `yelu_cmake/retirement_plan.md` | yelu_legacy retirement record (E1 done; E2 + Y17 remaining) |
-| `yelu_cmake/bar3_lite_report.md` | Bar #3-lite audit-ready report (z3 + llvm round-trip) |
-| `yelu_cmake/bar3_lite_audit_kit.md` | Per-parser contract sheet + audit prompt template |
+| `yelu_cmake/bar3_lite.md`       | Bar #3-lite audit-ready report (z3 + llvm round-trip; per-parser contract sheet) |
 | `yelu_beyond.md`                | Multi-pack architecture, AI language stacks      |
 | `yelu_research_framing.md`      | Benchmark design, contamination-aware eval       |
 | `yelu_infra_test.md`            | Test harness, dune aliases, gotchas              |

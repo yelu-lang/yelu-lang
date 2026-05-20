@@ -393,7 +393,7 @@ Implemented pieces:
 - semantic Yelu1 lift/lower roundtrip tests
 - semantic equivalence tests comparing final `env` and final `value`
 - tiny CMake script emitter for the Yelu1/CMake-surface subset
-- CMake-backed tests under `test/test-runcmake/test_yelu_tiny_cmake.ml`
+- CMake-backed tests under `test/test-runcmake/test_yelu_cmake.ml`
 - first `yelu_cmake -> Yelu1` bridge slice under
   `src/langs/yelu_tiny/yelu_cmake_to_yelu1.ml`
 - parser-fed bridge tests from existing Yelu source syntax through the old
@@ -945,7 +945,7 @@ tests are formal proof.
 | Track                               | Purpose                                                                                                         | Current Status                                                                                                    | Next Step                                                                                   |
 | ----------------------------------- | --------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
 | Example semantic equivalence        | Check `Yelu1`, `Yelu2`, lift, lower, and roundtrip behavior in the OCaml model                                  | Started: string/store/if examples compare final `env` and `value`                                                 | Add examples as each new theory is introduced                                               |
-| CMake-backed execution equivalence  | Check emitted CMake scripts with real `cmake -P`                                                                | Started: tiny Yelu1 roundtrip and Yelu2 lowering tests under `test/test-runcmake/test_yelu_tiny_cmake.ml`         | Add one CMake-backed case per new CMake surface feature                                     |
+| CMake-backed execution equivalence  | Check emitted CMake scripts with real `cmake -P`                                                                | Started: yelu_cmake roundtrip + yelu_cmake_normal lowering tests under `test/test-runcmake/test_yelu_cmake.ml`     | Add one CMake-backed case per new CMake surface feature                                     |
 | Per-constructor coverage            | Ensure every expression constructor in a theory/surface has semantic and CMake-backed coverage where applicable | Manual only                                                                                                       | Add a small constructor coverage checklist/table before expanding too far                   |
 | Generated/property testing          | Randomly generate small programs and check `eval_yelu1 e == eval_yelu2 (lift e)` and roundtrips                 | Not started                                                                                                       | Add after store/string/if semantics settle; keep generators small and typed-by-construction |
 | Formal/SMT proof                    | Prove preservation for a fixed fragment rather than examples                                                    | Not started                                                                                                       | Consider after tiny core + string + bool/if + store are stable                              |
