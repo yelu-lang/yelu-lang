@@ -57,31 +57,40 @@ The language separates a **universal control side** from target-specific
 macro-programming uniformly across all target packs. It is target-agnostic:
 a future json-pack or nix-pack reuses the same control side.
 
-**The theories** are 14 `Make_*_op` / `Make_*_check` functor pairs, each
-defining typed constructors and checking rules for one cmake command family
-(target, variable, string, path, install, test, …). Theories compose over a
-shared `LANG_TYPES` substrate; the cmake-pack is the integration point where
-all 14 are instantiated against cmake semantics.
+**The theories** are per-domain fragments — one per cmake command family
+(target, variable, string, path, install, test, …) — that each contribute
+constructors, eval arms, and emission arms. Two forms coexist:
+`yelu_cmake_<theory>` (cmake-command-faithful) and
+`yelu_cmake_normal_<theory>` (normalized decomposition), with conversion
+between them in `Yelu_cmake_convert`. The first pack instantiates 14
+cmake-faithful + 16 normalized fragments. A future json-pack or nix-pack
+would reuse the control side and contribute its own theory set.
 
 **Compositional checking** decomposes verification into distinct passes:
 
-| Stage       | What it checks                                       | Status          |
-| ----------- | ---------------------------------------------------- | --------------- |
-| `typecheck` | Expression types: bool where string expected         | 14 theories     |
-| `wellform`  | Name binding: all references resolve to declarations | done            |
-| `effect`    | Execution-mode constraints: what's valid where       | next            |
-| `lower`     | Structural validity during AST → cmake emission      | partial         |
-| `configure` | cmake itself validates the output                    | RunCMake compat |
+| Stage       | What it checks                                       | Status                  |
+| ----------- | ---------------------------------------------------- | ----------------------- |
+| `typecheck` | Expression types: bool where string expected         | retired with E1; Y17 pending |
+| `wellform`  | Name binding: all references resolve to declarations | retired with E1; Y17 pending |
+| `effect`    | Execution-mode constraints: what's valid where       | not started             |
+| `lower`     | Structural validity during AST → cmake emission      | partial                 |
+| `configure` | cmake itself validates the output                    | RunCMake compat (50/50) |
+| `round-trip` | tree-sitter-cmake re-extracts the same arg sequence | Bar #3-lite (729/729)   |
 
-Type checking is per-theory and per-statement (each theory's `Make_*_check`
-functor operates independently). Well-formedness is cross-theory and
-whole-program. The stages compose without a monolithic type checker.
+The earlier per-fragment `Stage_typecheck` + `wellform` passes (legacy
+functor-based implementation) were retired during the May 2026 retirement
+of `src/langs/yelu_legacy/`. The replacement — Y17 ("Types on yelu_cmake")
+— builds on the post-retirement two-language IR and the theory-fragment
+split sketched in [`yelu_theory/plan.md`](yelu_theory/plan.md). The
+syntactic round-trip on real-world cmake is the strongest currently-live
+equivalence oracle.
 
-**Equivalence oracle.** Every yelu program is verified against a reference
-cmake implementation via structural equivalence: the yelu compiler output
-must match the reference `CMakeLists.txt` (modulo canonical formatting).
-The suite covers 108 checks (35 structural + 12 CMakeOnly + 61 RunCMake),
-12 end-to-end tutorial steps, and File API codemodel-v2 JSON diff.
+**Equivalence oracle (current).** Multi-level: structural-equivalence on
+the tutorial corpus (35 cmake-check + 12 CMakeOnly + 12 file-api JSON
+diffs), `cmake -P` observational pairs (50/50 runcmake-yelu + 61 RunCMake
+compat), end-to-end tutorial step1–step12 (generate → configure → build →
+run), and Bar #3-lite syntactic round-trip on z3 + llvm
+(STRUCT=0 / FORMAT=0 across 729 files).
 
 **Current state.** Two-language model (`yelu_cmake` /
 `yelu_cmake_normal`) with 14 cmake-faithful + 16 normalized
@@ -131,7 +140,7 @@ unadorned model consumption, and not for unadorned human authoring.
 3. **Compositionality**: adding a new theory does not require modifying
    existing theories' checkers.
 4. **Generalization**: a second target pack does not require redesigning
-   `LANG_TYPES` or `checking_stage`.
+   the control side or the checker substrate.
 
 The measurement strategy ([research/research_framing.md](research/research_framing.md))
 uses paired oracle-backed benchmarks with contamination-aware evaluation.
