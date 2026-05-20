@@ -368,6 +368,88 @@ configuration generation with verifier feedback. cmake is the first specimen.
   `string/RegexEmptyMatch`, and `get_filename_component KnownComponents`.
 - Remote: `github.com/yelu-lang/yelu-lang`.
 
+## Machine Handoff — Linux → macOS (2026-05-20)
+
+> Active for the half-week the project moves to a macOS workstation.
+> Remove this section when the project moves back to Linux or once
+> the macOS environment is stable.
+
+### Where work left off
+
+- **Bar #3-lite syntactic round-trip on z3 + llvm**: ✅ shipped,
+  audit-ready. STRUCT=0 / FORMAT=0 across 729 files. Writeup at
+  [`doc/yelu_cmake/bar3_lite.md`](doc/yelu_cmake/bar3_lite.md).
+- **Doc cleanup pass**: ✅ done. `doc/` reorganized into `lang/` /
+  `research/` / `yelu_theory/` subdirs; freshness refresh across
+  ~10 docs. Last 8 commits are all docs.
+- **Next milestone — IR-printer cleanup (Bar #3-lite follow-up)**:
+  plan recorded in [`doc/yelu_cmake/status.md`](doc/yelu_cmake/status.md)
+  "Open work — IR-printer cleanup". Tier 1 has 5 small mechanical
+  fixes (`cmake_minimum_required.max`, `add_dependencies` multi-dep,
+  `set_target_properties` multi-target, `find_program` bare-name,
+  `include_directories` keyword positioning). Recommended start:
+  `cmake_minimum_required.max` printer wire-up — smallest, isolated,
+  immediate `bar3_lite.md` § 8.1 update.
+- **Test baseline**: ~1,010 unit tests; one pre-existing failure
+  (`test_yelu_compile::ylet chain` — expects `add_executable(App …)`
+  produces `add_executable(name …)`; unrelated to recent work).
+
+### What needs adjusting for macOS
+
+Hardcoded `/home/red/...` paths the harness and docs reference:
+
+| location | current (Linux) | what to do on macOS |
+| --- | --- | --- |
+| `tool/cmake_roundtrip/test_corpus.sh` line 25 | `gersemi="${GERSEMI:-/home/red/.venvs/default/bin/gersemi}"` | env-override works: `GERSEMI=$(which gersemi) bash …`, OR edit the default to a portable lookup |
+| `tool/cmake_roundtrip/README.md`, `doc/yelu_cmake/bar3_lite.md` § 4.1 | `export PATH=/home/red/.venvs/default/bin:$PATH` | replace with your macOS venv path or `brew --prefix`/uvx-style activation |
+| `CLAUDE.md` Scope line | `/home/red/code/research/yelu` | only informational — clone wherever |
+| Vendor cmake symlink | `vendor/cmake → /home/red/code/contrib/cmake-all/cmake` | rebuild the symlink to wherever you keep the cmake source tree on macOS, or unlink and skip vendor-side tests |
+| `doc/lang/lang_coverage.md` opening line | `Runtime: cmake 4.3.1 (/usr/bin/cmake, Kitware apt)` | macOS: `brew install cmake` (currently 4.3+); verify `cmake --version`. If brew is behind 4.3, build from kitware/CMake or use the official `.dmg` |
+| Bar #3-lite real-world corpora | `/home/red/code/contrib/{z3-all,llvm-all}/...` | not needed for daily work; harness defaults to whatever corpus path you pass. To re-run on z3/llvm: clone `Z3Prover/z3` and `llvm/llvm-project`, pass the source roots. Skip if not exercising Bar #3-lite this week |
+
+### Required tools (macOS install hints)
+
+- **OCaml + opam**: `brew install opam && opam init && opam install dune yojson angstrom alcotest base fmt ppx_jane yojson`
+  (the exact dependency set is in `dune-project`; `opam install . --deps-only` from the repo root after clone)
+- **Python + tree-sitter bindings** (for Bar #3-lite only):
+  `python3 -m venv ~/.venvs/yelu && source ~/.venvs/yelu/bin/activate && pip install tree-sitter tree-sitter-cmake gersemi`
+- **cmake 4.3.x**: `brew install cmake` (check `cmake --version`)
+- **Git** (assumed)
+
+### First-run verification on the new machine
+
+```sh
+# 1. Build everything
+dune build
+
+# 2. Unit tests — should report 1 pre-existing failure, 1,009 passing
+dune test
+
+# 3. Bar #3-lite tutorial corpus (only needs tree-sitter; no z3/llvm clone)
+export PATH=$HOME/.venvs/yelu/bin:$PATH    # or wherever your venv lives
+dune build tool/cmake_roundtrip/print2.exe
+echo 'cmake_minimum_required(VERSION 3.20)' \
+  | python3 tool/cmake_roundtrip/parse.py - \
+  | STAGE2_COVERAGE=1 _build/default/tool/cmake_roundtrip/print2.exe
+# Expected: "cmake_minimum_required(VERSION 3.20 )" on stdout +
+#           "[stage2] modeled=1 generic=0 other=0" on stderr.
+
+# 4. (Optional) Full corpus run — only if z3/llvm are cloned
+# bash tool/cmake_roundtrip/test_corpus.sh /path/to/z3
+```
+
+### Coming-back checklist (when returning to Linux)
+
+- Pull whatever the macOS sessions committed.
+- Re-verify the three Bar #3-lite corpora pass (path overrides
+  match `/home/red/code/contrib/...`).
+- If macOS sessions edited `test_corpus.sh` or the README to fix
+  paths, decide whether to make them platform-agnostic (`which
+  gersemi` lookup, `${HOME}` substitution) before re-merging.
+- Delete this "Machine Handoff" section.
+
+---
+
 ## Handoff Workflow
 
 Before ending a session, update this file with:
