@@ -6,7 +6,7 @@
 > map** — what test directories are tractable, which commands hit
 > which testing level, what is blocked on `cmake_policy` (Y11) —
 > but specific test counts and "X / Y done" numbers may lag the
-> code by a few weeks. See `yelu_project_overview.md` for current
+> code by a few weeks. See `../project_overview.md` for current
 > per-suite totals (~1,010 unit tests; 729/729 Bar #3-lite round-
 > trip; 50/50 `make runcmake-yelu`; etc.).
 
@@ -91,7 +91,7 @@ The strongest axes are **benchmark suite coverage** (CMakeOnly and RunCMake both
 
 ### Blocked — `cmake_policy` (Y11)
 
-Design pass needed before touching code. See `yelu_lang_design.md` policy section.
+Design pass needed before touching code. See `lang_design.md` policy section.
 
 Unlocks: CMP0186 (regex empty match), CMP0140 (`return(PROPAGATE)`), CMP0124 (`foreach` scoping), `try_compile` policy variants, `PolicyScope` build test.
 

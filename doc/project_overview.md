@@ -168,22 +168,22 @@ in [`yelu_cmake/status.md`](yelu_cmake/status.md).
 
 | File                                       | Purpose                                                            |
 | ------------------------------------------ | ------------------------------------------------------------------ |
-| `yelu_manifesto.md`                        | Project manifesto: thesis, falsifiability, layered argument.       |
-| `yelu_research_framing.md`                 | Benchmark design, contamination-aware eval (distilled framing).    |
-| `yelu_beyond.md`                           | Multi-pack architecture, AI language stacks (speculative, 中文).   |
-| `yelu_infra_test.md`                       | Test harness, dune aliases, gotchas.                               |
-| `yelu_lang_design.md`                      | Language design: staging, types, surface syntax.                   |
-| `yelu_lang_coverage.md`                    | cmake command coverage tracker.                                    |
-| `yelu_typed_design.md`                     | Type system design space (deferred; Y17 substrate).                |
-| `yelu_syntax_tiers.md`                     | Concrete syntax tier plan.                                         |
-| `yelu_concrete_syntax_parser.md`           | Implemented parser (Angstrom + pure OCaml).                        |
+| `manifesto.md`                             | Project manifesto: thesis, falsifiability, layered argument.       |
+| `infra_test.md`                            | Test harness, dune aliases, gotchas.                               |
+| `research/research_framing.md`             | Benchmark design, contamination-aware eval (distilled framing).    |
+| `research/beyond.md`                       | Multi-pack architecture, AI language stacks (speculative, 中文).   |
+| `lang/lang_design.md`                      | Language design: staging, types, surface syntax.                   |
+| `lang/lang_coverage.md`                    | cmake command coverage tracker.                                    |
+| `lang/typed_design.md`                     | Type system design space (deferred; Y17 substrate).                |
+| `lang/syntax_tiers.md`                     | Concrete syntax tier plan.                                         |
+| `lang/concrete_syntax_parser.md`           | Implemented two-pass parser (Angstrom + pure OCaml).               |
 | `yelu_cmake/design.md`                     | Durable design notes for the yelu_cmake harness.                   |
 | `yelu_cmake/structure.md`                  | Code-anchored guide to the yelu_cmake modules.                     |
 | `yelu_cmake/status.md`                     | Living tracker for current open work (IR cleanup, Y17, E2, etc.).  |
 | `yelu_cmake/bar3_lite.md`                  | Bar #3-lite audit-ready report + per-parser contract sheet.        |
 | `yelu_theory/plan.md`                      | Theory-fragment structural split plan.                             |
-| `yelu_boolean_and_theories.md`             | Post-mortem of the `yelu_cond` / `yelu_expr` merge; design conclusions. |
-| `extensible_expr_design.md`                | Original framing of the extensible-expression problem.             |
+| `yelu_theory/boolean_and_theories.md`      | Post-mortem of the `yelu_cond` / `yelu_expr` merge; design conclusions. |
+| `yelu_theory/extensible_expr_design.md`    | Original framing of the extensible-expression problem.             |
 | `cmake/painpoints.md`                      | 27 documented cmake pain points.                                   |
 | `cmake/comparison.md`                      | cmake PL properties, equivalence levels.                           |
 | `cmake/policy.md`                          | cmake policy system, CMP* history.                                 |
@@ -194,8 +194,3 @@ in [`yelu_cmake/status.md`](yelu_cmake/status.md).
 | `cmake/equiv_research.md`                  | Z3 / e-graph equivalence research prompts.                         |
 | `worklog/worklog_2026_04.md`               | Completed items (Y1, Y9, Y10).                                     |
 | `worklog/worklog_2026_05.md`               | yelu_cmake harness Tier A–F + retirement + Bar #3-lite archive.    |
-
-> A doc-reorg commit will move language docs into `doc/lang/`,
-> framing docs into `doc/research/`, and the two theory-architecture
-> docs (`yelu_boolean_and_theories.md`, `extensible_expr_design.md`)
-> into `doc/yelu_theory/`. This table will be updated in that commit.

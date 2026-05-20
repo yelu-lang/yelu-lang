@@ -139,12 +139,13 @@ Total unit: 655. Total cmake-backed: 40.
 
 | File                                 | Purpose                                             |
 | ------------------------------------ | --------------------------------------------------- |
-| `doc/yelu_manifesto.md`              | Project manifesto: thesis, falsifiability, approach |
-| `doc/yelu_project_overview.md`       | Full project audit: code, tests, gaps, TODOs        |
-| `doc/yelu_typed_design.md`           | Type system, compositional checking architecture    |
-| `doc/yelu_lang_design.md`            | Language design: staging, types, surface syntax     |
-| `doc/yelu_lang_coverage.md`          | cmake command coverage, 4-tier roadmap              |
-| `doc/yelu_concrete_syntax_parser.md` | Menhir grammar design for concrete syntax           |
+| `doc/manifesto.md`                    | Project manifesto: thesis, falsifiability, approach |
+| `doc/project_overview.md`             | Full project audit: code, tests, gaps, TODOs        |
+| `doc/lang/typed_design.md`            | Type system, compositional checking architecture    |
+| `doc/lang/lang_design.md`             | Language design: staging, types, surface syntax     |
+| `doc/lang/lang_coverage.md`           | cmake command coverage tracker                      |
+| `doc/lang/syntax_tiers.md`            | Concrete syntax tier plan                           |
+| `doc/lang/concrete_syntax_parser.md`  | Implemented two-pass parser (Angstrom + pure OCaml) |
 | `doc/cmake/painpoints.md`            | 27 documented cmake pain points                     |
 | `doc/cmake/comparison.md`            | cmake PL properties, equivalence levels             |
 | `doc/cmake/policy.md`                | cmake policy system, CMP* history                   |
@@ -153,9 +154,12 @@ Total unit: 655. Total cmake-backed: 40.
 | `doc/cmake/cache_semantics.md`       | Cmake cache vs normal variable namespace            |
 | `doc/cmake/scope_and_control_flow.md` | Block / return / PARENT_SCOPE / macro semantics    |
 | `doc/cmake/equiv_research.md`        | Z3 / e-graph equivalence research prompts           |
-| `doc/yelu_beyond.md`                 | Multi-pack architecture, AI language stacks         |
-| `doc/yelu_research_framing.md`       | Benchmark design, contamination-aware eval          |
-| `doc/yelu_infra_test.md`             | Test harness, dune aliases, gotchas                 |
+| `doc/research/beyond.md`              | Multi-pack architecture, AI language stacks (speculative, 中文) |
+| `doc/research/research_framing.md`    | Benchmark design, contamination-aware eval          |
+| `doc/infra_test.md`                   | Test harness, dune aliases, gotchas                 |
+| `doc/yelu_theory/plan.md`             | Theory-fragment structural split plan               |
+| `doc/yelu_theory/boolean_and_theories.md` | Post-mortem of yelu_cond / yelu_expr merge      |
+| `doc/yelu_theory/extensible_expr_design.md` | Extensible-expression design problem          |
 | `doc/worklog/worklog_2026_04.md`     | Completed items (Y1, Y9, Y10)                       |
 | `doc/worklog/worklog_2026_05.md`     | yelu_cmake harness Tier A–F + retirement archive    |
 | `doc/yelu_cmake/design.md`            | Durable design notes for the yelu_cmake harness     |
@@ -230,12 +234,12 @@ let _ : (module CHECKER_BASE) list = [
 whole-program — a target declared in `target` theory is referenced in `install`/
 `test`/`property` theory, so no single theory can resolve this alone.
 
-See [doc/yelu_typed_design.md](doc/yelu_typed_design.md) for the full design.
+See [doc/lang/typed_design.md](doc/lang/typed_design.md) for the full design.
 
 ## Current State
 
 > Session history → [doc/worklog/worklog_2026_04.md](doc/worklog/worklog_2026_04.md).
-> Full audit → [doc/yelu_project_overview.md](doc/yelu_project_overview.md).
+> Full audit → [doc/project_overview.md](doc/project_overview.md).
 
 Key milestones: wellform pass (Y1), parser + concrete syntax (in progress), 408 tests.
 
@@ -267,7 +271,7 @@ Key milestones: wellform pass (Y1), parser + concrete syntax (in progress), 408 
 
 ## Current TODO
 
-Numbers are stable (never renumbered). Priority order tracks `yelu_project_overview.md`.
+Numbers are stable (never renumbered). Priority order tracks `doc/project_overview.md`.
 
 ### Implementation (code-ready)
 
@@ -308,7 +312,7 @@ Y1, Y9, Y10 — see `doc/worklog/worklog_2026_04.md`.
 
 ## Design Vision
 
-See [doc/yelu_manifesto.md](doc/yelu_manifesto.md) for the full thesis, motivation,
+See [doc/manifesto.md](doc/manifesto.md) for the full thesis, motivation,
 and layered argument. TL;DR: low-entropy composable language for human+model
 configuration generation with verifier feedback. cmake is the first specimen.
 
@@ -374,5 +378,5 @@ Before ending a session, update this file with:
 4. **Current TODO** — items completed, items started, new items
 5. **Gotchas** — new traps, workarounds discovered
 
-Update `doc/yelu_project_overview.md` if the project-level audit changes (new
+Update `doc/project_overview.md` if the project-level audit changes (new
 theories, major test count changes, gap closures). Commit the result.

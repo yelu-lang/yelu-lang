@@ -1,7 +1,7 @@
 # Yelu Test Infrastructure — Comparison Levels
 
 This document covers **how to run** tests at each comparison level — harness code,
-dune aliases, patterns, gotchas, and blockers. `yelu_lang_coverage.md` refers to
+dune aliases, patterns, gotchas, and blockers. `lang/lang_coverage.md` refers to
 these terms without re-defining them. For **why** each level exists and which levels
 apply to which test categories see `cmake/comparison.md`.
 

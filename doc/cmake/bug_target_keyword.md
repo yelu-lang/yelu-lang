@@ -141,4 +141,4 @@ nesting in `p_cond` loses the token position.
   - `p_block` around line 190
   - `p_stmt` around line 310
 - `test/test-yelu/test_yelu_parse.ml` — parser tests (failing cases commented out)
-- `doc/yelu_concrete_syntax_parser.md` — architecture and gotchas doc
+- `doc/lang/concrete_syntax_parser.md` — architecture and gotchas doc

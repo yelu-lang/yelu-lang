@@ -372,7 +372,7 @@ that compose cleanly.
 ## Design observations — cmake's binding model from a PL angle
 
 > Working notes captured 2026-05-11 while finishing R4-b. Not yet
-> integrated into `doc/yelu_lang_design.md`; revisit when discussing
+> integrated into `../lang/lang_design.md`; revisit when discussing
 > the binding-feature library (Y15).
 
 ### The shape of the frame stack

@@ -1,6 +1,6 @@
 # CMake Equivalence — Language, Semantics, and Test Coverage
 
-This document is the theory companion to `yelu_infra_test.md`. It grounds the
+This document is the theory companion to `../infra_test.md`. It grounds the
 yelu equivalence question in the properties of cmake as a language, defines the
 PL vocabulary, states what each equivalence level proves, and maps each level to
 the concrete test observations in the harness. For symbolic/SMT approaches to

@@ -116,7 +116,7 @@ Options considered:
 
 4. **Per-theory expression fragments with pack-level GADT.** Each theory
    defines its own expression sub-type, and the pack ties them together with
-   a GADT. Rejected earlier (see `yelu_typed_design.md`) because cmake's type
+   a GADT. Rejected earlier (see `../lang/typed_design.md`) because cmake's type
    lattice has constraints OCaml can't express at the type level.
 
 **Constraints:**

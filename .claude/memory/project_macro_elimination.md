@@ -51,5 +51,5 @@ The env-frame stack landed in R4-b.3 reads like a classic activation
 record (locals + access link) but with a copy-on-entry snapshot instead
 of a live chain. That makes reads lexically stable (function can't see
 caller's mid-call writes) while writes via PARENT_SCOPE punch through
-the severed link. Document this hybrid in `doc/yelu_lang_design.md` if /
+the severed link. Document this hybrid in `doc/lang/lang_design.md` if /
 when discussing yelu's binding-feature library (Y15) more formally.

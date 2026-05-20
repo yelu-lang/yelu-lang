@@ -118,7 +118,7 @@ generation.
 If the model cannot see the types in the source language, in diagnostics, or
 in API surfaces, they don't help generation much. If the compiler's internal
 types aren't strong enough, the compiler is fragile. Both matter. See
-`yelu_typed_design.md` for the design space.
+`../lang/typed_design.md` for the design space.
 
 Nickel is the closest precedent (gradual typing, contracts, LSP). Typed Racket
 is the closest design pattern (typed+untyped modules coexisting). CUE is the

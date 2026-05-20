@@ -125,7 +125,7 @@ This makes the convention a compiler concern rather than a user convention.
 A yelu program could carry an annotation declaring its target shape. The
 compiler would then validate that the content is consistent — e.g., a
 `Script` shape program should not emit `add_library`. This is a light version
-of the staged typing in Tier 7 of `yelu_lang_design.md`.
+of the staged typing in Tier 7 of `../lang/lang_design.md`.
 
 ```ocaml
 type yelu_program_shape =
@@ -139,7 +139,7 @@ type yelu_program_shape =
 
 ## Relation to Language Design Docs
 
-- **`yelu_lang_design.md` Tier 7** (multi-stage core): script mode (`cmake -P`) is
+- **`../lang/lang_design.md` Tier 7** (multi-stage core): script mode (`cmake -P`) is
   the configure stage running without a project. The staged-typing design would
   unify these shapes under a single `@stage` annotation rather than separate
   shape types.

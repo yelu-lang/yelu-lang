@@ -83,9 +83,12 @@ must match the reference `CMakeLists.txt` (modulo canonical formatting).
 The suite covers 108 checks (35 structural + 12 CMakeOnly + 61 RunCMake),
 12 end-to-end tutorial steps, and File API codemodel-v2 JSON diff.
 
-**Current state.** 14 theories (10 solid, 3 partial, 1 stub), 362 unit
-tests, concrete syntax parser with 24 passing tests, no CI. See
-[yelu_project_overview.md](yelu_project_overview.md) for the full audit.
+**Current state.** Two-language model (`yelu_cmake` /
+`yelu_cmake_normal`) with 14 cmake-faithful + 16 normalized
+theory fragments; ~1,010 unit tests; concrete-syntax parser
+shipped; Bar #3-lite syntactic round-trip on z3 + llvm shipped
+(STRUCT=0 / FORMAT=0 across 729 files). No CI. See
+[project_overview.md](project_overview.md) for the full audit.
 
 ## Layer 3 — The thesis: low entropy
 
@@ -130,7 +133,7 @@ unadorned model consumption, and not for unadorned human authoring.
 4. **Generalization**: a second target pack does not require redesigning
    `LANG_TYPES` or `checking_stage`.
 
-The measurement strategy ([yelu_research_framing.md](yelu_research_framing.md))
+The measurement strategy ([research/research_framing.md](research/research_framing.md))
 uses paired oracle-backed benchmarks with contamination-aware evaluation.
 
 ## Layer 4 — pl à la carte: the design space
