@@ -239,8 +239,6 @@ inversion is brittle. They are the target of the upcoming
   multi-property calls split into N statements.
 - `get_property` — printer drops several IR fields.
 - `execute_process` — multi-line keyword shape, hard to invert.
-- `include_directories` `BEFORE`/`AFTER`/`SYSTEM` keywords —
-  printer always emits prefix; parser bails.
 - Several `file` subcommands (READ, STRINGS, COPY, DOWNLOAD,
   UPLOAD, LOCK, path-query family).
 
@@ -534,9 +532,12 @@ would populate it.
 - **Location**: [`print2.ml:822`](../../tool/cmake_roundtrip/print2.ml#L822)
 - **IR**: [`Include_directories` at `lang_cmake.ml:791`](../../src/langs/cmake/lang_cmake.ml#L791)
 - **Printer**: [`lang_cmake_pp.ml:1176`](../../src/langs/cmake/lang_cmake_pp.ml#L1176)
-- **Accepts**: `include_directories(<dir1> <dir2>...)` — no keywords.
-- **Bails on**: AFTER / BEFORE / SYSTEM (printer always emits
-  prefix; not yet reconciled).
+- **Accepts**: `include_directories([AFTER|BEFORE] [SYSTEM] <dir>...)`
+  — one or more bare dirs, with optional `BEFORE`/`AFTER` and
+  `SYSTEM` prefixes (matching cmake spec and the printer's emit
+  order). Parser updated 2026-05-25.
+- **Bails on**: empty arglist; quoted dirs; SYSTEM appearing
+  before BEFORE/AFTER (printer canonicalizes the order).
 
 ### 8.26 find_program / find_path (shared `parse_find_var_names`)
 

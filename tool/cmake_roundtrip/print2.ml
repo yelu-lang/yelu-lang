@@ -846,16 +846,27 @@ let parse_return args : L.exp option =
    leading-empty-space shape on extra keywords. *)
 let parse_include_directories args : L.exp option =
   if not (all_bare args) then None
-  else match args with
-    | first :: rest_dirs
-      when not (List.mem ["AFTER"; "BEFORE"; "SYSTEM"] first ~equal:String.equal) ->
-      Some (Project_cmd
-              (Include_directories
-                 { before_or_after = Default_order;
-                   system = false;
-                   dir = first;
-                   dirs = rest_dirs }))
-    | _ -> None
+  else
+  (* Consume optional [AFTER|BEFORE] prefix, then optional SYSTEM. cmake
+     spec puts both at the front, matching the printer's emission order. *)
+  let before_or_after, args =
+    match args with
+    | "BEFORE" :: r -> L.Before, r
+    | "AFTER" :: r -> L.After, r
+    | _ -> L.Default_order, args
+  in
+  let system, args =
+    match args with
+    | "SYSTEM" :: r -> true, r
+    | _ -> false, args
+  in
+  match args with
+  | first :: rest_dirs
+    when not (List.mem ["AFTER"; "BEFORE"; "SYSTEM"] first ~equal:String.equal) ->
+    Some (Project_cmd
+            (Include_directories
+               { before_or_after; system; dir = first; dirs = rest_dirs }))
+  | _ -> None
 
 (* find_program(<var> NAMES <n>...) or find_program(<var> <name>).
    IR distinguishes the two surface forms via [short_form] (added
