@@ -170,7 +170,18 @@ while IFS= read -r f; do
     echo "FORMAT $rel  $t/$g/$o"
     format=$((format+1))
   fi
-done < <(find "$corpus" \( -name CMakeLists.txt -o -name "*.cmake" \) -type f 2>/dev/null)
+done < <(
+  # FILTER_PATTERN, if set, narrows the corpus to files matching the
+  # pattern (grep -E semantics). Useful during development on a single
+  # command — e.g. FILTER_PATTERN='file *\( *COPY' to test only files
+  # using `file(COPY ...)`. Without it, the full corpus is processed.
+  if [ -n "${FILTER_PATTERN:-}" ]; then
+    find "$corpus" \( -name CMakeLists.txt -o -name "*.cmake" \) -type f 2>/dev/null \
+      | xargs grep -lE "$FILTER_PATTERN" 2>/dev/null
+  else
+    find "$corpus" \( -name CMakeLists.txt -o -name "*.cmake" \) -type f 2>/dev/null
+  fi
+)
 
 rm -f /tmp/_cov_$$.tmp
 
