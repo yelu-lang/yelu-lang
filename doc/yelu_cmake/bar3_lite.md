@@ -540,9 +540,14 @@ would populate it.
   REVERSE, REMOVE_DUPLICATES, APPEND, PREPEND, REMOVE_ITEM, FIND,
   JOIN, GET (multi-index), SUBLIST, INSERT, REMOVE_AT, POP_BACK,
   POP_FRONT.
-- **Bails on**: SORT (multi-keyword), FILTER (mode + regex),
-  TRANSFORM (action + selector + optional output); quoted/bracketed
-  slots.
+- **Accepts (added 2026-05-29 / Tier 4 list SORT/FILTER/TRANSFORM)**:
+  - `SORT <var> [ORDER ASCENDING|DESCENDING] [COMPARE STRING|FILE_BASENAME|NATURAL] [CASE SENSITIVE|INSENSITIVE]`
+  - `FILTER <var> INCLUDE|EXCLUDE REGEX <quoted-regex>`
+  - `TRANSFORM <var> <ACTION> [<SELECTOR>] [OUTPUT_VARIABLE <out>]`
+    where ACTION ∈ {TOUPPER, TOLOWER, STRIP, GENEX_STRIP, APPEND <v>,
+    PREPEND <v>, REPLACE <re> <replace>} and SELECTOR ∈
+    {AT <idx>..., FOR <start> <stop> [<step>], REGEX <quoted-re>}.
+- **Bails on**: quoted `<var>` slots; unrecognized scope keywords.
 
 ### 8.23 string (subcommand dispatch)
 

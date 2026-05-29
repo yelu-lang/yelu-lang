@@ -896,10 +896,89 @@ let parse_add_custom_target args : L.exp option =
 
 (* list(<subcommand> <args>) — dispatch on subcommand *)
 let parse_list args : L.exp option =
-  if not (all_bare args) then None
-  else
   let all_ints xs = List.for_all xs ~f:(fun s -> Option.is_some (Int.of_string_opt s)) in
   let to_ints xs = List.map xs ~f:Int.of_string in
+  (* FILTER and TRANSFORM accept quoted regex / value args; can't
+     gate the whole parser on all_bare. Handle them explicitly first,
+     then fall back to the bare-args subcommands below. *)
+  let try_quoted_arg_subcommands = match args with
+    | [ "FILTER"; var; mode_s; "REGEX"; regex_arg ] when is_bare var ->
+      let mode = match mode_s with
+        | "INCLUDE" -> Some L.Lf_include
+        | "EXCLUDE" -> Some Lf_exclude
+        | _ -> None
+      in
+      (match mode, arg_of_raw regex_arg with
+       | Some mode, Quoted re ->
+         Some (L.List_cmd (Lc_filter { var; mode; regex = re }))
+       | _ -> None)
+    | "TRANSFORM" :: var :: rest when is_bare var ->
+      (* Action consumes 0-2 args; then optional selector (1-3 args);
+         then optional OUTPUT_VARIABLE <v>. *)
+      let parse_action = function
+        | "TOUPPER" :: r -> Some (L.Lta_toupper, r)
+        | "TOLOWER" :: r -> Some (Lta_tolower, r)
+        | "STRIP" :: r -> Some (Lta_strip, r)
+        | "GENEX_STRIP" :: r -> Some (Lta_genex_strip, r)
+        | "APPEND" :: v :: r -> Some (Lta_append (arg_of_raw v), r)
+        | "PREPEND" :: v :: r -> Some (Lta_prepend (arg_of_raw v), r)
+        | "REPLACE" :: m :: rep :: r ->
+          (match arg_of_raw m, arg_of_raw rep with
+           | Quoted ms, Quoted rs ->
+             Some (Lta_replace { match_regex = ms; replace = rs }, r)
+           | _ -> None)
+        | _ -> None
+      in
+      (match parse_action rest with
+       | None -> None
+       | Some (action, rest) ->
+         let parse_selector = function
+           | "AT" :: r ->
+             let rec take_ints acc = function
+               | [] -> Some (List.rev acc, [])
+               | t :: _ as rest when not (Option.is_some (Int.of_string_opt t)) ->
+                 Some (List.rev acc, rest)
+               | t :: r -> take_ints (Int.of_string t :: acc) r
+             in
+             (match take_ints [] r with
+              | Some (idxs, r) when not (List.is_empty idxs) ->
+                Some (Some (L.Lts_at idxs), r)
+              | _ -> None)
+           | "FOR" :: start_s :: stop_s :: r ->
+             (match Int.of_string_opt start_s, Int.of_string_opt stop_s with
+              | Some start, Some stop ->
+                (match r with
+                 | step_s :: rr when Option.is_some (Int.of_string_opt step_s) ->
+                   Some (Some (L.Lts_for
+                                 { start; stop;
+                                   step = Some (Int.of_string step_s) }), rr)
+                 | _ ->
+                   Some (Some (L.Lts_for { start; stop; step = None }), r))
+              | _ -> None)
+           | "REGEX" :: re :: r ->
+             (match arg_of_raw re with
+              | Quoted s -> Some (Some (L.Lts_regex s), r)
+              | _ -> None)
+           | r -> Some (None, r)  (* no selector *)
+         in
+         (match parse_selector rest with
+          | None -> None
+          | Some (selector, rest) ->
+            let output, rest = match rest with
+              | "OUTPUT_VARIABLE" :: v :: r when is_bare v -> Some v, r
+              | _ -> None, rest
+            in
+            if not (List.is_empty rest) then None
+            else
+              Some (L.List_cmd
+                      (Lc_transform { var; action; selector; output }))))
+    | _ -> None
+  in
+  match try_quoted_arg_subcommands with
+  | Some _ -> try_quoted_arg_subcommands
+  | None ->
+  if not (all_bare args) then None
+  else
   match args with
   | [ "LENGTH"; var; out ] ->
     Some (List_cmd (Lc_length { var; out }))
@@ -955,6 +1034,37 @@ let parse_list args : L.exp option =
   (* list(POP_FRONT <var> [<out_var>...]) *)
   | "POP_FRONT" :: var :: out_vars ->
     Some (List_cmd (Lc_pop_front { var; out_vars }))
+  (* list(SORT <var> [ORDER <order>] [COMPARE <cmp>] [CASE <case>]) *)
+  | "SORT" :: var :: rest ->
+    let order = ref None in
+    let compare = ref None in
+    let case = ref None in
+    let ok = ref true in
+    let rec go = function
+      | [] -> ()
+      | "ORDER" :: o :: r when Option.is_none !order ->
+        (match o with
+         | "ASCENDING" -> order := Some L.Ls_ascending; go r
+         | "DESCENDING" -> order := Some Ls_descending; go r
+         | _ -> ok := false)
+      | "COMPARE" :: c :: r when Option.is_none !compare ->
+        (match c with
+         | "STRING" -> compare := Some L.Ls_string; go r
+         | "FILE_BASENAME" -> compare := Some Ls_file_basename; go r
+         | "NATURAL" -> compare := Some Ls_natural; go r
+         | _ -> ok := false)
+      | "CASE" :: c :: r when Option.is_none !case ->
+        (match c with
+         | "SENSITIVE" -> case := Some L.Ls_sensitive; go r
+         | "INSENSITIVE" -> case := Some Ls_insensitive; go r
+         | _ -> ok := false)
+      | _ -> ok := false
+    in
+    go rest;
+    if not !ok then None
+    else Some (List_cmd
+                 (Lc_sort { var; order = !order;
+                            compare = !compare; case = !case }))
   | _ -> None
 
 (* string(<subcommand> <args>) — common subcommands only *)
