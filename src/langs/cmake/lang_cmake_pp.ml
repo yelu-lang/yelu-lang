@@ -1175,8 +1175,9 @@ and pp_project_cmd ff cmd =
       Fmt.(pf ff "add_definitions(%a)" (list_sp pp_definition) defs)
   | Remove_definitions { defs } ->
       Fmt.(pf ff "remove_definitions(%a)" (list_sp pp_definition) defs)
-  | Add_dependencies { target; dep } ->
-      Fmt.(pf ff "add_dependencies(%a %a)" pp_target target string dep)
+  | Add_dependencies { target; deps } ->
+      Fmt.(pf ff "add_dependencies(%a %a)"
+             pp_target target (list_sp string) deps)
   | Add_link_options { options } ->
       Fmt.(pf ff "add_link_options(%a)" (list_sp string) options)
   (* include *)

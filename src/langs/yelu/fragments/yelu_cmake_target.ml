@@ -79,10 +79,10 @@ type expr +=
       lib_type : string option;
       global : bool;
     }
-  (* [add_dependencies(<target> <dep>)]. Eval is a no-op for now —
+  (* [add_dependencies(<target> <dep>...)]. Eval is a no-op for now —
      dependency graph tracking lives in env.build but no caller yet
      queries it. *)
-  | ECmakeAddDependencies of { target : string; dep : string }
+  | ECmakeAddDependencies of { target : string; deps : string list }
   (* [target_sources(... FILE_SET ...)] richer form. See tiny_target_sources_item. *)
   | ECmakeTargetSourcesFs of {
       target : expr;

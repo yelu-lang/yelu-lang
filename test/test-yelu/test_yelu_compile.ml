@@ -774,7 +774,7 @@ let () =
       ( "add_dependencies",
         [ check "add_dependencies_basic"
             "add_dependencies(mytarget mydep)"
-            (yc_add_dependencies "mytarget" "mydep") ] );
+            (yc_add_dependencies "mytarget" [ "mydep" ]) ] );
       ( "variable_watch",
         [ check "variable_watch_no_command"
             "variable_watch(MY_VAR)"

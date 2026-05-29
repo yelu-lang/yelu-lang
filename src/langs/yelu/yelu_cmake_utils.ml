@@ -437,8 +437,8 @@ let yc_target_sources target items =
       { target; visibility = visibility_of_kind kind; sources = items })
   |> (fun xs -> ESeq xs)
 
-let yc_add_dependencies target dep =
-  ECmakeAddDependencies { target; dep }
+let yc_add_dependencies target deps =
+  ECmakeAddDependencies { target; deps }
 
 (* Custom commands / targets — IR uses [build_command] records
    ([command : string; args : string list]). Step files pass legacy

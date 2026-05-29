@@ -35,7 +35,7 @@ type expr +=
       lib_type : string option;
       global : bool;
     }
-  | EAddDependencies of { target : string; dep : string }
+  | EAddDependencies of { target : string; deps : string list }
   (* See [tiny_target_sources_item] in [yelu_cmake.ml] for shape. *)
   | ETargetSourcesFs of {
       target : expr;

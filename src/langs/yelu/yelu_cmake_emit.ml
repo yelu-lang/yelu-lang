@@ -1071,8 +1071,8 @@ let rec emit_exp ~env (e : expr) : C.exp =
            sources = [] })
 
   (* Add dependencies *)
-  | ECmakeAddDependencies { target; dep } ->
-    C.Project_cmd (C.Add_dependencies { target; dep })
+  | ECmakeAddDependencies { target; deps } ->
+    C.Project_cmd (C.Add_dependencies { target; deps })
 
   (* Try *)
   | Yelu_cmake_try.ECmakeTryCompile { result_var; sources } ->

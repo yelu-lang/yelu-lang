@@ -226,7 +226,7 @@ let rec to_normal = function
       }
   | ELibraryAlias { name; target } -> ELibraryAlias { name; target }
   | EExecutableAlias { name; target } -> EExecutableAlias { name; target }
-  | EAddDependencies { target; dep } -> EAddDependencies { target; dep }
+  | EAddDependencies { target; deps } -> EAddDependencies { target; deps }
   | ELibraryImported { name; lib_type; global } ->
     ELibraryImported
       { name = to_normal name; lib_type; global }
@@ -654,8 +654,8 @@ let rec to_normal = function
     ELibraryAlias { name; target }
   | ECmakeAddExecutableAlias { name; target } ->
     EExecutableAlias { name; target }
-  | ECmakeAddDependencies { target; dep } ->
-    EAddDependencies { target; dep }
+  | ECmakeAddDependencies { target; deps } ->
+    EAddDependencies { target; deps }
   | ECmakeAddLibraryImported { name; lib_type; global } ->
     ELibraryImported
       { name = to_normal name; lib_type; global }
@@ -1216,8 +1216,8 @@ let rec from_normal = function
     ECmakeAddLibraryAlias { name; target }
   | EExecutableAlias { name; target } ->
     ECmakeAddExecutableAlias { name; target }
-  | EAddDependencies { target; dep } ->
-    ECmakeAddDependencies { target; dep }
+  | EAddDependencies { target; deps } ->
+    ECmakeAddDependencies { target; deps }
   | ELibraryImported { name; lib_type; global } ->
     ECmakeAddLibraryImported
       { name = from_normal name; lib_type; global }

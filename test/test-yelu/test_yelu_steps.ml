@@ -1588,7 +1588,7 @@ let v2_maketable_bridge =
           ~files:[ ystr_eval "${CMAKE_CURRENT_BINARY_DIR}/SqrtTable.h" ]
           Interface;
       ];
-      yc_add_dependencies "SqrtTable" "RunMakeTable";
+      yc_add_dependencies "SqrtTable" [ "RunMakeTable" ];
     ]
   in
   ( "v2_maketable_bridge",

@@ -480,8 +480,8 @@ let rec emit_expr_impl ~env e =
     [ Fmt.str "add_library(%s ALIAS %s)" name target ]
   | ECmakeAddExecutableAlias { name; target } ->
     [ Fmt.str "add_executable(%s ALIAS %s)" name target ]
-  | ECmakeAddDependencies { target; dep } ->
-    [ Fmt.str "add_dependencies(%s %s)" target dep ]
+  | ECmakeAddDependencies { target; deps } ->
+    [ Fmt.str "add_dependencies(%s %s)" target (String.concat ~sep:" " deps) ]
   | ECmakeAddLibraryImported { name; lib_type; global } ->
     let lt = Option.value lib_type ~default:"UNKNOWN" in
     let g = if global then " GLOBAL" else "" in

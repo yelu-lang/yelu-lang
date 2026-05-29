@@ -678,7 +678,7 @@ and project_cmd =
   | Add_compile_options of { options_ : option_ list }
   | Add_definitions of { defs : definition list }
   | Remove_definitions of { defs : definition list }
-  | Add_dependencies of { target : target; dep : depend }
+  | Add_dependencies of { target : target; deps : depend list }
   | Add_executable of {
       name : string;
       options : add_executable_option list;

@@ -211,7 +211,7 @@ let () =
           (ESeq [
             yc_add_custom_target "dep_a";
             yc_add_custom_target "dep_b";
-            yc_add_dependencies "dep_b" "dep_a";
+            yc_add_dependencies "dep_b" [ "dep_a" ];
             yc_message ~mode:Mm_status ["deps ok"];
           ])
           (fun r -> check_stdout_matches "deps ok" r.run) ]);

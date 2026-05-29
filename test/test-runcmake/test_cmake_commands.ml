@@ -1555,7 +1555,7 @@ let alias_target_yelu =
     yc_add_custom_target ~commands:[{ command = "Generator::Target";
                                       args = ["$<TARGET_FILE:Sub::tgt>"] }]
       "usealias";
-    yc_add_dependencies "bat" "usealias";
+    yc_add_dependencies "bat" [ "usealias" ];
     yifthen (ynot (yis_target (ystr "Another::Alias")))
       (yc_message ~mode:Mm_send_error ["Another::Alias is not considered a target."]);
     yc_get_target_property (ycvar "_alt") "PREFIX::Foo" "ALIASED_TARGET";
@@ -1919,7 +1919,7 @@ let objlib_yelu =
       "UseABinternalDep";
     (* post-build add_custom_command(TARGET ...) verification removed:
        the IR does not yet model TARGET-form custom commands. *)
-    yc_add_dependencies "UseABinternal" "UseABinternalDep";
+    yc_add_dependencies "UseABinternal" [ "UseABinternalDep" ];
     (* Second-order object consumers *)
     add_lib ~type_:Lib_static
       ~sources:[obj "$<TARGET_OBJECTS:Cstatic>"; obj "$<TARGET_OBJECTS:A>";
@@ -2333,7 +2333,7 @@ let () =
               [custom_command "${CMAKE_COMMAND}" ["-E"; "copy"; "stamp.txt"; "copy.txt"]];
             yc_add_custom_target ~all:true ~depends:[ystr "copy.txt"]
               "drive_copy";
-            yc_add_dependencies "drive_copy" "drive_stamp";
+            yc_add_dependencies "drive_copy" [ "drive_stamp" ];
           ]);
       ]);
       ("compile_definitions", [

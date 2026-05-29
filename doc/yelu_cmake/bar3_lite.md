@@ -459,9 +459,13 @@ would populate it.
 - **Location**: [`print2.ml:604`](../../tool/cmake_roundtrip/print2.ml#L604)
 - **IR**: [`Add_dependencies` at `lang_cmake.ml:681`](../../src/langs/cmake/lang_cmake.ml#L681)
 - **Printer**: [`lang_cmake_pp.ml:1171`](../../src/langs/cmake/lang_cmake_pp.ml#L1171)
-- **Accepts**: `add_dependencies(<target> <dep>)` — exactly one dep.
-- **Bails on**: multiple deps. **Major IR gap:** IR's single
-  `dep` field is wrong; widen to `deps : depend list`.
+- **Accepts**: `add_dependencies(<target> <dep>...)` — one or more
+  bare deps. IR widened to `deps : depend list` 2026-05-25; the
+  yelu_cmake `ECmakeAddDependencies` and `EAddDependencies`
+  fragments + smart constructor `yc_add_dependencies` were
+  widened in the same change.
+- **Bails on**: zero deps (empty after target); quoted/bracketed
+  args.
 
 ### 8.18 find_package
 

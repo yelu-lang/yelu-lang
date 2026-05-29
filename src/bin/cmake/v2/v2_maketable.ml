@@ -23,6 +23,6 @@ let () =
         ~files:[ "${CMAKE_CURRENT_BINARY_DIR}/SqrtTable.h" ]
         "INTERFACE";
     ];
-    Project_cmd (Add_dependencies { target = "SqrtTable"; dep = "RunMakeTable" });
+    Project_cmd (Add_dependencies { target = "SqrtTable"; deps = [ "RunMakeTable" ] });
   ] in
   Fmt.pr "%a@." (Fmt.vbox pp) ast

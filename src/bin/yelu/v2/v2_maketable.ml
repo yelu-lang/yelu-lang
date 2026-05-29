@@ -25,7 +25,7 @@ let cmd =
         ~files:[ ystr_eval "${CMAKE_CURRENT_BINARY_DIR}/SqrtTable.h" ]
         Interface;
     ];
-    yc_add_dependencies "SqrtTable" "RunMakeTable";
+    yc_add_dependencies "SqrtTable" [ "RunMakeTable" ];
   ]
 
 let () = print_cmake cmd

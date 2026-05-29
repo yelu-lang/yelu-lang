@@ -617,13 +617,14 @@ let parse_unset args : L.exp option =
   | [ var; "PARENT_SCOPE" ] -> Some (Unset { var; cache = false; parent_scope = true })
   | _ -> None
 
-(* add_dependencies(<target> <dep>...) — IR carries one dep at a time *)
+(* add_dependencies(<target> <dep>...) — IR widened 2026-05-25 to carry
+   a [deps : depend list]; the printer emits all of them space-separated. *)
 let parse_add_dependencies args : L.exp option =
   if not (all_bare args) then None
   else
   match args with
-  | [ target; dep ] ->
-    Some (Project_cmd (Add_dependencies { target; dep }))
+  | target :: deps when not (List.is_empty deps) ->
+    Some (Project_cmd (Add_dependencies { target; deps }))
   | _ -> None
 
 (* find_package(<name> [VERSION] [EXACT] [QUIET] [REQUIRED] [CONFIG]
