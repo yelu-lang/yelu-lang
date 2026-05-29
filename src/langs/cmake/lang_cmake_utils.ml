@@ -280,7 +280,7 @@ let set_target_properties target prop_value_pairs =
   let properties =
     List.map ~f:(fun (prop, value) -> { prop; value }) prop_value_pairs
   in
-  Project_cmd (Set_target_properties { target; properties })
+  Project_cmd (Set_target_properties { targets = [ target ]; properties })
 
 let set_tests_properties ?dir tests prop_value_pairs =
   let properties =

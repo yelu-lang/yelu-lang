@@ -45,7 +45,7 @@ detail in `bar3_lite.md` § 8.
 | -: | --- | --- | --- | --- |
 | A1 | `cmake_minimum_required` | `Cmake_minimum_required.max` field exists; printer drops via `max = _` at `lang_cmake_pp.ml:781` | Wire the printer to emit `<min>...<max>` when `max = Some _`. | ✅ done |
 | B1 | `add_dependencies` | `Add_dependencies.dep : depend` single; cmake allows N | Widen to `deps : depend list` in IR + printer + parser. | ✅ done |
-| B2 | `set_target_properties` | `Set_target_properties.target` single; cmake allows N | Widen to `targets : target list`. | |
+| B2 | `set_target_properties` | `Set_target_properties.target` single; cmake allows N | Widen to `targets : target list`. | ✅ done |
 | C1 | `find_program` / `find_path` | Printer always emits `NAMES` keyword; bare `find_program(VAR name)` form unmodeled | Either skip NAMES when single bare name, or add a flag on the IR. | |
 | C2 | `include_directories` | Printer always emits `BEFORE`/`AFTER`/`SYSTEM` prefix | Make printer respect `before_or_after = Default_order` and `system = false` by emitting cleanly. | |
 

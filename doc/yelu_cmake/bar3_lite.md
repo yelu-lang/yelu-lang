@@ -243,11 +243,6 @@ inversion is brittle. They are the target of the upcoming
   emits `NAMES` keyword.
 - `include_directories` `BEFORE`/`AFTER`/`SYSTEM` keywords —
   printer always emits prefix; parser bails.
-- `cmake_minimum_required.max` — IR field exists but printer
-  drops via `max = _`.
-- `add_dependencies` — IR uses single `dep`; cmake allows N.
-- `set_target_properties` — IR uses single `target`; cmake
-  allows N.
 - Several `file` subcommands (READ, STRINGS, COPY, DOWNLOAD,
   UPLOAD, LOCK, path-query family).
 
@@ -495,10 +490,11 @@ would populate it.
 - **Location**: [`print2.ml:691`](../../tool/cmake_roundtrip/print2.ml#L691)
 - **IR**: [`Set_target_properties` at `lang_cmake.ml:650`](../../src/langs/cmake/lang_cmake.ml#L650)
 - **Printer**: [`lang_cmake_pp.ml:1127`](../../src/langs/cmake/lang_cmake_pp.ml#L1127)
-- **Accepts**: `set_target_properties(<target> PROPERTIES <k> <v>...)`
-  — single target, bare keys.
-- **Bails on**: multiple targets, missing PROPERTIES, odd k/v
-  count. **IR gap:** widen `target` to `targets : target list`.
+- **Accepts**: `set_target_properties(<target>... PROPERTIES <k> <v>...)`
+  — one or more bare targets, bare keys, values may be quoted.
+  IR widened to `targets : target list` 2026-05-25.
+- **Bails on**: missing PROPERTIES, quoted targets/keys, odd k/v
+  count after PROPERTIES.
 
 ### 8.21 add_custom_target
 

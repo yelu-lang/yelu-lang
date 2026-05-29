@@ -848,7 +848,7 @@ let rec emit_exp ~env (e : expr) : C.exp =
   | Yelu_cmake_property.ECmakeSetTargetProperty { target; property; value } ->
     C.Project_cmd
       (C.Set_target_properties
-         { target = target_arg ~env target;
+         { targets = [ target_arg ~env target ];
            properties = [ { prop = property; value = arg ~env value } ] })
   | Yelu_cmake_property.ECmakeGetTargetProperty { var; target; property } ->
     C.Project_cmd

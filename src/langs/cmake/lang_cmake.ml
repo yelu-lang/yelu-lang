@@ -647,7 +647,7 @@ and project_cmd =
       target_directories : target list;
     }
   | Get_target_property of { var : var; target : target; property : property }
-  | Set_target_properties of { target : target; properties : property list }
+  | Set_target_properties of { targets : target list; properties : property list }
   | Enable_testing
   | Add_test of {
       name : string;

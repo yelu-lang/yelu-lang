@@ -705,12 +705,19 @@ let parse_get_filename_component args : L.exp option =
     Some (Get_filename_component { var; filename; mode; cache = true })
   | _ -> None
 
-(* set_target_properties(<target> PROPERTIES <k> <v> [<k> <v>]...) *)
+(* set_target_properties(<target>... PROPERTIES <k> <v> [<k> <v>]...)
+   IR widened 2026-05-25 to carry [targets : target list]; cmake allows
+   one or more target names before PROPERTIES. *)
 let parse_set_target_properties args : L.exp option =
-  match args with
-  | target :: "PROPERTIES" :: rest when is_bare target ->
-    (* Parse remaining as key/value pairs. Keys must be bare; values
-       can be quoted. *)
+  let rec split_at_properties acc = function
+    | [] -> None
+    | "PROPERTIES" :: rest -> Some (List.rev acc, rest)
+    | t :: rest when is_bare t -> split_at_properties (t :: acc) rest
+    | _ -> None
+  in
+  match split_at_properties [] args with
+  | None -> None
+  | Some (targets, rest) when not (List.is_empty targets) ->
     let rec pairs acc = function
       | [] -> Some (List.rev acc)
       | k :: v :: rest when is_bare k ->
@@ -721,7 +728,7 @@ let parse_set_target_properties args : L.exp option =
      | None -> None
      | Some properties ->
        Some (Project_cmd
-               (Set_target_properties { target; properties })))
+               (Set_target_properties { targets; properties })))
   | _ -> None
 
 (* add_custom_target(<name> [ALL] [DEPENDS <dep>...]).

@@ -1131,9 +1131,10 @@ and pp_project_cmd ff cmd =
           (pp_list_with_key "TARGET_DIRECTORY" pp_target) target_directories)
   | Get_target_property { var; target; property = { prop; _ } } ->
       Fmt.(pf ff "get_target_property(%a %a %s)" pp_var var pp_target target prop)
-  | Set_target_properties { target; properties } ->
+  | Set_target_properties { targets; properties } ->
       Fmt.(
-        pf ff "set_target_properties(%a PROPERTIES %a)" pp_target target
+        pf ff "set_target_properties(%a PROPERTIES %a)"
+          (list_sp pp_target) targets
           (list_sp pp_property) properties)
   | Enable_testing -> Fmt.(pf ff "enable_testing()")
   | Add_test { name; command; args; dir } ->
