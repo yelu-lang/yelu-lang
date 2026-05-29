@@ -101,7 +101,17 @@ detail in `bar3_lite.md` § 8.
   (`add_executable(App WIN32 main.c)` STRUCT-passing with WIN32
   misclassified into sources) is now fully resolved. Corpus delta:
   z3 +3, llvm +6 modeled.
-- D2 `file READ` / `file STRINGS` (slot order reversed vs source).
+- ✅ **D2 `file READ` / `file STRINGS`** — shipped 2026-05-29.
+  Audit's original "slot order reversed" framing was actually
+  wrong; the IR + printer already agreed with cmake spec
+  (file before var). The real gap was missing parsers, which
+  this commit adds. STRINGS bails on out-of-order REGEX /
+  ENCODING / LIMIT_COUNT keywords (rank check) and on unmodeled
+  ones (LENGTH_*, NEWLINE_CONSUME, NO_HEX_CONVERSION,
+  ECHO_OUTPUT_VARIABLE). The File_strings printer was also
+  switched from `%S` (OCaml-escapes backslashes) to literal
+  quoting via `quoted` so cmake regex like `[\t ]+` survives
+  round-trip. Corpus delta: z3 +7, llvm +5 modeled.
 
 **Ordering recommendation:** Tier 1 as five small per-fix commits
 (each with a corpus delta in the commit message). Tier 2 + 3 as

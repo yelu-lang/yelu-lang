@@ -747,7 +747,9 @@ let rec pp ff e =
       Fmt.string ff ")"
   | File_strings { var; file; regex; encoding; limit_count } ->
       Fmt.pf ff "file(STRINGS %a %a" pp_arg file pp_var var;
-      Option.iter regex ~f:(fun r -> Fmt.pf ff " REGEX %S" r);
+      (* Use cmake's literal-quoting (no OCaml escape pass) so embedded
+         backslashes like `[\t ]` in regexes survive the round-trip. *)
+      Option.iter regex ~f:(fun r -> Fmt.pf ff " REGEX %s" (quoted r));
       Option.iter encoding ~f:(fun e -> Fmt.pf ff " ENCODING %s" e);
       Option.iter limit_count ~f:(fun n -> Fmt.pf ff " LIMIT_COUNT %d" n);
       Fmt.string ff ")"

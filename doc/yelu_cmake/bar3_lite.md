@@ -602,10 +602,18 @@ would populate it.
   REMOVE_RECURSE, TOUCH, TOUCH_NOCREATE, GLOB, GLOB_RECURSE —
   the latter two only when no CONFIGURE_DEPENDS / RELATIVE /
   LIST_DIRECTORIES / FOLLOW_SYMLINKS keywords are present.
-- **Bails on**: READ (printer slot order reversed), STRINGS,
-  COPY, COPY_FILE, DOWNLOAD, UPLOAD, LOCK, REAL_PATH, SIZE,
-  READ_SYMLINK, TIMESTAMP, RENAME, RELATIVE_PATH,
-  TO_NATIVE_PATH, TO_CMAKE_PATH.
+- **Accepts (added 2026-05-29 / D2)**: READ (with optional
+  `OFFSET <n>` / `LIMIT <n>` / `HEX`) and STRINGS (with optional
+  `REGEX <r>` / `ENCODING <e>` / `LIMIT_COUNT <n>` in canonical
+  printer order). STRINGS bails on out-of-order keywords;
+  modeled-side printer for REGEX switched from `%S` (OCaml escape)
+  to literal-quoted so embedded backslashes (`[\t ]` etc.) survive
+  the round-trip.
+- **Bails on**: STRINGS unmodeled keywords (LENGTH_MAXIMUM,
+  LENGTH_MINIMUM, LIMIT_INPUT, LIMIT_OUTPUT, NEWLINE_CONSUME,
+  NO_HEX_CONVERSION, ECHO_OUTPUT_VARIABLE); COPY, COPY_FILE,
+  DOWNLOAD, UPLOAD, LOCK, REAL_PATH, SIZE, READ_SYMLINK, TIMESTAMP,
+  RENAME, RELATIVE_PATH, TO_NATIVE_PATH, TO_CMAKE_PATH.
 
 ### 8.32 execute_process (Tier 2 cleanup, 2026-05-29)
 

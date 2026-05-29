@@ -1040,6 +1040,75 @@ let parse_file args : L.exp option =
     Some (File_glob { var; recurse = true;
                       relative = None; configure_depends = false;
                       patterns = List.map patterns ~f:arg_of_raw })
+  (* file(READ <file> <var> [OFFSET <n>] [LIMIT <n>] [HEX]) — IR fields
+     and printer agree on `file`-before-`var`. *)
+  | "READ" :: file :: var :: rest when is_bare var ->
+    let offset = ref None in
+    let limit = ref None in
+    let hex = ref false in
+    let ok = ref true in
+    let rec go = function
+      | [] -> ()
+      | "OFFSET" :: n :: r ->
+        (match Int.of_string_opt n with
+         | Some i when Option.is_none !offset -> offset := Some i; go r
+         | _ -> ok := false)
+      | "LIMIT" :: n :: r ->
+        (match Int.of_string_opt n with
+         | Some i when Option.is_none !limit -> limit := Some i; go r
+         | _ -> ok := false)
+      | "HEX" :: r when not !hex -> hex := true; go r
+      | _ -> ok := false
+    in
+    go rest;
+    if not !ok then None
+    else Some (File_read { var; file = arg_of_raw file;
+                           offset = !offset; limit = !limit; hex = !hex })
+  (* file(STRINGS <file> <var> [REGEX <r>] [ENCODING <e>] [LIMIT_COUNT <n>]).
+     Printer emits the three keywords in this fixed order; source must
+     match or we bail (same kind of rank-based check as execute_process).
+     Bails on the other keywords (LENGTH_MAXIMUM, NEWLINE_CONSUME, etc.)
+     that the IR doesn't carry. *)
+  | "STRINGS" :: file :: var :: rest when is_bare var ->
+    let regex = ref None in
+    let encoding = ref None in
+    let limit_count = ref None in
+    let ok = ref true in
+    let last_rank = ref (-1) in
+    let unmodeled = ["LENGTH_MAXIMUM"; "LENGTH_MINIMUM"; "LIMIT_INPUT";
+                     "LIMIT_OUTPUT"; "NEWLINE_CONSUME"; "NO_HEX_CONVERSION";
+                     "ECHO_OUTPUT_VARIABLE"] in
+    let kw_rank = function
+      | "REGEX" -> 0 | "ENCODING" -> 1 | "LIMIT_COUNT" -> 2
+      | _ -> 99
+    in
+    let check_order kw =
+      let r = kw_rank kw in
+      if r < !last_rank then false
+      else (last_rank := r; true)
+    in
+    let rec go = function
+      | [] -> ()
+      | kw :: _ when List.mem unmodeled kw ~equal:String.equal -> ok := false
+      | kw :: _ when not (check_order kw) -> ok := false
+      | "REGEX" :: r :: rest_args ->
+        (* printer emits %S (quoted), so source must be quoted. *)
+        (match arg_of_raw r with
+         | Quoted s when Option.is_none !regex -> regex := Some s; go rest_args
+         | _ -> ok := false)
+      | "ENCODING" :: e :: r when is_bare e && Option.is_none !encoding ->
+        encoding := Some e; go r
+      | "LIMIT_COUNT" :: n :: r ->
+        (match Int.of_string_opt n with
+         | Some i when Option.is_none !limit_count -> limit_count := Some i; go r
+         | _ -> ok := false)
+      | _ -> ok := false
+    in
+    go rest;
+    if not !ok then None
+    else Some (File_strings { var; file = arg_of_raw file;
+                              regex = !regex; encoding = !encoding;
+                              limit_count = !limit_count })
   | _ -> None
 
 (* set_property(<SCOPE> [APPEND] [APPEND_STRING] PROPERTY <name> [<value>...]).
