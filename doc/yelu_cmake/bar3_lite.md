@@ -58,11 +58,18 @@ content (modulo whitespace and inline-arg comments).
 
 ```
 tutorial step outputs : 25/25  OK   modeled=165   generic=25    other=23
-z3                    : 108/108 OK  modeled=1056  generic=707   other=1711
-llvm/llvm             : 596/596 OK  modeled=3572  generic=2610  other=4029
+z3                    : 108/108 OK  modeled=1120  generic=643   other=1711
+llvm/llvm             : 596/596 OK  modeled=3847  generic=2335  other=4029
 ```
 
 All three corpora: **STRUCT=0, FORMAT=0**.
+
+> **Counts updated 2026-05-29** post the IR-printer cleanup work
+> (Tier 1 + 2 + 3 + Tier 4 file/list/string/add_custom_target
+> batches). Pre-cleanup baseline was z3 modeled=1,056 / llvm
+> modeled=3,572; cleanup moved 339 generic shapes to modeled across
+> both real-world corpora without breaking the oracle.
+> Pre-cleanup state is preserved in `worklog/worklog_2026_05.md`.
 
 Bucket definitions (no ratio is reported — see § 6):
 
