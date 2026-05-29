@@ -58,8 +58,8 @@ content (modulo whitespace and inline-arg comments).
 
 ```
 tutorial step outputs : 25/25  OK   modeled=165   generic=25    other=23
-z3                    : 108/108 OK  modeled=1120  generic=643   other=1711
-llvm/llvm             : 596/596 OK  modeled=3847  generic=2335  other=4029
+z3                    : 108/108 OK  modeled=1123  generic=640   other=1711
+llvm/llvm             : 596/596 OK  modeled=3863  generic=2319  other=4029
 ```
 
 All three corpora: **STRUCT=0, FORMAT=0**.
@@ -605,11 +605,20 @@ would populate it.
 - **IR**: [`Install_targets`](../../src/langs/cmake/lang_cmake.ml#L840),
   [`Install_files`](../../src/langs/cmake/lang_cmake.ml#L849).
 - **Printer**: [`lang_cmake_pp.ml:1221`](../../src/langs/cmake/lang_cmake_pp.ml#L1221) (TARGETS), [`1227`](../../src/langs/cmake/lang_cmake_pp.ml#L1227) (FILES).
-- **Accepts**: `install(TARGETS <t>... [EXPORT <name>] DESTINATION <d>)`,
-  `install(FILES <f>... DESTINATION <d>)`.
+- **Accepts**:
+  - `install(TARGETS <t>... [EXPORT <name>]
+     [<artifact-kind> [DESTINATION <d>]]... [DESTINATION <d>])`
+    where `<artifact-kind>` ∈ {ARCHIVE, LIBRARY, RUNTIME, OBJECTS,
+    FRAMEWORK, BUNDLE, PUBLIC_HEADER, PRIVATE_HEADER, RESOURCE,
+    FILE_SET <name>, CXX_MODULES_BMI}. At least one DESTINATION
+    (top-level or per-kind) required. (IR widened 2026-05-29:
+    `Install_targets.destination` became optional and
+    `artifact_clauses : install_artifact_clause list` field added.)
+  - `install(FILES <f>... DESTINATION <d>)`.
 - **Bails on**: DIRECTORY / SCRIPT / CODE / EXPORT-standalone;
-  COMPONENT / RENAME / PERMISSIONS / OPTIONAL on TARGETS; per-
-  target-type sub-clauses (ARCHIVE / LIBRARY / RUNTIME / …).
+  per-clause sub-options (PERMISSIONS / COMPONENT / NAMELINK_* /
+  OPTIONAL / EXCLUDE_FROM_ALL) — IR carries some fields but
+  modeling these per-clause requires further widening.
 
 ### 8.28 add_custom_command (TARGET form only)
 

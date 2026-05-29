@@ -1273,12 +1273,31 @@ and pp_project_cmd ff cmd =
   | Export_setup { name } ->
       Fmt.(pf ff "export(SETUP %a)" string name)
   (* install *)
-  | Install_targets { targets; destination; export; _ } ->
-      Fmt.(
-        pf ff "install(TARGETS %a@[<2>@;%a@;DESTINATION %a@])"
-          (list_sp pp_target) targets
-          (pp_with_key "EXPORT" string)
-          export pp_arg destination)
+  | Install_targets { targets; destination; artifact_clauses; export; _ } ->
+      let pp_kind ff = function
+        | Iak_archive -> Fmt.string ff "ARCHIVE"
+        | Iak_library -> Fmt.string ff "LIBRARY"
+        | Iak_runtime -> Fmt.string ff "RUNTIME"
+        | Iak_objects -> Fmt.string ff "OBJECTS"
+        | Iak_framework -> Fmt.string ff "FRAMEWORK"
+        | Iak_bundle -> Fmt.string ff "BUNDLE"
+        | Iak_public_header -> Fmt.string ff "PUBLIC_HEADER"
+        | Iak_private_header -> Fmt.string ff "PRIVATE_HEADER"
+        | Iak_resource -> Fmt.string ff "RESOURCE"
+        | Iak_file_set n -> Fmt.pf ff "FILE_SET %s" n
+        | Iak_cxx_modules_bmi -> Fmt.string ff "CXX_MODULES_BMI"
+      in
+      let pp_clause ff { kind; destination = d } =
+        Fmt.pf ff " %a" pp_kind kind;
+        Option.iter d ~f:(fun a -> Fmt.pf ff " DESTINATION %a" pp_arg a)
+      in
+      Fmt.pf ff "install(TARGETS %a"
+        (list_sp pp_target) targets;
+      Option.iter export ~f:(fun e -> Fmt.pf ff " EXPORT %s" e);
+      List.iter artifact_clauses ~f:(pp_clause ff);
+      Option.iter destination ~f:(fun a ->
+        Fmt.pf ff " DESTINATION %a" pp_arg a);
+      Fmt.string ff ")"
   | Install_files { files; destination; _ } ->
       Fmt.(
         pf ff "install(FILES %a@[<2>@;DESTINATION %a@])" (list_sp pp_arg) files

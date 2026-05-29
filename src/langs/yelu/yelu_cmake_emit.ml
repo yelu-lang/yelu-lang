@@ -817,7 +817,8 @@ let rec emit_exp ~env (e : expr) : C.exp =
     C.Project_cmd
       (C.Install_targets
          { targets = List.map targets ~f:(target_arg ~env);
-           destination = arg ~env destination;
+           destination = Some (arg ~env destination);
+           artifact_clauses = [];
            component = None;
            rename = None;
            export = Option.map export ~f:(target_arg ~env);

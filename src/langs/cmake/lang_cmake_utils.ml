@@ -210,11 +210,12 @@ let ts_plain kind items = Tsi_plain { kind; items }
 let target_sources_fs target items =
   Project_cmd (Target_sources_file_set { target; items })
 
-let install_targets ?component ?rename ?export ?(permissions = []) targets
-    destination =
+let install_targets ?component ?rename ?export ?(permissions = [])
+    ?(artifact_clauses = []) targets destination =
   Project_cmd
     (Install_targets
-       { targets; destination; permissions; component; rename; export })
+       { targets; destination = Some destination; artifact_clauses;
+         permissions; component; rename; export })
 
 let install_export ?file ?namespace ?component ?rename ?(permissions = []) export
     destination =

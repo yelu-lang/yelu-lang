@@ -105,6 +105,24 @@ type property = { prop : string; value : arg }
 type include_guard_scope = Ig_directory | Ig_global
 type set_property_mode = Sp_set | Sp_defined | Sp_brief_doc | Sp_full_doc
 
+(* install(TARGETS) artifact-kind clauses. cmake allows per-kind
+   DESTINATION / PERMISSIONS / COMPONENT / etc.; we model just
+   per-kind DESTINATION for now (the canonical real-world shape:
+   `install(TARGETS T RUNTIME DESTINATION bin LIBRARY DESTINATION lib)`).
+   The other per-kind sub-clauses (PERMISSIONS, CONFIGURATIONS,
+   COMPONENT, NAMELINK_*, OPTIONAL, EXCLUDE_FROM_ALL) are deferred. *)
+type install_artifact_kind =
+  | Iak_archive | Iak_library | Iak_runtime
+  | Iak_objects | Iak_framework | Iak_bundle
+  | Iak_public_header | Iak_private_header | Iak_resource
+  | Iak_file_set of string         (* FILE_SET <name> *)
+  | Iak_cxx_modules_bmi
+
+type install_artifact_clause = {
+  kind : install_artifact_kind;
+  destination : arg option;
+}
+
 (* Scope clause for set_property — exactly one of these prefixes
    the call. See [Set_property] below. *)
 type set_property_scope =
@@ -882,10 +900,14 @@ and project_cmd =
   | Export_package of { name : string }
   | Export_setup of { name : string }
   | Fltk_wrap_ui of { resulting_library_name : string; sources : source list }
+  (* install(TARGETS) — top-level [destination] becomes optional
+     2026-05-29, with [artifact_clauses] carrying per-kind
+     DESTINATION clauses (cmake spec). At least one of the two
+     must be populated for a well-formed install call. *)
   | Install_targets of {
       targets : target list;
-      (* target_type : string; *)
-      destination : arg;
+      destination : arg option;
+      artifact_clauses : install_artifact_clause list;
       component : string option;
       rename : string option;
       export : string option;

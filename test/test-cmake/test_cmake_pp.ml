@@ -241,7 +241,10 @@ let install =
   ( "install",
     [
       check "install_targets"
-        "install(TARGETS Tutorial  DESTINATION bin)"
+        (* Tier 4 install per-target-type IR widening: printer rewritten
+           to walk artifact_clauses; no longer emits the double-space
+           the old Fmt @; pattern produced. *)
+        "install(TARGETS Tutorial DESTINATION bin)"
         (install_targets [ "Tutorial" ] (str_ "bin"));
       check "install_files"
         "install(FILES \"MathFunctions.h\" DESTINATION include)"

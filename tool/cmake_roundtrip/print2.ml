@@ -1858,14 +1858,66 @@ let parse_install args : L.exp option =
          | "EXPORT" :: e :: r when is_bare e -> Some e, r
          | _ -> None, rest
        in
-       (match rest with
-        | [ "DESTINATION"; dest ] ->
-          Some (Project_cmd
-                  (Install_targets
-                     { targets;
-                       destination = arg_of_raw dest;
-                       component = None; rename = None; export;
-                       permissions = [] }))
+       (* Parse a sequence of per-kind artifact clauses, then an optional
+          top-level DESTINATION. Per-kind sub-options (PERMISSIONS,
+          COMPONENT, etc.) cause bail until the IR carries them. *)
+       let kind_of = function
+         | "ARCHIVE" -> Some L.Iak_archive
+         | "LIBRARY" -> Some Iak_library
+         | "RUNTIME" -> Some Iak_runtime
+         | "OBJECTS" -> Some Iak_objects
+         | "FRAMEWORK" -> Some Iak_framework
+         | "BUNDLE" -> Some Iak_bundle
+         | "PUBLIC_HEADER" -> Some Iak_public_header
+         | "PRIVATE_HEADER" -> Some Iak_private_header
+         | "RESOURCE" -> Some Iak_resource
+         | "CXX_MODULES_BMI" -> Some Iak_cxx_modules_bmi
+         | _ -> None
+       in
+       let rec take_clauses acc rest =
+         match rest with
+         | [] -> Some (List.rev acc, None, [])
+         | "DESTINATION" :: d :: r ->
+           (* Top-level DESTINATION; should be terminal. *)
+           Some (List.rev acc, Some (arg_of_raw d), r)
+         | "FILE_SET" :: name :: "DESTINATION" :: d :: r when is_bare name ->
+           take_clauses
+             ({ L.kind = Iak_file_set name;
+                destination = Some (arg_of_raw d) } :: acc) r
+         | "FILE_SET" :: name :: r when is_bare name ->
+           take_clauses
+             ({ L.kind = Iak_file_set name; destination = None } :: acc) r
+         | kw :: "DESTINATION" :: d :: r ->
+           (match kind_of kw with
+            | Some k ->
+              take_clauses
+                ({ L.kind = k; destination = Some (arg_of_raw d) } :: acc) r
+            | None -> None)
+         | kw :: r ->
+           (match kind_of kw with
+            | Some k ->
+              take_clauses
+                ({ L.kind = k; destination = None } :: acc) r
+            | None -> None)
+       in
+       (match take_clauses [] rest with
+        | Some (artifact_clauses, top_dest, []) ->
+          (* Need at least one of: top-level DESTINATION, any
+             artifact-clause with DESTINATION. *)
+          let has_any_dest =
+            Option.is_some top_dest
+            || List.exists artifact_clauses
+                 ~f:(fun c -> Option.is_some c.destination)
+          in
+          if not has_any_dest then None
+          else
+            Some (Project_cmd
+                    (Install_targets
+                       { targets;
+                         destination = top_dest;
+                         artifact_clauses;
+                         component = None; rename = None; export;
+                         permissions = [] }))
         | _ -> None)
      | _ -> None)
   | "FILES" :: rest ->
