@@ -75,9 +75,16 @@ detail in `bar3_lite.md` § 8.
   `ECmakeGetProperty` emit corrected from misusing
   `source_target_directory` to using `Gps_target`. Corpus delta:
   z3 +7, llvm +68 modeled (larger footprint than A3).
-- D1 `execute_process` typed (50 calls in llvm, 31 in z3).
-  Multi-line keyword layout (`\n  COMMAND <args>`); requires
-  modeling several keyword sublists.
+- ✅ **D1 `execute_process` typed** — shipped 2026-05-29.
+  IR was already complete enough; just needed a parser. The
+  printer's canonical keyword order (COMMAND, WORKING_DIRECTORY,
+  TIMEOUT, RESULT/OUTPUT/ERROR_VARIABLE, INPUT/OUTPUT/ERROR_FILE,
+  OUTPUT/ERROR_QUIET, …_STRIP_TRAILING_WHITESPACE,
+  COMMAND_ERROR_IS_FATAL) is enforced by the parser via a rank
+  check — sources with out-of-order keywords bail to generic so
+  STRUCT stays clean. RESULTS_VARIABLE / COMMAND_ECHO / ENCODING /
+  ECHO_OUTPUT_VARIABLE / ECHO_ERROR_VARIABLE bail (IR doesn't carry
+  them). Corpus delta: z3 +22, llvm +43 modeled.
 
 **Tier 3 — typed-IR misclassification opportunities.**
 

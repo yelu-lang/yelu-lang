@@ -235,7 +235,6 @@ through `Apply` because the printer drops fields or shape
 inversion is brittle. They are the target of the upcoming
 **IR-printer cleanup** in [`status.md`](status.md):
 
-- `execute_process` — multi-line keyword shape, hard to invert.
 - Several `file` subcommands (READ, STRINGS, COPY, DOWNLOAD,
   UPLOAD, LOCK, path-query family).
 
@@ -291,7 +290,7 @@ Coverage by stage (30 dispatched commands, 15 + 8 + 7):
 | original Stage 2 | 15 | `cmake_minimum_required`, `project`, `set`, `message`, `configure_file`, `add_executable`, `add_library`, `target_link_libraries`, `target_include_directories`, `target_compile_definitions`, `target_compile_options`, `target_compile_features`, `option`, `include`, `add_subdirectory` |
 | Stage 2-b | 8 | `unset`, `add_dependencies`, `find_package`, `get_filename_component`, `set_target_properties`, `add_custom_target`, `list`, `string` |
 | Stage 2-c | 7 | `return`, `include_directories`, `find_program`, `find_path`, `install`, `add_custom_command`, `file` |
-| Tier 2 cleanup | 2 | `set_property`, `get_property` |
+| Tier 2 cleanup | 3 | `set_property`, `get_property`, `execute_process` |
 
 (Helper functions like `parse_find_var_names` back two dispatched
 commands; subcommand dispatchers like `parse_list` /
@@ -592,6 +591,19 @@ would populate it.
   COPY, COPY_FILE, DOWNLOAD, UPLOAD, LOCK, REAL_PATH, SIZE,
   READ_SYMLINK, TIMESTAMP, RENAME, RELATIVE_PATH,
   TO_NATIVE_PATH, TO_CMAKE_PATH.
+
+### 8.32 execute_process (Tier 2 cleanup, 2026-05-29)
+
+- **Location**: [`print2.ml`](../../tool/cmake_roundtrip/print2.ml) `parse_execute_process`
+- **IR**: [`Execute_process` at `lang_cmake.ml:522`](../../src/langs/cmake/lang_cmake.ml#L522) — unchanged, the existing record already covered the keywords parser handles.
+- **Printer**: [`lang_cmake_pp.ml:705`](../../src/langs/cmake/lang_cmake_pp.ml#L705) — unchanged, emits multi-line with `\n  KW <args>` per keyword.
+- **Accepts**: `execute_process(COMMAND <c1> [<args>...] [COMMAND <c2> [<args>...]]... [WORKING_DIRECTORY <d>] [TIMEOUT <s>] [RESULT_VARIABLE <v>] [OUTPUT_VARIABLE <v>] [ERROR_VARIABLE <v>] [INPUT_FILE <f>] [OUTPUT_FILE <f>] [ERROR_FILE <f>] [OUTPUT_QUIET] [ERROR_QUIET] [OUTPUT_STRIP_TRAILING_WHITESPACE] [ERROR_STRIP_TRAILING_WHITESPACE] [COMMAND_ERROR_IS_FATAL <ANY|LAST|NONE>])` — keywords MUST appear in the canonical order above (matching the printer's emit order), or the parser bails. COMMAND blocks may repeat at the start.
+- **Bails on**:
+  - Keywords out of canonical order in source (e.g. `OUTPUT_QUIET` before `RESULT_VARIABLE`) — printer would silently reorder, breaking STRUCT.
+  - `RESULTS_VARIABLE` / `COMMAND_ECHO` / `ENCODING` / `ECHO_OUTPUT_VARIABLE` / `ECHO_ERROR_VARIABLE` — IR doesn't carry these fields.
+  - Non-numeric `TIMEOUT`.
+  - Unrecognized trailing tokens.
+- **Known gaps**: IR is missing five cmake-modern keywords (see Bails on); adding them would close more shapes. The order constraint is a surface-syntax limitation of the printer; cmake itself doesn't care about keyword order, so bailing on out-of-order source is conservative but correct.
 
 ### 8.31 get_property (Tier 2 cleanup, 2026-05-29)
 

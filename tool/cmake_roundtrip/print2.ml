@@ -998,6 +998,152 @@ let parse_file args : L.exp option =
 
    IR + printer redesigned 2026-05-29 to surface scope as a sum type. *)
 
+(* execute_process(COMMAND <cmd1> [<args>...]
+                    [COMMAND <cmd2> [<args>...]]...
+                    [WORKING_DIRECTORY <dir>] [TIMEOUT <s>]
+                    [RESULT_VARIABLE <v>] [OUTPUT_VARIABLE <v>]
+                    [ERROR_VARIABLE <v>] [INPUT_FILE <f>]
+                    [OUTPUT_FILE <f>] [ERROR_FILE <f>]
+                    [OUTPUT_QUIET] [ERROR_QUIET]
+                    [OUTPUT_STRIP_TRAILING_WHITESPACE]
+                    [ERROR_STRIP_TRAILING_WHITESPACE]
+                    [COMMAND_ERROR_IS_FATAL <ANY|LAST|NONE>]).
+
+   Bails on the unmodeled keywords RESULTS_VARIABLE / COMMAND_ECHO /
+   ENCODING / ECHO_OUTPUT_VARIABLE / ECHO_ERROR_VARIABLE — IR doesn't
+   carry them. *)
+let parse_execute_process args : L.exp option =
+  let is_top_kw = function
+    | "COMMAND" | "WORKING_DIRECTORY" | "TIMEOUT"
+    | "RESULT_VARIABLE" | "OUTPUT_VARIABLE" | "ERROR_VARIABLE"
+    | "INPUT_FILE" | "OUTPUT_FILE" | "ERROR_FILE"
+    | "OUTPUT_QUIET" | "ERROR_QUIET"
+    | "OUTPUT_STRIP_TRAILING_WHITESPACE"
+    | "ERROR_STRIP_TRAILING_WHITESPACE"
+    | "COMMAND_ERROR_IS_FATAL"
+    | "RESULTS_VARIABLE" | "COMMAND_ECHO" | "ENCODING"
+    | "ECHO_OUTPUT_VARIABLE" | "ECHO_ERROR_VARIABLE" -> true
+    | _ -> false
+  in
+  let bail_kw = function
+    | "RESULTS_VARIABLE" | "COMMAND_ECHO" | "ENCODING"
+    | "ECHO_OUTPUT_VARIABLE" | "ECHO_ERROR_VARIABLE" -> true
+    | _ -> false
+  in
+  (* Printer-canonical keyword order (see Execute_process arm in
+     lang_cmake_pp.ml). Source must follow this order or the typed
+     reprint will rearrange args, breaking STRUCT. Multiple COMMAND
+     blocks share rank 0; the rest of the keywords follow in fixed
+     positions. *)
+  let kw_rank = function
+    | "COMMAND" -> 0
+    | "WORKING_DIRECTORY" -> 1
+    | "TIMEOUT" -> 2
+    | "RESULT_VARIABLE" -> 3
+    | "OUTPUT_VARIABLE" -> 4
+    | "ERROR_VARIABLE" -> 5
+    | "INPUT_FILE" -> 6
+    | "OUTPUT_FILE" -> 7
+    | "ERROR_FILE" -> 8
+    | "OUTPUT_QUIET" -> 9
+    | "ERROR_QUIET" -> 10
+    | "OUTPUT_STRIP_TRAILING_WHITESPACE" -> 11
+    | "ERROR_STRIP_TRAILING_WHITESPACE" -> 12
+    | "COMMAND_ERROR_IS_FATAL" -> 13
+    | _ -> 99
+  in
+  let last_rank = ref (-1) in
+  let check_order kw =
+    let r = kw_rank kw in
+    (* COMMAND can repeat; everything else strictly non-decreasing. *)
+    if String.equal kw "COMMAND" then
+      (if !last_rank > 0 then false
+       else (last_rank := 0; true))
+    else if r < !last_rank then false
+    else (last_rank := r; true)
+  in
+  let commands = ref [] in
+  let working_directory = ref None in
+  let timeout = ref None in
+  let result_variable = ref None in
+  let output_variable = ref None in
+  let error_variable = ref None in
+  let input_file = ref None in
+  let output_file = ref None in
+  let error_file = ref None in
+  let output_quiet = ref false in
+  let error_quiet = ref false in
+  let output_strip = ref false in
+  let error_strip = ref false in
+  let command_error_is_fatal = ref None in
+  let ok = ref true in
+  let take_until_kw rest =
+    let rec loop acc = function
+      | [] -> List.rev acc, []
+      | t :: _ as r when is_top_kw t -> List.rev acc, r
+      | t :: r -> loop (t :: acc) r
+    in
+    loop [] rest
+  in
+  let rec go = function
+    | [] -> ()
+    | kw :: _ when not !ok ->
+      ignore kw
+    | kw :: _ when bail_kw kw -> ok := false
+    | kw :: _ when not (check_order kw) -> ok := false
+    | "COMMAND" :: r ->
+      let cmd, r = take_until_kw r in
+      if List.is_empty cmd then ok := false
+      else (commands := cmd :: !commands; go r)
+    | "WORKING_DIRECTORY" :: d :: r when not (is_top_kw d) ->
+      working_directory := Some (arg_of_raw d); go r
+    | "TIMEOUT" :: t :: r when not (is_top_kw t) ->
+      (match Float.of_string_opt t with
+       | Some f -> timeout := Some f; go r
+       | None -> ok := false)
+    | "RESULT_VARIABLE" :: v :: r when is_bare v ->
+      result_variable := Some v; go r
+    | "OUTPUT_VARIABLE" :: v :: r when is_bare v ->
+      output_variable := Some v; go r
+    | "ERROR_VARIABLE" :: v :: r when is_bare v ->
+      error_variable := Some v; go r
+    | "INPUT_FILE" :: f :: r when not (is_top_kw f) ->
+      input_file := Some (arg_of_raw f); go r
+    | "OUTPUT_FILE" :: f :: r when not (is_top_kw f) ->
+      output_file := Some (arg_of_raw f); go r
+    | "ERROR_FILE" :: f :: r when not (is_top_kw f) ->
+      error_file := Some (arg_of_raw f); go r
+    | "OUTPUT_QUIET" :: r -> output_quiet := true; go r
+    | "ERROR_QUIET" :: r -> error_quiet := true; go r
+    | "OUTPUT_STRIP_TRAILING_WHITESPACE" :: r ->
+      output_strip := true; go r
+    | "ERROR_STRIP_TRAILING_WHITESPACE" :: r ->
+      error_strip := true; go r
+    | "COMMAND_ERROR_IS_FATAL" :: m :: r
+      when List.mem ["ANY"; "LAST"; "NONE"] m ~equal:String.equal ->
+      command_error_is_fatal := Some m; go r
+    | _ -> ok := false
+  in
+  go args;
+  if not !ok || List.is_empty !commands then None
+  else
+    Some (Execute_process
+            { commands = List.rev !commands
+                         |> List.map ~f:(List.map ~f:arg_of_raw);
+              working_directory = !working_directory;
+              timeout = !timeout;
+              result_variable = !result_variable;
+              output_variable = !output_variable;
+              error_variable = !error_variable;
+              input_file = !input_file;
+              output_file = !output_file;
+              error_file = !error_file;
+              output_quiet = !output_quiet;
+              error_quiet = !error_quiet;
+              output_strip_trailing_whitespace = !output_strip;
+              error_strip_trailing_whitespace = !error_strip;
+              command_error_is_fatal = !command_error_is_fatal })
+
 (* get_property(<var> <SCOPE> PROPERTY <name> [SET|DEFINED|BRIEF_DOCS|FULL_DOCS]).
    Single-valued scope (TARGET <t>, SOURCE <src>, etc.); paired with the
    redesign at lang_cmake.ml `get_property_scope`. *)
@@ -1259,6 +1405,7 @@ let parse_cmd (c : cmd) : L.exp option =
   (* Tier 2 *)
   | "set_property" -> parse_set_property c.args
   | "get_property" -> parse_get_property c.args
+  | "execute_process" -> parse_execute_process c.args
   | _ -> None
 
 (* ============================================================
