@@ -609,11 +609,18 @@ would populate it.
   modeled-side printer for REGEX switched from `%S` (OCaml escape)
   to literal-quoted so embedded backslashes (`[\t ]` etc.) survive
   the round-trip.
+- **Accepts (added 2026-05-29 / Tier 4 file batch)**:
+  RELATIVE_PATH (`<var> <base> <file>`), RENAME (`<old> <new>
+  [RESULT <v>] [NO_REPLACE]`), COPY_FILE (`<in> <out> [RESULT <v>]
+  [ONLY_IF_DIFFERENT]`), REAL_PATH (`<path> <var> [BASE_DIRECTORY
+  <d>] [EXPAND_TILDE]`), SIZE (`<file> <var>`), READ_SYMLINK
+  (`<link> <var>`), TIMESTAMP (`<file> <var> [<format>] [UTC]`).
+  TIMESTAMP printer also switched to literal-quoted format string
+  (same fix as STRINGS REGEX).
 - **Bails on**: STRINGS unmodeled keywords (LENGTH_MAXIMUM,
   LENGTH_MINIMUM, LIMIT_INPUT, LIMIT_OUTPUT, NEWLINE_CONSUME,
-  NO_HEX_CONVERSION, ECHO_OUTPUT_VARIABLE); COPY, COPY_FILE,
-  DOWNLOAD, UPLOAD, LOCK, REAL_PATH, SIZE, READ_SYMLINK, TIMESTAMP,
-  RENAME, RELATIVE_PATH, TO_NATIVE_PATH, TO_CMAKE_PATH.
+  NO_HEX_CONVERSION, ECHO_OUTPUT_VARIABLE); COPY, DOWNLOAD, UPLOAD,
+  LOCK, TO_NATIVE_PATH, TO_CMAKE_PATH (no IR ctors).
 
 ### 8.32 execute_process (Tier 2 cleanup, 2026-05-29)
 

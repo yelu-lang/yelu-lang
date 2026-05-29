@@ -788,7 +788,9 @@ let rec pp ff e =
       Fmt.pf ff "file(READ_SYMLINK %a %a)" pp_arg link pp_var var
   | File_timestamp { var; file; format; utc } ->
       Fmt.pf ff "file(TIMESTAMP %a %a" pp_arg file pp_var var;
-      Option.iter format ~f:(fun f -> Fmt.pf ff " %S" f);
+      (* Same fix as File_strings.regex (D2): use literal-quoted, not
+         OCaml-escaped %S, so cmake format strings round-trip. *)
+      Option.iter format ~f:(fun f -> Fmt.pf ff " %s" (quoted f));
       if utc then Fmt.string ff " UTC";
       Fmt.string ff ")"
   | Find_package { name; version; exact; quiet; config_mode; required; components; optional_components } ->

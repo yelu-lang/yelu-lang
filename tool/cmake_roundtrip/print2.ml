@@ -1064,6 +1064,89 @@ let parse_file args : L.exp option =
     if not !ok then None
     else Some (File_read { var; file = arg_of_raw file;
                            offset = !offset; limit = !limit; hex = !hex })
+  (* file(RELATIVE_PATH <var> <base> <file>) *)
+  | [ "RELATIVE_PATH"; var; base; file ] when is_bare var ->
+    Some (File_relative_path { var; base; file })
+  (* file(RENAME <old> <new> [RESULT <v>] [NO_REPLACE]) *)
+  | "RENAME" :: old_ :: new_ :: rest ->
+    let result = ref None in
+    let no_replace = ref false in
+    let ok = ref true in
+    let rec go = function
+      | [] -> ()
+      | "RESULT" :: v :: r when is_bare v && Option.is_none !result ->
+        result := Some v; go r
+      | "NO_REPLACE" :: r when not !no_replace -> no_replace := true; go r
+      | _ -> ok := false
+    in
+    go rest;
+    if not !ok then None
+    else Some (File_rename { old_ = arg_of_raw old_;
+                             new_ = arg_of_raw new_;
+                             result = !result;
+                             no_replace = !no_replace })
+  (* file(COPY_FILE <input> <output> [RESULT <v>] [ONLY_IF_DIFFERENT]) *)
+  | "COPY_FILE" :: input :: output :: rest ->
+    let result = ref None in
+    let only_if_different = ref false in
+    let ok = ref true in
+    let rec go = function
+      | [] -> ()
+      | "RESULT" :: v :: r when is_bare v && Option.is_none !result ->
+        result := Some v; go r
+      | "ONLY_IF_DIFFERENT" :: r when not !only_if_different ->
+        only_if_different := true; go r
+      | _ -> ok := false
+    in
+    go rest;
+    if not !ok then None
+    else Some (File_copy_file { input = arg_of_raw input;
+                                output = arg_of_raw output;
+                                result = !result;
+                                only_if_different = !only_if_different })
+  (* file(REAL_PATH <path> <var> [BASE_DIRECTORY <dir>] [EXPAND_TILDE]) *)
+  | "REAL_PATH" :: path :: var :: rest when is_bare var ->
+    let base_dir = ref None in
+    let expand_tilde = ref false in
+    let ok = ref true in
+    let rec go = function
+      | [] -> ()
+      | "BASE_DIRECTORY" :: d :: r when Option.is_none !base_dir ->
+        base_dir := Some (arg_of_raw d); go r
+      | "EXPAND_TILDE" :: r when not !expand_tilde ->
+        expand_tilde := true; go r
+      | _ -> ok := false
+    in
+    go rest;
+    if not !ok then None
+    else Some (File_real_path { var; path = arg_of_raw path;
+                                base_dir = !base_dir;
+                                expand_tilde = !expand_tilde })
+  (* file(SIZE <file> <var>) *)
+  | [ "SIZE"; file; var ] when is_bare var ->
+    Some (File_size { var; file = arg_of_raw file })
+  (* file(READ_SYMLINK <link> <var>) *)
+  | [ "READ_SYMLINK"; link; var ] when is_bare var ->
+    Some (File_read_symlink { var; link = arg_of_raw link })
+  (* file(TIMESTAMP <file> <var> [<format>] [UTC]).
+     Format must be quoted in source (printer emits quoted). *)
+  | "TIMESTAMP" :: file :: var :: rest when is_bare var ->
+    let format = ref None in
+    let utc = ref false in
+    let ok = ref true in
+    let rec go = function
+      | [] -> ()
+      | "UTC" :: r when not !utc -> utc := true; go r
+      | f :: r when Option.is_none !format ->
+        (match arg_of_raw f with
+         | Quoted s -> format := Some s; go r
+         | _ -> ok := false)
+      | _ -> ok := false
+    in
+    go rest;
+    if not !ok then None
+    else Some (File_timestamp { var; file = arg_of_raw file;
+                                format = !format; utc = !utc })
   (* file(STRINGS <file> <var> [REGEX <r>] [ENCODING <e>] [LIMIT_COUNT <n>]).
      Printer emits the three keywords in this fixed order; source must
      match or we bail (same kind of rank-based check as execute_process).
