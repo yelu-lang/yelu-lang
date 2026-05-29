@@ -237,20 +237,10 @@ let get_filename_component ?(cache = false) ~mode var filename =
 
 let get_global_property ~property var =
   Get_property
-    {
-      var;
-      global = true;
-      directory = "";
-      source = "";
-      source_directory = "";
-      source_target_directory = "";
-      install = "";
-      test = "";
-      test_directory = "";
-      variable = false;
+    { var;
+      scope = Gps_global;
       property_name = property;
-      set = false;
-    }
+      mode = Gpm_value }
 
 (* Build one Set_property exp per (prop, value) pair, wrapping in
    Exp_list when there's more than one. The cmake spec maps each

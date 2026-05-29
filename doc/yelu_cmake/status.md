@@ -63,8 +63,18 @@ detail in `bar3_lite.md` § 8.
   `Exp_list` of single-property calls. Corpus delta: z3 +1, llvm
   +63 modeled. CACHE scope still bails (cache_entry IR is a
   data-less placeholder).
-- A2 `get_property` printer rewrite — still pending; printer
-  drops fields. Same shape as A3 but smaller corpus footprint.
+- ✅ **A2 `get_property` printer rewrite** — shipped 2026-05-29.
+  Same shape as A3: new `get_property_scope` sum type
+  (`Gps_global` / `Gps_directory` / `Gps_target` / `Gps_source` /
+  `Gps_install` / `Gps_test` / `Gps_cache` / `Gps_variable`) plus a
+  `get_property_mode` enum (`Gpm_value` / `Gpm_set` / `Gpm_defined`
+  / `Gpm_brief_docs` / `Gpm_full_docs`). The old printer pattern
+  dropped `source_target_directory`, `test_directory`, and the
+  DEFINED/BRIEF_DOCS/FULL_DOCS modes via `_;` — bugs the round-trip
+  surfaced and the redesign closes. yelu-side
+  `ECmakeGetProperty` emit corrected from misusing
+  `source_target_directory` to using `Gps_target`. Corpus delta:
+  z3 +7, llvm +68 modeled (larger footprint than A3).
 - D1 `execute_process` typed (50 calls in llvm, 31 in z3).
   Multi-line keyword layout (`\n  COMMAND <args>`); requires
   modeling several keyword sublists.

@@ -122,6 +122,33 @@ type set_property_scope =
       directories : directory list;          (* DIRECTORY <dir>... *)
     }
   | Sps_cache of cache_entry list            (* CACHE <entry>... *)
+
+(* Scope clause for get_property — single-valued (vs set_property's
+   list-valued), with an extra VARIABLE scope. See [Get_property]. *)
+type get_property_scope =
+  | Gps_global
+  | Gps_directory of directory option       (* DIRECTORY [<dir>] *)
+  | Gps_target of target                     (* TARGET <t> *)
+  | Gps_source of {
+      source : source;
+      directory : directory option;          (* DIRECTORY <dir> *)
+      target_directory : target option;      (* TARGET_DIRECTORY <t> *)
+    }
+  | Gps_install of file                      (* INSTALL <f> *)
+  | Gps_test of {
+      test : test;
+      directory : directory option;          (* DIRECTORY <dir> *)
+    }
+  | Gps_cache of string                      (* CACHE <entry> *)
+  | Gps_variable                              (* VARIABLE *)
+
+(* Output mode of get_property — the optional trailing keyword. *)
+type get_property_mode =
+  | Gpm_value         (* default: emit value of property *)
+  | Gpm_set           (* SET: emit "TRUE" if property is set *)
+  | Gpm_defined       (* DEFINED: emit "TRUE" if defined *)
+  | Gpm_brief_docs    (* BRIEF_DOCS *)
+  | Gpm_full_docs     (* FULL_DOCS *)
 type add_executable_option = Ae_win32 | Ae_macos_bundle | Ae_exclude_from_all
 
 type custom_command = { command : string; args : string list }
@@ -456,19 +483,15 @@ and exp =
   | Unset of { var : var; cache : bool; parent_scope : bool }
   | Unset_env of { var : var }
   (* property *)
+  (* get_property(<variable> <scope> PROPERTY <name> [SET|DEFINED|BRIEF_DOCS|FULL_DOCS]).
+     Redesigned 2026-05-29 to mirror set_property: scope is now a sum
+     type, and the trailing mode flag becomes a get_property_mode enum
+     so DEFINED / BRIEF_DOCS / FULL_DOCS aren't lost. *)
   | Get_property of {
       var : var;
-      global : bool;
-      directory : directory;
-      source : source;
-      source_directory : directory;
-      source_target_directory : target;
-      install : file;
-      test : test;
-      test_directory : directory;
-      variable : bool;
+      scope : get_property_scope;
       property_name : string;
-      set : bool;
+      mode : get_property_mode;
     }
   (* set_property(<scope> [APPEND] [APPEND_STRING] PROPERTY <name> [<value>...]).
      The scope clause is exactly one of GLOBAL / DIRECTORY / TARGET / SOURCE /

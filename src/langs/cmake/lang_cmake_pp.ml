@@ -590,35 +590,38 @@ let rec pp ff e =
           parent_scope)
   | Unset_env { var } -> Fmt.(pf ff "unset(ENV{%a})" pp_var var)
   (* property *)
-  | Get_property
-      {
-        var;
-        global;
-        directory;
-        source;
-        test;
-        install;
-        variable;
-        property_name;
-        set;
-        _;
-      } ->
-      Fmt.(
-        pf ff "get_property(%a%a%a%a%a%a%a PROPERTY %a%a)" pp_var var
-          (pp_flag "GLOBAL") global
-          (fun ff dir ->
-            if String.length dir > 0 then pf ff " DIRECTORY %s" dir)
-          directory
-          (fun ff src ->
-            if String.length src > 0 then pf ff " SOURCE %s" src)
-          source
-          (fun ff tst ->
-            if String.length tst > 0 then pf ff " TEST %s" tst)
-          test
-          (fun ff f ->
-            if String.length f > 0 then pf ff " INSTALL %s" f)
-          install (pp_flag "VARIABLE") variable string property_name
-          (pp_flag "SET") set)
+  | Get_property { var; scope; property_name; mode } ->
+      let pp_scope ff = function
+        | Gps_global -> Fmt.string ff "GLOBAL"
+        | Gps_directory None -> Fmt.string ff "DIRECTORY"
+        | Gps_directory (Some d) -> Fmt.pf ff "DIRECTORY %s" d
+        | Gps_target t -> Fmt.pf ff "TARGET %a" pp_target t
+        | Gps_source { source; directory; target_directory } ->
+            Fmt.pf ff "SOURCE %a" pp_source source;
+            (match directory with
+             | Some d -> Fmt.pf ff " DIRECTORY %s" d
+             | None -> ());
+            (match target_directory with
+             | Some t -> Fmt.pf ff " TARGET_DIRECTORY %a" pp_target t
+             | None -> ())
+        | Gps_install f -> Fmt.pf ff "INSTALL %s" f
+        | Gps_test { test; directory } ->
+            Fmt.pf ff "TEST %s" test;
+            (match directory with
+             | Some d -> Fmt.pf ff " DIRECTORY %s" d
+             | None -> ())
+        | Gps_cache entry -> Fmt.pf ff "CACHE %s" entry
+        | Gps_variable -> Fmt.string ff "VARIABLE"
+      in
+      let mode_suffix = match mode with
+        | Gpm_value -> ""
+        | Gpm_set -> " SET"
+        | Gpm_defined -> " DEFINED"
+        | Gpm_brief_docs -> " BRIEF_DOCS"
+        | Gpm_full_docs -> " FULL_DOCS"
+      in
+      Fmt.pf ff "get_property(%a %a PROPERTY %s%s)"
+        pp_var var pp_scope scope property_name mode_suffix
   | Set_property { scope; append; append_string; property; values } ->
       let pp_scope ff = function
         | Sps_global -> Fmt.string ff "GLOBAL"

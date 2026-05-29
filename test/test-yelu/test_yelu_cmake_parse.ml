@@ -471,7 +471,10 @@ let tier6_find_install_y1 = ("t6-find-install-y1", [
 let tier8_misc_y1 = ("t8-misc-y1", [
   assert_parse_y1_emits "y1: get_target_property"
     "( get_target_property Target Foo ~out:VAR )"
-    "get_property(VAR PROPERTY PROP)";
+    (* Pre-A2 the printer dropped the TARGET arg (`_` on
+       source_target_directory). The new scope-typed Get_property
+       preserves the target. *)
+    "get_property(VAR TARGET Foo PROPERTY PROP)";
   assert_parse_y1_emits "y1: set_target_properties"
     "( set_target_properties Target Foo )"
     "";

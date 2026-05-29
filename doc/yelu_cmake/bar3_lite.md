@@ -235,7 +235,6 @@ through `Apply` because the printer drops fields or shape
 inversion is brittle. They are the target of the upcoming
 **IR-printer cleanup** in [`status.md`](status.md):
 
-- `get_property` — printer drops several IR fields.
 - `execute_process` — multi-line keyword shape, hard to invert.
 - Several `file` subcommands (READ, STRINGS, COPY, DOWNLOAD,
   UPLOAD, LOCK, path-query family).
@@ -292,7 +291,7 @@ Coverage by stage (30 dispatched commands, 15 + 8 + 7):
 | original Stage 2 | 15 | `cmake_minimum_required`, `project`, `set`, `message`, `configure_file`, `add_executable`, `add_library`, `target_link_libraries`, `target_include_directories`, `target_compile_definitions`, `target_compile_options`, `target_compile_features`, `option`, `include`, `add_subdirectory` |
 | Stage 2-b | 8 | `unset`, `add_dependencies`, `find_package`, `get_filename_component`, `set_target_properties`, `add_custom_target`, `list`, `string` |
 | Stage 2-c | 7 | `return`, `include_directories`, `find_program`, `find_path`, `install`, `add_custom_command`, `file` |
-| Tier 2 cleanup | 1 | `set_property` |
+| Tier 2 cleanup | 2 | `set_property`, `get_property` |
 
 (Helper functions like `parse_find_var_names` back two dispatched
 commands; subcommand dispatchers like `parse_list` /
@@ -593,6 +592,36 @@ would populate it.
   COPY, COPY_FILE, DOWNLOAD, UPLOAD, LOCK, REAL_PATH, SIZE,
   READ_SYMLINK, TIMESTAMP, RENAME, RELATIVE_PATH,
   TO_NATIVE_PATH, TO_CMAKE_PATH.
+
+### 8.31 get_property (Tier 2 cleanup, 2026-05-29)
+
+- **Location**: [`print2.ml`](../../tool/cmake_roundtrip/print2.ml) `parse_get_property`
+- **IR**: [`Get_property` at `lang_cmake.ml:459`](../../src/langs/cmake/lang_cmake.ml#L459)
+  with the new `get_property_scope` sum type at `lang_cmake.ml:140`
+  and `get_property_mode` enum at `lang_cmake.ml:160`.
+- **Printer**: [`lang_cmake_pp.ml:593`](../../src/langs/cmake/lang_cmake_pp.ml#L593)
+- **Accepts**:
+  - `get_property(<var> GLOBAL PROPERTY <name> [SET|DEFINED|BRIEF_DOCS|FULL_DOCS])`
+  - `get_property(<var> DIRECTORY [<dir>] PROPERTY <name> [...])`
+  - `get_property(<var> TARGET <t> PROPERTY <name> [...])`
+  - `get_property(<var> SOURCE <src> [DIRECTORY <dir> | TARGET_DIRECTORY <t>] PROPERTY <name> [...])`
+  - `get_property(<var> INSTALL <f> PROPERTY <name> [...])`
+  - `get_property(<var> TEST <test> [DIRECTORY <dir>] PROPERTY <name> [...])`
+  - `get_property(<var> CACHE <entry> PROPERTY <name> [...])`
+  - `get_property(<var> VARIABLE PROPERTY <name> [...])`
+- **Bails on**:
+  - Quoted scope args (IR slots are bare).
+  - Unrecognized trailing mode (must be SET / DEFINED / BRIEF_DOCS /
+    FULL_DOCS or absent).
+  - Multiple sub-scope keywords inside SOURCE (DIRECTORY and
+    TARGET_DIRECTORY are mutually exclusive per cmake spec; parser
+    keeps only the first).
+- **Known gaps**: pre-redesign printer (the `_;` pattern at the
+  old lang_cmake_pp.ml:600) silently dropped `source_target_directory`,
+  `test_directory`, and the `DEFINED`/`BRIEF_DOCS`/`FULL_DOCS` modes
+  — bugs the round-trip surfaced. yelu-side `ECmakeGetProperty`
+  emit corrected to use `Gps_target` instead of misusing
+  `source_target_directory`.
 
 ### 8.30 set_property (Tier 2 cleanup, 2026-05-29)
 

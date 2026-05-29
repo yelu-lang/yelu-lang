@@ -997,6 +997,62 @@ let parse_file args : L.exp option =
    INSTALL <f>... / TEST <test>... [DIRECTORY <dir>...] / CACHE <e>...
 
    IR + printer redesigned 2026-05-29 to surface scope as a sum type. *)
+
+(* get_property(<var> <SCOPE> PROPERTY <name> [SET|DEFINED|BRIEF_DOCS|FULL_DOCS]).
+   Single-valued scope (TARGET <t>, SOURCE <src>, etc.); paired with the
+   redesign at lang_cmake.ml `get_property_scope`. *)
+let parse_get_property args : L.exp option =
+  if not (all_bare args) then None
+  else
+  match args with
+  | var :: rest ->
+    let parse_scope = function
+      | "GLOBAL" :: r -> Some (L.Gps_global, r)
+      | "VARIABLE" :: r -> Some (L.Gps_variable, r)
+      | "DIRECTORY" :: r ->
+        let dir, r = match r with
+          | d :: rr when not (String.equal d "PROPERTY") -> Some d, rr
+          | _ -> None, r
+        in
+        Some (L.Gps_directory dir, r)
+      | "TARGET" :: t :: r -> Some (L.Gps_target t, r)
+      | "INSTALL" :: f :: r -> Some (L.Gps_install f, r)
+      | "TEST" :: t :: r ->
+        let directory, r = match r with
+          | "DIRECTORY" :: d :: rr -> Some d, rr
+          | _ -> None, r
+        in
+        Some (L.Gps_test { test = t; directory }, r)
+      | "CACHE" :: e :: r -> Some (L.Gps_cache e, r)
+      | "SOURCE" :: s :: r ->
+        let directory, target_directory, r = match r with
+          | "DIRECTORY" :: d :: rr -> Some d, None, rr
+          | "TARGET_DIRECTORY" :: t :: rr -> None, Some t, rr
+          | _ -> None, None, r
+        in
+        Some (L.Gps_source { source = s; directory; target_directory }, r)
+      | _ -> None
+    in
+    (match parse_scope rest with
+     | None -> None
+     | Some (scope, rest) ->
+       (match rest with
+        | "PROPERTY" :: property :: mode_args ->
+          let mode = match mode_args with
+            | [] -> Some L.Gpm_value
+            | [ "SET" ] -> Some L.Gpm_set
+            | [ "DEFINED" ] -> Some L.Gpm_defined
+            | [ "BRIEF_DOCS" ] -> Some L.Gpm_brief_docs
+            | [ "FULL_DOCS" ] -> Some L.Gpm_full_docs
+            | _ -> None
+          in
+          (match mode with
+           | None -> None
+           | Some mode ->
+             Some (Get_property { var; scope; property_name = property; mode }))
+        | _ -> None))
+  | _ -> None
+
 let parse_set_property args : L.exp option =
   if not (all_bare args) then None
   else
@@ -1202,6 +1258,7 @@ let parse_cmd (c : cmd) : L.exp option =
   | "file" -> parse_file c.args
   (* Tier 2 *)
   | "set_property" -> parse_set_property c.args
+  | "get_property" -> parse_get_property c.args
   | _ -> None
 
 (* ============================================================

@@ -596,13 +596,10 @@ let rec emit_exp ~env (e : expr) : C.exp =
      | ps -> C.Exp_list (List.map ps ~f:one))
   | Yelu_cmake_property.ECmakeGetProperty { var; target; property; set_form } ->
     C.Get_property
-      { var; global = false;
-        directory = ""; source = ""; source_directory = "";
-        source_target_directory = target_arg ~env target;
-        install = ""; test = ""; test_directory = "";
-        variable = false;
+      { var;
+        scope = C.Gps_target (target_arg ~env target);
         property_name = property;
-        set = set_form }
+        mode = if set_form then C.Gpm_set else C.Gpm_value }
   | Yelu_cmake_property.ECmakeGetDirectoryProperty { var; property } ->
     C.Get_directory_property { var; directory = ""; property }
   | Yelu_cmake_property.ECmakeSetSourceProperty { file; property; values } ->
