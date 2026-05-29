@@ -232,7 +232,7 @@ let _pp_variable_watch_access =
 
 let sp_char ff () = Fmt.char ff ' '
 
-let pp_find_var ff cmd { var; names; hints; paths; path_suffixes; doc;
+let pp_find_var ff cmd { var; names; short_form; hints; paths; path_suffixes; doc;
                          required; no_cache; no_default_path;
                          no_package_root_path; no_cmake_path;
                          no_cmake_environment_path; no_system_environment_path;
@@ -240,7 +240,9 @@ let pp_find_var ff cmd { var; names; hints; paths; path_suffixes; doc;
   let open Fmt in
   pf ff "%s(%s" cmd var;
   if not (List.is_empty names) then
-    pf ff " NAMES %a" (list ~sep:sp_char pp_arg) names;
+    if short_form
+    then pf ff " %a" (list ~sep:sp_char pp_arg) names
+    else pf ff " NAMES %a" (list ~sep:sp_char pp_arg) names;
   if not (List.is_empty hints) then
     pf ff " HINTS %a" (list ~sep:sp_char pp_arg) hints;
   if not (List.is_empty paths) then

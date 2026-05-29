@@ -239,8 +239,6 @@ inversion is brittle. They are the target of the upcoming
   multi-property calls split into N statements.
 - `get_property` — printer drops several IR fields.
 - `execute_process` — multi-line keyword shape, hard to invert.
-- `find_program` / `find_path` bare-name form — printer always
-  emits `NAMES` keyword.
 - `include_directories` `BEFORE`/`AFTER`/`SYSTEM` keywords —
   printer always emits prefix; parser bails.
 - Several `file` subcommands (READ, STRINGS, COPY, DOWNLOAD,
@@ -546,11 +544,17 @@ would populate it.
 - **IR**: `Find_program` / `Find_path`, both use `find_var_args`
   at [`lang_cmake.ml:135`](../../src/langs/cmake/lang_cmake.ml#L135).
 - **Printer**: `pp_find_var` at `lang_cmake_pp.ml:235`.
-- **Accepts**: `find_program(<var> NAMES <n>... [REQUIRED])` —
-  explicit NAMES form. Same for `find_path`.
-- **Bails on**: bare `find_program(<var> <name>)` (printer always
-  emits NAMES keyword), HINTS / PATHS / PATH_SUFFIXES / DOC /
-  NO_*_PATH / NO_CACHE / REGISTRY_VIEW.
+- **Accepts**:
+  - **Short form**: `find_program(<var> <name> [REQUIRED])` —
+    single positional name, no `NAMES` keyword. IR records
+    `short_form = true` (added 2026-05-25) so the printer
+    re-emits the form without injecting `NAMES`.
+  - **NAMES form**: `find_program(<var> NAMES <n>... [REQUIRED])`
+    — one or more names after the keyword.
+  - Both shapes apply to `find_path` as well.
+- **Bails on**: HINTS / PATHS / PATH_SUFFIXES / DOC / NO_*_PATH /
+  NO_CACHE / REGISTRY_VIEW; positional name that collides with
+  a reserved keyword.
 
 ### 8.27 install
 

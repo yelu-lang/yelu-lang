@@ -857,42 +857,55 @@ let parse_include_directories args : L.exp option =
                    dirs = rest_dirs }))
     | _ -> None
 
-(* find_program(<var> NAMES <n>...) — explicit NAMES form only.
-   Printer always emits NAMES, so the bare `find_program(VAR name)`
-   shape can't be typed without restructuring. Bail on HINTS/PATHS/
-   PATH_SUFFIXES/DOC/etc. *)
+(* find_program(<var> NAMES <n>...) or find_program(<var> <name>).
+   IR distinguishes the two surface forms via [short_form] (added
+   2026-05-25). HINTS/PATHS/PATH_SUFFIXES/DOC/etc. still bail. *)
 let parse_find_var_names ctor args : L.exp option =
   if not (all_bare args) then None
-  else match args with
-    | var :: "NAMES" :: names when not (List.is_empty names) ->
-      let required = List.mem names "REQUIRED" ~equal:String.equal in
-      (* If REQUIRED is in the names list, it has to be at the end and
-         we strip it. Otherwise printer reorder risk. *)
-      let names, ok = match List.rev names with
-        | "REQUIRED" :: rest -> List.rev rest, true
-        | _ -> names, not required
-      in
-      if not ok || List.exists names ~f:(fun n ->
-        List.mem ["HINTS";"PATHS";"PATH_SUFFIXES";"DOC";"NO_CACHE";
-                  "NO_DEFAULT_PATH";"NO_PACKAGE_ROOT_PATH";"NO_CMAKE_PATH";
-                  "NO_CMAKE_ENVIRONMENT_PATH";"NO_SYSTEM_ENVIRONMENT_PATH";
-                  "NO_CMAKE_SYSTEM_PATH";"NO_CMAKE_INSTALL_PREFIX";
-                  "REGISTRY_VIEW"] n ~equal:String.equal)
-      then None
-      else
-        Some (ctor
-                { L.var;
-                  names = List.map names ~f:arg_of_raw;
-                  hints = []; paths = []; path_suffixes = [];
-                  doc = None;
-                  required;
-                  no_cache = false; no_default_path = false;
-                  no_package_root_path = false; no_cmake_path = false;
-                  no_cmake_environment_path = false;
-                  no_system_environment_path = false;
-                  no_cmake_system_path = false;
-                  no_cmake_install_prefix = false })
-    | _ -> None
+  else
+  let reserved =
+    ["NAMES";"HINTS";"PATHS";"PATH_SUFFIXES";"DOC";"NO_CACHE";
+     "NO_DEFAULT_PATH";"NO_PACKAGE_ROOT_PATH";"NO_CMAKE_PATH";
+     "NO_CMAKE_ENVIRONMENT_PATH";"NO_SYSTEM_ENVIRONMENT_PATH";
+     "NO_CMAKE_SYSTEM_PATH";"NO_CMAKE_INSTALL_PREFIX";
+     "REGISTRY_VIEW";"REQUIRED"]
+  in
+  let mk var names short_form required =
+    Some (ctor
+            { L.var;
+              names = List.map names ~f:arg_of_raw;
+              short_form;
+              hints = []; paths = []; path_suffixes = [];
+              doc = None;
+              required;
+              no_cache = false; no_default_path = false;
+              no_package_root_path = false; no_cmake_path = false;
+              no_cmake_environment_path = false;
+              no_system_environment_path = false;
+              no_cmake_system_path = false;
+              no_cmake_install_prefix = false })
+  in
+  match args with
+  (* Short form: find_program(VAR name [REQUIRED]). Exactly one
+     positional name, no reserved keywords. *)
+  | [ var; name ] when not (List.mem reserved name ~equal:String.equal) ->
+    mk var [ name ] true false
+  | [ var; name; "REQUIRED" ]
+    when not (List.mem reserved name ~equal:String.equal) ->
+    mk var [ name ] true true
+  (* NAMES form: find_program(VAR NAMES n1 [n2 ...] [REQUIRED]). *)
+  | var :: "NAMES" :: rest when not (List.is_empty rest) ->
+    let names, required =
+      match List.rev rest with
+      | "REQUIRED" :: r -> List.rev r, true
+      | _ -> rest, false
+    in
+    if List.is_empty names
+       || List.exists names ~f:(fun n ->
+         List.mem reserved n ~equal:String.equal)
+    then None
+    else mk var names false required
+  | _ -> None
 
 let parse_find_program args = parse_find_var_names (fun a -> L.Find_program a) args
 let parse_find_path args = parse_find_var_names (fun a -> L.Find_path a) args

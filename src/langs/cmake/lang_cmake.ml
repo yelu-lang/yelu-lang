@@ -131,10 +131,16 @@ type message_mode =
 
 type message_reporting_state = Mr_check_start | Mr_check_pass | Mr_check_fail
 
-(* Shared argument record for find_library / find_path / find_file / find_program *)
+(* Shared argument record for find_library / find_path / find_file / find_program.
+
+   [short_form] distinguishes cmake's two surface forms:
+   - false (default): [find_X(<var> NAMES <n>... ...)] — explicit NAMES.
+   - true: [find_X(<var> <name>)] — positional short form, no NAMES
+     keyword. Spec allows only one positional name in this shape. *)
 type find_var_args = {
   var : var;
   names : arg list;
+  short_form : bool;
   hints : arg list;
   paths : arg list;
   path_suffixes : string list;

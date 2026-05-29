@@ -310,7 +310,8 @@ let write_basic_package_version_file ~compatibility ?(arch_independent = false)
 
 (* Default empty find_var_args — override specific fields *)
 let find_var_defaults var = {
-  var; names = []; hints = []; paths = []; path_suffixes = [];
+  var; names = []; short_form = false;
+  hints = []; paths = []; path_suffixes = [];
   doc = None; required = false; no_cache = false; no_default_path = false;
   no_package_root_path = false; no_cmake_path = false;
   no_cmake_environment_path = false; no_system_environment_path = false;

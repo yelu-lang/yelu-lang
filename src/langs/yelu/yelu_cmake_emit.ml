@@ -487,7 +487,7 @@ let rec emit_exp ~env (e : expr) : C.exp =
   | Yelu_cmake_find.ECmakeFindLibrary { out; names; paths; hints; required } ->
     let fa : C.find_var_args =
       { var = out;
-        names = List.map names ~f:(arg ~env);
+        names = List.map names ~f:(arg ~env); short_form = false;
         hints = List.map hints ~f:(arg ~env);
         paths = List.map paths ~f:(arg ~env);
         path_suffixes = []; doc = None; required;
@@ -500,7 +500,7 @@ let rec emit_exp ~env (e : expr) : C.exp =
   | Yelu_cmake_find.ECmakeFindPath { out; names; paths; hints; required } ->
     let fa : C.find_var_args =
       { var = out;
-        names = List.map names ~f:(arg ~env);
+        names = List.map names ~f:(arg ~env); short_form = false;
         hints = List.map hints ~f:(arg ~env);
         paths = List.map paths ~f:(arg ~env);
         path_suffixes = []; doc = None; required;
@@ -513,7 +513,7 @@ let rec emit_exp ~env (e : expr) : C.exp =
   | Yelu_cmake_find.ECmakeFindProgram { out; names; paths; hints; required } ->
     let fa : C.find_var_args =
       { var = out;
-        names = List.map names ~f:(arg ~env);
+        names = List.map names ~f:(arg ~env); short_form = false;
         hints = List.map hints ~f:(arg ~env);
         paths = List.map paths ~f:(arg ~env);
         path_suffixes = []; doc = None; required;
@@ -526,7 +526,7 @@ let rec emit_exp ~env (e : expr) : C.exp =
   | Yelu_cmake_find.ECmakeFindFile { out; names; paths; hints; required } ->
     let fa : C.find_var_args =
       { var = out;
-        names = List.map names ~f:(arg ~env);
+        names = List.map names ~f:(arg ~env); short_form = false;
         hints = List.map hints ~f:(arg ~env);
         paths = List.map paths ~f:(arg ~env);
         path_suffixes = []; doc = None; required;
