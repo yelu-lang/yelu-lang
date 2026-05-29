@@ -206,20 +206,38 @@ let version_of_string_opt s : L.version option =
     | [] -> None
   with _ -> None
 
-(* cmake_minimum_required(VERSION <min>[...<max>]) *)
+(* cmake_minimum_required(VERSION <min>[...<max>]).
+   Range form `<min>...<max>` is now modeled — the printer was
+   updated 2026-05-25 to emit both bounds when max = Some _. Bail
+   only on non-numeric versions or unrecognized shapes. *)
 let parse_cmake_minimum_required args : L.exp option =
   if not (all_bare args) then None
   else
   match args with
   | [ "VERSION"; v ] ->
-    (* `<min>...<max>` range form: bail. The IR carries [max] but the
-       printer drops it (`max = _` at lang_cmake_pp.ml:781), so a typed
-       round-trip would silently lose the upper bound. *)
-    if String.is_substring v ~substring:"..." then None
-    else (match version_of_string_opt v with
-      | None -> None
-      | Some min ->
-        Some (Cmake_cmd (Cmake_minimum_required { min; max = None })))
+    let min_s, max_s =
+      match String.substr_index v ~pattern:"..." with
+      | None -> v, None
+      | Some i ->
+        let lo = String.sub v ~pos:0 ~len:i in
+        let hi = String.sub v ~pos:(i + 3) ~len:(String.length v - i - 3) in
+        lo, Some hi
+    in
+    (match version_of_string_opt min_s with
+     | None -> None
+     | Some min ->
+       let max_v =
+         match max_s with
+         | None -> Some None
+         | Some s ->
+           (match version_of_string_opt s with
+            | None -> None
+            | Some v -> Some (Some v))
+       in
+       (match max_v with
+        | None -> None
+        | Some max ->
+          Some (Cmake_cmd (Cmake_minimum_required { min; max }))))
   | _ -> None
 
 (* project(<name> [VERSION <v>] [LANGUAGES <langs>]).

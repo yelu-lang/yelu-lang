@@ -778,8 +778,15 @@ let rec pp ff e =
 
 and pp_cmake_cmd ff cmd =
   match cmd with
-  | Cmake_minimum_required { min; max = _ } ->
-      Fmt.pf ff "cmake_minimum_required(VERSION %s)" (Lang_cmake_strings.of_version min)
+  | Cmake_minimum_required { min; max } ->
+      (match max with
+       | None ->
+           Fmt.pf ff "cmake_minimum_required(VERSION %s)"
+             (Lang_cmake_strings.of_version min)
+       | Some max ->
+           Fmt.pf ff "cmake_minimum_required(VERSION %s...%s)"
+             (Lang_cmake_strings.of_version min)
+             (Lang_cmake_strings.of_version max))
   | Configure_file { input; output; permission_level; copy_only; escape_quotes; only; newline_style; _ } ->
       (* Pre-2026-05-15 this had @ONLY and ESCAPE_QUOTES wired to the
          wrong fields (cross-swap). Tutorial doesn't use these flags;

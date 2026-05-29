@@ -319,12 +319,14 @@ would populate it.
 - **Location**: [`print2.ml:210`](../../tool/cmake_roundtrip/print2.ml#L210)
 - **IR**: [`Cmake_minimum_required` at `lang_cmake.ml:599`](../../src/langs/cmake/lang_cmake.ml#L599)
 - **Printer**: [`lang_cmake_pp.ml:781`](../../src/langs/cmake/lang_cmake_pp.ml#L781)
-- **Accepts**: `cmake_minimum_required(VERSION <ver>)` with
-  numeric dot-separated `<ver>`, no `...` range.
-- **Bails on**: non-numeric VERSION, range form `<min>...<max>`
-  (printer drops `max`), trailing tokens.
-- **Known gaps**: IR's `max : version option` is dead from
-  printer perspective.
+- **Accepts**:
+  - `cmake_minimum_required(VERSION <min>)` with numeric
+    dot-separated `<min>`.
+  - `cmake_minimum_required(VERSION <min>...<max>)` range form
+    with numeric dot-separated `<min>` and `<max>` — printer
+    wired up to emit both bounds 2026-05-25.
+- **Bails on**: non-numeric `<min>` or `<max>` (e.g. `${VAR}`);
+  trailing `FATAL_ERROR` / other tokens; non-VERSION first arg.
 
 ### 8.2 project
 
