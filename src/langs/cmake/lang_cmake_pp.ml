@@ -1126,7 +1126,7 @@ and pp_project_cmd ff cmd =
           (pp_list_with_key "DEPENDS" string) depends
           (pp_with_key "MAIN_DEPENDENCY" string) main_dependency
           (pp_with_key "WORKING_DIRECTORY" string) working_directory
-          (pp_with_key "COMMENT" string) comment
+          (pp_with_key "COMMENT" pp_string_quoted) comment
           (pp_flag "VERBATIM") verbatim
           (pp_flag "USES_TERMINAL") uses_terminal
           (pp_flag "APPEND") is_append)
@@ -1138,19 +1138,29 @@ and pp_project_cmd ff cmd =
         pf ff "add_custom_command(TARGET %a %s @;%a%a%a%a)@."
           pp_target target when_s
           (pp_list_with_key "COMMAND" pp_custom_command) commands
-          (pp_with_key "COMMENT" string) comment
+          (pp_with_key "COMMENT" pp_string_quoted) comment
           (pp_flag "VERBATIM") verbatim
           (pp_flag "USES_TERMINAL") uses_terminal)
   | Add_custom_target
       { name; all; commands; depends; working_directory; comment;
         verbatim; uses_terminal; sources; _ } ->
+      (* cmake's add_custom_target allows multiple COMMAND blocks; each
+         must be emitted with its own COMMAND keyword. Using
+         pp_list_with_key here would merge them all under a single
+         keyword. *)
+      let pp_commands ff cs =
+        List.iter cs ~f:(fun c ->
+          Fmt.pf ff " COMMAND %a" pp_custom_command c)
+      in
       Fmt.(
         pf ff "add_custom_target(%s%a%a%a%a%a%a%a%a)" name
           (pp_flag "ALL") all
-          (pp_list_with_key " COMMAND" pp_custom_command) commands
+          pp_commands commands
           (pp_list_with_key " DEPENDS" string) depends
           (pp_with_key " WORKING_DIRECTORY" string) working_directory
-          (pp_with_key " COMMENT" string) comment
+          (* COMMENT is conventionally a multi-word quoted string;
+             cmake-the-parser would tokenize unquoted as separate args. *)
+          (pp_with_key " COMMENT" pp_string_quoted) comment
           (pp_flag "VERBATIM") verbatim
           (pp_flag "USES_TERMINAL") uses_terminal
           (pp_list_with_key " SOURCES" string) sources)

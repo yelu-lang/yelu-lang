@@ -783,32 +783,115 @@ let parse_set_target_properties args : L.exp option =
   | _ -> None
 
 (* add_custom_target(<name> [ALL] [DEPENDS <dep>...]).
-   IR has many fields; we support only the minimal form (name + optional
-   ALL + optional DEPENDS list of bare deps). Bail on COMMAND, BYPRODUCTS,
-   WORKING_DIRECTORY, etc. — any unknown keyword routes to generic Apply. *)
+   Expanded 2026-05-29 (Tier 4) to handle COMMAND blocks, BYPRODUCTS,
+   WORKING_DIRECTORY, COMMENT, VERBATIM, USES_TERMINAL, SOURCES. Bails
+   on JOB_POOL / JOB_SERVER_AWARE / COMMAND_EXPAND_LISTS (IR has them
+   but the printer drops them via `_`). *)
 let parse_add_custom_target args : L.exp option =
+  let is_top_kw = function
+    | "ALL" | "COMMAND" | "DEPENDS" | "BYPRODUCTS"
+    | "WORKING_DIRECTORY" | "COMMENT"
+    | "JOB_POOL" | "JOB_SERVER_AWARE"
+    | "VERBATIM" | "USES_TERMINAL"
+    | "COMMAND_EXPAND_LISTS" | "SOURCES" -> true
+    | _ -> false
+  in
+  let bail_kw = function
+    | "JOB_POOL" | "JOB_SERVER_AWARE" | "COMMAND_EXPAND_LISTS" -> true
+    | _ -> false
+  in
   match args with
   | name :: rest when is_bare name ->
-    let all, rest =
-      match rest with "ALL" :: r -> true, r | _ -> false, rest
+    let all = ref false in
+    let commands = ref [] in
+    let depends = ref [] in
+    let byproducts = ref [] in
+    let working_directory = ref None in
+    let comment = ref None in
+    let verbatim = ref false in
+    let uses_terminal = ref false in
+    let sources = ref [] in
+    let ok = ref true in
+    (* Printer canonical order: ALL, COMMAND..., DEPENDS, WORKING_DIRECTORY,
+       COMMENT, VERBATIM, USES_TERMINAL, SOURCES. (BYPRODUCTS not in
+       printer arm; treated as bail to be safe — printer would drop.) *)
+    let kw_rank = function
+      | "ALL" -> 0
+      | "COMMAND" -> 1
+      | "DEPENDS" -> 2
+      | "BYPRODUCTS" -> 3      (* IR has it but printer drops *)
+      | "WORKING_DIRECTORY" -> 4
+      | "COMMENT" -> 5
+      | "VERBATIM" -> 6
+      | "USES_TERMINAL" -> 7
+      | "SOURCES" -> 8
+      | _ -> 99
     in
-    let depends =
-      match rest with
-      | [] -> Some []
-      | "DEPENDS" :: deps when List.for_all deps ~f:is_bare -> Some deps
-      | _ -> None
+    let last_rank = ref (-1) in
+    let check_order kw =
+      let r = kw_rank kw in
+      if String.equal kw "COMMAND" then
+        (if !last_rank > 1 then false
+         else (last_rank := 1; true))
+      else if r <= !last_rank then false
+      else (last_rank := r; true)
     in
-    (match depends with
-     | None -> None
-     | Some depends ->
-       Some (Project_cmd
-               (Add_custom_target
-                  { name; all;
-                    commands = []; depends; byproducts = [];
-                    working_directory = None; comment = None;
-                    job_pool = []; job_server_aware = false;
-                    verbatim = false; uses_terminal = false;
-                    command_expand_list = []; sources = [] })))
+    let take_until_kw rest =
+      let rec loop acc = function
+        | [] -> List.rev acc, []
+        | t :: _ as r when is_top_kw t -> List.rev acc, r
+        | t :: r -> loop (t :: acc) r
+      in
+      loop [] rest
+    in
+    let rec go = function
+      | [] -> ()
+      | _ when not !ok -> ()
+      | kw :: _ when bail_kw kw -> ok := false
+      | "BYPRODUCTS" :: _ -> ok := false  (* printer drops BYPRODUCTS *)
+      | kw :: _ when not (check_order kw) -> ok := false
+      | "ALL" :: r -> all := true; go r
+      | "COMMAND" :: r ->
+        let cmd_args, r = take_until_kw r in
+        (match cmd_args with
+         | prog :: args' ->
+           commands := { L.command = prog; args = args' } :: !commands;
+           go r
+         | _ -> ok := false)
+      | "DEPENDS" :: r ->
+        let ds, r = take_until_kw r in
+        if List.is_empty ds then ok := false
+        else (depends := ds; go r)
+      | "WORKING_DIRECTORY" :: d :: r when not (is_top_kw d) ->
+        working_directory := Some d; go r
+      | "COMMENT" :: c :: r when not (is_top_kw c) ->
+        (match arg_of_raw c with
+         | Quoted s -> comment := Some s; go r
+         | _ -> ok := false)
+      | "VERBATIM" :: r -> verbatim := true; go r
+      | "USES_TERMINAL" :: r -> uses_terminal := true; go r
+      | "SOURCES" :: r ->
+        let ss, r = take_until_kw r in
+        if List.is_empty ss then ok := false
+        else (sources := ss; go r)
+      | _ -> ok := false
+    in
+    go rest;
+    if not !ok then None
+    else
+      Some (Project_cmd
+              (Add_custom_target
+                 { name; all = !all;
+                   commands = List.rev !commands;
+                   depends = !depends;
+                   byproducts = !byproducts;
+                   working_directory = !working_directory;
+                   comment = !comment;
+                   job_pool = []; job_server_aware = false;
+                   verbatim = !verbatim;
+                   uses_terminal = !uses_terminal;
+                   command_expand_list = [];
+                   sources = !sources }))
   | _ -> None
 
 (* list(<subcommand> <args>) — dispatch on subcommand *)

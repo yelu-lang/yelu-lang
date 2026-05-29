@@ -733,10 +733,17 @@ let target_property_tests =
         "add_custom_target(mytarget)"
         (yc_add_custom_target "mytarget");
       check "add_custom_target_with_command"
-        "add_custom_target(gen COMMAND echo hi )"
+        (* Tier 4 add_custom_target printer fix: pp_list_with_key was
+           merging multi-COMMAND blocks and leaving a trailing space.
+           Switched to per-element emission via `List.iter` so each
+           COMMAND keyword is emitted separately and no trailing space. *)
+        "add_custom_target(gen COMMAND echo hi)"
         (yc_add_custom_target ~commands:[{ command = "echo"; args = ["hi"] }] "gen");
       check "add_custom_target_with_comment"
-        "add_custom_target(gen COMMENT Building )"
+        (* Tier 4: COMMENT now emits as quoted string (cmake-the-parser
+           would otherwise tokenize unquoted multi-word comments as
+           separate args). *)
+        "add_custom_target(gen COMMENT \"Building\" )"
         (yc_add_custom_target ~comment:(Some "Building") "gen");
       check "get_target_property_basic"
         "get_target_property(OUT mytarget MY_PROP)"

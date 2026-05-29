@@ -509,11 +509,21 @@ would populate it.
 - **Location**: [`print2.ml:713`](../../tool/cmake_roundtrip/print2.ml#L713)
 - **IR**: [`Add_custom_target` at `lang_cmake.ml:775`](../../src/langs/cmake/lang_cmake.ml#L775)
 - **Printer**: [`lang_cmake_pp.ml:1101`](../../src/langs/cmake/lang_cmake_pp.ml#L1101)
-- **Accepts**: `add_custom_target(<name> [ALL] [DEPENDS <dep>...])`
-  with bare deps.
-- **Bails on**: any `COMMAND` / `BYPRODUCTS` / `WORKING_DIRECTORY`
-  / `COMMENT` / `JOB_POOL` / `VERBATIM` / `USES_TERMINAL` /
-  `SOURCES`.
+- **Accepts** (Tier 4 expansion 2026-05-29):
+  `add_custom_target(<name> [ALL] [COMMAND <cmd> [<args>...]]...
+   [DEPENDS <dep>...] [WORKING_DIRECTORY <dir>] [COMMENT <comment>]
+   [VERBATIM] [USES_TERMINAL] [SOURCES <src>...])`. Keywords must be
+  in canonical printer order; multiple COMMAND blocks are supported.
+  COMMENT must be quoted in source (printer emits quoted).
+- **Bails on**: `BYPRODUCTS` (IR has it but printer drops); `JOB_POOL`
+  / `JOB_SERVER_AWARE` / `COMMAND_EXPAND_LISTS` (IR has them but
+  printer drops); out-of-order keywords.
+- **Printer fix**: previously used `pp_list_with_key " COMMAND"`
+  which merged multiple COMMAND blocks into a single keyword; now
+  uses per-element iteration so each COMMAND keyword is emitted
+  separately. `COMMENT` field switched from raw `string` to
+  `pp_string_quoted` so multi-word comments don't tokenize as
+  separate args in re-extracted tree-sitter sequence.
 
 ### 8.22 list (subcommand dispatch)
 
