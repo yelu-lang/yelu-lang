@@ -175,11 +175,25 @@ done < <(
   # pattern (grep -E semantics). Useful during development on a single
   # command — e.g. FILTER_PATTERN='file *\( *COPY' to test only files
   # using `file(COPY ...)`. Without it, the full corpus is processed.
-  if [ -n "${FILTER_PATTERN:-}" ]; then
-    find "$corpus" \( -name CMakeLists.txt -o -name "*.cmake" \) -type f 2>/dev/null \
-      | xargs grep -lE "$FILTER_PATTERN" 2>/dev/null
+  #
+  # We cache the find result per-corpus under /tmp keyed by the
+  # absolute corpus path's sha256. Find takes ~130ms even on llvm so
+  # caching is a small win in absolute terms, but it's useful when
+  # iterating on the same corpus repeatedly (e.g. one FILTER_PATTERN
+  # per dev cycle). Set NO_CORPUS_CACHE=1 to bypass.
+  corpus_abs=$(cd "$corpus" && pwd)
+  cache_key=$(printf '%s' "$corpus_abs" | sha256sum | cut -d' ' -f1)
+  cache_file="/tmp/bar3lite_files_${cache_key}.txt"
+  if [ -z "${NO_CORPUS_CACHE:-}" ] && [ -f "$cache_file" ]; then
+    : # use cached file list
   else
-    find "$corpus" \( -name CMakeLists.txt -o -name "*.cmake" \) -type f 2>/dev/null
+    find "$corpus" \( -name CMakeLists.txt -o -name "*.cmake" \) -type f \
+      2>/dev/null > "$cache_file"
+  fi
+  if [ -n "${FILTER_PATTERN:-}" ]; then
+    xargs grep -lE "$FILTER_PATTERN" 2>/dev/null < "$cache_file"
+  else
+    cat "$cache_file"
   fi
 )
 
