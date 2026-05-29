@@ -363,13 +363,14 @@ let pp_string_cmd ff = function
       Fmt.(pf ff "string(REPLACE %a %a %a %a)" pp_arg match_string
         pp_arg replace_string pp_var out (list ~sep:sp_char pp_arg) inputs)
   | Sc_regex (Sr_match { regex; out; inputs }) ->
-      Fmt.(pf ff "string(REGEX MATCH %S %a %a)" regex pp_var out
+      (* Same %S → literal-quoted fix as D2 (file STRINGS). *)
+      Fmt.(pf ff "string(REGEX MATCH %s %a %a)" (quoted regex) pp_var out
         (list ~sep:sp_char pp_arg) inputs)
   | Sc_regex (Sr_matchall { regex; out; inputs }) ->
-      Fmt.(pf ff "string(REGEX MATCHALL %S %a %a)" regex pp_var out
+      Fmt.(pf ff "string(REGEX MATCHALL %s %a %a)" (quoted regex) pp_var out
         (list ~sep:sp_char pp_arg) inputs)
   | Sc_regex (Sr_replace { regex; replace; out; inputs }) ->
-      Fmt.(pf ff "string(REGEX REPLACE %S %a %a %a)" regex pp_arg replace
+      Fmt.(pf ff "string(REGEX REPLACE %s %a %a %a)" (quoted regex) pp_arg replace
         pp_var out (list ~sep:sp_char pp_arg) inputs)
   | Sc_regex (Sr_quote { out; inputs }) ->
       Fmt.(pf ff "string(REGEX QUOTE %a %a)" pp_var out
@@ -408,7 +409,7 @@ let pp_string_cmd ff = function
       Fmt.(pf ff "string(MAKE_C_IDENTIFIER %a %a)" pp_arg s pp_var out)
   | Sc_timestamp { out; format; utc } ->
       Fmt.pf ff "string(TIMESTAMP %a" pp_var out;
-      Option.iter format ~f:(fun f -> Fmt.(pf ff " %S" f));
+      Option.iter format ~f:(fun f -> Fmt.pf ff " %s" (quoted f));
       if utc then Fmt.string ff " UTC";
       Fmt.string ff ")"
   | Sc_hex { string = s; out } ->

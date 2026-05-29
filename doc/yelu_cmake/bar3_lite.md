@@ -519,18 +519,26 @@ would populate it.
 
 - **Location**: [`print2.ml:739`](../../tool/cmake_roundtrip/print2.ml#L739)
 - **IR**: [`List_cmd` at `lang_cmake.ml:531`](../../src/langs/cmake/lang_cmake.ml#L531)
-- **Accepts**: LENGTH, REVERSE, REMOVE_DUPLICATES, APPEND, PREPEND,
-  REMOVE_ITEM, FIND, JOIN.
-- **Bails on**: INSERT, POP_BACK, POP_FRONT, GET, SORT, SUBLIST,
-  TRANSFORM, FILTER; quoted/bracketed slots.
+- **Accepts** (Stage 2-b + Tier 4 list batch 2026-05-29): LENGTH,
+  REVERSE, REMOVE_DUPLICATES, APPEND, PREPEND, REMOVE_ITEM, FIND,
+  JOIN, GET (multi-index), SUBLIST, INSERT, REMOVE_AT, POP_BACK,
+  POP_FRONT.
+- **Bails on**: SORT (multi-keyword), FILTER (mode + regex),
+  TRANSFORM (action + selector + optional output); quoted/bracketed
+  slots.
 
 ### 8.23 string (subcommand dispatch)
 
 - **Location**: [`print2.ml:767`](../../tool/cmake_roundtrip/print2.ml#L767)
 - **IR**: [`String_cmd` at `lang_cmake.ml:532`](../../src/langs/cmake/lang_cmake.ml#L532)
-- **Accepts**: TOUPPER, TOLOWER, LENGTH, STRIP, CONCAT, APPEND,
-  PREPEND, REPLACE.
-- **Bails on**: REGEX, FIND, SUBSTRING, RANDOM, TIMESTAMP, UUID.
+- **Accepts** (Stage 2-b + Tier 4 string batch 2026-05-29):
+  TOUPPER, TOLOWER, LENGTH, STRIP, CONCAT, APPEND, PREPEND,
+  REPLACE, FIND, SUBSTRING, COMPARE, MAKE_C_IDENTIFIER, HEX,
+  GENEX_STRIP, JOIN, TIMESTAMP, REGEX MATCH / MATCHALL / REPLACE.
+  REGEX printer also switched from `%S` (OCaml escape) to literal-
+  quoted, matching the D2 fix for `file(STRINGS REGEX ...)`.
+- **Bails on**: REGEX QUOTE (separate ctor not parsed), RANDOM,
+  UUID, JSON, REPEAT.
 
 ### 8.24 return
 

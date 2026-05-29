@@ -815,6 +815,8 @@ let parse_add_custom_target args : L.exp option =
 let parse_list args : L.exp option =
   if not (all_bare args) then None
   else
+  let all_ints xs = List.for_all xs ~f:(fun s -> Option.is_some (Int.of_string_opt s)) in
+  let to_ints xs = List.map xs ~f:Int.of_string in
   match args with
   | [ "LENGTH"; var; out ] ->
     Some (List_cmd (Lc_length { var; out }))
@@ -837,6 +839,39 @@ let parse_list args : L.exp option =
   | "JOIN" :: [ var; glue; out ] ->
     Some (List_cmd
             (Lc_join { var; glue = arg_of_raw glue; out }))
+  (* list(GET <var> <index>... <out>) — middle args are integer indices,
+     last is the output variable. *)
+  | "GET" :: var :: rest when List.length rest >= 2 ->
+    (match List.split_n rest (List.length rest - 1) with
+     | indices_str, [ out ] when all_ints indices_str ->
+       Some (List_cmd
+               (Lc_get { var; indices = to_ints indices_str; out }))
+     | _ -> None)
+  (* list(SUBLIST <var> <begin> <length> <out>) *)
+  | [ "SUBLIST"; var; b; l; out ] ->
+    (match Int.of_string_opt b, Int.of_string_opt l with
+     | Some begin_, Some length ->
+       Some (List_cmd (Lc_sublist { var; begin_; length; out }))
+     | _ -> None)
+  (* list(INSERT <var> <index> <value>...) *)
+  | "INSERT" :: var :: index :: values when not (List.is_empty values) ->
+    (match Int.of_string_opt index with
+     | Some i ->
+       Some (List_cmd
+               (Lc_insert { var; index = i;
+                            values = List.map values ~f:arg_of_raw }))
+     | None -> None)
+  (* list(REMOVE_AT <var> <index>...) *)
+  | "REMOVE_AT" :: var :: indices when not (List.is_empty indices)
+                                       && all_ints indices ->
+    Some (List_cmd
+            (Lc_remove_at { var; indices = to_ints indices }))
+  (* list(POP_BACK <var> [<out_var>...]) *)
+  | "POP_BACK" :: var :: out_vars ->
+    Some (List_cmd (Lc_pop_back { var; out_vars }))
+  (* list(POP_FRONT <var> [<out_var>...]) *)
+  | "POP_FRONT" :: var :: out_vars ->
+    Some (List_cmd (Lc_pop_front { var; out_vars }))
   | _ -> None
 
 (* string(<subcommand> <args>) — common subcommands only *)
@@ -867,6 +902,107 @@ let parse_string args : L.exp option =
                  replace_string = arg_of_raw r;
                  out;
                  inputs = List.map inputs ~f:arg_of_raw }))
+  (* string(FIND <string> <substring> <out> [REVERSE]) *)
+  | [ "FIND"; s; sub; out ] when is_bare out ->
+    Some (String_cmd
+            (Sc_find { string = arg_of_raw s;
+                       substring = arg_of_raw sub;
+                       out; reverse = false }))
+  | [ "FIND"; s; sub; out; "REVERSE" ] when is_bare out ->
+    Some (String_cmd
+            (Sc_find { string = arg_of_raw s;
+                       substring = arg_of_raw sub;
+                       out; reverse = true }))
+  (* string(SUBSTRING <string> <begin> <length> <out>) — length is int or -1. *)
+  | [ "SUBSTRING"; s; b; l; out ] when is_bare out ->
+    (match Int.of_string_opt b, Int.of_string_opt l with
+     | Some begin_, Some length when length = -1 ->
+       Some (String_cmd
+               (Sc_substring { string = arg_of_raw s; begin_;
+                               length = None; out }))
+     | Some begin_, Some length ->
+       Some (String_cmd
+               (Sc_substring { string = arg_of_raw s; begin_;
+                               length = Some length; out }))
+     | _ -> None)
+  (* string(COMPARE <op> <s1> <s2> <out>) *)
+  | [ "COMPARE"; op; s1; s2; out ] when is_bare out ->
+    let op = match op with
+      | "LESS" -> Some L.Sco_less
+      | "GREATER" -> Some Sco_greater
+      | "EQUAL" -> Some Sco_equal
+      | "NOTEQUAL" -> Some Sco_notequal
+      | "LESS_EQUAL" -> Some Sco_less_equal
+      | "GREATER_EQUAL" -> Some Sco_greater_equal
+      | _ -> None
+    in
+    (match op with
+     | Some op ->
+       Some (String_cmd
+               (Sc_compare { op;
+                             string1 = arg_of_raw s1;
+                             string2 = arg_of_raw s2;
+                             out }))
+     | None -> None)
+  (* string(MAKE_C_IDENTIFIER <string> <out>) *)
+  | [ "MAKE_C_IDENTIFIER"; s; out ] when is_bare out ->
+    Some (String_cmd
+            (Sc_make_c_identifier { string = arg_of_raw s; out }))
+  (* string(HEX <string> <out>) *)
+  | [ "HEX"; s; out ] when is_bare out ->
+    Some (String_cmd (Sc_hex { string = arg_of_raw s; out }))
+  (* string(GENEX_STRIP <string> <out>) *)
+  | [ "GENEX_STRIP"; s; out ] when is_bare out ->
+    Some (String_cmd
+            (Sc_genex_strip { string = arg_of_raw s; out }))
+  (* string(JOIN <glue> <out> <input>...) *)
+  | "JOIN" :: glue :: out :: inputs when is_bare out ->
+    Some (String_cmd
+            (Sc_join { glue = arg_of_raw glue; out;
+                       inputs = List.map inputs ~f:arg_of_raw }))
+  (* string(TIMESTAMP <out> [<format>] [UTC]) — format must be quoted. *)
+  | "TIMESTAMP" :: out :: rest when is_bare out ->
+    let format = ref None in
+    let utc = ref false in
+    let ok = ref true in
+    let rec go = function
+      | [] -> ()
+      | "UTC" :: r when not !utc -> utc := true; go r
+      | f :: r when Option.is_none !format ->
+        (match arg_of_raw f with
+         | Quoted s -> format := Some s; go r
+         | _ -> ok := false)
+      | _ -> ok := false
+    in
+    go rest;
+    if not !ok then None
+    else Some (String_cmd
+                 (Sc_timestamp { out; format = !format; utc = !utc }))
+  (* string(REGEX MATCH/MATCHALL/REPLACE/QUOTE ...) *)
+  | "REGEX" :: "MATCH" :: regex :: out :: inputs when is_bare out ->
+    (match arg_of_raw regex with
+     | Quoted re ->
+       Some (String_cmd
+               (Sc_regex (Sr_match { regex = re; out;
+                                     inputs = List.map inputs ~f:arg_of_raw })))
+     | _ -> None)
+  | "REGEX" :: "MATCHALL" :: regex :: out :: inputs when is_bare out ->
+    (match arg_of_raw regex with
+     | Quoted re ->
+       Some (String_cmd
+               (Sc_regex (Sr_matchall { regex = re; out;
+                                        inputs = List.map inputs ~f:arg_of_raw })))
+     | _ -> None)
+  | "REGEX" :: "REPLACE" :: regex :: replace :: out :: inputs when is_bare out ->
+    (match arg_of_raw regex with
+     | Quoted re ->
+       Some (String_cmd
+               (Sc_regex (Sr_replace
+                            { regex = re;
+                              replace = arg_of_raw replace;
+                              out;
+                              inputs = List.map inputs ~f:arg_of_raw })))
+     | _ -> None)
   | _ -> None
 
 (* ============================================================
