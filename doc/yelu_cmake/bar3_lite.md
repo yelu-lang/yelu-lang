@@ -64,12 +64,15 @@ llvm/llvm             : 596/596 OK  modeled=3863  generic=2319  other=4029
 
 All three corpora: **STRUCT=0, FORMAT=0**.
 
-> **Counts updated 2026-05-29** post the IR-printer cleanup work
-> (Tier 1 + 2 + 3 + Tier 4 file/list/string/add_custom_target
-> batches). Pre-cleanup baseline was z3 modeled=1,056 / llvm
-> modeled=3,572; cleanup moved 339 generic shapes to modeled across
-> both real-world corpora without breaking the oracle.
-> Pre-cleanup state is preserved in `worklog/worklog_2026_05.md`.
+> **Counts updated 2026-05-29** post the full IR-printer cleanup
+> (16 commits, Tier 1 + 2 + 3 + Tier 4 file/list/string/
+> add_custom_target/install batches). Pre-cleanup baseline was
+> z3 modeled=1,056 / llvm modeled=3,572; cleanup moved **358
+> generic shapes to modeled** across both real-world corpora
+> without breaking the oracle. Pre-cleanup state is preserved in
+> `worklog/worklog_2026_05.md`. The remaining `generic` calls are
+> dominated by Class A (project-defined functions and CheckXxx
+> modules, correctly never typed by `Lang_cmake.exp`) — see § 6.
 
 Bucket definitions (no ratio is reported — see § 6):
 

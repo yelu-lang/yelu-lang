@@ -28,7 +28,28 @@ Verification baseline:
 
 ## Open work
 
-### IR-printer cleanup (Bar #3-lite follow-up)
+### IR-printer cleanup (Bar #3-lite follow-up) — ✅ DONE 2026-05-29
+
+16 commits across Tiers 1 + 2 + 3 + 4 closed every printer-lossy
+case identified in the Bar #3-lite audit + several surfaced during
+implementation. Final corpus deltas (tutorial unchanged):
+
+| corpus | modeled (start → end) | generic (start → end) |
+| --- | --- | --- |
+| z3 | 1,056 → **1,123** (+67) | 707 → 640 (−67) |
+| llvm | 3,572 → **3,863** (+291) | 2,610 → 2,319 (−291) |
+
+**358 generic shapes converted to modeled.** STRUCT=0 / FORMAT=0
+preserved across all 16 commits. Production bugs surfaced and
+fixed: set_property scope dropping, get_property field dropping +
+yelu emit misusing source_target_directory, execute_process
+keyword reorder, file STRINGS / string REGEX / TIMESTAMP backslash
+escape, add_custom_target multi-COMMAND merge + COMMENT quoting.
+
+The original tiered plan is preserved below for reference; all
+items marked done.
+
+#### Original tiered plan
 
 The round-trip work surfaced a catalogue of cases where the
 production `Lang_cmake_pp` printer drops, reorders, or
