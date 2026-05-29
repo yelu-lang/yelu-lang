@@ -104,6 +104,24 @@ type definition = Def_var of var | Def_var_kv of { var : var; value : arg }
 type property = { prop : string; value : arg }
 type include_guard_scope = Ig_directory | Ig_global
 type set_property_mode = Sp_set | Sp_defined | Sp_brief_doc | Sp_full_doc
+
+(* Scope clause for set_property — exactly one of these prefixes
+   the call. See [Set_property] below. *)
+type set_property_scope =
+  | Sps_global
+  | Sps_directory of directory option       (* DIRECTORY [<dir>] *)
+  | Sps_target of target list                (* TARGET <t>... *)
+  | Sps_source of {
+      sources : source list;
+      directories : directory list;          (* DIRECTORY <dir>... *)
+      target_directories : target list;      (* TARGET_DIRECTORY <t>... *)
+    }
+  | Sps_install of file list                 (* INSTALL <f>... *)
+  | Sps_test of {
+      tests : test list;
+      directories : directory list;          (* DIRECTORY <dir>... *)
+    }
+  | Sps_cache of cache_entry list            (* CACHE <entry>... *)
 type add_executable_option = Ae_win32 | Ae_macos_bundle | Ae_exclude_from_all
 
 type custom_command = { command : string; args : string list }
@@ -452,20 +470,18 @@ and exp =
       property_name : string;
       set : bool;
     }
+  (* set_property(<scope> [APPEND] [APPEND_STRING] PROPERTY <name> [<value>...]).
+     The scope clause is exactly one of GLOBAL / DIRECTORY / TARGET / SOURCE /
+     INSTALL / TEST / CACHE, each with its own sub-args. Redesigned 2026-05-29
+     to surface this as a sum type (previously the IR had every scope's args
+     as separate optional list fields, and the printer dropped most of them
+     and split multi-value calls into N statements). *)
   | Set_property of {
-      global : bool;
-      directory : directory list;
-      targets : target list;
-      sources : source list;
-      source_directories : directory list;
-      source_target_directories : target list;
-      installs : file list;
-      tests : test list;
-      test_directories : directory list;
-      caches : cache_entry list;
+      scope : set_property_scope;
       append : bool;
       append_string : bool;
-      properties : property list;
+      property : string;
+      values : arg list;
     }
   | Set_directory_property of { append : bool; property : string; values : arg list }
   | Set_source_property of { file : string; property : string; values : arg list }

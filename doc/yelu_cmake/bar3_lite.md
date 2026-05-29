@@ -235,8 +235,6 @@ through `Apply` because the printer drops fields or shape
 inversion is brittle. They are the target of the upcoming
 **IR-printer cleanup** in [`status.md`](status.md):
 
-- `set_property` — printer pattern uses `_` on most IR fields;
-  multi-property calls split into N statements.
 - `get_property` — printer drops several IR fields.
 - `execute_process` — multi-line keyword shape, hard to invert.
 - Several `file` subcommands (READ, STRINGS, COPY, DOWNLOAD,
@@ -294,6 +292,7 @@ Coverage by stage (30 dispatched commands, 15 + 8 + 7):
 | original Stage 2 | 15 | `cmake_minimum_required`, `project`, `set`, `message`, `configure_file`, `add_executable`, `add_library`, `target_link_libraries`, `target_include_directories`, `target_compile_definitions`, `target_compile_options`, `target_compile_features`, `option`, `include`, `add_subdirectory` |
 | Stage 2-b | 8 | `unset`, `add_dependencies`, `find_package`, `get_filename_component`, `set_target_properties`, `add_custom_target`, `list`, `string` |
 | Stage 2-c | 7 | `return`, `include_directories`, `find_program`, `find_path`, `install`, `add_custom_command`, `file` |
+| Tier 2 cleanup | 1 | `set_property` |
 
 (Helper functions like `parse_find_var_names` back two dispatched
 commands; subcommand dispatchers like `parse_list` /
@@ -594,6 +593,30 @@ would populate it.
   COPY, COPY_FILE, DOWNLOAD, UPLOAD, LOCK, REAL_PATH, SIZE,
   READ_SYMLINK, TIMESTAMP, RENAME, RELATIVE_PATH,
   TO_NATIVE_PATH, TO_CMAKE_PATH.
+
+### 8.30 set_property (Tier 2 cleanup, 2026-05-29)
+
+- **Location**: [`print2.ml`](../../tool/cmake_roundtrip/print2.ml) `parse_set_property`
+- **IR**: [`Set_property` at `lang_cmake.ml:455`](../../src/langs/cmake/lang_cmake.ml#L455)
+  with the new `set_property_scope` sum type at `lang_cmake.ml:108`.
+- **Printer**: [`lang_cmake_pp.ml:622`](../../src/langs/cmake/lang_cmake_pp.ml#L622)
+- **Accepts**:
+  - `set_property(GLOBAL [APPEND] [APPEND_STRING] PROPERTY <name> [<value>...])`
+  - `set_property(DIRECTORY [<dir>] [APPEND] [APPEND_STRING] PROPERTY <name> [<value>...])`
+  - `set_property(TARGET <t>... [APPEND] [APPEND_STRING] PROPERTY <name> [<value>...])`
+  - `set_property(SOURCE <src>... [DIRECTORY <dir>...] [TARGET_DIRECTORY <t>...] [APPEND] [APPEND_STRING] PROPERTY <name> [<value>...])`
+  - `set_property(INSTALL <f>... [APPEND] [APPEND_STRING] PROPERTY <name> [<value>...])`
+  - `set_property(TEST <test>... [DIRECTORY <dir>...] [APPEND] [APPEND_STRING] PROPERTY <name> [<value>...])`
+- **Bails on**:
+  - `CACHE <entry>...` scope — IR's `cache_entry` is currently the
+    placeholder type `Cache_entry` with no per-entry names; preserving
+    via Apply is safer until the type carries data.
+  - Quoted scope args (IR slots are bare `string`).
+- **Known gaps**: `cache_entry` needs widening before CACHE scope
+  can be modeled. The yelu-side production API (`yc_set_property`,
+  `yc_set_global_property`) was also updated to fan out into an
+  `Exp_list` of single-property `Set_property` calls so it matches
+  the cmake spec's "one PROPERTY clause per call" semantics.
 
 ## 9. Code-quality posture
 

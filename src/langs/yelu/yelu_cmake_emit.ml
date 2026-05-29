@@ -573,37 +573,27 @@ let rec emit_exp ~env (e : expr) : C.exp =
            compatibility;
            arch_independent })
 
-  (* Property scopes beyond target *)
+  (* Property scopes beyond target. The cmake IR now models one
+     PROPERTY clause per Set_property exp; fan out yelu's
+     (prop, value) list into Exp_list of N Set_property calls. *)
   | Yelu_cmake_property.ECmakeSetProperty { targets; append; properties } ->
-    C.Set_property
-      { global = false;
-        directory = [];
-        targets = List.map targets ~f:(target_arg ~env);
-        sources = [];
-        source_directories = [];
-        source_target_directories = [];
-        installs = [];
-        tests = [];
-        test_directories = [];
-        caches = [];
-        append; append_string = false;
-        properties = List.map properties ~f:(fun (prop, value) ->
-          ({ prop; value = arg ~env value } : C.property)) }
+    let scope = C.Sps_target (List.map targets ~f:(target_arg ~env)) in
+    let one (prop, value) =
+      C.Set_property { scope; append; append_string = false;
+                       property = prop; values = [ arg ~env value ] }
+    in
+    (match properties with
+     | [ p ] -> one p
+     | ps -> C.Exp_list (List.map ps ~f:one))
   | Yelu_cmake_property.ECmakeSetGlobalProperty { properties } ->
-    C.Set_property
-      { global = true;
-        directory = [];
-        targets = [];
-        sources = [];
-        source_directories = [];
-        source_target_directories = [];
-        installs = [];
-        tests = [];
-        test_directories = [];
-        caches = [];
-        append = false; append_string = false;
-        properties = List.map properties ~f:(fun (prop, value) ->
-          ({ prop; value = arg ~env value } : C.property)) }
+    let scope = C.Sps_global in
+    let one (prop, value) =
+      C.Set_property { scope; append = false; append_string = false;
+                       property = prop; values = [ arg ~env value ] }
+    in
+    (match properties with
+     | [ p ] -> one p
+     | ps -> C.Exp_list (List.map ps ~f:one))
   | Yelu_cmake_property.ECmakeGetProperty { var; target; property; set_form } ->
     C.Get_property
       { var; global = false;

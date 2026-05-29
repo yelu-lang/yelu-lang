@@ -51,10 +51,20 @@ detail in `bar3_lite.md` § 8.
 
 **Tier 2 — larger, more design.**
 
-- A2 / A3 `get_property` / `set_property` printer rewrite (the
-  biggest single hit — `set_property` had 105 calls in llvm,
-  all routed to generic today). Printer uses `_` on most IR
-  fields; multi-property calls split into N statements.
+- ✅ **A3 `set_property` printer rewrite** — shipped 2026-05-29.
+  Introduced `set_property_scope` sum type
+  (`Sps_global` / `Sps_directory` / `Sps_target` / `Sps_source` /
+  `Sps_install` / `Sps_test` / `Sps_cache`). Set_property record
+  redesigned around `{ scope; append; append_string; property;
+  values }` so each call corresponds to ONE cmake `PROPERTY`
+  clause (printer used to drop most scope fields and split
+  multi-property into N statements). yelu-side production API
+  (`yc_set_property` / `yc_set_global_property`) fans out into
+  `Exp_list` of single-property calls. Corpus delta: z3 +1, llvm
+  +63 modeled. CACHE scope still bails (cache_entry IR is a
+  data-less placeholder).
+- A2 `get_property` printer rewrite — still pending; printer
+  drops fields. Same shape as A3 but smaller corpus footprint.
 - D1 `execute_process` typed (50 calls in llvm, 31 in z3).
   Multi-line keyword layout (`\n  COMMAND <args>`); requires
   modeling several keyword sublists.

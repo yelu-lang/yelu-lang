@@ -252,29 +252,21 @@ let get_global_property ~property var =
       set = false;
     }
 
-let set_property ?(global = false) ?(directory = []) ?(targets = [])
-    ?(sources = []) ?(source_directories = []) ?(source_target_directories = [])
-    ?(installs = []) ?(tests = []) ?(test_directories = []) ?(caches = [])
+(* Build one Set_property exp per (prop, value) pair, wrapping in
+   Exp_list when there's more than one. The cmake spec maps each
+   set_property call to ONE PROPERTY clause; the historical API
+   here accepted N pairs as a convenience and the printer used to
+   split them — the new IR shape (one property + value list per
+   ctor) requires us to fan out at construction time. *)
+let set_property ?(scope = Sps_global)
     ?(append = false) ?(append_string = false) prop_value_pairs =
-  let properties =
-    List.map ~f:(fun (prop, value) -> { prop; value }) prop_value_pairs
+  let one (prop, value) =
+    Set_property { scope; append; append_string;
+                   property = prop; values = [ value ] }
   in
-  Set_property
-    {
-      global;
-      directory;
-      targets;
-      sources;
-      source_directories;
-      source_target_directories;
-      installs;
-      tests;
-      test_directories;
-      caches;
-      append;
-      append_string;
-      properties;
-    }
+  match prop_value_pairs with
+  | [ p ] -> one p
+  | ps -> Exp_list (List.map ps ~f:one)
 
 let set_target_properties target prop_value_pairs =
   let properties =

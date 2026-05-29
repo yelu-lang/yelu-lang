@@ -619,15 +619,41 @@ let rec pp ff e =
             if String.length f > 0 then pf ff " INSTALL %s" f)
           install (pp_flag "VARIABLE") variable string property_name
           (pp_flag "SET") set)
-  | Set_property { global; targets; append = do_append; properties; _ } ->
-      let app = if do_append then " APPEND" else "" in
-      if global then
-        List.iter properties ~f:(fun prop ->
-          Fmt.(pf ff "set_property(GLOBAL%s@;PROPERTY %a)@." app pp_property prop))
-      else
-        List.iter properties ~f:(fun prop ->
-          Fmt.(pf ff "set_property(TARGET %a%s@;PROPERTY %a)@."
-            (list_sp pp_target) targets app pp_property prop))
+  | Set_property { scope; append; append_string; property; values } ->
+      let pp_scope ff = function
+        | Sps_global -> Fmt.string ff "GLOBAL"
+        | Sps_directory None -> Fmt.string ff "DIRECTORY"
+        | Sps_directory (Some d) -> Fmt.pf ff "DIRECTORY %s" d
+        | Sps_target ts ->
+            Fmt.pf ff "TARGET %a" (list_sp pp_target) ts
+        | Sps_source { sources; directories; target_directories } ->
+            Fmt.pf ff "SOURCE %a" (list_sp pp_source) sources;
+            if not (List.is_empty directories) then
+              Fmt.pf ff " DIRECTORY %a" (list_sp Fmt.string) directories;
+            if not (List.is_empty target_directories) then
+              Fmt.pf ff " TARGET_DIRECTORY %a"
+                (list_sp pp_target) target_directories
+        | Sps_install files ->
+            Fmt.pf ff "INSTALL %a" (list_sp Fmt.string) files
+        | Sps_test { tests; directories } ->
+            Fmt.pf ff "TEST %a" (list_sp Fmt.string) tests;
+            if not (List.is_empty directories) then
+              Fmt.pf ff " DIRECTORY %a" (list_sp Fmt.string) directories
+        | Sps_cache _entries ->
+            (* cache_entry is currently the placeholder type Cache_entry
+               with no names; emit just the keyword. *)
+            Fmt.string ff "CACHE"
+      in
+      let pp_values ff = function
+        | [] -> ()
+        | vs -> Fmt.pf ff " %a" (list_sp pp_arg) vs
+      in
+      Fmt.pf ff "set_property(%a%s%s PROPERTY %s%a)"
+        pp_scope scope
+        (if append then " APPEND" else "")
+        (if append_string then " APPEND_STRING" else "")
+        property
+        pp_values values
   | Set_directory_property { append = is_append; property; values } ->
       Fmt.(
         pf ff "set_property(DIRECTORY%s PROPERTY %s %a)"

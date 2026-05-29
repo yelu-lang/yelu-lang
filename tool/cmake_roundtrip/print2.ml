@@ -991,6 +991,114 @@ let parse_file args : L.exp option =
                       patterns = List.map patterns ~f:arg_of_raw })
   | _ -> None
 
+(* set_property(<SCOPE> [APPEND] [APPEND_STRING] PROPERTY <name> [<value>...]).
+   SCOPE is one of GLOBAL / DIRECTORY [<dir>] / TARGET <t>... /
+   SOURCE <src>... [DIRECTORY <dir>...] [TARGET_DIRECTORY <t>...] /
+   INSTALL <f>... / TEST <test>... [DIRECTORY <dir>...] / CACHE <e>...
+
+   IR + printer redesigned 2026-05-29 to surface scope as a sum type. *)
+let parse_set_property args : L.exp option =
+  if not (all_bare args) then None
+  else
+  (* Helper: split sub-arglist on inner keyword [stop_kw] (used inside
+     SOURCE/TEST sub-clauses), returning prefix and suffix. *)
+  let rec split_at kws = function
+    | [] -> [], []
+    | t :: rest when List.mem kws t ~equal:String.equal -> [], t :: rest
+    | t :: rest ->
+      let a, b = split_at kws rest in t :: a, b
+  in
+  (* Consume the scope clause from the head of [args]. Returns
+     (scope, remaining_args) on success. *)
+  let parse_scope = function
+    | "GLOBAL" :: rest -> Some (L.Sps_global, rest)
+    | "DIRECTORY" :: rest ->
+      let dir, rest =
+        match rest with
+        | d :: r when not (List.mem ["APPEND"; "APPEND_STRING"; "PROPERTY"]
+                             d ~equal:String.equal) ->
+          Some d, r
+        | _ -> None, rest
+      in
+      Some (L.Sps_directory dir, rest)
+    | "TARGET" :: rest ->
+      let targets, rest =
+        split_at ["APPEND"; "APPEND_STRING"; "PROPERTY"] rest
+      in
+      if List.is_empty targets then None
+      else Some (L.Sps_target targets, rest)
+    | "SOURCE" :: rest ->
+      let sources, rest =
+        split_at ["DIRECTORY"; "TARGET_DIRECTORY";
+                  "APPEND"; "APPEND_STRING"; "PROPERTY"] rest
+      in
+      if List.is_empty sources then None
+      else
+        let directories, rest =
+          match rest with
+          | "DIRECTORY" :: r ->
+            let ds, r =
+              split_at ["TARGET_DIRECTORY";
+                        "APPEND"; "APPEND_STRING"; "PROPERTY"] r
+            in
+            ds, r
+          | _ -> [], rest
+        in
+        let target_directories, rest =
+          match rest with
+          | "TARGET_DIRECTORY" :: r ->
+            let ts, r =
+              split_at ["APPEND"; "APPEND_STRING"; "PROPERTY"] r
+            in
+            ts, r
+          | _ -> [], rest
+        in
+        Some (L.Sps_source { sources; directories; target_directories }, rest)
+    | "INSTALL" :: rest ->
+      let files, rest =
+        split_at ["APPEND"; "APPEND_STRING"; "PROPERTY"] rest
+      in
+      if List.is_empty files then None
+      else Some (L.Sps_install files, rest)
+    | "TEST" :: rest ->
+      let tests, rest =
+        split_at ["DIRECTORY"; "APPEND"; "APPEND_STRING"; "PROPERTY"] rest
+      in
+      if List.is_empty tests then None
+      else
+        let directories, rest =
+          match rest with
+          | "DIRECTORY" :: r ->
+            let ds, r = split_at ["APPEND"; "APPEND_STRING"; "PROPERTY"] r in
+            ds, r
+          | _ -> [], rest
+        in
+        Some (L.Sps_test { tests; directories }, rest)
+    | "CACHE" :: _ ->
+      (* cache_entry IR is the placeholder type Cache_entry with no
+         per-entry data — round-tripping via Apply preserves the source
+         exactly, which is the safer option until cache_entry carries
+         names. *)
+      None
+    | _ -> None
+  in
+  match parse_scope args with
+  | None -> None
+  | Some (scope, rest) ->
+    let append, rest = match rest with
+      | "APPEND" :: r -> true, r | _ -> false, rest
+    in
+    let append_string, rest = match rest with
+      | "APPEND_STRING" :: r -> true, r | _ -> false, rest
+    in
+    (match rest with
+     | "PROPERTY" :: property :: values ->
+       Some (Set_property
+               { scope; append; append_string;
+                 property;
+                 values = List.map values ~f:arg_of_raw })
+     | _ -> None)
+
 (* install(TARGETS <t>... [EXPORT <name>] DESTINATION <d>) — simple form *)
 let parse_install args : L.exp option =
   match args with
@@ -1092,6 +1200,8 @@ let parse_cmd (c : cmd) : L.exp option =
   | "install" -> parse_install c.args
   | "add_custom_command" -> parse_add_custom_command c.args
   | "file" -> parse_file c.args
+  (* Tier 2 *)
+  | "set_property" -> parse_set_property c.args
   | _ -> None
 
 (* ============================================================
