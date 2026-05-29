@@ -361,24 +361,39 @@ would populate it.
 ### 8.6 add_executable
 
 - **Location**: [`print2.ml:355`](../../tool/cmake_roundtrip/print2.ml#L355)
-- **IR**: [`Add_executable` at `lang_cmake.ml:682`](../../src/langs/cmake/lang_cmake.ml#L682)
-- **Printer**: [`lang_cmake_pp.ml:975`](../../src/langs/cmake/lang_cmake_pp.ml#L975)
-- **Accepts**: `add_executable(<name> <src>...)` — no option keywords.
-- **Bails on**: `WIN32` / `MACOSX_BUNDLE` / `EXCLUDE_FROM_ALL` /
-  `IMPORTED` / `ALIAS` / `GLOBAL` anywhere in args (IR has
-  `options` field but parser doesn't populate it; without bailing,
-  these would misclassify into `sources`).
-- **Known gaps**: imported / alias / options forms have IR ctors
-  but no parser populates them.
+- **IR**: [`Add_executable`](../../src/langs/cmake/lang_cmake.ml#L727)
+  + [`Add_executable_imported`](../../src/langs/cmake/lang_cmake.ml#L732)
+  + [`Add_executable_alias`](../../src/langs/cmake/lang_cmake.ml#L733)
+- **Printer**: [`lang_cmake_pp.ml:1013`](../../src/langs/cmake/lang_cmake_pp.ml#L1013)
+- **Accepts** (updated 2026-05-29):
+  - `add_executable(<name> [WIN32] [MACOSX_BUNDLE] [EXCLUDE_FROM_ALL] <src>...)`
+    — options consumed positionally in source order into the IR's
+    `options` field (`Ae_win32` / `Ae_macos_bundle` /
+    `Ae_exclude_from_all`).
+  - `add_executable(<name> IMPORTED [GLOBAL])` → `Add_executable_imported`.
+  - `add_executable(<name> ALIAS <target>)` → `Add_executable_alias`.
+- **Bails on**: reserved option keyword appearing among `sources`
+  after a non-option arg (would misclassify), or arg-list shape
+  not matching one of the above.
 
 ### 8.7 add_library
 
 - **Location**: [`print2.ml:372`](../../tool/cmake_roundtrip/print2.ml#L372)
-- **IR**: [`Add_library` at `lang_cmake.ml:689`](../../src/langs/cmake/lang_cmake.ml#L689)
-- **Printer**: [`lang_cmake_pp.ml:998`](../../src/langs/cmake/lang_cmake_pp.ml#L998)
-- **Accepts**: `add_library(<name> [STATIC|SHARED|MODULE] [EXCLUDE_FROM_ALL] <src>...)`.
-- **Bails on**: OBJECT / INTERFACE / ALIAS / IMPORTED forms
-  (separate IR ctors).
+- **IR**: [`Add_library`](../../src/langs/cmake/lang_cmake.ml#L734)
+  + [`Add_library_imported`](../../src/langs/cmake/lang_cmake.ml#L740)
+  + [`Add_library_object`](../../src/langs/cmake/lang_cmake.ml#L741)
+  + [`Add_library_interface`](../../src/langs/cmake/lang_cmake.ml#L742)
+  + [`Add_library_alias`](../../src/langs/cmake/lang_cmake.ml#L743)
+- **Printer**: [`lang_cmake_pp.ml:1036`](../../src/langs/cmake/lang_cmake_pp.ml#L1036)
+- **Accepts** (updated 2026-05-29):
+  - `add_library(<name> [STATIC|SHARED|MODULE|UNKNOWN] [EXCLUDE_FROM_ALL] <src>...)`
+  - `add_library(<name> OBJECT <src>...)` → `Add_library_object`.
+  - `add_library(<name> INTERFACE)` → `Add_library_interface`.
+  - `add_library(<name> [<type>] IMPORTED [GLOBAL])` →
+    `Add_library_imported` (type ∈ STATIC/SHARED/MODULE/UNKNOWN/OBJECT/INTERFACE).
+  - `add_library(<name> ALIAS <target>)` → `Add_library_alias`.
+- **Bails on**: IMPORTED with non-recognized lib_type; misplaced
+  ALIAS / IMPORTED keyword.
 
 ### 8.8 target_link_libraries
 

@@ -88,11 +88,19 @@ detail in `bar3_lite.md` § 8.
 
 **Tier 3 — typed-IR misclassification opportunities.**
 
-- E1 / E2 add_executable / add_library variant parsers
-  (`Add_executable_imported`, `Add_library_alias`, etc. — IR
-  ctors exist but no parser populates them).
-- E3 add_executable `options` (`Ae_win32` / `Ae_macos_bundle`
-  ctors exist; parser currently bails on them).
+- ✅ **E1 / E2 / E3 `add_executable` / `add_library` variants and
+  options** — shipped 2026-05-29 as one commit.
+  `parse_add_executable` now dispatches to `Add_executable_imported`
+  (`IMPORTED [GLOBAL]`), `Add_executable_alias` (`ALIAS <target>`),
+  or `Add_executable` with positional consumption of `WIN32` /
+  `MACOSX_BUNDLE` / `EXCLUDE_FROM_ALL` into the `options` field.
+  `parse_add_library` now handles `OBJECT`, `INTERFACE`, `ALIAS`,
+  `IMPORTED [GLOBAL]` (with or without type), in addition to the
+  existing `STATIC|SHARED|MODULE|UNKNOWN [EXCLUDE_FROM_ALL]` form.
+  The canonical "STRUCT pass ≠ typed correctness" example
+  (`add_executable(App WIN32 main.c)` STRUCT-passing with WIN32
+  misclassified into sources) is now fully resolved. Corpus delta:
+  z3 +3, llvm +6 modeled.
 - D2 `file READ` / `file STRINGS` (slot order reversed vs source).
 
 **Ordering recommendation:** Tier 1 as five small per-fix commits

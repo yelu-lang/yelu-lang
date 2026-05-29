@@ -359,37 +359,88 @@ let parse_configure_file args : L.exp option =
                  newline_style = None }))
   | _ -> None
 
-(* add_executable(<name> <sources>...) — only the regular form with no
-   option keywords. The IR carries an [options] field for WIN32 /
-   MACOSX_BUNDLE / EXCLUDE_FROM_ALL etc., but this parser does not
-   populate it — it would silently put those keywords into [sources],
-   misclassifying the typed IR. Bail when any reserved option token
-   is present; let the generic Apply path preserve the form. *)
-let add_executable_option_keywords =
-  [ "WIN32"; "MACOSX_BUNDLE"; "EXCLUDE_FROM_ALL";
-    "ALIAS"; "IMPORTED"; "GLOBAL" ]
-
+(* add_executable — four shapes:
+   1. add_executable(<name> [WIN32] [MACOSX_BUNDLE] [EXCLUDE_FROM_ALL] <src>...)
+      → Add_executable { options; sources }
+   2. add_executable(<name> IMPORTED [GLOBAL])
+      → Add_executable_imported
+   3. add_executable(<name> ALIAS <target>)
+      → Add_executable_alias
+   Options updated 2026-05-29 to populate the IR's [options] field
+   (previously bailed on WIN32/MACOSX_BUNDLE/EXCLUDE_FROM_ALL). *)
 let parse_add_executable args : L.exp option =
   if not (all_bare args) then None
   else
   match args with
-  | name :: sources when not (List.is_empty sources) ->
-    if List.exists sources ~f:(fun s ->
-        List.mem add_executable_option_keywords s ~equal:String.equal)
-    then None
+  | [ name; "IMPORTED" ] ->
+    Some (Project_cmd (Add_executable_imported { name; global = false }))
+  | [ name; "IMPORTED"; "GLOBAL" ] ->
+    Some (Project_cmd (Add_executable_imported { name; global = true }))
+  | [ name; "ALIAS"; target ] ->
+    Some (Project_cmd (Add_executable_alias { name; target }))
+  | name :: rest ->
+    (* Consume contiguous option keywords in source order — they're
+       printer-emitted positionally, so source order is preserved
+       in the [options] list. *)
+    let rec take_opts acc = function
+      | "WIN32" :: r -> take_opts (L.Ae_win32 :: acc) r
+      | "MACOSX_BUNDLE" :: r -> take_opts (L.Ae_macos_bundle :: acc) r
+      | "EXCLUDE_FROM_ALL" :: r -> take_opts (L.Ae_exclude_from_all :: acc) r
+      | rest -> List.rev acc, rest
+    in
+    let options, sources = take_opts [] rest in
+    if List.is_empty sources then None
+    else if List.exists sources ~f:(fun s ->
+      List.mem ["WIN32"; "MACOSX_BUNDLE"; "EXCLUDE_FROM_ALL";
+                "ALIAS"; "IMPORTED"; "GLOBAL"]
+        s ~equal:String.equal)
+    then None  (* misplaced keyword among sources — bail *)
     else
       Some (Project_cmd
-              (Add_executable
-                 { name; options = []; sources }))
+              (Add_executable { name; options; sources }))
   | _ -> None
 
-(* add_library(<name> [STATIC|SHARED|...] [EXCLUDE_FROM_ALL] <sources>) *)
-let library_types = [ "STATIC"; "SHARED"; "MODULE"; "INTERFACE"; "OBJECT"; "UNKNOWN" ]
+(* add_library — five shapes:
+   1. add_library(<name> [STATIC|SHARED|MODULE|UNKNOWN] [EXCLUDE_FROM_ALL] <src>...)
+      → Add_library
+   2. add_library(<name> OBJECT <src>...)
+      → Add_library_object
+   3. add_library(<name> INTERFACE)
+      → Add_library_interface
+   4. add_library(<name> [<type>] IMPORTED [GLOBAL])
+      → Add_library_imported
+   5. add_library(<name> ALIAS <target>)
+      → Add_library_alias *)
+let library_types = [ "STATIC"; "SHARED"; "MODULE"; "UNKNOWN" ]
 
 let parse_add_library args : L.exp option =
   if not (all_bare args) then None
   else
   match args with
+  | [ name; "INTERFACE" ] ->
+    Some (Project_cmd (Add_library_interface { name }))
+  | [ name; "ALIAS"; target ] ->
+    Some (Project_cmd (Add_library_alias { name; target }))
+  | [ name; "IMPORTED" ] ->
+    Some (Project_cmd (Add_library_imported
+                         { name; lib_type = None; global = false }))
+  | [ name; "IMPORTED"; "GLOBAL" ] ->
+    Some (Project_cmd (Add_library_imported
+                         { name; lib_type = None; global = true }))
+  | [ name; t; "IMPORTED" ]
+    when List.mem library_types t ~equal:String.equal
+         || String.equal t "OBJECT"
+         || String.equal t "INTERFACE" ->
+    Some (Project_cmd (Add_library_imported
+                         { name; lib_type = Some t; global = false }))
+  | [ name; t; "IMPORTED"; "GLOBAL" ]
+    when List.mem library_types t ~equal:String.equal
+         || String.equal t "OBJECT"
+         || String.equal t "INTERFACE" ->
+    Some (Project_cmd (Add_library_imported
+                         { name; lib_type = Some t; global = true }))
+  | name :: "OBJECT" :: sources when not (List.is_empty sources) ->
+    Some (Project_cmd (Add_library_object { name; sources }))
   | name :: rest ->
     if List.exists rest ~f:(fun s ->
         List.mem [ "ALIAS"; "IMPORTED" ] s ~equal:String.equal)
