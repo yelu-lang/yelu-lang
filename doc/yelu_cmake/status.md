@@ -13,10 +13,12 @@ trail) in `../worklog/worklog_2026_05.md`.
   Production binaries route through
   `Yelu_cmake_utils → Yelu_cmake → Yelu_cmake_emit → Lang_cmake_pp`.
   Detail in `worklog_2026_05.md` "Retirement (May 11 — May 14)".
-- Bar #3-lite syntactic round-trip shipped through Stage 2-c.
-  STRUCT=0 / FORMAT=0 across tutorial (25/25), z3 (108/108 —
-  modeled 1,056 / generic 707), llvm (596/596 — modeled 3,572 /
-  generic 2,610). Audit-ready at `bar3_lite.md`.
+- Bar #3-lite syntactic round-trip shipped through Stage 2-c +
+  Tier 1–4 IR-printer cleanup (16 commits) + Class A Phase 1
+  corpus-index accounting. STRUCT=0 / FORMAT=0 across tutorial
+  (25/25), z3 (108/108 — modeled 1,123 / resolved 133 /
+  generic 507), llvm (596/596 — modeled 3,863 / resolved 1,534 /
+  generic 785). Audit-ready at `bar3_lite.md`.
 
 Verification baseline:
 - 1010 unit tests pass

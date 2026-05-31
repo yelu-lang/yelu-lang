@@ -2076,27 +2076,67 @@ let emit stmts =
    Coverage report (optional, via env var)
    ============================================================ *)
 
+(* Project-defined name index (Class A Phase 1).
+
+   When [CORPUS_INDEX_FILE] is set, load the TSV emitted by
+   project_index.exe into a string set. The set contains every
+   name declared via [function(<name> ...)] or [macro(<name> ...)]
+   somewhere in the corpus. cmake call dispatch is case-insensitive,
+   so we lowercase on insert + lookup.
+
+   When loaded, [count_coverage] splits the generic bucket into
+   [resolved] (name is in the index — Class A, project-defined) vs
+   [external] (name is not — likely cmake module function, runtime-
+   loaded module, or genuinely unknown).
+
+   The reprint output is unchanged whether the index is loaded or
+   not. This is purely accounting. *)
+let resolved_set : (string, String.comparator_witness) Set.t ref =
+  ref (Set.empty (module String))
+
+let load_resolved_set path =
+  let ic = Stdlib.open_in path in
+  let s = ref (Set.empty (module String)) in
+  (try
+     while true do
+       let line = Stdlib.input_line ic in
+       (* Format: <name>\t<file>\t<kind>. Tolerate empty lines. *)
+       match String.lsplit2 line ~on:'\t' with
+       | Some (name, _) when not (String.is_empty name) ->
+         s := Set.add !s (String.lowercase name)
+       | _ -> ()
+     done
+   with Stdlib.End_of_file -> ());
+  Stdlib.close_in ic;
+  resolved_set := !s
+
+let index_loaded () = not (Set.is_empty !resolved_set)
+
 (* Coverage tally. Each top-level statement contributes as follows:
-   - [Cmd] -> [modeled] if [parse_cmd] returns [Some _], else [generic].
+   - [Cmd] -> [modeled] if [parse_cmd] returns [Some _], else
+     either [resolved] (if the index is loaded and the call name
+     resolves against it) or [generic] (which means "external"
+     when the index is loaded, "unknown" otherwise).
    - [Block] -> [other] += 1 for the wrapper itself. Body and clause
-     bodies recurse: contained [Cmd]s contribute to modeled/generic.
+     bodies recurse: contained [Cmd]s contribute to modeled/resolved/generic.
      Heads and tails are NOT counted in any bucket (they're reprinted
      by [print_block_head] without dispatch).
    - [Raw] / [Unknown] -> [other] += 1.
-   Deliberately no ratio is reported: many generic calls are
-   project-defined functions that are correctly never modeled by
-   [Lang_cmake.exp]. A modeled / (modeled + generic) ratio would
-   conflate "not yet modeled" with "shouldn't be modeled". Raw
-   counts are the honest signal. *)
+   Deliberately no ratio is reported. *)
 let count_coverage stmts =
   let modeled = ref 0 in
+  let resolved = ref 0 in
   let generic = ref 0 in
   let other = ref 0 in
   let rec walk = function
     | Cmd c ->
       (match parse_cmd c with
        | Some _ -> Int.incr modeled
-       | None -> Int.incr generic)
+       | None ->
+         if index_loaded ()
+            && Set.mem !resolved_set (String.lowercase c.name)
+         then Int.incr resolved
+         else Int.incr generic)
     | Block { body; clauses; _ } ->
       Int.incr other;
       List.iter body ~f:walk;
@@ -2104,7 +2144,7 @@ let count_coverage stmts =
     | Raw _ | Unknown _ -> Int.incr other
   in
   List.iter stmts ~f:walk;
-  !modeled, !generic, !other
+  !modeled, !resolved, !generic, !other
 
 (* ============================================================
    Driver
@@ -2121,12 +2161,21 @@ let read_all_stdin () =
   Buffer.contents buf
 
 let () =
+  (* Load project-defined name index if pointed at one (Class A Phase 1). *)
+  (match Sys.getenv "CORPUS_INDEX_FILE" with
+   | Some path when Stdlib.Sys.file_exists path -> load_resolved_set path
+   | _ -> ());
   let json_str = read_all_stdin () in
   let json = Yojson.Safe.from_string json_str in
   let stmts = file_of_json json in
   (match Sys.getenv "STAGE2_COVERAGE" with
    | Some _ ->
-     let m, g, o = count_coverage stmts in
-     Stdlib.Printf.eprintf "[stage2] modeled=%d generic=%d other=%d\n" m g o
+     let m, r, g, o = count_coverage stmts in
+     if index_loaded () then
+       Stdlib.Printf.eprintf
+         "[stage2] modeled=%d resolved=%d generic=%d other=%d\n" m r g o
+     else
+       Stdlib.Printf.eprintf
+         "[stage2] modeled=%d generic=%d other=%d\n" m g o
    | None -> ());
   Stdlib.print_string (emit stmts)

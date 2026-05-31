@@ -57,9 +57,9 @@ content (modulo whitespace and inline-arg comments).
 ## 3. Results
 
 ```
-tutorial step outputs : 25/25  OK   modeled=165   generic=25    other=23
-z3                    : 108/108 OK  modeled=1123  generic=640   other=1711
-llvm/llvm             : 596/596 OK  modeled=3863  generic=2319  other=4029
+tutorial step outputs : 25/25  OK   modeled=165   resolved=0     generic=25    other=23
+z3                    : 108/108 OK  modeled=1123  resolved=133   generic=507   other=1711
+llvm/llvm             : 596/596 OK  modeled=3863  resolved=1534  generic=785   other=4029
 ```
 
 All three corpora: **STRUCT=0, FORMAT=0**.
@@ -79,9 +79,18 @@ Bucket definitions (no ratio is reported — see § 6):
 - **modeled** — command mapped to a dedicated `Lang_cmake.exp`
   constructor (`Add_executable`, `Target_link_libraries`,
   `Find_package`, …).
-- **generic** — command constructed as `Lang_cmake.Apply { name;
-  args }` and reprinted via the production `Lang_cmake_pp` Apply
-  arm.
+- **resolved** — command constructed as `Lang_cmake.Apply { name;
+  args }` AND the name resolves against the **corpus-level
+  function/macro index** built by `project_index.exe` (Class A
+  Phase 1, 2026-05-31). These are project-defined callables —
+  `tablegen` / `add_llvm_*` (llvm), `z3_add_component` (z3), etc.
+  Reprint identical to generic; just a more honest accounting.
+- **generic** — `Lang_cmake.Apply { name; args }` whose name is
+  NOT in the corpus index (or when the index is disabled). Likely
+  a cmake standard-module function (`check_symbol_exists`,
+  `cmake_parse_arguments`), a runtime-loaded module function, or
+  a truly unknown name. Reprinted via the production
+  `Lang_cmake_pp` Apply arm.
 - **other** — one per block wrapper node
   (`if_condition`/`foreach_loop`/`while_loop`/`function_def`/
   `macro_def`/`block_def`) + one per raw passthrough chunk
@@ -123,14 +132,16 @@ pass spuriously.
 Each file prints one line:
 
 ```
-OK     relpath  modeled/generic/other
-FORMAT relpath  modeled/generic/other
+OK     relpath  modeled/[resolved/]generic/other
+FORMAT relpath  modeled/[resolved/]generic/other
 STRUCT relpath
 PARSE  relpath
 ```
 
-End-of-run summary block tallies the buckets and emits
-`Stage 2 cmds: modeled=N generic=N other=N`.
+The `resolved/` slot appears when the corpus index is loaded (the
+default — set `NO_CORPUS_INDEX=1` to skip). End-of-run summary
+emits `Stage 2 cmds: modeled=N resolved=N generic=N other=N`
+(or the 3-bucket form without the index).
 
 ### 4.3 Debugging a failure
 
@@ -164,7 +175,8 @@ OK with `other > 0` via the raw-passthrough fallback.
 | [`parse.py`](../../tool/cmake_roundtrip/parse.py) | 214 | tree-sitter-cmake → JSON CST. Adjacent-arg concatenation, ERROR-root passthrough, block recognition. |
 | [`print2.ml`](../../tool/cmake_roundtrip/print2.ml) | ~1,150 | JSON reader + 30 per-command typed parsers + dispatch + emit + driver. |
 | [`strip_comments.py`](../../tool/cmake_roundtrip/strip_comments.py) | 70 | tree-sitter–based comment stripper for the FORMAT oracle preprocessor. |
-| [`test_corpus.sh`](../../tool/cmake_roundtrip/test_corpus.sh) | ~175 | Harness: per-file STRUCT + FORMAT + summary. |
+| [`project_index.ml`](../../tool/cmake_roundtrip/project_index.ml) | ~210 | Class A Phase 1 corpus walker. Emits `<name>\t<file>\t<function\|macro>` TSV for every project-defined callable. |
+| [`test_corpus.sh`](../../tool/cmake_roundtrip/test_corpus.sh) | ~210 | Harness: per-file STRUCT + FORMAT + summary; builds + passes the corpus index. |
 | `dune` | 8 | Builds `print2.exe`. |
 
 ### Production modules exercised (`src/langs/cmake/`)
@@ -212,31 +224,54 @@ for cmake **builtins**. A ratio would conflate "we haven't
 modeled this builtin yet" with "this is user-defined and
 should stay generic". Raw counts are the honest signal.
 
-### Class A: project- and module-defined cmake functions (deferred)
+### Class A: project- and module-defined cmake functions
 
 Calls into `function()` / `macro()` bodies defined elsewhere
 in the corpus or in cmake's standard `Modules/`. Real cmake
 dispatches them dynamically at execution time against a name
 table built from `include(...)` and `find_package(...)`. They
-round-trip byte-faithfully via `Lang_cmake.Apply` today.
+round-trip byte-faithfully via `Lang_cmake.Apply`.
 
-A planned **two-phase Class A** is deferred — it inherently
-models cmake configure-time behavior and belongs alongside
-behavior-level oracles rather than as a parser-only patch:
+The IR's `Apply { name; args }` constructor is the right
+destination for these — `Apply` is itself a typed
+`Lang_cmake.exp` case, equivalent to "call by name" in a
+functional language. We don't need a dedicated typed constructor
+per project-defined function (a `Z3_add_component { name; ... }`
+ctor would require reading the function's signature from its
+definition, which is configure-time information).
 
-- **Phase 1 — function-aware accounting (cheap).** Single pass
-  over the corpus collects every `function(<name>...)` /
-  `macro(<name>...)` definition. Stage-2 then tags Apply calls
-  whose name resolves against the table as `resolved` vs
-  `external`. New coverage bucket between `modeled` and
-  `generic`. Round-trip oracle unchanged; only the tally
-  becomes more honest.
-- **Phase 2 — dynamic dispatch resolution (semantic).** Given
-  `z3_add_component(api)`, resolve to the function body and
-  inline-substitute (macro semantics) or push a scope with
-  bound parameters (function semantics). Blockers: conditional
-  `include()`, dynamic `CMAKE_MODULE_PATH`, macro vs function
-  scope semantics, generator-expression delay.
+**Phase 1 — function-aware accounting** (shipped 2026-05-31):
+[`project_index.exe`](../../tool/cmake_roundtrip/project_index.ml)
+walks the corpus once, collects every
+`function(<name>...)` / `macro(<name>...)` definition into a
+TSV index. `test_corpus.sh` caches the index next to the
+file-list cache and exports `CORPUS_INDEX_FILE`; `print2.exe`
+loads it at startup and splits the previous `generic` bucket
+into `resolved` (name in index — project-defined) and `generic`
+(name not in index — cmake module function, runtime-loaded, or
+truly unknown). Round-trip output is unchanged; only the
+coverage tally is more informative.
+
+Current splits with index loaded:
+- z3: **133 resolved**, **507 generic** (out of 640 ex-generic)
+- llvm: **1,534 resolved**, **785 generic** (out of 2,319 ex-generic)
+
+The remaining ~66% of llvm's old-generic bucket is now
+visible as project-defined infrastructure (`tablegen`,
+`add_llvm_*`, etc.). The remaining `generic` bucket on llvm is
+dominated by cmake standard-module functions (`CheckXxx`,
+`cmake_parse_arguments`, `find_package_handle_standard_args`)
+that are loaded at configure time from cmake's installed
+`Modules/` directory — out of scope for a corpus-level index.
+
+**Phase 2 — dynamic dispatch resolution** (deferred). Given
+`z3_add_component(api)`, resolve to the function body and
+inline-substitute (macro semantics) or push a scope with
+bound parameters (function semantics). Blockers: conditional
+`include()`, dynamic `CMAKE_MODULE_PATH`, macro vs function
+scope semantics, generator-expression delay. This is the
+yelu_cmake-interpreter direction; the Phase 1 index will be
+reused there.
 
 ### Builtins routed to Apply because the printer is lossy
 

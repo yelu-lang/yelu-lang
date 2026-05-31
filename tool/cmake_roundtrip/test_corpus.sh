@@ -60,7 +60,29 @@ if ! [ -x "$print2" ]; then
 fi
 
 ok=0; format=0; struct=0; parse=0
-modeled_total=0; generic_total=0; other_total=0
+modeled_total=0; resolved_total=0; generic_total=0; other_total=0
+
+# Build a project-defined name index for the corpus (Class A Phase 1
+# from doc/yelu_cmake/bar3_lite.md § 6). project_index.exe walks the
+# corpus and emits `<name>\t<file>\t<function|macro>` lines for every
+# function/macro definition it finds; print2.exe reads it via
+# CORPUS_INDEX_FILE and splits generic into resolved (in index) +
+# generic (external / runtime-loaded modules / unknown).
+#
+# The index is cached alongside the file-list cache. Set
+# NO_CORPUS_INDEX=1 to skip building/loading the index; print2.exe
+# will then report the older modeled/generic/other 3-bucket form.
+project_index_exe="${yelu_root}/_build/default/tool/cmake_roundtrip/project_index.exe"
+if [ -z "${NO_CORPUS_INDEX:-}" ] && [ -x "$project_index_exe" ]; then
+  corpus_abs_for_idx=$(cd "$corpus" && pwd)
+  idx_key=$(printf '%s' "$corpus_abs_for_idx" | sha256sum | cut -d' ' -f1)
+  CORPUS_INDEX_FILE="/tmp/bar3lite_index_${idx_key}.tsv"
+  if [ ! -f "$CORPUS_INDEX_FILE" ] || [ -n "${REBUILD_CORPUS_INDEX:-}" ]; then
+    "$project_index_exe" "$corpus_abs_for_idx" > "$CORPUS_INDEX_FILE" \
+      2>/dev/null || true
+  fi
+  export CORPUS_INDEX_FILE
+fi
 
 # Extract (command, args) tuples from a cmake source via tree-sitter.
 # Output: one line per command of the form `name(a1 a2 ...)`.
@@ -128,9 +150,11 @@ while IFS= read -r f; do
   # generic". Raw counts are the honest indicator.
   stage2=$(echo "$json" | STAGE2_COVERAGE=1 "$print2" 2>/tmp/_cov_$$.tmp)
   t=$(grep -oE "modeled=[0-9]+" /tmp/_cov_$$.tmp | head -1 | cut -d= -f2); t=${t:-0}
+  r=$(grep -oE "resolved=[0-9]+" /tmp/_cov_$$.tmp | head -1 | cut -d= -f2); r=${r:-0}
   g=$(grep -oE "generic=[0-9]+" /tmp/_cov_$$.tmp | head -1 | cut -d= -f2); g=${g:-0}
   o=$(grep -oE "other=[0-9]+" /tmp/_cov_$$.tmp | head -1 | cut -d= -f2); o=${o:-0}
   modeled_total=$((modeled_total + t))
+  resolved_total=$((resolved_total + r))
   generic_total=$((generic_total + g))
   other_total=$((other_total + o))
 
@@ -164,10 +188,18 @@ while IFS= read -r f; do
         | "$gersemi" $gersemi_args - 2>/dev/null | normalize)
   got=$(echo "$stage2" | "$gersemi" $gersemi_args - 2>/dev/null | normalize)
   if [ "$ref" = "$got" ]; then
-    echo "OK     $rel  $t/$g/$o"
+    if [ -n "${CORPUS_INDEX_FILE:-}" ]; then
+      echo "OK     $rel  $t/$r/$g/$o"
+    else
+      echo "OK     $rel  $t/$g/$o"
+    fi
     ok=$((ok+1))
   else
-    echo "FORMAT $rel  $t/$g/$o"
+    if [ -n "${CORPUS_INDEX_FILE:-}" ]; then
+      echo "FORMAT $rel  $t/$r/$g/$o"
+    else
+      echo "FORMAT $rel  $t/$g/$o"
+    fi
     format=$((format+1))
   fi
 done < <(
@@ -206,4 +238,8 @@ echo "  OK     $ok    (structural pass AND gersemi-diff pass)"
 echo "  FORMAT $format    (structural pass, gersemi-diff fail)"
 echo "  STRUCT $struct    (structural fail — real parser/printer bug)"
 echo "  PARSE  $parse    (tree-sitter or reader fail)"
-echo "Stage 2 cmds: modeled=$modeled_total generic=$generic_total other=$other_total"
+if [ -n "${CORPUS_INDEX_FILE:-}" ]; then
+  echo "Stage 2 cmds: modeled=$modeled_total resolved=$resolved_total generic=$generic_total other=$other_total"
+else
+  echo "Stage 2 cmds: modeled=$modeled_total generic=$generic_total other=$other_total"
+fi
