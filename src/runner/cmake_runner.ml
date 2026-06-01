@@ -200,7 +200,10 @@ let parse_cache path =
   close_in ic;
   List.rev !entries
 
-let run_configure ?(cmake_min = "3.20") ?(files = []) ?(languages = ["NONE"]) cmake_text =
+let run_configure
+    ?(cmake_min = "3.20") ?(files = []) ?(languages = ["NONE"])
+    ?(cmd_line = [])
+    cmake_text =
   (* Ensure cmake_minimum_required appears before project(); cmake 4.x errors without it *)
   let has_project =
     let re = Re.(compile (seq [str "project"; rep (alt [char ' '; char '\t']); char '('])) in
@@ -236,7 +239,22 @@ let run_configure ?(cmake_min = "3.20") ?(files = []) ?(languages = ["NONE"]) cm
     close_out oc;
     List.iter (fun (name, content) ->
       write_file (Filename.concat tmpdir name) content) files;
-    let cmd = Printf.sprintf "cmake -S %s -B %s" (Filename.quote tmpdir) (Filename.quote build) in
+    (* Splice -DNAME=value pairs into the cmake invocation. Used by the
+       cache-spec oracle (cache_plan step 10) — and any future test
+       that needs to simulate `cmake -D...` cmd-line input. *)
+    let dflags =
+      List.map (fun (k, v) ->
+        Filename.quote (Printf.sprintf "-D%s=%s" k v)) cmd_line
+      |> String.concat " "
+    in
+    let cmd =
+      if dflags = "" then
+        Printf.sprintf "cmake -S %s -B %s"
+          (Filename.quote tmpdir) (Filename.quote build)
+      else
+        Printf.sprintf "cmake %s -S %s -B %s"
+          dflags (Filename.quote tmpdir) (Filename.quote build)
+    in
     let stdout_ch, stdin_ch, stderr_ch = Unix.open_process_full cmd (cmake_env []) in
     close_out stdin_ch;
     let stdout = read_all stdout_ch in
