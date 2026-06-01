@@ -34,8 +34,16 @@ let rec eval_expr env = function
   | ECmakeVarDefined name ->
     env, VBool (var_defined env name)
   | ECmakeOption { name; value; _ } ->
-    let env, value = eval_expr env value in
-    set_var env ~key:name ~data:value, VUnit
+    (* cache_semantics.md § "Equivalences": option() is set(CACHE BOOL).
+       NO-OP if name already in cache (-D pre-populated, or earlier
+       option/set CACHE in this run). Otherwise dual-write
+       cache + current frame. *)
+    if cache_var_defined env name
+    then env, VUnit
+    else
+      let env, data = eval_expr env value in
+      let env = set_cache_var env ~key:name ~data in
+      set_var env ~key:name ~data, VUnit
   | ESeq exprs ->
     List.fold exprs ~init:(env, VUnit) ~f:(fun (env, _last) expr ->
       eval_expr env expr)

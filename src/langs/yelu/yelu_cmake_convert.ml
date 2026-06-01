@@ -25,9 +25,18 @@
 
 (* Public surface: short re-export names for the split evaluators so
    that tests and library users don't have to spell out three module
-   prefixes for what used to be one combined eval interface. *)
-let eval_yelu_cmake_expr env expr = Yelu_cmake_eval.eval_expr env expr
-let eval_yelu_cmake_normal_expr env expr = Yelu_cmake_normal_eval.eval_expr env expr
+   prefixes for what used to be one combined eval interface.
+
+   [?cmd_line] models cmake's [-DFOO=Bar] inputs: each (name, value)
+   is written to [cache_vars] before the program runs. See
+   doc/cmake/cache_semantics.md § "Set 4: -D command-line" and
+   doc/yelu_cmake/cache_plan.md § 3.5. *)
+let eval_yelu_cmake_expr ?(cmd_line = []) env expr =
+  let env = Yelu_cmake.populate_cmd_line env cmd_line in
+  Yelu_cmake_eval.eval_expr env expr
+let eval_yelu_cmake_normal_expr ?(cmd_line = []) env expr =
+  let env = Yelu_cmake.populate_cmd_line env cmd_line in
+  Yelu_cmake_normal_eval.eval_expr env expr
 
 open Base
 open Yelu_cmake
@@ -90,6 +99,15 @@ let rec to_normal = function
   | ECmakeSetEnvVar { name; value } ->
     ECmakeSetEnvVar { name; value = to_normal value }
   | ECmakeUnsetEnvVar name -> ECmakeUnsetEnvVar name
+  (* CACHE/option lowering — TODO (cache_plan.md step 6): these two
+     arms lose cache semantics through to_normal. ECmakeOption
+     collapses to plain ESetVar (drops the cache-suppression rule);
+     ECmakeSetCache passes through as a yc-side ctor that
+     yelu_cmake_normal_eval has no case for. Dual-eval on
+     cache-bearing programs (step 9) will surface this as a
+     missing-ycn-ctor error — the fix is an ESetCache primitive
+     in yelu_cmake_normal_store mirroring the cache-aware semantics
+     that yelu_cmake_store now implements. *)
   | ECmakeOption { name; value; _ } ->
     ESetVar (name, to_normal value)
   | ECmakeSetCache { name; values; cache_type; docstring; force } ->

@@ -285,6 +285,16 @@ let empty_frame = {
 type env = {
   (* Configure-time: script state. *)
   frames : frame list;  (* head is current frame; root frame at tail *)
+  (* Cache namespace — global to the configure run, lives OUTSIDE the
+     frame stack because cmake's cache is shared across all
+     add_subdirectory / function() / block() scopes. Populated by:
+       - [-DFOO=Bar] cmd-line input (via [?cmd_line] on eval entry)
+       - set(FOO ... CACHE ...) when FOO is not yet in cache
+       - option(FOO ... ON|OFF) when FOO is not yet in cache
+     Read by [find_var]'s fallback (normal vars win; cache fills in).
+     See doc/cmake/cache_semantics.md for the full decision tree and
+     doc/yelu_cmake/cache_plan.md for the design of this slice. *)
+  cache_vars : value Map.M(String).t;
   files : string Map.M(String).t;
   functions : function_decl Map.M(String).t;
 
@@ -313,6 +323,7 @@ let empty_env : env =
   {
     (* Configure-time: script state. *)
     frames = [ empty_frame ];   (* root frame always present *)
+    cache_vars = Map.empty (module String);
     files = Map.empty (module String);
     functions = Map.empty (module String);
 
@@ -348,6 +359,7 @@ let equal_frame a b =
 let equal_env left right =
   (* Configure-time: script state. *)
   List.equal equal_frame left.frames right.frames
+  && Map.equal equal_value left.cache_vars right.cache_vars
   && Map.equal String.equal left.files right.files
   && Map.equal equal_function_decl left.functions right.functions
   (* Configure-time: declarations / diagnostics. *)
@@ -398,15 +410,21 @@ let with_top_frame env f =
   | top :: rest -> { env with frames = f top :: rest }
   | [] -> failwith "yelu_cmake: env.frames is empty (invariant violation)"
 
-(* Read: consult [locals] first, fall through to [parent_snapshot].
-   Per the verified cmake semantics (P15 / P20 / P21), the snapshot is
-   fixed at frame-push time and never updated by PARENT_SCOPE / PROPAGATE
-   writes from inside this frame or its children. *)
+(* Read: consult [locals] first, fall through to [parent_snapshot],
+   then fall through to [cache_vars]. The normal-then-cache fallback
+   is cmake's [${VAR}] read semantics — see
+   doc/cmake/cache_semantics.md § "Read path". Frame snapshot rules
+   per the verified cmake semantics (P15 / P20 / P21): the snapshot
+   is fixed at frame-push time and never updated by PARENT_SCOPE /
+   PROPAGATE writes from inside this frame or its children. *)
 let find_var env name =
   let f = top_frame env in
   match Map.find f.locals name with
   | Some _ as v -> v
-  | None -> Map.find f.parent_snapshot name
+  | None ->
+    (match Map.find f.parent_snapshot name with
+     | Some _ as v -> v
+     | None -> Map.find env.cache_vars name)
 
 let set_var env ~key ~data =
   with_top_frame env (fun f ->
@@ -422,7 +440,42 @@ let remove_var env name =
 
 let var_defined env name =
   let f = top_frame env in
-  Map.mem f.locals name || Map.mem f.parent_snapshot name
+  Map.mem f.locals name
+  || Map.mem f.parent_snapshot name
+  || Map.mem env.cache_vars name
+
+(* Cache namespace helpers. Cache is global to the configure run — no
+   frame-scoping. See doc/cmake/cache_semantics.md § "Write path"
+   for the first-write-wins / dual-write / -D-interaction rules
+   that [ECmakeSetCache] and [ECmakeOption] implement on top of
+   these primitives. *)
+
+let find_cache_var env name =
+  Map.find env.cache_vars name
+
+let cache_var_defined env name =
+  Map.mem env.cache_vars name
+
+let set_cache_var env ~key ~data =
+  { env with cache_vars = Map.set env.cache_vars ~key ~data }
+
+let remove_cache_var env name =
+  { env with cache_vars = Map.remove env.cache_vars name }
+
+(* unset(VAR CACHE) clears BOTH namespaces — cache_semantics.md row 3.3. *)
+let unset_var_both env name =
+  let env = remove_var env name in
+  remove_cache_var env name
+
+(* Populate cache from -D-style cmd-line bindings. Values are always
+   stored as VString (cmake's cmd line is string-typed; bool/int
+   reinterpretation happens at read time via the existing truthy /
+   numeric coercion helpers). Used by eval entry points to seed
+   [cache_vars] before walking the program — see
+   doc/cmake/cache_semantics.md § "Set 4: -D command-line". *)
+let populate_cmd_line env bindings =
+  List.fold bindings ~init:env ~f:(fun env (name, value) ->
+    set_cache_var env ~key:name ~data:(VString value))
 
 (* PARENT_SCOPE write: lands in the next frame down's locals. Tiny
    raises a dedicated [Eval_error] at the root frame (cmake silently

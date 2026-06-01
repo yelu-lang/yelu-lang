@@ -18,9 +18,14 @@ type expr +=
   | ECmakeSetEnvVar of { name : string; value : expr }
   | ECmakeUnsetEnvVar of string
   (* [set(<var> <value>... CACHE <type> "<doc>" [FORCE])] — cache namespace
-     write. See doc/cmake/cache_semantics.md for the dual-write trap; tiny
-     emits faithfully but does not model the cache vs normal split (yet).
-     Eval writes to the current frame's locals so subsequent reads work. *)
+     write. See doc/cmake/cache_semantics.md § "Write path":
+       - If [name] already in [cache_vars] (e.g. from -D or a previous
+         set/option), this call is a NO-OP unless [force] is true.
+       - Otherwise: write to [cache_vars] AND dual-write to the current
+         frame's [locals] (so reads in the same configure run see it).
+     [doc/yelu_cmake/cache_plan.md] § 3.3 has the design.
+     Pre-2026-06-01 eval treated this as a plain [set_var]; existing
+     bar3-lite oracle is unaffected (this is eval-only behavior). *)
   | ECmakeSetCache of {
       name : string;
       values : expr list;
@@ -31,7 +36,9 @@ type expr +=
 
 let eval_case env = function
   | ECmakeUnsetVar name -> Some (remove_var env name, VUnit)
-  | ECmakeUnsetVarCache name -> Some (remove_var env name, VUnit)
+  (* unset(VAR CACHE) clears BOTH normal AND cache namespaces —
+     cache_semantics.md row 3.3. *)
+  | ECmakeUnsetVarCache name -> Some (unset_var_both env name, VUnit)
   | ECmakeVarDefined name -> Some (env, VBool (var_defined env name))
   | ECmakeSetParentScope { name; value } ->
     (* The value expression has already been bridged; eval it to a
@@ -51,31 +58,44 @@ let eval_case env = function
     (* Env-namespace ops are emit-only at this slice; cmake handles
        the OS env at configure time. *)
     Some (env, VUnit)
-  | ECmakeSetCache { name; values; _ } ->
-    (* Cache write: store the value(s) in the current frame's locals
-       so subsequent reads work. The dual-write semantics (first-write-
-       wins across runs) is not modelled at this slice — see
-       doc/cmake/cache_semantics.md. *)
-    let data = match values with
-      | [ EString s ] -> VString s
-      | [ EBool b ] -> VBool b
-      | [ EInt n ] -> VInt n
-      | _ -> VString ""
-    in
-    Some (set_var env ~key:name ~data, VUnit)
+  | ECmakeSetCache { name; values; force; _ } ->
+    (* cache_semantics.md § "Write path":
+         - If cache_vars[name] exists AND not force -> NO-OP entirely.
+         - Otherwise write cache_vars[name] AND dual-write to current
+           frame's locals (so reads in this run see it). *)
+    if cache_var_defined env name && not force
+    then Some (env, VUnit)
+    else
+      let data = match values with
+        | [ EString s ] -> VString s
+        | [ EBool b ] -> VBool b
+        | [ EInt n ] -> VInt n
+        | _ -> VString ""
+      in
+      let env = set_cache_var env ~key:name ~data in
+      let env = set_var env ~key:name ~data in
+      Some (env, VUnit)
   | ECmakeOption { name; value; _ } ->
-    (match value with
+    (* cache_semantics.md § "Equivalences": option(X "msg" V)  ≡
+       set(X V CACHE BOOL "msg"). So if X is already in cache (e.g.
+       from -D), option() is a NO-OP. Otherwise write the declared
+       default to BOTH cache and current frame's locals. *)
+    if cache_var_defined env name
+    then Some (env, VUnit)
+    else (match value with
      | EBool _ | EString _ | EVar _ ->
-       let env, value =
+       let env, data =
          match value with
          | EBool b -> env, VBool b
          | EString s -> env, VString s
          | EVar var ->
            (match find_var env var with
-            | Some value -> env, value
+            | Some v -> env, v
             | None -> fail "unbound variable %S" var)
          | _ -> assert false
        in
-       Some (set_var env ~key:name ~data:value, VUnit)
+       let env = set_cache_var env ~key:name ~data in
+       let env = set_var env ~key:name ~data in
+       Some (env, VUnit)
      | _ -> None)
   | _ -> None
