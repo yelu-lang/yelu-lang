@@ -16,7 +16,7 @@
 > `${CMAKE_MODULE_PATH}`, macro/function scope, generator
 > expressions — and is out of scope for a tree-sitter-only pass.
 >
-> Successor work — **Bar #3-full / behavior-level oracle** — is
+> Successor work — **behavior-level oracle** — is
 > tracked in [`status.md`](status.md). Chronological context lives
 > in [`../worklog/worklog_2026_05.md`](../worklog/worklog_2026_05.md).
 
@@ -923,7 +923,7 @@ any tree-sitter-only pass:
   static walker cannot find them; only an evaluator that
   resolves `${CMAKE_MODULE_PATH}` and computed include paths
   can.
-- **Behavior-level oracle (Bar #3-full).** File API JSON diff
+- **Behavior-level oracle.** File API JSON diff
   against a real cmake configure. Substantial engineering,
   catches what STRUCT/FORMAT cannot (typed-IR mis-routing
   invisible to the syntactic oracle — see § 9 last paragraph).

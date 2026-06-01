@@ -40,11 +40,18 @@ Forward work falls into three buckets: (a) the dynamic / behavior-level
 oracle that succeeds Bar #3-lite, (b) the language-layer cleanups
 that Y17 typing depends on, (c) E2 mechanical retirement tail.
 
-### Bar #3 — dynamic / behavior-level oracle (Bar #3-full)
+### Behavior-level oracle
 
 The natural successor to Bar #3-lite. Lite proved the **syntactic** IR
 shape is rich enough to carry every cmake call in real corpora.
-Dynamic-full proves the **runtime semantics** match real cmake.
+The behavior-level oracle proves the **runtime semantics** match
+real cmake.
+
+> Names: this used to be called "Bar #3-full" alongside Bar #3-lite.
+> Now that the syntactic milestone is shipped and archived, the
+> `lite`/`full` distinction has lost its purpose — the remaining
+> work is just *the* behavior-level oracle. Older references to
+> "Bar #3-full" mean the same thing.
 
 Scope:
 - **Configure-time evaluation oracle.** Run real cmake against
@@ -72,13 +79,13 @@ Reference points:
   [`test/test-file-api/`](../../test/test-file-api/).
 - `make runcmake-yelu` (50/50) is the closest existing
   behavior-level harness — yelu-emitted scripts vs cmake
-  reference under `cmake -P`. Bar #3-full extends this
-  from `-P` script mode to full configure mode.
+  reference under `cmake -P`. The behavior-level oracle extends
+  this from `-P` script mode to full configure mode.
 
 This is the manifesto-level "does it scale" test (Y16 in
 `CLAUDE.md`). Not started.
 
-### Bar #3-full sequels (parked, in order)
+### Behavior-level sequels (parked, in order)
 
 - **Real-world cmake rewrites.** Rewrite z3 / llvm / torch
   builds in `yelu_cmake`; prove structural equivalence against

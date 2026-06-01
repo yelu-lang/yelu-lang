@@ -216,7 +216,7 @@ The yelu_cmake ↔ yelu_cmake_normal bridge is **not on the production
 emit path** today — production goes
 `yelu_parse → yelu_cmake → yelu_cmake_emit → Lang_cmake.exp`. The
 normal form is the substrate future analysis / optimization passes
-will operate on (informing Y17 typing and Bar #3-full equivalence
+will operate on (informing Y17 typing and behavior-level equivalence
 work). Details in `doc/worklog/worklog_2026_05.md` and
 `THEORY_COMPOSITION_PLAN.md`.
 

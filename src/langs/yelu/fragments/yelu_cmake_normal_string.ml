@@ -4,11 +4,13 @@ open Yelu_cmake
 let name = "tiny_better_string"
 let requires = [ "core.string"; "core.int" ]
 let provides =
-  [ "string.concat"; "string.upper"; "string.replace"; "string.length"; "string.equal" ]
+  [ "string.concat"; "string.upper"; "string.lower"; "string.replace";
+    "string.length"; "string.equal" ]
 
 type expr +=
   | EStringConcat of expr list
   | EStringUpper of expr
+  | EStringLower of expr
   | EStringReplaceAll of {
       needle : expr;
       replacement : expr;
@@ -39,6 +41,9 @@ let eval_case ~eval env = function
   | EStringUpper expr ->
     let env, string = eval_string ~eval env expr in
     Some (env, VString (String.uppercase string))
+  | EStringLower expr ->
+    let env, string = eval_string ~eval env expr in
+    Some (env, VString (String.lowercase string))
   | EStringReplaceAll { needle; replacement; haystack } ->
     let env, needle = eval_string ~eval env needle in
     let env, replacement = eval_string ~eval env replacement in

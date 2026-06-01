@@ -33,16 +33,16 @@ which fragments a translation walks.
 
 ## 2. Ecosystem tool matrix
 
-| tool | yelu_cmake | yelu_cmake_normal |
-| --- | --- | --- |
-| concrete-syntax parser | ✅ `yelu_parse.ml` + `yelu_lexer.ml` | ❌ none |
-| pretty printer (text) | ✅ via emit → `Lang_cmake_pp` | ❌ none |
-| debug text emit | ✅ `yelu_cmake_emit_debug.ml` | ❌ none |
-| evaluator | ✅ `yelu_cmake_eval.ml` + 14 fragment `eval_case` | ✅ `yelu_cmake_normal_eval.ml` + 16 fragment `eval_case` |
-| emit → `Lang_cmake.exp` | ✅ `yelu_cmake_emit.ml` (production) | ❌ none direct — goes via `from_normal` first |
-| convert → other | ✅ `to_normal` (in `yelu_cmake_convert.ml`) | ✅ `from_normal` (same file) |
-| central ergonomic ctors | ✅ `yelu_cmake_utils.ml` | ❌ none (per-fragment only) |
-| tests | parser/lexer/compile/check/bridge/emit/steps (~580 cases) | `test_yelu_lift_lower.ml` (75 cases) |
+| tool                    | yelu_cmake                                                | yelu_cmake_normal                                       |
+| ----------------------- | --------------------------------------------------------- | ------------------------------------------------------- |
+| concrete-syntax parser  | ✅ `yelu_parse.ml` + `yelu_lexer.ml`                       | ❌ none                                                  |
+| pretty printer (text)   | ✅ via emit → `Lang_cmake_pp`                              | ❌ none                                                  |
+| debug text emit         | ✅ `yelu_cmake_emit_debug.ml`                              | ❌ none                                                  |
+| evaluator               | ✅ `yelu_cmake_eval.ml` + 14 fragment `eval_case`          | ✅ `yelu_cmake_normal_eval.ml` + 16 fragment `eval_case` |
+| emit → `Lang_cmake.exp` | ✅ `yelu_cmake_emit.ml` (production)                       | ❌ none direct — goes via `from_normal` first            |
+| convert → other         | ✅ `to_normal` (in `yelu_cmake_convert.ml`)                | ✅ `from_normal` (same file)                             |
+| central ergonomic ctors | ✅ `yelu_cmake_utils.ml`                                   | ❌ none (per-fragment only)                              |
+| tests                   | parser/lexer/compile/check/bridge/emit/steps (~580 cases) | `test_yelu_lift_lower.ml` (75 cases)                    |
 
 The hard asymmetry: **ycn has neither a parser nor a text emit
 path.** It's an internal IR — constructed only via OCaml ctors or
@@ -57,25 +57,25 @@ cmake-shape sugar into primitive theories. Counts via
 `grep -cE "^[[:space:]]+\| E[A-Z]"` over each fragment file
 (2026-05-31):
 
-| theory | yelu_cmake | yelu_cmake_normal | ratio |
-| --- | ---: | ---: | ---: |
-| target | 38 | 34 | 0.89 |
-| install | 12 | 12 | 1.00 |
-| if | 2 | 2 | 1.00 |
-| test | 4 | 4 | 1.00 |
-| try | 6 | 2 | 0.33 |
-| dir | 11 | 2 | 0.18 |
-| find | 10 | 2 | 0.20 |
-| property | 21 | 8 | 0.38 |
-| list | 31 | 8 | 0.26 |
-| file | 33 | 8 | 0.24 |
-| store | 23 | 4 | 0.17 |
-| cmake_op | 53 | 14 | 0.26 |
-| string | 65 | 12 | 0.18 |
-| path | 44 | 4 | 0.09 |
-| **bool** | — | 6 | (ycn-only) |
-| **int** | — | 12 | (ycn-only) |
-| **total** | **353** | **134** | **0.38** |
+| theory    | yelu_cmake | yelu_cmake_normal |      ratio |
+| --------- | ---------: | ----------------: | ---------: |
+| target    |         38 |                34 |       0.89 |
+| install   |         12 |                12 |       1.00 |
+| if        |          2 |                 2 |       1.00 |
+| test      |          4 |                 4 |       1.00 |
+| try       |          6 |                 2 |       0.33 |
+| dir       |         11 |                 2 |       0.18 |
+| find      |         10 |                 2 |       0.20 |
+| property  |         21 |                 8 |       0.38 |
+| list      |         31 |                 8 |       0.26 |
+| file      |         33 |                 8 |       0.24 |
+| store     |         23 |                 4 |       0.17 |
+| cmake_op  |         53 |                14 |       0.26 |
+| string    |         65 |                12 |       0.18 |
+| path      |         44 |                 4 |       0.09 |
+| **bool**  |          — |                 6 | (ycn-only) |
+| **int**   |          — |                12 | (ycn-only) |
+| **total** |    **353** |           **134** |   **0.38** |
 
 Reading: cmake's `string(...)` family has 65 distinct ctors
 (every `REGEX`/`SUBSTRING`/`TOUPPER`/`TIMESTAMP`/`COMPARE` is its
@@ -109,7 +109,7 @@ only `lift_lower` will catch it.
 ## 5. Gaps on the ycn side
 
 In priority order — none of these block current work, all become
-load-bearing once Y17 / Bar #3-full lands.
+load-bearing once Y17 / the behavior-level oracle lands.
 
 1. **Direct ycn → cmake-text emit.** Today: ycn → `from_normal`
    → yelu_cmake → `yelu_cmake_emit` → `Lang_cmake.exp` →
@@ -141,10 +141,10 @@ will operate on it:
   `ESetVar`, and the smaller surface area make typing rules
   easier to state on ycn than on cmake-shape sugar. See
   [`status.md`](status.md) "Y17 — types on yelu_cmake".
-- **Bar #3-full / "prove optimized ≡ original".** Optimization
-  passes rewrite ycn; the from_normal → emit → cmake configure
-  → File API JSON chain is the verification harness. See
-  [`status.md`](status.md) "Bar #3 — dynamic / behavior-level".
+- **Behavior-level oracle / "prove optimized ≡ original".**
+  Optimization passes rewrite ycn; the from_normal → emit →
+  cmake configure → File API JSON chain is the verification
+  harness. See [`status.md`](status.md) "Behavior-level oracle".
 - **Y15 — binding feature library.** ycn's explicit `ESetVar`
   vs `ELet` makes it the natural substrate for exploring
   lexical / global, immutable / mutable, expression / statement

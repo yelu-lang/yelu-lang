@@ -115,3 +115,33 @@ let check_yelu1_lift_lower_roundtrip name expr =
       (equal_value left_value right_value);
     Alcotest.(check bool) "roundtrip preserves env" true
       (equal_env left_env right_env))
+
+(* Dual-evaluator equivalence (value-only).
+
+   For a yc IR program, asserts
+     eval_yelu_cmake_expr empty_env expr  =value=
+       eval_yelu_cmake_normal_expr empty_env (to_normal expr).
+   Env divergence is NOT compared. cmake-shape sugar (output-var
+   convention, subcommand sugar) means the two languages legitimately
+   produce different env shapes even when their *value semantics*
+   agree; the lift_lower tests already exercise the stricter
+   env-equivalence property on a small handful of programs. This
+   helper is the broader, looser check meant to be sprinkled across
+   the larger test corpora (test_yelu_compile, test_yelu_steps, …).
+
+   Programs that don't return a meaningful value (most stmt-level
+   cmake programs) evaluate to VUnit on both sides — the helper
+   then reduces to a "fate-sharing" check: both evaluators must
+   terminate without crashing on the program (and its to_normal
+   image). That alone catches "ycn-eval breaks on a real-corpus
+   shape" regressions that 75-case lift_lower can't surface.
+
+   Future: value-only → observable-env (declared per-test) →
+   structural env-equiv. Tracked in cmake_vs_normal.md § 5 and
+   the broader test-coverage plan. *)
+let check_dual_eval name expr =
+  Alcotest.test_case name `Quick (fun () ->
+    let _, yc_value = eval_yelu_cmake_expr empty_env expr in
+    let _, ycn_value = eval_yelu_cmake_normal_expr empty_env (to_normal expr) in
+    Alcotest.(check bool) "yc-eval and ycn-eval agree on value" true
+      (equal_value yc_value ycn_value))

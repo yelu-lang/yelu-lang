@@ -411,7 +411,7 @@ Bar #3-lite static round-trip declared complete and archived:
   with an archived banner.
 - Forward tracking moved to
   [`../yelu_cmake/status.md`](../yelu_cmake/status.md). Lead
-  next item: **Bar #3 — dynamic / behavior-level oracle**
+  next item: **behavior-level oracle** (formerly "Bar #3-full")
   (configure-time File API JSON diff against real cmake;
   resolves the remaining generic by walking `include()` /
   `find_package()` chains at runtime).

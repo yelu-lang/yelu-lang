@@ -430,7 +430,7 @@ let rec to_normal = function
         inputs = List.map inputs ~f:to_normal }
   (* Additional string() subcommands — surface-only passthrough. *)
   | ECmakeStringTolower { input; out } ->
-    ECmakeStringTolower { input = to_normal input; out }
+    ESetVar (out, EStringLower (to_normal input))
   | ECmakeStringStrip { input; out } ->
     ECmakeStringStrip { input = to_normal input; out }
   | ECmakeStringRegexMatch { regex; out; inputs } ->
@@ -1527,6 +1527,8 @@ let rec from_normal = function
     ECmakeStringConcat { inputs = List.map exprs ~f:from_normal; out = name }
   | ESetVar (name, EStringUpper expr) ->
     ECmakeStringToupper { input = from_normal expr; out = name }
+  | ESetVar (name, EStringLower expr) ->
+    ECmakeStringTolower { input = from_normal expr; out = name }
   | ESetVar (name, EStringReplaceAll { needle; replacement; haystack }) ->
     ECmakeStringReplace
       {
