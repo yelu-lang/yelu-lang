@@ -201,28 +201,36 @@ let parse_cache path =
   List.rev !entries
 
 let run_configure
-    ?(cmake_min = "3.20") ?(files = []) ?(languages = ["NONE"])
+    ?(cmake_min = "3.20") ?source_dir ?build_dir
+    ?(files = []) ?(languages = ["NONE"])
     ?(cmd_line = [])
     cmake_text =
-  (* Ensure cmake_minimum_required appears before project(); cmake 4.x errors without it *)
-  let has_project =
-    let re = Re.(compile (seq [str "project"; rep (alt [char ' '; char '\t']); char '('])) in
-    Re.execp re cmake_text in
-  let has_cmake_min =
-    let re = Re.(compile (str "cmake_minimum_required")) in
-    Re.execp re cmake_text in
-  let full_text =
-    if not has_project then
-      let langs = String.concat " " languages in
-      Printf.sprintf "cmake_minimum_required(VERSION %s)\nproject(_yelu_test %s)\n%s" cmake_min langs cmake_text
-    else if not has_cmake_min then
-      Printf.sprintf "cmake_minimum_required(VERSION %s)\n%s" cmake_min cmake_text
-    else cmake_text
+  (* Decide source dir: caller-supplied (existing project) vs. synthetic tmpdir
+     written from cmake_text. When source_dir is provided, cmake_text is ignored. *)
+  let synthetic_source = (source_dir = None) in
+  let src_dir, synth_tmpdir =
+    match source_dir with
+    | Some dir -> dir, None
+    | None ->
+      let tmpdir = Filename.temp_file "yelu_conf_" "" in
+      Sys.remove tmpdir;
+      Unix.mkdir tmpdir 0o700;
+      tmpdir, Some tmpdir
   in
-  let tmpdir = Filename.temp_file "yelu_conf_" "" in
-  Sys.remove tmpdir;
-  Unix.mkdir tmpdir 0o700;
-  let build = Filename.concat tmpdir "_build" in
+  (* Decide build dir: caller-supplied (no cleanup, ensure it exists) vs. nested
+     _build under the synthetic tmpdir (cleaned up with the tmpdir). *)
+  let build, owns_build =
+    match build_dir with
+    | Some dir ->
+      mkdirp dir;
+      dir, false
+    | None ->
+      let b = match synth_tmpdir with
+        | Some t -> Filename.concat t "_build"
+        | None -> Filename.concat src_dir "_yelu_build"
+      in
+      b, true
+  in
   let cleanup () =
     let rec rm path =
       if Sys.is_directory path then begin
@@ -230,15 +238,38 @@ let run_configure
         Unix.rmdir path
       end else Sys.remove path
     in
-    (try rm tmpdir with _ -> ())
+    (* Only clean up paths we created ourselves: synthetic source tmpdir
+       (which contains the nested _build), and any build dir we created
+       ourselves when the source dir came from the caller. *)
+    (match synth_tmpdir with
+     | Some t -> (try rm t with _ -> ())
+     | None ->
+       if owns_build then (try rm build with _ -> ()))
   in
   match
-    let cmake_file = Filename.concat tmpdir "CMakeLists.txt" in
-    let oc = open_out cmake_file in
-    output_string oc full_text;
-    close_out oc;
-    List.iter (fun (name, content) ->
-      write_file (Filename.concat tmpdir name) content) files;
+    if synthetic_source then begin
+      (* Ensure cmake_minimum_required appears before project(); cmake 4.x errors without it *)
+      let has_project =
+        let re = Re.(compile (seq [str "project"; rep (alt [char ' '; char '\t']); char '('])) in
+        Re.execp re cmake_text in
+      let has_cmake_min =
+        let re = Re.(compile (str "cmake_minimum_required")) in
+        Re.execp re cmake_text in
+      let full_text =
+        if not has_project then
+          let langs = String.concat " " languages in
+          Printf.sprintf "cmake_minimum_required(VERSION %s)\nproject(_yelu_test %s)\n%s" cmake_min langs cmake_text
+        else if not has_cmake_min then
+          Printf.sprintf "cmake_minimum_required(VERSION %s)\n%s" cmake_min cmake_text
+        else cmake_text
+      in
+      let cmake_file = Filename.concat src_dir "CMakeLists.txt" in
+      let oc = open_out cmake_file in
+      output_string oc full_text;
+      close_out oc;
+      List.iter (fun (name, content) ->
+        write_file (Filename.concat src_dir name) content) files
+    end;
     (* Splice -DNAME=value pairs into the cmake invocation. Used by the
        cache-spec oracle (cache_plan step 10) — and any future test
        that needs to simulate `cmake -D...` cmd-line input. *)
@@ -250,10 +281,10 @@ let run_configure
     let cmd =
       if dflags = "" then
         Printf.sprintf "cmake -S %s -B %s"
-          (Filename.quote tmpdir) (Filename.quote build)
+          (Filename.quote src_dir) (Filename.quote build)
       else
         Printf.sprintf "cmake %s -S %s -B %s"
-          dflags (Filename.quote tmpdir) (Filename.quote build)
+          dflags (Filename.quote src_dir) (Filename.quote build)
     in
     let stdout_ch, stdin_ch, stderr_ch = Unix.open_process_full cmd (cmake_env []) in
     close_out stdin_ch;
