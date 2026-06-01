@@ -2,8 +2,10 @@
 
 Living tracker. Strip and update freely; durable design is in
 `design.md`, code-anchored module guide in `structure.md`,
-chronological history (retirement archive + Bar #3-lite audit
-trail) in `../worklog/worklog_2026_05.md`.
+side-by-side comparison of `yelu_cmake` and `yelu_cmake_normal`
+ecosystem coverage in `cmake_vs_normal.md`, chronological history
+(retirement archive + Bar #3-lite audit trail) in
+`../worklog/worklog_2026_05.md`.
 
 ## Current state (2026-05-31)
 
