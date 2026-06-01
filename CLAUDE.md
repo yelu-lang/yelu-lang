@@ -165,6 +165,7 @@ Total unit: 655. Total cmake-backed: 40.
 | `doc/yelu_cmake/design.md`            | Durable design notes for the yelu_cmake harness     |
 | `doc/yelu_cmake/structure.md`         | Code-anchored guide to the yelu_cmake modules       |
 | `doc/yelu_cmake/cmake_vs_normal.md`   | yelu_cmake ↔ yelu_cmake_normal ecosystem comparison (parser/eval/emit coverage, per-fragment ctor counts, gaps) |
+| `doc/yelu_cmake/cache_plan.md`        | Active plan: cache namespace + `-D` cmd-line input — design, impl steps, three-tier test strategy |
 | `doc/yelu_cmake/status.md`            | Living tracker: current open work for yelu_cmake    |
 | `doc/yelu_cmake/bar3_lite.md`         | Bar #3-lite audit-ready report (z3 + llvm round-trip; per-parser contract sheet) |
 

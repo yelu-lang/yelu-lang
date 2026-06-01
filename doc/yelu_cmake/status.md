@@ -3,9 +3,10 @@
 Living tracker. Strip and update freely; durable design is in
 `design.md`, code-anchored module guide in `structure.md`,
 side-by-side comparison of `yelu_cmake` and `yelu_cmake_normal`
-ecosystem coverage in `cmake_vs_normal.md`, chronological history
-(retirement archive + Bar #3-lite audit trail) in
-`../worklog/worklog_2026_05.md`.
+ecosystem coverage in `cmake_vs_normal.md`, active plans live
+under `*_plan.md` (currently [`cache_plan.md`](cache_plan.md)),
+chronological history (retirement archive + Bar #3-lite audit
+trail) in `../worklog/worklog_2026_05.md`.
 
 ## Current state (2026-05-31)
 
@@ -36,16 +37,43 @@ Verification baseline:
 ## Open work — forward
 
 Static round-trip is at a natural stop ([`bar3_lite.md`](bar3_lite.md) § 10).
-Forward work falls into three buckets: (a) the dynamic / behavior-level
-oracle that succeeds Bar #3-lite, (b) the language-layer cleanups
-that Y17 typing depends on, (c) E2 mechanical retirement tail.
+Forward work falls into four buckets, in priority order:
+(a) **cache + cmd-line input** — foundational for everything below
+(see [`cache_plan.md`](cache_plan.md));
+(b) the behavior-level oracle (blocked on (a));
+(c) the language-layer cleanups that Y17 typing depends on;
+(d) E2 mechanical retirement tail.
 
-### Behavior-level oracle
+### Cache namespace + `-D` cmd-line input — *lead*
+
+> Promoted 2026-06-01 ahead of the behavior-level oracle.
+
+Today's coverage: cache syntax parses and emits round-trip
+(Bar #3-lite covers it). But `ECmakeSetCache` and `ECmakeOption`
+in eval just call `set_var` — there's no separate cache
+namespace, no `-D` input channel, and no behavior tests.
+Any program whose behavior depends on `-DUSE_X=OFF` would
+evaluate identically regardless of the cmd-line state.
+
+Blocker for:
+- Behavior-level oracle (can't ground-truth `-D` programs)
+- Community-share demos (every cmake user touches `-D`)
+- Optimizer correctness (constant-fold under `-D` assumptions)
+
+Design + implementation + three-tier test plan in
+[`cache_plan.md`](cache_plan.md). Est. 2-3 days for steps 1-9;
++half-day for the stretch real-cmake oracle harness. Cache
+semantics matrix already documented in
+[`../cmake/cache_semantics.md`](../cmake/cache_semantics.md)
+(12 cases, verified against cmake 4.3.1).
+
+### Behavior-level oracle (blocked on cache plan)
 
 The natural successor to Bar #3-lite. Lite proved the **syntactic** IR
 shape is rich enough to carry every cmake call in real corpora.
 The behavior-level oracle proves the **runtime semantics** match
-real cmake.
+real cmake — but it can't ground-truth a single `-D`-bearing
+program until the cache plan lands.
 
 > Names: this used to be called "Bar #3-full" alongside Bar #3-lite.
 > Now that the syntactic milestone is shipped and archived, the
