@@ -91,20 +91,83 @@ makes the boolean explicit.
 
 ## 4. Tests
 
-`test/test-yelu/test_yelu_lift_lower.ml` is the only test file
-that exercises ycn directly. 75 cases. The file name retains
-pre-rename "lift_lower" vocab (see
-[`yelu_cmake_convert.ml:22-23`](../../src/langs/yelu/yelu_cmake_convert.ml#L22)
-for explicit debt acknowledgement). Each case exercises both:
+Two test files exercise ycn directly:
+
+### `test_yelu_lift_lower.ml` — strict env+value equivalence
+
+75 cases. Hand-built programs with explicit `~expected_value` and
+`~expected_env`. Each case asserts both directions of the convert:
 
 - **Convert roundtrip** — `from_normal ∘ to_normal` preserves
   observable cmake emission.
-- **Eval equivalence** — running the ycn evaluator on the
-  `to_normal` result produces the same value/env as the
-  yelu_cmake evaluator on the original.
+- **Eval equivalence** — yc-eval on the original program and
+  ycn-eval on `to_normal(program)` produce *identical*
+  env (every variable, every target, every install rule).
 
-No other test file touches ycn. If a future refactor breaks ycn,
-only `lift_lower` will catch it.
+The file name retains pre-rename "lift_lower" vocab (see
+[`yelu_cmake_convert.ml:22-23`](../../src/langs/yelu/yelu_cmake_convert.ml#L22)
+for explicit debt acknowledgement).
+
+### `test_yelu_dual_eval.ml` — broader, value-only sweep
+
+Added 2026-05-31. 19 cases (growing). Programs lifted from
+`test_yelu_compile.ml` using the same ergonomic helpers (`yc_set`,
+`add_lib`, `yc_foreach`, …) but switched from emit byte-equality
+to value-only dual-eval via `check_dual_eval` in
+[`yelu_test_helpers.ml`](../../test/test-yelu/yelu_test_helpers.ml).
+For stmt-level programs that return VUnit, the helper reduces to
+a fate-sharing check ("ycn-eval doesn't crash on this shape") —
+which is exactly what catches `to_normal` lazy-passthrough bugs.
+
+The pattern surfaced **EStringLower** missing from
+`yelu_cmake_normal_string` on its first run — `to_normal` was
+passing `ECmakeStringTolower` through verbatim, and ycn-eval had
+no case for it. Fixed in commit `4338167`.
+
+**Coverage by test_yelu_compile section** (2026-05-31):
+
+| section            | included | notes                                                                    |
+| ------------------ | -------- | ------------------------------------------------------------------------ |
+| `primitives`       | ✅ 4/5    | `set parent_scope` skipped (yc-eval errors at root frame)                |
+| `conditions`       | ✅ 2/8    | rewritten — yc-eval can't handle unbound vars (real cmake silently no-ops); used pre-bound literals instead |
+| `let_bindings`     | ✅ 1/N    | `ylet simple` only; deeper let-reuse cases still TBD                     |
+| `list_ops`         | ✅ 2/N    | length, append-then-length                                               |
+| `string_ops`       | ✅ 3/N    | toupper, tolower, concat-mixed                                           |
+| `direct_ctors`     | ✅ 7      | low-level ycn ctor shapes from the initial smoke set                     |
+| `targets`          | ⏭ 0      | cmake-shape heavy; deferred                                              |
+| `project_level`    | ⏭ 0      | deferred                                                                 |
+| `composition`      | ⏭ 0      | deferred                                                                 |
+| `iteration`        | ⏭ 0      | needs `foreach` ycn lowering check first                                 |
+| `loop_control`     | ⏭ 0      | depends on iteration                                                     |
+| `scripting_ext`    | ⏭ 0      | deferred                                                                 |
+| `find_package`     | ⏭ 0      | expected ycn-gap heavy                                                   |
+| `genex`            | ⏭ 0      | needs delayed-eval model                                                 |
+| `execute_process`  | ⏭ 0      | side-effecting; needs sandbox                                            |
+| `file_ops`         | ⏭ 0      | needs filesystem env                                                     |
+| `cmake_path`       | ⏭ 0      | deferred                                                                 |
+| `cmake_language`   | ⏭ 0      | meta — deferred                                                          |
+| `block`            | ⏭ 0      | scope-aware; deferred                                                    |
+| `try_compile`      | ⏭ 0      | side-effecting                                                           |
+| `target_property`  | ⏭ 0      | deferred                                                                 |
+| `define_property`  | ⏭ 0      | deferred                                                                 |
+
+**Total**: 19/194 emit-test surface covered by dual-eval. Each
+section in `⏭` is a candidate for the next iteration — expect
+each addition to surface 1–N missing ycn ctors / eval arms in
+the same way EStringLower did. The fix pattern is mechanical:
+add the constructor + eval_case in
+`fragments/yelu_cmake_normal_<theory>.ml`, wire `to_normal` /
+`from_normal` in `yelu_cmake_convert.ml`.
+
+**Two findings worth naming**:
+- `set parent_scope` and `if (UNDEFINED_VAR)` fail in **yc-eval**
+  (not ycn), because yc-eval is stricter than real cmake. Real
+  cmake silently no-ops a root-level PARENT_SCOPE and dereferences
+  unbound vars to empty. Either widen yc-eval to match real cmake
+  semantics, or run dual-eval against richer initial env.
+- The convert.ml docstring (lines 22–23) flags `lift_lower`
+  vocab debt; the same applies to coverage-completeness debt
+  now visible in this table.
 
 ## 5. Gaps on the ycn side
 
