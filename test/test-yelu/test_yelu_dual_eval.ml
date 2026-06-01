@@ -188,7 +188,54 @@ let direct_ctors =
         ]);
     ] )
 
+(* ============================================================
+   Cache-bearing programs — added 2026-06-01 after cache_plan
+   step 6 (ycn-side ESetCache) made these viable.
+
+   Each program is a small dual-eval shape that involves cache
+   writes / option() / -D input. Exercises the to_normal lowering
+   of ECmakeSetCache → ESetCache and ECmakeOption → ESetCache,
+   and confirms ycn-eval's cache-aware semantics agree with
+   yc-eval's. Spec verification (matching cmake) lives in
+   test_yelu_cache.ml; this file only checks yc ≡ ycn.
+   ============================================================ *)
+let cache =
+  ( "cache",
+    [
+      check_dual_eval "set CACHE then read"
+        (ESeq [
+          yc_set_cache "VAR" [ ystr "v" ];
+          EVar "VAR";
+        ]);
+      check_dual_eval "option default, dual-write puts in normal"
+        (ESeq [
+          yc_option ~msg:"help" ~value:(EBool true) "FLAG";
+          EVar "FLAG";
+        ]);
+      check_dual_eval "cmd_line -D populates cache, read via fallback"
+        ~cmd_line:[("CMDVAR", "fromD")]
+        (EVar "CMDVAR");
+      check_dual_eval "cmd_line + normal set (normal wins)"
+        ~cmd_line:[("X", "cmdline")]
+        (ESeq [
+          yc_set "X" [ ystr "normal" ];
+          EVar "X";
+        ]);
+      check_dual_eval "cmd_line + option (suppression, -D wins)"
+        ~cmd_line:[("USE_X", "OFF")]
+        (ESeq [
+          yc_option ~msg:"" ~value:(EBool true) "USE_X";
+          EVar "USE_X";
+        ]);
+      check_dual_eval "cmd_line + set CACHE (no-op, cmd_line wins)"
+        ~cmd_line:[("Y", "fromD")]
+        (ESeq [
+          yc_set_cache "Y" [ ystr "ignored" ];
+          EVar "Y";
+        ]);
+    ] )
+
 let () =
   Alcotest.run "yelu_cmake_dual_eval"
     [ primitives; conditions; let_bindings; list_ops;
-      string_ops; direct_ctors ]
+      string_ops; direct_ctors; cache ]

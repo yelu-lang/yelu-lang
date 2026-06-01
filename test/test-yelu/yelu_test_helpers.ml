@@ -139,9 +139,9 @@ let check_yelu1_lift_lower_roundtrip name expr =
    Future: value-only → observable-env (declared per-test) →
    structural env-equiv. Tracked in cmake_vs_normal.md § 5 and
    the broader test-coverage plan. *)
-let check_dual_eval name expr =
+let check_dual_eval ?(cmd_line = []) name expr =
   Alcotest.test_case name `Quick (fun () ->
-    let _, yc_value = eval_yelu_cmake_expr empty_env expr in
-    let _, ycn_value = eval_yelu_cmake_normal_expr empty_env (to_normal expr) in
+    let _, yc_value = eval_yelu_cmake_expr ~cmd_line empty_env expr in
+    let _, ycn_value = eval_yelu_cmake_normal_expr ~cmd_line empty_env (to_normal expr) in
     Alcotest.(check bool) "yc-eval and ycn-eval agree on value" true
       (equal_value yc_value ycn_value))

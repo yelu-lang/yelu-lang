@@ -99,19 +99,23 @@ let rec to_normal = function
   | ECmakeSetEnvVar { name; value } ->
     ECmakeSetEnvVar { name; value = to_normal value }
   | ECmakeUnsetEnvVar name -> ECmakeUnsetEnvVar name
-  (* CACHE/option lowering — TODO (cache_plan.md step 6): these two
-     arms lose cache semantics through to_normal. ECmakeOption
-     collapses to plain ESetVar (drops the cache-suppression rule);
-     ECmakeSetCache passes through as a yc-side ctor that
-     yelu_cmake_normal_eval has no case for. Dual-eval on
-     cache-bearing programs (step 9) will surface this as a
-     missing-ycn-ctor error — the fix is an ESetCache primitive
-     in yelu_cmake_normal_store mirroring the cache-aware semantics
-     that yelu_cmake_store now implements. *)
-  | ECmakeOption { name; value; _ } ->
-    ESetVar (name, to_normal value)
+  (* Cache writes lower to the ycn-side [ESetCache] primitive
+     (yelu_cmake_normal_store) which mirrors yc's cache-aware
+     semantics (first-write-wins + dual-write). See cache_plan.md
+     step 6 for the design. ECmakeOption lowers to ESetCache with
+     cache_type=BOOL and docstring=message — the option() origin
+     is lossy in this direction (from_normal always lifts to
+     ECmakeSetCache); lift_lower doesn't exercise option() today
+     so this is harmless. *)
+  | ECmakeOption { name; message; value } ->
+    ESetCache
+      { name;
+        values = [ to_normal value ];
+        cache_type = "BOOL";
+        docstring = message;
+        force = false }
   | ECmakeSetCache { name; values; cache_type; docstring; force } ->
-    ECmakeSetCache
+    ESetCache
       { name;
         values = List.map values ~f:to_normal;
         cache_type; docstring; force }
@@ -989,6 +993,15 @@ let rec from_normal = function
     ECmakeSetEnvVar { name; value = from_normal value }
   | ECmakeUnsetEnvVar name -> ECmakeUnsetEnvVar name
   | EVarDefined name -> ECmakeVarDefined name
+  (* ESetCache always lifts to ECmakeSetCache. The option() origin
+     (when to_normal lowered ECmakeOption) is lost — see step 6 note
+     in to_normal. Defensive: yc-side ECmakeSetCache appearing in
+     a ycn AST also passes through unchanged. *)
+  | ESetCache { name; values; cache_type; docstring; force } ->
+    ECmakeSetCache
+      { name;
+        values = List.map values ~f:from_normal;
+        cache_type; docstring; force }
   | ECmakeSetCache { name; values; cache_type; docstring; force } ->
     ECmakeSetCache
       { name;

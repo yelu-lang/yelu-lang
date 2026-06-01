@@ -89,4 +89,8 @@ let rec eval_expr env = function
      | None ->
     match Yelu_cmake_normal_try.eval_case ~eval:eval_expr env expr with
      | Some value -> value
+     | None ->
+    (* Store fragment last — catches ESetCache added in cache_plan step 6. *)
+    match Yelu_cmake_normal_store.eval_case env expr with
+     | Some value -> value
      | None -> fail "unknown expression in yelu_cmake_normal")
