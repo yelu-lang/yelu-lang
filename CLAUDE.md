@@ -154,6 +154,7 @@ Total unit: 655. Total cmake-backed: 40.
 | `doc/cmake/cache_semantics.md`       | Cmake cache vs normal variable namespace            |
 | `doc/cmake/scope_and_control_flow.md` | Block / return / PARENT_SCOPE / macro semantics    |
 | `doc/cmake/equiv_research.md`        | Z3 / e-graph equivalence research prompts           |
+| `doc/cmake/real_world_candidates.md` | Candidate open-source cmake projects for ycn benchmarking (5-project first round) |
 | `doc/research/beyond.md`              | Multi-pack architecture, AI language stacks (speculative, 中文) |
 | `doc/research/research_framing.md`    | Benchmark design, contamination-aware eval          |
 | `doc/infra_test.md`                   | Test harness, dune aliases, gotchas                 |
