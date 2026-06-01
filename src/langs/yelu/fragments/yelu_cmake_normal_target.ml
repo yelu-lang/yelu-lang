@@ -193,20 +193,30 @@ let eval_case ~eval env = function
   | ETarget name -> Some (env, VTarget name)
   | EExecutable { name; sources } ->
     let env, name = eval_string ~eval env name in
-    let env, _sources =
+    let env, sources =
       List.fold sources ~init:(env, []) ~f:(fun (env, sources) source ->
         let env, source = eval_string ~eval env source in
         env, source :: sources)
     in
-    Some (declare_target ~kind:TargetExecutable env name, VTarget name)
+    let sources = List.rev sources in
+    let env = declare_target ~kind:TargetExecutable env name in
+    (* Mirror yelu_cmake_target.eval_case: direct sources to
+       add_executable/add_library are PRIVATE in cmake's effective
+       semantics. Keep this in sync so yelu_cmake ↔ yelu_cmake_normal
+       evaluators agree on target shape. *)
+    let env = add_target_sources env name ~visibility:"PRIVATE" sources in
+    Some (env, VTarget name)
   | ELibrary { name; type_; sources } ->
     let env, name = eval_string ~eval env name in
-    let env, _sources =
+    let env, sources =
       List.fold sources ~init:(env, []) ~f:(fun (env, sources) source ->
         let env, source = eval_string ~eval env source in
         env, source :: sources)
     in
-    Some (declare_target ~kind:(TargetLibrary type_) env name, VTarget name)
+    let sources = List.rev sources in
+    let env = declare_target ~kind:(TargetLibrary type_) env name in
+    let env = add_target_sources env name ~visibility:"PRIVATE" sources in
+    Some (env, VTarget name)
   | ETargetExists target ->
     let env, target = eval env target in
     Some (env, VBool (target_exists env (expect_target target)))

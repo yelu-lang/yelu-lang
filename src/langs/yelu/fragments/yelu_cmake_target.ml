@@ -99,12 +99,23 @@ type expr +=
 let eval_case ~eval env = function
   | ECmakeAddExecutable { name; sources } ->
     let env, name = eval_string ~eval env name in
-    let env, _sources = eval_string_list ~eval env sources in
-    Some (declare_target ~kind:TargetExecutable env name, VUnit)
+    let env, sources = eval_string_list ~eval env sources in
+    let env = declare_target ~kind:TargetExecutable env name in
+    (* Direct sources to add_executable/add_library are PRIVATE in
+       cmake's effective semantics — they're built into the target
+       and not part of any exported interface. Default to PRIVATE
+       so downstream `install(TARGETS …)` / `target_sources` /
+       file-set introspection sees the full target shape. Discovered
+       2026-06-01 via the fmt-yc-eval-probe workflow (gap #1 in
+       doc/yelu_cmake/fmt_probe_report.md § 4). *)
+    let env = add_target_sources env name ~visibility:"PRIVATE" sources in
+    Some (env, VUnit)
   | ECmakeAddLibrary { name; type_; sources } ->
     let env, name = eval_string ~eval env name in
-    let env, _sources = eval_string_list ~eval env sources in
-    Some (declare_target ~kind:(TargetLibrary type_) env name, VUnit)
+    let env, sources = eval_string_list ~eval env sources in
+    let env = declare_target ~kind:(TargetLibrary type_) env name in
+    let env = add_target_sources env name ~visibility:"PRIVATE" sources in
+    Some (env, VUnit)
   | ECmakeTargetSources { target; visibility; sources } ->
     let env, target = eval_string ~eval env target in
     let env, sources = eval_string_list ~eval env sources in

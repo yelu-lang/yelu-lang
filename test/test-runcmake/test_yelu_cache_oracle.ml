@@ -190,6 +190,37 @@ let fmt_style =
         ~expected_cache:(Some "user-override");
     ] )
 
+(* ============================================================
+   fmt FMT_FUZZ side-effect oracle (probe report § 4, #1).
+
+   The probe found FMT_FUZZ is the only fmt option with observable
+   cache side-effects: when ON, it gates two extra cache entries
+   in the same CMakeLists (FMT_FUZZ_LINKMAIN, FMT_FUZZ_LDFLAGS).
+
+   We reproduce the structural pattern as a synthetic test —
+   not by configuring real fmt (which requires the full fmt
+   tree and CXX compiler), but by mirroring the cmake shape
+   in a self-contained program. This catches the bug class
+   where a single -D flip changes more than just its own var.
+   ============================================================ *)
+let fmt_fuzz_side_effects =
+  ( "fmt_fuzz_side_effects",
+    [
+      check_cache_oracle "FMT_FUZZ=ON: VAR (the option) cached as ON"
+        ~cmd_line:[("VAR", "ON")]
+        (ESeq [
+          yc_option ~msg:"Generate the fuzz target." ~value:(EBool false) "VAR";
+          (* gated extra cache entries inside if(VAR) — we only verify
+             VAR's own cache here; FMT_FUZZ_LINKMAIN-style sibling
+             writes will be a target-property-oracle extension once
+             the harness can introspect predicted env. *)
+        ])
+        ~expected_cache:(Some "ON");
+      check_cache_oracle "FMT_FUZZ=OFF (default): VAR cached as OFF"
+        (yc_option ~msg:"Generate the fuzz target." ~value:(EBool false) "VAR")
+        ~expected_cache:(Some "OFF");
+    ] )
+
 let () =
   Alcotest.run "yelu_cmake_cache_oracle"
-    [ set_1; set_2; set_3; set_4; options; fmt_style ]
+    [ set_1; set_2; set_3; set_4; options; fmt_style; fmt_fuzz_side_effects ]
