@@ -91,7 +91,7 @@ let rec to_normal = function
 
   (* CMake store surface -> Yelu store theory. *)
   | ECmakeUnsetVar name -> EUnsetVar name
-  | ECmakeUnsetVarCache name -> ECmakeUnsetVarCache name
+  | ECmakeUnsetVarCache name -> EUnsetVarCache name
   | ECmakeVarDefined name -> EVarDefined name
   | ECmakeSetParentScope { name; value } ->
     ECmakeSetParentScope
@@ -985,6 +985,7 @@ let rec from_normal = function
   | EInt n -> EInt n
   | EUnit -> EUnit
   | EUnsetVar name -> ECmakeUnsetVar name
+  | EUnsetVarCache name -> ECmakeUnsetVarCache name
   | ECmakeUnsetVarCache name -> ECmakeUnsetVarCache name
   | ECmakeSetParentScope { name; value } ->
     ECmakeSetParentScope

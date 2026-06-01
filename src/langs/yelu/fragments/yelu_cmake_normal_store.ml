@@ -4,6 +4,13 @@ open Yelu_cmake
 type expr +=
   | EUnsetVar of string
   | EVarDefined of string
+  (* Normalized [unset(VAR CACHE)] — clears BOTH normal and cache
+     namespaces (cache_semantics.md row 3.3). Mirror of yc-side
+     [ECmakeUnsetVarCache] so to_normal can preserve the
+     clear-both semantics across the bridge. Without this,
+     [ECmakeUnsetVarCache] would survive to_normal as a yc-side
+     ctor and ycn-eval would crash on it. *)
+  | EUnsetVarCache of string
   (* Normalized cache write. Mirrors [ECmakeSetCache] in yelu_cmake_store
      so that to_normal can preserve cache semantics across the bridge
      (without this ctor, to_normal would have to passthrough yc-side
@@ -27,6 +34,7 @@ type expr +=
 
 let eval_case env = function
   | EUnsetVar name -> Some (remove_var env name, VUnit)
+  | EUnsetVarCache name -> Some (unset_var_both env name, VUnit)
   | EVarDefined name -> Some (env, VBool (var_defined env name))
   | ESetCache { name; values; force; _ } ->
     if cache_var_defined env name && not force

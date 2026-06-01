@@ -44,7 +44,17 @@ let opt_value_str =
   Option.map ~f:value_str
 
 (* The single matrix-row checker. After eval, compares three
-   observables against the cache_semantics.md tables. *)
+   observables against the cache_semantics.md tables.
+
+   Runs the SAME spec assertions against both evaluators:
+     - yc-eval directly on [prog]
+     - ycn-eval on [to_normal prog]
+   This closes the asymmetry where ycn cache correctness used to
+   ride on dual_eval (a structural yc≡ycn check) rather than direct
+   spec verification (matching real cmake). If [to_normal]'s
+   lowering of [ECmakeOption] / [ECmakeSetCache] to ycn-side
+   [ESetCache] silently re-implements the rules subtly differently,
+   this surfaces it row-by-row. *)
 let check_cache_eval
       ?(cmd_line = [])
       name prog
@@ -53,13 +63,23 @@ let check_cache_eval
       ~expected_defined
   =
   Alcotest.test_case name `Quick (fun () ->
-    let env, _ = eval_yelu_cmake_expr ~cmd_line empty_env prog in
-    let normal = opt_value_str (find_var env "VAR") in
-    let cache  = opt_value_str (find_cache_var env "VAR") in
-    let defined = var_defined env "VAR" in
-    Alcotest.(check (option string)) (name ^ " ${VAR}") expected_normal normal;
-    Alcotest.(check (option string)) (name ^ " $CACHE{VAR}") expected_cache cache;
-    Alcotest.(check bool) (name ^ " DEFINED VAR") expected_defined defined)
+    let assert_state label env =
+      let normal = opt_value_str (find_var env "VAR") in
+      let cache  = opt_value_str (find_cache_var env "VAR") in
+      let defined = var_defined env "VAR" in
+      Alcotest.(check (option string))
+        (name ^ " [" ^ label ^ "] ${VAR}") expected_normal normal;
+      Alcotest.(check (option string))
+        (name ^ " [" ^ label ^ "] $CACHE{VAR}") expected_cache cache;
+      Alcotest.(check bool)
+        (name ^ " [" ^ label ^ "] DEFINED VAR") expected_defined defined
+    in
+    let yc_env, _ = eval_yelu_cmake_expr ~cmd_line empty_env prog in
+    assert_state "yc" yc_env;
+    let ycn_env, _ =
+      eval_yelu_cmake_normal_expr ~cmd_line empty_env (to_normal prog)
+    in
+    assert_state "ycn" ycn_env)
 
 (* Short aliases for the test programs. *)
 let set_normal v = yc_set "VAR" [ ystr v ]
