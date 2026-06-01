@@ -60,19 +60,78 @@ if ! [ -x "$print2" ]; then
 fi
 
 ok=0; format=0; struct=0; parse=0
-modeled_total=0; resolved_total=0; generic_total=0; other_total=0
+modeled_total=0; stdlib_total=0; resolved_total=0; generic_total=0; other_total=0
 
-# Build a project-defined name index for the corpus (Class A Phase 1
-# from doc/yelu_cmake/bar3_lite.md § 6). project_index.exe walks the
-# corpus and emits `<name>\t<file>\t<function|macro>` lines for every
-# function/macro definition it finds; print2.exe reads it via
-# CORPUS_INDEX_FILE and splits generic into resolved (in index) +
-# generic (external / runtime-loaded modules / unknown).
+# Two-tier name index (Class A Phase 1 from doc/yelu_cmake/bar3_lite.md
+# § 6). project_index.exe walks any directory and emits
+# `<name>\t<file>\t<function|macro>` lines for every function/macro
+# def. We build two indices and pass both to print2.exe:
 #
-# The index is cached alongside the file-list cache. Set
-# NO_CORPUS_INDEX=1 to skip building/loading the index; print2.exe
-# will then report the older modeled/generic/other 3-bucket form.
+#   CORPUS_INDEX_FILE        — defs found in the corpus root
+#                              -> `resolved` bucket
+#   CMAKE_STDLIB_INDEX_FILE  — defs found in cmake's Modules/ tree
+#                              -> `stdlib` bucket
+#
+# print2.exe splits the un-typed Apply tally as
+#   resolved > stdlib > generic
+# (project-first, like Python's sys.path). Reprint output is
+# unchanged whether indices are loaded or not — this is purely
+# accounting.
+#
+# Both indices are cached under /tmp. The corpus index keys off
+# the corpus path; the stdlib index keys off the Modules dir path
+# (which encodes the cmake version, e.g. /usr/share/cmake-4.3).
+#
+# Env knobs:
+#   NO_CORPUS_INDEX=1     — skip corpus index (resolved bucket = 0)
+#   NO_CMAKE_STDLIB=1     — skip cmake stdlib index (stdlib bucket = 0)
+#   REBUILD_CORPUS_INDEX=1 — force rebuild corpus index
+#   REBUILD_CMAKE_STDLIB=1 — force rebuild stdlib index
+#   CMAKE_STDLIB_ROOT=...  — override Modules dir detection
 project_index_exe="${yelu_root}/_build/default/tool/cmake_roundtrip/project_index.exe"
+
+# Prepare the cmake-stdlib name index. Probes cmake for its
+# CMAKE_ROOT (so we pick up whatever version is currently active —
+# e.g. 4.3.1 on this machine, but 3.x on older installs), then runs
+# project_index.exe over Modules/. The index is cached per
+# Modules-dir path. Echoes the cache file path on stdout; empty
+# string on failure.
+prepare_cmake_stdlib_index() {
+  if [ -n "${NO_CMAKE_STDLIB:-}" ] || [ ! -x "$project_index_exe" ]; then
+    return
+  fi
+  # 1. Locate cmake's Modules dir.
+  local modules_dir=""
+  if [ -n "${CMAKE_STDLIB_ROOT:-}" ]; then
+    modules_dir="${CMAKE_STDLIB_ROOT}"
+  else
+    # Ask cmake itself: a one-line cmake -P script prints CMAKE_ROOT.
+    # cmake puts CMAKE_ROOT in every cmake-script context.
+    local cmake_root
+    cmake_root=$(printf 'message("${CMAKE_ROOT}")\n' \
+      | cmake -P /dev/stdin 2>&1 | tail -1)
+    if [ -n "$cmake_root" ] && [ -d "$cmake_root/Modules" ]; then
+      modules_dir="$cmake_root/Modules"
+    else
+      # Fallbacks for systems where cmake -P /dev/stdin is wonky.
+      for d in /usr/share/cmake-4.3/Modules /usr/share/cmake/Modules; do
+        if [ -d "$d" ]; then modules_dir="$d"; break; fi
+      done
+    fi
+  fi
+  if [ -z "$modules_dir" ] || [ ! -d "$modules_dir" ]; then
+    return
+  fi
+  # 2. Key the cache by the resolved Modules dir (encodes cmake version).
+  local stdlib_key
+  stdlib_key=$(printf '%s' "$modules_dir" | sha256sum | cut -d' ' -f1)
+  local stdlib_file="/tmp/bar3lite_stdlib_${stdlib_key}.tsv"
+  if [ ! -f "$stdlib_file" ] || [ -n "${REBUILD_CMAKE_STDLIB:-}" ]; then
+    "$project_index_exe" "$modules_dir" > "$stdlib_file" 2>/dev/null || true
+  fi
+  echo "$stdlib_file"
+}
+
 if [ -z "${NO_CORPUS_INDEX:-}" ] && [ -x "$project_index_exe" ]; then
   corpus_abs_for_idx=$(cd "$corpus" && pwd)
   idx_key=$(printf '%s' "$corpus_abs_for_idx" | sha256sum | cut -d' ' -f1)
@@ -82,6 +141,11 @@ if [ -z "${NO_CORPUS_INDEX:-}" ] && [ -x "$project_index_exe" ]; then
       2>/dev/null || true
   fi
   export CORPUS_INDEX_FILE
+fi
+
+CMAKE_STDLIB_INDEX_FILE=$(prepare_cmake_stdlib_index)
+if [ -n "$CMAKE_STDLIB_INDEX_FILE" ]; then
+  export CMAKE_STDLIB_INDEX_FILE
 fi
 
 # Extract (command, args) tuples from a cmake source via tree-sitter.
@@ -150,10 +214,12 @@ while IFS= read -r f; do
   # generic". Raw counts are the honest indicator.
   stage2=$(echo "$json" | STAGE2_COVERAGE=1 "$print2" 2>/tmp/_cov_$$.tmp)
   t=$(grep -oE "modeled=[0-9]+" /tmp/_cov_$$.tmp | head -1 | cut -d= -f2); t=${t:-0}
+  s=$(grep -oE "stdlib=[0-9]+" /tmp/_cov_$$.tmp | head -1 | cut -d= -f2); s=${s:-0}
   r=$(grep -oE "resolved=[0-9]+" /tmp/_cov_$$.tmp | head -1 | cut -d= -f2); r=${r:-0}
   g=$(grep -oE "generic=[0-9]+" /tmp/_cov_$$.tmp | head -1 | cut -d= -f2); g=${g:-0}
   o=$(grep -oE "other=[0-9]+" /tmp/_cov_$$.tmp | head -1 | cut -d= -f2); o=${o:-0}
   modeled_total=$((modeled_total + t))
+  stdlib_total=$((stdlib_total + s))
   resolved_total=$((resolved_total + r))
   generic_total=$((generic_total + g))
   other_total=$((other_total + o))
@@ -187,19 +253,19 @@ while IFS= read -r f; do
   ref=$(python3 "$strip_comments" "$f" 2>/dev/null \
         | "$gersemi" $gersemi_args - 2>/dev/null | normalize)
   got=$(echo "$stage2" | "$gersemi" $gersemi_args - 2>/dev/null | normalize)
+  # Per-file slot shape:
+  #   t/s/r/g/o  when either index is loaded (5-bucket)
+  #   t/g/o      when neither is loaded (legacy 3-bucket)
+  if [ -n "${CORPUS_INDEX_FILE:-}" ] || [ -n "${CMAKE_STDLIB_INDEX_FILE:-}" ]; then
+    slot="$t/$s/$r/$g/$o"
+  else
+    slot="$t/$g/$o"
+  fi
   if [ "$ref" = "$got" ]; then
-    if [ -n "${CORPUS_INDEX_FILE:-}" ]; then
-      echo "OK     $rel  $t/$r/$g/$o"
-    else
-      echo "OK     $rel  $t/$g/$o"
-    fi
+    echo "OK     $rel  $slot"
     ok=$((ok+1))
   else
-    if [ -n "${CORPUS_INDEX_FILE:-}" ]; then
-      echo "FORMAT $rel  $t/$r/$g/$o"
-    else
-      echo "FORMAT $rel  $t/$g/$o"
-    fi
+    echo "FORMAT $rel  $slot"
     format=$((format+1))
   fi
 done < <(
@@ -238,8 +304,17 @@ echo "  OK     $ok    (structural pass AND gersemi-diff pass)"
 echo "  FORMAT $format    (structural pass, gersemi-diff fail)"
 echo "  STRUCT $struct    (structural fail — real parser/printer bug)"
 echo "  PARSE  $parse    (tree-sitter or reader fail)"
-if [ -n "${CORPUS_INDEX_FILE:-}" ]; then
-  echo "Stage 2 cmds: modeled=$modeled_total resolved=$resolved_total generic=$generic_total other=$other_total"
+if [ -n "${CORPUS_INDEX_FILE:-}" ] || [ -n "${CMAKE_STDLIB_INDEX_FILE:-}" ]; then
+  echo "Stage 2 cmds: modeled=$modeled_total stdlib=$stdlib_total resolved=$resolved_total generic=$generic_total other=$other_total"
 else
   echo "Stage 2 cmds: modeled=$modeled_total generic=$generic_total other=$other_total"
+fi
+# Provenance: print which indices were consumed (and how many names).
+if [ -n "${CMAKE_STDLIB_INDEX_FILE:-}" ] && [ -f "$CMAKE_STDLIB_INDEX_FILE" ]; then
+  stdlib_n=$(wc -l < "$CMAKE_STDLIB_INDEX_FILE" 2>/dev/null || echo "?")
+  echo "  cmake-stdlib index: $CMAKE_STDLIB_INDEX_FILE ($stdlib_n entries)"
+fi
+if [ -n "${CORPUS_INDEX_FILE:-}" ] && [ -f "$CORPUS_INDEX_FILE" ]; then
+  corpus_n=$(wc -l < "$CORPUS_INDEX_FILE" 2>/dev/null || echo "?")
+  echo "  corpus index:       $CORPUS_INDEX_FILE ($corpus_n entries)"
 fi

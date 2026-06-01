@@ -5,140 +5,93 @@ Living tracker. Strip and update freely; durable design is in
 chronological history (retirement archive + Bar #3-lite audit
 trail) in `../worklog/worklog_2026_05.md`.
 
-## Current state (2026-05-20)
+## Current state (2026-05-31)
 
-- Retirement of `src/langs/yelu_legacy/` complete through E1.
-  `src/langs/yelu_legacy/` is on disk but excluded from the
-  `yelu_langs` library; no `src/` or `test/` file imports it.
-  Production binaries route through
+- **Bar #3-lite static round-trip — shipped, audit-ready.** STRUCT=0 /
+  FORMAT=0 across tutorial (25/25), z3 (108/108), llvm (596/596).
+  Two-tier Class A name accounting (project + cmake-stdlib `Modules/`)
+  shipped 2026-05-31. Full report archived at
+  [`bar3_lite.md`](bar3_lite.md); milestone arc in
+  [`../worklog/worklog_2026_05.md`](../worklog/worklog_2026_05.md)
+  ("Bar #3-lite" section).
+- **Tier 1–4 IR-printer cleanup — shipped.** 16 commits, 358 generic
+  shapes converted to modeled (z3 +67, llvm +291). Per-tier detail
+  archived in `worklog_2026_05.md` ("IR-printer cleanup" section).
+- **Retirement of `src/langs/yelu_legacy/` through E1 — shipped.**
+  Production routes through
   `Yelu_cmake_utils → Yelu_cmake → Yelu_cmake_emit → Lang_cmake_pp`.
-  Detail in `worklog_2026_05.md` "Retirement (May 11 — May 14)".
-- Bar #3-lite syntactic round-trip shipped through Stage 2-c +
-  Tier 1–4 IR-printer cleanup (16 commits) + Class A Phase 1
-  corpus-index accounting. STRUCT=0 / FORMAT=0 across tutorial
-  (25/25), z3 (108/108 — modeled 1,123 / resolved 133 /
-  generic 507), llvm (596/596 — modeled 3,863 / resolved 1,534 /
-  generic 785). Audit-ready at `bar3_lite.md`.
+  `src/langs/yelu_legacy/` excluded from the `yelu_langs` library;
+  no `src/` or `test/` file imports it.
 
 Verification baseline:
 - 1010 unit tests pass
 - 50/50 `make runcmake-yelu`
 - 12/12 `make cmake-only-check`
 - 12 step tests pass
-- `make cmake-commands` was broken pre-E1 and remains broken
-  with pre-existing cmake build issues; not blocking.
+- `make cmake-commands` broken pre-E1 (unrelated cmake build issues);
+  not blocking.
 
-## Open work
+## Open work — forward
 
-### IR-printer cleanup (Bar #3-lite follow-up) — ✅ DONE 2026-05-29
+Static round-trip is at a natural stop ([`bar3_lite.md`](bar3_lite.md) § 10).
+Forward work falls into three buckets: (a) the dynamic / behavior-level
+oracle that succeeds Bar #3-lite, (b) the language-layer cleanups
+that Y17 typing depends on, (c) E2 mechanical retirement tail.
 
-16 commits across Tiers 1 + 2 + 3 + 4 closed every printer-lossy
-case identified in the Bar #3-lite audit + several surfaced during
-implementation. Final corpus deltas (tutorial unchanged):
+### Bar #3 — dynamic / behavior-level oracle (Bar #3-full)
 
-| corpus | modeled (start → end) | generic (start → end) |
-| --- | --- | --- |
-| z3 | 1,056 → **1,123** (+67) | 707 → 640 (−67) |
-| llvm | 3,572 → **3,863** (+291) | 2,610 → 2,319 (−291) |
+The natural successor to Bar #3-lite. Lite proved the **syntactic** IR
+shape is rich enough to carry every cmake call in real corpora.
+Dynamic-full proves the **runtime semantics** match real cmake.
 
-**358 generic shapes converted to modeled.** STRUCT=0 / FORMAT=0
-preserved across all 16 commits. Production bugs surfaced and
-fixed: set_property scope dropping, get_property field dropping +
-yelu emit misusing source_target_directory, execute_process
-keyword reorder, file STRINGS / string REGEX / TIMESTAMP backslash
-escape, add_custom_target multi-COMMAND merge + COMMENT quoting.
+Scope:
+- **Configure-time evaluation oracle.** Run real cmake against
+  source `CMakeLists.txt` and yelu-emitted output; diff the
+  File API (codemodel-v2 + cache-v2) JSON. Two outputs must
+  match — same targets, same sources, same compile flags,
+  same configured cache state.
+- **Resolution of dynamic dispatch** (Class A Phase 2). Walk
+  `include(...)` / `find_package(...)` chains at configure
+  time to populate the project-level function table the static
+  walker can't see. Currently 379 generic on z3 / 621 on llvm
+  are calls into runtime-loaded helpers; this resolves them.
+- **Macro vs function scope.** Today `yelu_cmake_eval` treats
+  scope opaquely. Once we run real cmake side-by-side, the
+  scope rules (macro = textual; function = isolated scope +
+  `PARENT_SCOPE` opt-in) need explicit modeling.
+- **Genex `$<...>` delay.** Currently opaque `EString`s. Lite
+  round-trips them as text; Full must evaluate them at the
+  right pipeline stage.
 
-The original tiered plan is preserved below for reference; all
-items marked done.
+Reference points:
+- The Bar #3-lite project-index TSVs are the data substrate
+  Phase 2 reuses for static-name-table lookups.
+- File API JSON oracle scaffolding lives in
+  [`test/test-file-api/`](../../test/test-file-api/).
+- `make runcmake-yelu` (50/50) is the closest existing
+  behavior-level harness — yelu-emitted scripts vs cmake
+  reference under `cmake -P`. Bar #3-full extends this
+  from `-P` script mode to full configure mode.
 
-#### Original tiered plan
+This is the manifesto-level "does it scale" test (Y16 in
+`CLAUDE.md`). Not started.
 
-The round-trip work surfaced a catalogue of cases where the
-production `Lang_cmake_pp` printer drops, reorders, or
-emits-keyword-the-source-didn't-have. Each forces the
-corresponding `print2.ml` parser to bail to generic Apply
-(STRUCT-faithful but loses typed access). Closing them
-mechanically moves shapes from `generic` into `modeled` and
-makes the IR a closer fit for real-world cmake. Per-parser
-detail in `bar3_lite.md` § 8.
+### Bar #3-full sequels (parked, in order)
 
-**Tier 1 — quick wins, expected to bump modeled count noticeably.**
-
-| # | command | issue | shape of fix | status |
-| -: | --- | --- | --- | --- |
-| A1 | `cmake_minimum_required` | `Cmake_minimum_required.max` field exists; printer drops via `max = _` at `lang_cmake_pp.ml:781` | Wire the printer to emit `<min>...<max>` when `max = Some _`. | ✅ done |
-| B1 | `add_dependencies` | `Add_dependencies.dep : depend` single; cmake allows N | Widen to `deps : depend list` in IR + printer + parser. | ✅ done |
-| B2 | `set_target_properties` | `Set_target_properties.target` single; cmake allows N | Widen to `targets : target list`. | ✅ done |
-| C1 | `find_program` / `find_path` | Printer always emits `NAMES` keyword; bare `find_program(VAR name)` form unmodeled | Either skip NAMES when single bare name, or add a flag on the IR. | ✅ done (added `short_form : bool` to `find_var_args`) |
-| C2 | `include_directories` | Printer always emits `BEFORE`/`AFTER`/`SYSTEM` prefix | Make printer respect `before_or_after = Default_order` and `system = false` by emitting cleanly. | ✅ done (parser now consumes the keywords matching cmake spec order) |
-
-**Tier 2 — larger, more design.**
-
-- ✅ **A3 `set_property` printer rewrite** — shipped 2026-05-29.
-  Introduced `set_property_scope` sum type
-  (`Sps_global` / `Sps_directory` / `Sps_target` / `Sps_source` /
-  `Sps_install` / `Sps_test` / `Sps_cache`). Set_property record
-  redesigned around `{ scope; append; append_string; property;
-  values }` so each call corresponds to ONE cmake `PROPERTY`
-  clause (printer used to drop most scope fields and split
-  multi-property into N statements). yelu-side production API
-  (`yc_set_property` / `yc_set_global_property`) fans out into
-  `Exp_list` of single-property calls. Corpus delta: z3 +1, llvm
-  +63 modeled. CACHE scope still bails (cache_entry IR is a
-  data-less placeholder).
-- ✅ **A2 `get_property` printer rewrite** — shipped 2026-05-29.
-  Same shape as A3: new `get_property_scope` sum type
-  (`Gps_global` / `Gps_directory` / `Gps_target` / `Gps_source` /
-  `Gps_install` / `Gps_test` / `Gps_cache` / `Gps_variable`) plus a
-  `get_property_mode` enum (`Gpm_value` / `Gpm_set` / `Gpm_defined`
-  / `Gpm_brief_docs` / `Gpm_full_docs`). The old printer pattern
-  dropped `source_target_directory`, `test_directory`, and the
-  DEFINED/BRIEF_DOCS/FULL_DOCS modes via `_;` — bugs the round-trip
-  surfaced and the redesign closes. yelu-side
-  `ECmakeGetProperty` emit corrected from misusing
-  `source_target_directory` to using `Gps_target`. Corpus delta:
-  z3 +7, llvm +68 modeled (larger footprint than A3).
-- ✅ **D1 `execute_process` typed** — shipped 2026-05-29.
-  IR was already complete enough; just needed a parser. The
-  printer's canonical keyword order (COMMAND, WORKING_DIRECTORY,
-  TIMEOUT, RESULT/OUTPUT/ERROR_VARIABLE, INPUT/OUTPUT/ERROR_FILE,
-  OUTPUT/ERROR_QUIET, …_STRIP_TRAILING_WHITESPACE,
-  COMMAND_ERROR_IS_FATAL) is enforced by the parser via a rank
-  check — sources with out-of-order keywords bail to generic so
-  STRUCT stays clean. RESULTS_VARIABLE / COMMAND_ECHO / ENCODING /
-  ECHO_OUTPUT_VARIABLE / ECHO_ERROR_VARIABLE bail (IR doesn't carry
-  them). Corpus delta: z3 +22, llvm +43 modeled.
-
-**Tier 3 — typed-IR misclassification opportunities.**
-
-- ✅ **E1 / E2 / E3 `add_executable` / `add_library` variants and
-  options** — shipped 2026-05-29 as one commit.
-  `parse_add_executable` now dispatches to `Add_executable_imported`
-  (`IMPORTED [GLOBAL]`), `Add_executable_alias` (`ALIAS <target>`),
-  or `Add_executable` with positional consumption of `WIN32` /
-  `MACOSX_BUNDLE` / `EXCLUDE_FROM_ALL` into the `options` field.
-  `parse_add_library` now handles `OBJECT`, `INTERFACE`, `ALIAS`,
-  `IMPORTED [GLOBAL]` (with or without type), in addition to the
-  existing `STATIC|SHARED|MODULE|UNKNOWN [EXCLUDE_FROM_ALL]` form.
-  The canonical "STRUCT pass ≠ typed correctness" example
-  (`add_executable(App WIN32 main.c)` STRUCT-passing with WIN32
-  misclassified into sources) is now fully resolved. Corpus delta:
-  z3 +3, llvm +6 modeled.
-- ✅ **D2 `file READ` / `file STRINGS`** — shipped 2026-05-29.
-  Audit's original "slot order reversed" framing was actually
-  wrong; the IR + printer already agreed with cmake spec
-  (file before var). The real gap was missing parsers, which
-  this commit adds. STRINGS bails on out-of-order REGEX /
-  ENCODING / LIMIT_COUNT keywords (rank check) and on unmodeled
-  ones (LENGTH_*, NEWLINE_CONSUME, NO_HEX_CONVERSION,
-  ECHO_OUTPUT_VARIABLE). The File_strings printer was also
-  switched from `%S` (OCaml-escapes backslashes) to literal
-  quoting via `quoted` so cmake regex like `[\t ]+` survives
-  round-trip. Corpus delta: z3 +7, llvm +5 modeled.
-
-**Ordering recommendation:** Tier 1 as five small per-fix commits
-(each with a corpus delta in the commit message). Tier 2 + 3 as
-deeper investments after Tier 1's modeled count delta is visible.
+- **Real-world cmake rewrites.** Rewrite z3 / llvm / torch
+  builds in `yelu_cmake`; prove structural equivalence against
+  the original CMakeLists. Once File API diff is wired, this
+  becomes a tractable verification problem.
+- **Optimize yelu_cmake; prove optimized ≡ original** via the
+  same oracle. The yelu_cmake ↔ yelu_cmake_normal bridge
+  (currently exercised only by `test_yelu_lift_lower.ml`,
+  65 tests) becomes load-bearing once optimization passes
+  rewrite the normal form.
+- **Macro elimination.** Whether to drop `function()` /
+  `macro()` from yelu_cmake in favor of pure-OCaml
+  parameterization, given yelu programs are themselves OCaml.
+  Decide with Bar #3 data. Memo:
+  `.claude/memory/project_macro_elimination.md`.
 
 ### E2 — delete yelu_legacy/
 
@@ -244,21 +197,6 @@ In order of value:
    (`EVar`, `EString`, `EBool`, `EInt`, `ESeq`, `ELet`,
    `ESetVar`, `EUnit`) staying in a small shared core. Pairs
    with item 6 and Y17.
-
-## Project-level milestones (separate from retirement)
-
-- **Bar #3-lite — syntactic round-trip.** *Shipped; audit-ready.*
-  See [`bar3_lite.md`](bar3_lite.md) — claim, oracles, results,
-  per-parser contract sheet, code-quality posture, deferred items.
-  History (audits, retirement, stages) in `worklog_2026_05.md`.
-- **Bar #3 — real-world cmake.** Rewrite z3 / llvm / torch
-  builds in `yelu_cmake`, prove structural equivalence with the
-  original CMakeLists. Not started; the manifesto-level "does
-  this scale" test.
-- **Macro elimination.** Whether to drop `function()` / `macro()`
-  from yelu_cmake in favor of pure-OCaml parameterization, given
-  yelu programs are themselves OCaml. Deferred; revisit with
-  Bar #3 data. Memo: `.claude/memory/project_macro_elimination.md`.
 
 ## Deferred
 

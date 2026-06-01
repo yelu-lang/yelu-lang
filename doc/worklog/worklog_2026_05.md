@@ -390,9 +390,36 @@ What remains, tracked in `status.md` "Open work":
 
 ---
 
+## Bar #3-lite milestone close (2026-05-31)
+
+Bar #3-lite static round-trip declared complete and archived:
+
+- Two-tier Class A name accounting shipped — corpus-local index
+  + cmake-stdlib `Modules/` index (probed via `cmake -P` from
+  `${CMAKE_ROOT}`, 935 callables on this host).
+- Final counts: z3 108/108 OK (modeled=1,123 / stdlib=128 /
+  resolved=133 / generic=379 / other=1,711). llvm 596/596 OK
+  (modeled=3,863 / stdlib=164 / resolved=1,534 / generic=621 /
+  other=4,029). STRUCT=0 / FORMAT=0 preserved.
+- Cross-audit (independent agent, separate context) verified
+  numerical match, project-first precedence in code matches
+  doc, `normalize()` symmetric (cannot mask drift), § 10
+  "dynamic-only" items genuinely require cmake evaluation.
+  Verdict: claim holds.
+- Audit-ready report preserved as-is at
+  [`../yelu_cmake/bar3_lite.md`](../yelu_cmake/bar3_lite.md)
+  with an archived banner.
+- Forward tracking moved to
+  [`../yelu_cmake/status.md`](../yelu_cmake/status.md). Lead
+  next item: **Bar #3 — dynamic / behavior-level oracle**
+  (configure-time File API JSON diff against real cmake;
+  resolves the remaining generic by walking `include()` /
+  `find_package()` chains at runtime).
+
 ## Linked artifacts
 
 - `doc/yelu_cmake/status.md` — current open work (the slim living tracker).
+- `doc/yelu_cmake/bar3_lite.md` — Bar #3-lite final report (archived 2026-05-31).
 - `doc/yelu_cmake/design.md` — durable design notes.
 - `doc/yelu_cmake/structure.md` — code-anchored module guide.
 - `src/langs/yelu/` — the production language (post-retirement rename).

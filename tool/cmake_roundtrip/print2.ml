@@ -2076,25 +2076,36 @@ let emit stmts =
    Coverage report (optional, via env var)
    ============================================================ *)
 
-(* Project-defined name index (Class A Phase 1).
+(* Class A Phase 1: two-tier name index — project-local + cmake-stdlib.
 
-   When [CORPUS_INDEX_FILE] is set, load the TSV emitted by
-   project_index.exe into a string set. The set contains every
-   name declared via [function(<name> ...)] or [macro(<name> ...)]
-   somewhere in the corpus. cmake call dispatch is case-insensitive,
-   so we lowercase on insert + lookup.
+   Two TSV files, both produced by project_index.exe (which walks
+   any directory looking for [function(<name> ...)] / [macro(...)]
+   defs):
 
-   When loaded, [count_coverage] splits the generic bucket into
-   [resolved] (name is in the index — Class A, project-defined) vs
-   [external] (name is not — likely cmake module function, runtime-
-   loaded module, or genuinely unknown).
+     [CORPUS_INDEX_FILE]        — defs found under the corpus root
+                                  ("project-defined", `resolved` bucket)
+     [CMAKE_STDLIB_INDEX_FILE]  — defs found under cmake's Modules dir
+                                  ("cmake-stdlib", `stdlib` bucket)
 
-   The reprint output is unchanged whether the index is loaded or
-   not. This is purely accounting. *)
-let resolved_set : (string, String.comparator_witness) Set.t ref =
+   cmake call dispatch is case-insensitive, so both sets lowercase
+   on insert + lookup.
+
+   Bucket precedence when an [Apply] call name resolves:
+     project-first (resolved) > cmake-stdlib (stdlib) > generic.
+   Same shape as Python: local `sys.path` entries win over the
+   system stdlib. In practice almost no corpus shadows stdlib names,
+   so the precedence rarely matters; project-first just makes the
+   "what's truly external?" answer cleaner.
+
+   The reprint output is unchanged whether the indices are loaded
+   or not. This is purely accounting. *)
+let project_set : (string, String.comparator_witness) Set.t ref =
   ref (Set.empty (module String))
 
-let load_resolved_set path =
+let stdlib_set : (string, String.comparator_witness) Set.t ref =
+  ref (Set.empty (module String))
+
+let load_set_from_tsv path =
   let ic = Stdlib.open_in path in
   let s = ref (Set.empty (module String)) in
   (try
@@ -2108,23 +2119,27 @@ let load_resolved_set path =
      done
    with Stdlib.End_of_file -> ());
   Stdlib.close_in ic;
-  resolved_set := !s
+  !s
 
-let index_loaded () = not (Set.is_empty !resolved_set)
+let project_loaded () = not (Set.is_empty !project_set)
+let stdlib_loaded () = not (Set.is_empty !stdlib_set)
+let any_index_loaded () = project_loaded () || stdlib_loaded ()
 
 (* Coverage tally. Each top-level statement contributes as follows:
    - [Cmd] -> [modeled] if [parse_cmd] returns [Some _], else
-     either [resolved] (if the index is loaded and the call name
-     resolves against it) or [generic] (which means "external"
-     when the index is loaded, "unknown" otherwise).
+     dispatch by name on the loaded indices:
+       in [project_set]            -> [resolved]
+       in [stdlib_set]              -> [stdlib]
+       in neither (or none loaded)  -> [generic]
    - [Block] -> [other] += 1 for the wrapper itself. Body and clause
-     bodies recurse: contained [Cmd]s contribute to modeled/resolved/generic.
+     bodies recurse: contained [Cmd]s contribute to the same buckets.
      Heads and tails are NOT counted in any bucket (they're reprinted
      by [print_block_head] without dispatch).
    - [Raw] / [Unknown] -> [other] += 1.
    Deliberately no ratio is reported. *)
 let count_coverage stmts =
   let modeled = ref 0 in
+  let stdlib = ref 0 in
   let resolved = ref 0 in
   let generic = ref 0 in
   let other = ref 0 in
@@ -2133,9 +2148,9 @@ let count_coverage stmts =
       (match parse_cmd c with
        | Some _ -> Int.incr modeled
        | None ->
-         if index_loaded ()
-            && Set.mem !resolved_set (String.lowercase c.name)
-         then Int.incr resolved
+         let key = String.lowercase c.name in
+         if project_loaded () && Set.mem !project_set key then Int.incr resolved
+         else if stdlib_loaded () && Set.mem !stdlib_set key then Int.incr stdlib
          else Int.incr generic)
     | Block { body; clauses; _ } ->
       Int.incr other;
@@ -2144,7 +2159,7 @@ let count_coverage stmts =
     | Raw _ | Unknown _ -> Int.incr other
   in
   List.iter stmts ~f:walk;
-  !modeled, !resolved, !generic, !other
+  !modeled, !stdlib, !resolved, !generic, !other
 
 (* ============================================================
    Driver
@@ -2161,19 +2176,26 @@ let read_all_stdin () =
   Buffer.contents buf
 
 let () =
-  (* Load project-defined name index if pointed at one (Class A Phase 1). *)
+  (* Load name indices (Class A Phase 1). Either, both, or neither
+     may be set; the bucket shape adapts. *)
   (match Sys.getenv "CORPUS_INDEX_FILE" with
-   | Some path when Stdlib.Sys.file_exists path -> load_resolved_set path
+   | Some path when Stdlib.Sys.file_exists path ->
+     project_set := load_set_from_tsv path
+   | _ -> ());
+  (match Sys.getenv "CMAKE_STDLIB_INDEX_FILE" with
+   | Some path when Stdlib.Sys.file_exists path ->
+     stdlib_set := load_set_from_tsv path
    | _ -> ());
   let json_str = read_all_stdin () in
   let json = Yojson.Safe.from_string json_str in
   let stmts = file_of_json json in
   (match Sys.getenv "STAGE2_COVERAGE" with
    | Some _ ->
-     let m, r, g, o = count_coverage stmts in
-     if index_loaded () then
+     let m, s, r, g, o = count_coverage stmts in
+     if any_index_loaded () then
        Stdlib.Printf.eprintf
-         "[stage2] modeled=%d resolved=%d generic=%d other=%d\n" m r g o
+         "[stage2] modeled=%d stdlib=%d resolved=%d generic=%d other=%d\n"
+         m s r g o
      else
        Stdlib.Printf.eprintf
          "[stage2] modeled=%d generic=%d other=%d\n" m g o

@@ -18,7 +18,7 @@ dune build --force @runtest                     # all tests + Phase 1 oracle lin
 After Phase 1 of retirement, the production yelu compile path is
 
 ```
-source.yelu → parse → bridge → Yelu1 → emit_ast → Lang_cmake.exp → cmake_pp → text
+source.yelu → parse → yelu_cmake → emit_ast → Lang_cmake.exp → cmake_pp → text
 ```
 
 with the byte-equality oracle in `test_yelu_compile.ml` asserting every
@@ -123,13 +123,13 @@ All 14 `Make_*_check` modules expose `let stage = Stage_typecheck`, enforced by 
 | `test/test-yelu/test_yelu_check.ml`        | 57    | per-theory type checking + wellform name binding           |
 | `test/test-yelu/test_yelu_lexer.ml`        | 25    | concrete-syntax lexer                                      |
 | `test/test-yelu/test_yelu_parse.ml`        | 170   | concrete-syntax parser                                     |
-| `test/test-yelu/test_yelu_bridge.ml`       | 43    | production yelu_cmake AST → Yelu1 (via legacy bridge)      |
-| `test/test-yelu/test_yelu_emit_debug.ml`   | 3     | Yelu1 → cmake text (debug direct-emit path)                |
-| `test/test-yelu/test_yelu_emit.ml`         | —     | Yelu1 → `Lang_cmake.exp` → cmake text (production emit)    |
-| `test/test-yelu/test_yelu_lift_lower.ml`   | 65    | Yelu1 ↔ Yelu2 roundtrip                                    |
+| `test/test-yelu/test_yelu_bridge.ml`       | 43    | production yelu_cmake AST → yelu_cmake (via legacy bridge) |
+| `test/test-yelu/test_yelu_emit_debug.ml`   | 3     | yelu_cmake → cmake text (debug direct-emit path)           |
+| `test/test-yelu/test_yelu_emit.ml`         | —     | yelu_cmake → `Lang_cmake.exp` → cmake text (production emit) |
+| `test/test-yelu/test_yelu_lift_lower.ml`   | 65    | yelu_cmake ↔ yelu_cmake_normal roundtrip (file name retains pre-rename "lift_lower" vocab) |
 | `test/test-yelu/test_yelu_steps.ml`        | 19    | tutorial v1 step1–step12 + 8_table + 11_config + ctest     |
 | `test/test-yelu/test_yelu_function.ml`     | 14    | F2: dynamic scope / shallow binding                        |
-| `test/test-runcmake/test_yelu_cmake.ml`    | 40    | Yelu1 lowerings configure through real cmake               |
+| `test/test-runcmake/test_yelu_cmake.ml`    | 40    | yelu_cmake lowerings configure through real cmake          |
 | `test/test-runcmake/` (other)              | 37    | cmake -P compat + yelu scripts                             |
 | `test/test-file-api/`                      | —     | codemodel-v2 JSON diff                                     |
 
@@ -187,15 +187,37 @@ for one cmake command family and validates expression-level types independently.
 Theories compose via `Make_stmt` in `lang_yelu.ml`; the cmake-pack (`lang_yelu_cmake.ml`)
 is the integration point where all 14 theories are instantiated against `Cmake_types`.
 
-### Yelu1/Yelu2 harness
+### yelu_cmake / yelu_cmake_normal composition
 
-The composition harness in `src/langs/yelu/` (formerly `yelu_tiny/`) re-shapes the
-production AST into two axles (Yelu1 = tiny core + cmake-shaped surfaces;
-Yelu2 = tiny core + idealized theories) and bridges from production
-`yelu_cmake` AST → Yelu1 → cmake. Each fragment provides a matched
-`yelu_theory_*` / `yelu_surface_cmake_*` pair. As of 2026-05-10:
-v1 step1–step12 all bridge through tiny; six configure through real cmake.
-Details in `doc/worklog/worklog_2026_05.md` and `THEORY_COMPOSITION_PLAN.md`.
+The composition harness in `src/langs/yelu/` (formerly `yelu_tiny/`,
+renamed in commit `ad6deb8` to align with the production names) defines
+two languages on a shared extensible-variant core:
+
+- **`yelu_cmake`** — cmake-faithful surface. 14 theory fragments under
+  `fragments/yelu_cmake_<theory>.ml`. Each fragment extends
+  `Yelu_cmake.expr` with `ECmake*` constructors that mirror a cmake
+  command family (target, install, find, …).
+- **`yelu_cmake_normal`** — normalized form. 16 fragments under
+  `fragments/yelu_cmake_normal_<theory>.ml`. Same 14 theories plus
+  `bool` and `int` (theory primitives the cmake form folds into
+  command-specific shapes — e.g. `option(var help ON)` doesn't carry
+  a separate `EBool true`). Mutations explicit via `ESetVar`; no
+  output-var sugar.
+
+`yelu_cmake_convert.ml` provides `to_normal` / `from_normal` — pure
+syntactic rewrites, ~1,750 LOC. The almost-roundtrip property
+`from_normal ∘ to_normal ≡ identity-modulo-emission` is exercised by
+`test/test-yelu/test_yelu_lift_lower.ml` (65 tests; file name retains
+pre-rename "lift_lower" vocab). `yelu_cmake_eval.ml` and
+`yelu_cmake_normal_eval.ml` are the dual evaluators.
+
+The yelu_cmake ↔ yelu_cmake_normal bridge is **not on the production
+emit path** today — production goes
+`yelu_parse → yelu_cmake → yelu_cmake_emit → Lang_cmake.exp`. The
+normal form is the substrate future analysis / optimization passes
+will operate on (informing Y17 typing and Bar #3-full equivalence
+work). Details in `doc/worklog/worklog_2026_05.md` and
+`THEORY_COMPOSITION_PLAN.md`.
 
 ### Type system (key types in `lang_yelu_cmake.ml`)
 
@@ -294,7 +316,7 @@ Numbers are stable (never renumbered). Priority order tracks `doc/project_overvi
 | Y14 | Reserved keyword validation   | Enumerate cmake keywords, warn on clashes                                                                                                                                                                                                                          |
 | Y15 | Binding feature library       | Design space of binding mechanisms — lexical vs global, immutable vs mutable, expression vs statement, name-as-syntax vs name-as-data. Current: `let` (lexical/immutable/expression) + `set` (global/mutable/statement). Future: named choices selectable per pack |
 | Y16 | Real-world cmake rewrite      | Rewrite z3/llvm/torch build in yelu, prove structural equivalence. Optimize yelu_cmake, prove optimized ≡ original |
-| Y17 | Types on yelu_tiny            | Post-retirement: retrofit a fresh typing pass onto tiny once yelu1↔cmake and yelu2↔yelu1 are stable. Replaces the abandoned R7 "carry production checker over" plan — the theory split gives type design real semantic ground (namespace separation, set-once vs mutable, identity per theory) instead of the shallow per-fragment Stage_typecheck. |
+| Y17 | Types on yelu_cmake           | Post-retirement: retrofit a fresh typing pass once `yelu_cmake ↔ Lang_cmake` and `yelu_cmake ↔ yelu_cmake_normal` are stable. Replaces the abandoned R7 "carry production checker over" plan — the theory split gives type design real semantic ground (namespace separation, set-once vs mutable, identity per theory) instead of the shallow per-fragment Stage_typecheck. |
 
 ### Research (likely papers/material)
 

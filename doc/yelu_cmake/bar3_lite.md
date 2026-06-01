@@ -1,13 +1,24 @@
 # Bar #3-lite — cmake syntactic round-trip
 
-> **Status (2026-05-20).** Shipped through Stage 2-c. STRUCT=0 /
-> FORMAT=0 across tutorial (25/25), z3 (108/108), llvm (596/596).
-> Audit-ready. Chronological history of the milestone (stages,
-> Codex audit responses, retirement context) lives in
-> [`../worklog/worklog_2026_05.md`](../worklog/worklog_2026_05.md).
+> **🗄️ ARCHIVED 2026-05-31 — milestone complete.**
 >
-> Tracker: [`status.md`](status.md). Tool README:
-> [`../../tool/cmake_roundtrip/README.md`](../../tool/cmake_roundtrip/README.md).
+> This doc is the audit-ready record of the Bar #3-lite static
+> round-trip work (May 15 → May 31). The work is shipped and the
+> file is preserved as-is for future reference; **forward-looking
+> tracking has moved to [`status.md`](status.md)**.
+>
+> Headline result: STRUCT=0 / FORMAT=0 across tutorial (25/25),
+> z3 (108/108), llvm (596/596) — 729 real-world cmake files
+> round-trip byte-faithfully through `Lang_cmake.exp`. Class A
+> name accounting shipped in two tiers (corpus-local + cmake-stdlib
+> `Modules/`). Every remaining `generic` Apply call is dynamic-
+> only — resolving runtime `include()` paths,
+> `${CMAKE_MODULE_PATH}`, macro/function scope, generator
+> expressions — and is out of scope for a tree-sitter-only pass.
+>
+> Successor work — **Bar #3-full / behavior-level oracle** — is
+> tracked in [`status.md`](status.md). Chronological context lives
+> in [`../worklog/worklog_2026_05.md`](../worklog/worklog_2026_05.md).
 
 ## 1. Claim and counter-claim
 
@@ -57,40 +68,51 @@ content (modulo whitespace and inline-arg comments).
 ## 3. Results
 
 ```
-tutorial step outputs : 25/25  OK   modeled=165   resolved=0     generic=25    other=23
-z3                    : 108/108 OK  modeled=1123  resolved=133   generic=507   other=1711
-llvm/llvm             : 596/596 OK  modeled=3863  resolved=1534  generic=785   other=4029
+tutorial step outputs : 25/25  OK   modeled=165   stdlib=0    resolved=0     generic=25   other=23
+z3                    : 108/108 OK  modeled=1123  stdlib=128  resolved=133   generic=379  other=1711
+llvm/llvm             : 596/596 OK  modeled=3863  stdlib=164  resolved=1534  generic=621  other=4029
 ```
 
 All three corpora: **STRUCT=0, FORMAT=0**.
 
-> **Counts updated 2026-05-29** post the full IR-printer cleanup
-> (16 commits, Tier 1 + 2 + 3 + Tier 4 file/list/string/
-> add_custom_target/install batches). Pre-cleanup baseline was
-> z3 modeled=1,056 / llvm modeled=3,572; cleanup moved **358
-> generic shapes to modeled** across both real-world corpora
-> without breaking the oracle. Pre-cleanup state is preserved in
-> `worklog/worklog_2026_05.md`. The remaining `generic` calls are
-> dominated by Class A (project-defined functions and CheckXxx
-> modules, correctly never typed by `Lang_cmake.exp`) — see § 6.
+> **Counts updated 2026-05-31** with the stdlib bucket added
+> (Class A Phase 1 extended). `stdlib` slices off names defined
+> in cmake's own `Modules/` (probed via `cmake -E -P` for
+> `${CMAKE_ROOT}` — `/usr/share/cmake-4.3/Modules`, 935 callables
+> on this host). 128 names (z3) / 164 names (llvm) moved from
+> `generic` to `stdlib` — `check_symbol_exists` family,
+> `cmake_parse_arguments`, `find_package_handle_standard_args`,
+> etc. The IR routes them through `Apply` just like project-
+> defined functions; only the accounting changed. The
+> pre-stdlib counts (z3 generic=507, llvm generic=785) and the
+> earlier IR-printer cleanup baseline (z3 modeled=1,056 /
+> llvm modeled=3,572 → +358 generic→modeled) are preserved in
+> `worklog/worklog_2026_05.md`.
 
 Bucket definitions (no ratio is reported — see § 6):
 
 - **modeled** — command mapped to a dedicated `Lang_cmake.exp`
   constructor (`Add_executable`, `Target_link_libraries`,
-  `Find_package`, …).
-- **resolved** — command constructed as `Lang_cmake.Apply { name;
-  args }` AND the name resolves against the **corpus-level
-  function/macro index** built by `project_index.exe` (Class A
-  Phase 1, 2026-05-31). These are project-defined callables —
-  `tablegen` / `add_llvm_*` (llvm), `z3_add_component` (z3), etc.
-  Reprint identical to generic; just a more honest accounting.
+  `Find_package`, …). cmake's native builtin layer.
+- **stdlib** — `Lang_cmake.Apply { name; args }` whose name is
+  defined in cmake's `Modules/` directory (the cmake-stdlib
+  index). Same `Apply` IR shape as `resolved`/`generic`; the
+  separate bucket just surfaces "called by name, defined only
+  in cmake-the-tool's bundled library". Examples:
+  `check_symbol_exists`, `cmake_parse_arguments`,
+  `find_package_handle_standard_args`, `cmake_push_check_state`.
+- **resolved** — `Lang_cmake.Apply { name; args }` whose name
+  resolves against the **corpus-level function/macro index**
+  built by `project_index.exe` (Class A Phase 1). These are
+  project-defined callables — `tablegen` / `add_llvm_*` (llvm),
+  `z3_add_component` (z3), etc. Project-first precedence (like
+  Python `sys.path`): if a corpus shadows a stdlib name, it
+  counts as `resolved`.
 - **generic** — `Lang_cmake.Apply { name; args }` whose name is
-  NOT in the corpus index (or when the index is disabled). Likely
-  a cmake standard-module function (`check_symbol_exists`,
-  `cmake_parse_arguments`), a runtime-loaded module function, or
-  a truly unknown name. Reprinted via the production
-  `Lang_cmake_pp` Apply arm.
+  in neither index. Most likely a runtime-loaded module
+  (`include(SomeFile)` brings in extra `function()` defs that
+  the static walker missed), or a genuinely unknown call.
+  Reprinted via the production `Lang_cmake_pp` Apply arm.
 - **other** — one per block wrapper node
   (`if_condition`/`foreach_loop`/`while_loop`/`function_def`/
   `macro_def`/`block_def`) + one per raw passthrough chunk
@@ -119,7 +141,8 @@ python3 tool/cmake_roundtrip/parse.py path/to/CMakeLists.txt \
 python3 tool/cmake_roundtrip/parse.py path/to/CMakeLists.txt \
   | STAGE2_COVERAGE=1 _build/default/tool/cmake_roundtrip/print2.exe \
     >/dev/null
-# → [stage2] modeled=N generic=N other=N
+# → [stage2] modeled=N stdlib=N resolved=N generic=N other=N
+#   (or modeled=N generic=N other=N when no indices are loaded)
 ```
 
 The harness exits 2 before processing files if `gersemi` or
@@ -132,16 +155,29 @@ pass spuriously.
 Each file prints one line:
 
 ```
-OK     relpath  modeled/[resolved/]generic/other
-FORMAT relpath  modeled/[resolved/]generic/other
+OK     relpath  modeled/stdlib/resolved/generic/other
+FORMAT relpath  modeled/stdlib/resolved/generic/other
 STRUCT relpath
 PARSE  relpath
 ```
 
-The `resolved/` slot appears when the corpus index is loaded (the
-default — set `NO_CORPUS_INDEX=1` to skip). End-of-run summary
-emits `Stage 2 cmds: modeled=N resolved=N generic=N other=N`
-(or the 3-bucket form without the index).
+The 5-bucket slot appears when either index is loaded (the
+default). Knobs:
+- `NO_CORPUS_INDEX=1` — skip the corpus index (`resolved` = 0)
+- `NO_CMAKE_STDLIB=1` — skip the cmake-stdlib index (`stdlib` = 0)
+- `REBUILD_CORPUS_INDEX=1`, `REBUILD_CMAKE_STDLIB=1` — force rebuild
+- `CMAKE_STDLIB_ROOT=<dir>` — override Modules-dir detection
+
+With neither index set, the harness falls back to the legacy
+`modeled/generic/other` 3-bucket form for back-compat with
+diffs against pre-2026-05-31 runs.
+
+The cmake-stdlib index path encodes the cmake version (cached
+keyed by `sha256("$CMAKE_ROOT/Modules")`), so switching cmake
+versions rebuilds against the new Modules tree automatically.
+End-of-run summary emits
+`Stage 2 cmds: modeled=N stdlib=N resolved=N generic=N other=N`
+plus a provenance line per loaded index (path + entry count).
 
 ### 4.3 Debugging a failure
 
@@ -240,29 +276,54 @@ per project-defined function (a `Z3_add_component { name; ... }`
 ctor would require reading the function's signature from its
 definition, which is configure-time information).
 
-**Phase 1 — function-aware accounting** (shipped 2026-05-31):
-[`project_index.exe`](../../tool/cmake_roundtrip/project_index.ml)
-walks the corpus once, collects every
-`function(<name>...)` / `macro(<name>...)` definition into a
-TSV index. `test_corpus.sh` caches the index next to the
-file-list cache and exports `CORPUS_INDEX_FILE`; `print2.exe`
-loads it at startup and splits the previous `generic` bucket
-into `resolved` (name in index — project-defined) and `generic`
-(name not in index — cmake module function, runtime-loaded, or
-truly unknown). Round-trip output is unchanged; only the
-coverage tally is more informative.
+**Phase 1 — function-aware accounting**. The same walker
+([`project_index.exe`](../../tool/cmake_roundtrip/project_index.ml))
+runs over two roots and emits two TSV indices; `print2.exe`
+loads both and partitions ex-generic calls into three buckets
+by lookup precedence (**project-first**, like Python's
+`sys.path` order):
 
-Current splits with index loaded:
-- z3: **133 resolved**, **507 generic** (out of 640 ex-generic)
-- llvm: **1,534 resolved**, **785 generic** (out of 2,319 ex-generic)
+1. **Corpus index** (`CORPUS_INDEX_FILE`, cached keyed by
+   corpus path). Walks the corpus root, collects every
+   `function()` / `macro()` definition. Hits → `resolved`.
+   Examples: `z3_add_component`, `tablegen`, `add_llvm_*`.
 
-The remaining ~66% of llvm's old-generic bucket is now
-visible as project-defined infrastructure (`tablegen`,
-`add_llvm_*`, etc.). The remaining `generic` bucket on llvm is
-dominated by cmake standard-module functions (`CheckXxx`,
-`cmake_parse_arguments`, `find_package_handle_standard_args`)
-that are loaded at configure time from cmake's installed
-`Modules/` directory — out of scope for a corpus-level index.
+2. **cmake-stdlib index** (`CMAKE_STDLIB_INDEX_FILE`, cached
+   keyed by Modules-dir path → encodes cmake version). The
+   harness probes `${CMAKE_ROOT}` via a one-line `cmake -P`
+   script (`/usr/share/cmake-4.3` on this host, 935 callables
+   under `Modules/`). Hits → `stdlib`. Examples:
+   `check_symbol_exists`, `cmake_parse_arguments`,
+   `find_package_handle_standard_args`,
+   `cmake_push_check_state`.
+
+3. Neither → `generic`. Mostly runtime-loaded module functions
+   (`include(...)` brings in extra `function()` defs not
+   syntactically discoverable by the static walker) or
+   genuinely unknown calls.
+
+The IR shape is identical for all three buckets — every call
+is a `Lang_cmake.Apply { name; args }`. The bucket split is
+**informational**; the reprint round-trips byte-faithfully
+regardless of which index a name lands in. Same `cmake -P`
+probe also makes the global-cmake-state setup explicit: the
+"prepare cmake stdlib index" function in `test_corpus.sh` is
+the seam where future passes can pin a cmake version or swap
+in a different toolchain.
+
+Current splits (2026-05-31):
+
+| corpus | modeled | stdlib | resolved | generic | other |
+| ------ | ------- | ------ | -------- | ------- | ----- |
+| z3     | 1,123   |    128 |      133 |     379 | 1,711 |
+| llvm   | 3,863   |    164 |    1,534 |     621 | 4,029 |
+
+The remaining `generic` is now a sharper signal: on llvm,
+~621 calls are not statically reachable as `function()` /
+`macro()` defs in either the corpus or cmake's Modules tree.
+Most likely culprits are configure-time `include()` of paths
+constructed at runtime, and helpers from `CMAKE_MODULE_PATH`
+extensions outside the source tree.
 
 **Phase 2 — dynamic dispatch resolution** (deferred). Given
 `z3_add_component(api)`, resolve to the function body and
@@ -818,16 +879,70 @@ Future audits must score both axes.
 
 ## 10. Open / deferred
 
-- **Lossy IR-printer cleanup** — see [`status.md`](status.md)
-  "Open work". Largest single typed-coverage opportunity; would
-  close most of § 6's "routed to Apply because the printer is
-  lossy" list.
-- **Class A semantic resolution** (§ 6) — deferred, awaits
-  behavior-level oracle.
-- **Comments inside argument lists** — currently dropped;
-  whether IR should carry them is open.
-- **Behavior-level oracle** — File API JSON diff against real
-  cmake configure. Substantial engineering, would catch what
-  STRUCT/FORMAT cannot.
-- **Corpus extension** to fmt / catch2 / spdlog / pytorch — no
-  technical blocker; cheap stress test of the current claim.
+Items below split cleanly into two classes: **(a) more
+static-coverage hardening** (cheap, no new theory) and
+**(b) crossing the static/dynamic frontier** (the work that
+genuinely requires running cmake, not parsing it).
+
+### (a) Static-only follow-ups
+
+- **Lossy IR-printer cleanup tail.** Tier 1–4 closed the
+  inventory from the 2026-05-20 audit; § 6's "routed to Apply
+  because the printer is lossy" list is empty for production
+  paths. A few `file` subcommands (READ, STRINGS, COPY,
+  DOWNLOAD, UPLOAD, LOCK, path-query family) remain on the
+  Apply path for shape reasons (printer drops sub-options the
+  IR carries). Mechanical.
+- **Comments inside argument lists** currently dropped by
+  `parse.py` to match the production IR. Whether the IR
+  should carry them is a separate design question — does not
+  affect any current oracle.
+- **Corpus extension** to fmt / catch2 / spdlog / pytorch.
+  No technical blocker; cheap stress test of the existing
+  claim. Likely to surface one or two more lossy-printer
+  shapes; each one is a print-tier patch on the same
+  template as Tier 1–4.
+
+### (b) The static/dynamic frontier
+
+These are not "remaining bugs" — they are out of scope for
+any tree-sitter-only pass:
+
+- **Class A Phase 2 — dynamic dispatch resolution.** Given
+  `z3_add_component(api …)`, walk into the function body and
+  inline-substitute (macro semantics) or push a scope with
+  bound parameters (function semantics). Blockers: conditional
+  `include()`, `${CMAKE_MODULE_PATH}` dependent on configure
+  state, macro/function scope distinction at call sites,
+  generator-expression `$<…>` delay. This is the yelu_cmake-
+  interpreter direction; the Phase 1 two-tier index is the
+  data source it will reuse.
+- **The remaining ~621 generic on llvm / ~379 on z3.** Most
+  are `function()`s defined in `.cmake` files reached only via
+  `include()` paths constructed at configure time. A purely
+  static walker cannot find them; only an evaluator that
+  resolves `${CMAKE_MODULE_PATH}` and computed include paths
+  can.
+- **Behavior-level oracle (Bar #3-full).** File API JSON diff
+  against a real cmake configure. Substantial engineering,
+  catches what STRUCT/FORMAT cannot (typed-IR mis-routing
+  invisible to the syntactic oracle — see § 9 last paragraph).
+  This is the natural next milestone above Bar #3-lite.
+- **Configure-time → generate-time → build-time semantics.**
+  Genex, policy stack, cache vs normal vars, scope graph. The
+  "hardest to preserve" list in Y6/Y7 of `CLAUDE.md`. The
+  static IR is rich enough to hold all of these; making them
+  observable requires (b)'s evaluator.
+
+### Why this is a natural stop
+
+For Bar #3-**lite**, the goal was "every cmake call in a
+real-world corpus round-trips byte-faithfully through our IR".
+That goal is met without remainder: the IR has a constructor
+or `Apply` shape for every command in 729 files; tree-sitter
+re-extracts the same argument sequence from source and
+reprint. Everything that does NOT round-trip would be a real
+bug — and the count is zero. Further static work would
+duplicate effort the dynamic oracle will subsume; further
+dynamic work properly lives under Bar #3-**full** (behavior-
+level).
