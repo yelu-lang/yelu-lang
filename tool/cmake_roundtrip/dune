@@ -4,5 +4,5 @@
 ; Lang_cmake_pp. Commands without a typed parser flow through
 ; Apply { name; args } which untyped_emit reprints verbatim.
 (executables
- (names print2 project_index)
+ (names print2 project_index cache_vars)
  (libraries base yojson yelu_langs unix))
