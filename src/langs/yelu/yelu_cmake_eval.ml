@@ -17,7 +17,13 @@ let rec eval_expr env = function
   | EVar name ->
     (match find_var env name with
      | Some value -> env, value
-     | None -> fail "unbound variable %S" name)
+     (* Real cmake silently dereferences undefined variables to the
+        empty string. yc-eval used to error here; that was stricter
+        than cmake and broke any program that read CMAKE_* / project
+        vars before they were set (most fmt-class CMakeLists check
+        if(NOT CMAKE_BUILD_TYPE) at the top, for example).
+        Discovered via the fmt bridge smoke. *)
+     | None -> env, VString "")
   | EString s -> env, VString s
   | EBool b -> env, VBool b
   | EInt n -> env, VInt n

@@ -18,7 +18,9 @@ let rec eval_expr env = function
   | EVar name ->
     (match find_var env name with
      | Some value -> env, value
-     | None -> fail "unbound variable %S" name)
+     (* Same cmake semantics as yc-eval: undefined → empty string,
+        not a crash. See yelu_cmake_eval.ml for context. *)
+     | None -> env, VString "")
   | EString s -> env, VString s
   | EBool b -> env, VBool b
   | EInt n -> env, VInt n

@@ -226,6 +226,32 @@ let cache_type_to_string : C.cache_type -> string = function
 
 let rec from_emit (e : C.exp) : Yelu_cmake.expr =
   match e with
+  (* Literal-shaped exps: these come from parse_cmd's per-command
+     parsers when the cmake source uses a bare value as a slot
+     position (option() default, version arg, etc.). *)
+  | C.Bool b -> e_bool b
+  | C.Var_exp s ->
+    (* Var_exp captures a "${VAR}"-shaped arg OR a bare cmake
+       identifier slot — parse_cmd doesn't distinguish them at
+       parse time. We recover the intent here:
+       - "${X}" wrapping → variable lookup (e_var "X")
+       - bare cmake bool literal (ON/OFF/TRUE/...) → e_bool
+       - anything else → e_var (treats as variable name; if
+         unbound at eval time, EVar returns VString "" per
+         the cmake-compatible rule). *)
+    let n = String.length s in
+    if n >= 3
+       && Char.equal s.[0] '$' && Char.equal s.[1] '{'
+       && Char.equal s.[n - 1] '}'
+    then e_var (String.sub s ~pos:2 ~len:(n - 3))
+    else begin match s with
+      | "ON" | "TRUE" | "YES" | "Y" | "1" -> e_bool true
+      | "OFF" | "FALSE" | "NO" | "N" | "0" | "IGNORE" | "NOTFOUND" ->
+        e_bool false
+      | _ -> e_var s
+    end
+  | C.Quote s -> e_str s
+
   (* Store *)
   | C.Set { var; values; parent_scope } ->
     let value =
@@ -242,6 +268,14 @@ let rec from_emit (e : C.exp) : Yelu_cmake.expr =
   | C.Unset_env { var } -> e_unset_env var
   | C.Cmake_option { var; msg; value } ->
     e_option var msg (arg_to_expr value)
+  (* parse_cmd's parse_option produces C.Option (a SEPARATE ctor from
+     C.Cmake_option). They differ in value type: Option's value is an
+     exp (could be Bool, Var_exp, Quote, etc.); Cmake_option's is an
+     arg. We bridge both. Value is recursively from_emit'd so
+     ${FMT_MASTER_PROJECT} → EVar "FMT_MASTER_PROJECT" works at
+     eval time (looks up the var, picks up its actual bool). *)
+  | C.Option { var; help_text; value } ->
+    e_option var (String.concat ~sep:" " help_text) (from_emit value)
   | C.Set_cache { var; values; cache_type; docstring; force } ->
     e_set_cache var (args_to_exprs values)
       (cache_type_to_string cache_type) docstring force

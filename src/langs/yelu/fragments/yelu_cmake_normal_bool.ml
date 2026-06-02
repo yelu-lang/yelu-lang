@@ -10,10 +10,12 @@ type expr +=
   | EAnd of expr * expr
   | EOr of expr * expr
 
-let expect_bool = function
-  | VBool b -> b
-  | v -> fail "expected bool, got %s" (Sexp.to_string ([%sexp_of: value] v))
-
+(* Delegate to the base expect_bool in Yelu_cmake — it implements
+   cmake's string-to-bool coercion (OFF/NO/FALSE/0/N/IGNORE/NOTFOUND →
+   false; any other non-empty string → true). The fragment used to
+   have a stricter local copy that only accepted VBool, which broke
+   when conds read cache vars populated by -D (always VString) or
+   by plain set(). Discovered via the fmt bridge smoke. *)
 let eval_bool ~eval env expr =
   let env, value = eval env expr in
   env, expect_bool value

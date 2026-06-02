@@ -1,4 +1,3 @@
-open Base
 open Yelu_cmake
 
 let name = "tiny_better_if"
@@ -12,12 +11,11 @@ type expr +=
       else_ : expr;
     }
 
-let expect_bool = function
-  | VBool b -> b
-  | v -> fail "expected bool, got %s" (Sexp.to_string ([%sexp_of: value] v))
+(* Use the base Yelu_cmake.expect_bool — see yelu_cmake_if.ml. *)
 
 let eval_case ~eval env = function
   | EIfExpr { cond; then_; else_ } ->
     let env, cond = eval env cond in
-    if expect_bool cond then Some (eval env then_) else Some (eval env else_)
+    if Yelu_cmake.expect_bool cond
+    then Some (eval env then_) else Some (eval env else_)
   | _ -> None
