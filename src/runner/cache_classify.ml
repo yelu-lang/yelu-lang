@@ -88,9 +88,9 @@ let tier_to_string = function
   | Unknown -> "unknown"
 
 (* Helper: load the reserved name list from `cmake --help-variable-list`
-   output captured in a TSV / line-per-name file. Falls back to an
-   empty list if the file doesn't exist (the prefix patterns still
-   apply). *)
+   output captured in a TSV / line-per-name file. Comment lines (#)
+   and blank lines are skipped. Falls back to an empty list if the
+   file doesn't exist (the prefix patterns still apply). *)
 let load_reserved_from_file path : string list =
   if not (Stdlib.Sys.file_exists path) then []
   else begin
@@ -98,7 +98,8 @@ let load_reserved_from_file path : string list =
     let lines = ref [] in
     (try while true do
        let l = String.strip (Stdlib.input_line ic) in
-       if not (String.is_empty l) then lines := l :: !lines
+       if not (String.is_empty l) && not (String.is_prefix l ~prefix:"#")
+       then lines := l :: !lines
      done with End_of_file -> ());
     Stdlib.close_in ic;
     List.rev !lines

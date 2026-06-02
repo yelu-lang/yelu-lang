@@ -73,6 +73,7 @@ overwhelming majority.
 | where to get reserved names | what it gives | freshness |
 |---|---|---|
 | `cmake --help-variable-list` | 800 documented vars (cmake 4.3.1 on this host); grows with cmake version | run-time, version-keyed |
+| [`tool/cmake_roundtrip/cmake_reserved.tsv`](../../tool/cmake_roundtrip/cmake_reserved.tsv) | the captured snapshot (cmake 4.3.1, 2026-06-02). Header comments skipped at load; 9 placeholder forms (`<PROJECT-NAME>`, `<LANG>`, `<CONFIG>`, …) — currently only `<PROJECT-NAME>` gets expanded, the rest fall through to the prefix-pattern rules | committed, stable for tests |
 | [cmake-variables(7)](https://cmake.org/cmake/help/latest/manual/cmake-variables.7.html) | curated docs grouped by phase / language | docs-team-curated |
 | `cmake -B build -LAH` (after configure) | everything `CMakeCache.txt` actually contains for *this configure* | post-hoc, per-project |
 | `Modules/Compiler/*.cmake` in cmake source | authoritative writers of compiler-detection vars | source-of-truth, heavy |
@@ -168,6 +169,15 @@ Two interesting buckets in the diff result:
 - **`<PackageName>_ROOT` placeholders.** Same issue; takes
   the find_package'd name as the substitution. Less
   immediately critical (rare in our test corpora).
+- **Other placeholders** (`<LANG>`, `<CONFIG>`, `<TYPE>`,
+  `<FEATURE>`, `<NNNN>`) appear in the snapshot but aren't
+  expanded by `expand_placeholders`. They mostly start
+  with `CMAKE_` (e.g. `CMAKE_<LANG>_COMPILER`), so the
+  prefix-pattern rule catches expanded names like
+  `CMAKE_CXX_COMPILER` at classify time. The expanded set
+  would be combinatorial — `<LANG>` × `<CONFIG>` ×
+  template → thousands of names. Prefix-fallback is the
+  pragmatic choice.
 - **Project shadowing of reserved names** (e.g., a project
   redefining `BUILD_TESTING`): classifier returns `Project`,
   matching the project's intent.

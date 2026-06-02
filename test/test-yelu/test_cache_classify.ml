@@ -183,7 +183,130 @@ let placeholder_expansion_tier =
             [ "FMT_VERSION" ] expanded);
     ] )
 
+(* ============================================================
+   Integration: load the cmake reserved snapshot from disk,
+   verify the classifier sees known reserved names correctly.
+
+   Snapshot path is relative to the project root. Test is robust
+   to running from either the project root (dune test) or a
+   nested _build directory. *)
+let snapshot_paths =
+  [ "tool/cmake_roundtrip/cmake_reserved.tsv";
+    "../../tool/cmake_roundtrip/cmake_reserved.tsv";
+    "../../../tool/cmake_roundtrip/cmake_reserved.tsv";
+  ]
+
+let find_snapshot () =
+  List.find snapshot_paths ~f:Stdlib.Sys.file_exists
+
+let snapshot_tier =
+  ( "snapshot",
+    [
+      Alcotest.test_case "snapshot loads with comment skipping" `Quick
+        (fun () ->
+          match find_snapshot () with
+          | None -> Alcotest.failf
+              "snapshot not found in: %s" (String.concat ~sep:", " snapshot_paths)
+          | Some path ->
+            let names = load_reserved_from_file path in
+            (* Snapshot from cmake 4.3.1 has 800 entries; allow drift. *)
+            if List.length names < 500 then
+              Alcotest.failf
+                "expected >= 500 reserved names, got %d" (List.length names);
+            (* No comment lines should have leaked through. *)
+            List.iter names ~f:(fun n ->
+              if String.is_prefix n ~prefix:"#" then
+                Alcotest.failf "comment line leaked: %S" n));
+
+      (* Literal-in-snapshot check: names that appear verbatim in
+         `cmake --help-variable-list` (no template placeholders).
+         CMAKE_CXX_COMPILER is NOT literal — it's CMAKE_<LANG>_COMPILER.
+         The classifier still catches it via the CMAKE_* prefix
+         fallback (see "CMAKE_CXX_COMPILER classified as reserved"
+         below); this case just confirms a few representative
+         literal entries actually load. *)
+      Alcotest.test_case "well-known literal cmake vars are in snapshot" `Quick
+        (fun () ->
+          match find_snapshot () with
+          | None -> Alcotest.skip ()
+          | Some path ->
+            let names = load_reserved_from_file path in
+            let set = Set.of_list (module String) names in
+            List.iter
+              [ "CMAKE_BUILD_TYPE";
+                "CMAKE_INSTALL_PREFIX";
+                "CMAKE_GENERATOR";
+                "APPLE";
+                "WIN32";
+                "BUILD_SHARED_LIBS";  (* also in BUILD_CONVENTIONS, present in snapshot *)
+              ]
+              ~f:(fun expected ->
+                if not (Set.mem set expected) then
+                  Alcotest.failf
+                    "expected %S in snapshot, not found" expected));
+
+      (* Template snapshot stats: confirm placeholder forms are present
+         so future loaders that expand them have something to work with. *)
+      Alcotest.test_case "template placeholders present in snapshot" `Quick
+        (fun () ->
+          match find_snapshot () with
+          | None -> Alcotest.skip ()
+          | Some path ->
+            let names = load_reserved_from_file path in
+            let has substring =
+              List.exists names ~f:(fun n ->
+                String.is_substring n ~substring)
+            in
+            List.iter
+              [ "<PROJECT-NAME>"; "<LANG>"; "<CONFIG>"; "<PackageName>" ]
+              ~f:(fun ph ->
+                if not (has ph) then
+                  Alcotest.failf
+                    "expected placeholder %S in snapshot" ph));
+
+      Alcotest.test_case "FMT_FUZZ classified as Project via snapshot" `Quick
+        (fun () ->
+          match find_snapshot () with
+          | None -> Alcotest.skip ()
+          | Some path ->
+            let reserved = load_reserved_from_file path in
+            let expanded = expand_placeholders ~project_name:"FMT" reserved in
+            let project = [ "FMT_FUZZ"; "FMT_TEST"; "FMT_OS" ] in
+            let actual = classify ~project ~reserved:expanded "FMT_FUZZ" in
+            Alcotest.(check string) "FMT_FUZZ tier"
+              "project" (tier_to_string actual));
+
+      Alcotest.test_case "CMAKE_CXX_COMPILER classified as reserved" `Quick
+        (fun () ->
+          match find_snapshot () with
+          | None -> Alcotest.skip ()
+          | Some path ->
+            let reserved = load_reserved_from_file path in
+            let expanded = expand_placeholders ~project_name:"FMT" reserved in
+            let actual =
+              classify ~project:[] ~reserved:expanded "CMAKE_CXX_COMPILER"
+            in
+            Alcotest.(check string) "tier" "reserved-cmake"
+              (tier_to_string actual));
+
+      Alcotest.test_case "FMT_VERSION (template-expanded) is reserved" `Quick
+        (fun () ->
+          match find_snapshot () with
+          | None -> Alcotest.skip ()
+          | Some path ->
+            (* <PROJECT-NAME>_VERSION is in the snapshot; expand for FMT and
+               classify the resulting name. *)
+            let reserved = load_reserved_from_file path in
+            let expanded = expand_placeholders ~project_name:"FMT" reserved in
+            let actual =
+              classify ~project:[] ~reserved:expanded "FMT_VERSION"
+            in
+            Alcotest.(check string) "FMT_VERSION tier (via template)"
+              "reserved-cmake" (tier_to_string actual));
+    ] )
+
 let () =
   Alcotest.run "cache_classify"
     [ project_tier; reserved_cmake_tier; reserved_build_tier;
-      unknown_tier; shadowing_tier; placeholder_expansion_tier ]
+      unknown_tier; shadowing_tier; placeholder_expansion_tier;
+      snapshot_tier ]
