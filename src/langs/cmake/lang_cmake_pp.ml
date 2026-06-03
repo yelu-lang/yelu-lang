@@ -574,9 +574,21 @@ let rec pp ff e =
       (* cache_type is now a raw string (was enum, changed
          2026-06-03). Print verbatim — covers "STRING"/"BOOL"/etc.
          for the static path AND "${type}" for the dynamic path
-         that parse_set used to reject. *)
-      Fmt.(pf ff "set(%a %a CACHE %s %S%s)"
-        pp_var var (list_sp pp_arg) values cache_type docstring
+         that parse_set used to reject.
+
+         docstring: if it looks like a cmake variable reference
+         (starts with "$"), emit unquoted to round-trip the source
+         shape. Else emit quoted (preserves whitespace, supports
+         programmatic callers that pass literal text). Same fmt-
+         set_verbose() pattern that drove the cache_type fix. *)
+      let pp_docstring fmt s =
+        if String.length s > 0 && Char.equal s.[0] '$'
+        then Fmt.string fmt s
+        else Fmt.pf fmt "%S" s
+      in
+      Fmt.(pf ff "set(%a %a CACHE %s %a%s)"
+        pp_var var (list_sp pp_arg) values cache_type
+        pp_docstring docstring
         (if force then " FORCE" else ""))
   | Set_env { var; value } ->
       Fmt.(pf ff "set(ENV{%a} %a)" pp_var var pp_arg value)
