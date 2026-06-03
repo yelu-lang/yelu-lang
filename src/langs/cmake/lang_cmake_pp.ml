@@ -576,13 +576,28 @@ let rec pp ff e =
          for the static path AND "${type}" for the dynamic path
          that parse_set used to reject.
 
-         docstring: if it looks like a cmake variable reference
-         (starts with "$"), emit unquoted to round-trip the source
-         shape. Else emit quoted (preserves whitespace, supports
-         programmatic callers that pass literal text). Same fmt-
-         set_verbose() pattern that drove the cache_type fix. *)
+         docstring: emit unquoted ONLY when it's exactly a single
+         var-reference like `${X}` or `$<X>` (no surrounding text).
+         Else emit quoted. Earlier heuristic "starts with $" was too
+         loose — `${DEVICE} more text` matched it and emitted
+         unquoted, but real cmake source had it quoted (llvm
+         FindOpenMPTarget.cmake). The single-var-ref-only check
+         keeps fmt's set_verbose `${doc}` working AND preserves
+         strings with embedded refs. *)
+      let is_single_var_ref s =
+        let n = String.length s in
+        n >= 3
+        && Char.equal s.[0] '$'
+        && (Char.equal s.[1] '{' || Char.equal s.[1] '<')
+        && Char.equal s.[n - 1] (if Char.equal s.[1] '{' then '}' else '>')
+        (* No nested braces/angles in the middle — keeps the check
+           strict for the simple-ref case. *)
+        && not (String.contains
+                  (String.sub s ~pos:2 ~len:(n - 3))
+                  (if Char.equal s.[1] '{' then '}' else '>'))
+      in
       let pp_docstring fmt s =
-        if String.length s > 0 && Char.equal s.[0] '$'
+        if is_single_var_ref s
         then Fmt.string fmt s
         else Fmt.pf fmt "%S" s
       in
