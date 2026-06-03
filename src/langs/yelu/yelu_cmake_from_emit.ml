@@ -182,100 +182,99 @@ let cond_token_to_expr (s : string) : Yelu_cmake.expr =
 
 (* ============================================================
    Cond parser: token list -> yc cond expr.
-   Recursive descent. Handles:
-     <atom> | NOT <expr> | DEFINED name | TARGET name |
-     <l> STREQUAL <r> |
-     <l> EQUAL/LESS/GREATER/LESS_EQUAL/GREATER_EQUAL <r> |
-     <l> VERSION_LESS/GREATER/EQUAL/LESS_EQUAL/GREATER_EQUAL <r> |
-     <l> MATCHES <r> | <l> IN_LIST <r> |
-     paren-balanced AND/OR.
-   Unrecognized shapes -> EBool true (safe direction; yc-eval
-   will execute the then-branch, over-populating the predicted
-   cache rather than under-populating). *)
+
+   Proper recursive descent. Grammar (cmake precedence —
+   OR loosest, AND next, NOT, then comparison binaries, then atoms):
+
+     or    := and  ("OR"  and)*
+     and   := not  ("AND" not)*
+     not   := "NOT" not | atom
+     atom  := "(" or ")" | unary | binary | <token>
+     unary := "DEFINED" <token> | "TARGET" <token>
+     binary:= <token> OP <token>
+               where OP ∈ STREQUAL | EQUAL | LESS | GREATER
+                        | LESS_EQUAL | GREATER_EQUAL
+                        | VERSION_LESS | VERSION_GREATER | VERSION_EQUAL
+                        | VERSION_LESS_EQUAL | VERSION_GREATER_EQUAL
+                        | MATCHES | IN_LIST
+
+   Parens consumed naturally in `atom` — no preprocessing.
+   Anything we can't parse falls back to EBool true (safe direction;
+   yc-eval will execute the then-branch, over-populating the
+   predicted cache rather than under-populating). *)
 let bridge_warn what =
   Stdlib.Printf.eprintf "yelu_cmake_from_emit: bridging %s -> default\n" what
 
-let rec parse_cond_tokens (toks : string list) : Yelu_cmake.expr =
-  (* Strip a single layer of outer parens IFF the leading "(" depth-pairs
-     with the trailing ")". Naive first/last pairing breaks `(A) OR (B)`,
-     where the first "(" actually closes mid-list. Needed for shapes
-     like `if((A AND B))` where everything is wrapped. *)
-  let toks =
-    match toks with
-    | "(" :: _ ->
-      let arr = Array.of_list toks in
-      let n = Array.length arr in
-      let depth = ref 1 in
-      let close = ref (-1) in
-      let i = ref 1 in
-      while !depth > 0 && !i < n do
-        (match arr.(!i) with
-         | "(" -> Int.incr depth
-         | ")" -> Int.decr depth; if !depth = 0 then close := !i
-         | _ -> ());
-        Int.incr i
-      done;
-      if !close = n - 1 then
-        Array.sub arr ~pos:1 ~len:(n - 2) |> Array.to_list
-      else toks
-    | _ -> toks
+let is_binary_op = function
+  | "STREQUAL" | "EQUAL" | "LESS" | "GREATER"
+  | "LESS_EQUAL" | "GREATER_EQUAL"
+  | "VERSION_LESS" | "VERSION_GREATER" | "VERSION_EQUAL"
+  | "VERSION_LESS_EQUAL" | "VERSION_GREATER_EQUAL"
+  | "MATCHES" | "IN_LIST" -> true
+  | _ -> false
+
+let build_binary op l r : Yelu_cmake.expr =
+  let le = cond_token_to_expr l in
+  let re = cond_token_to_expr r in
+  match op with
+  | "STREQUAL" -> e_streq le re
+  | "EQUAL" -> e_int_eq le re
+  | "LESS" -> e_int_less le re
+  | "GREATER" -> e_int_gt le re
+  | "LESS_EQUAL" -> e_int_leq le re
+  | "GREATER_EQUAL" -> e_int_geq le re
+  | "VERSION_LESS" -> e_ver_less le re
+  | "VERSION_GREATER" -> e_ver_gt le re
+  | "VERSION_EQUAL" -> e_ver_eq le re
+  | "VERSION_LESS_EQUAL" -> e_ver_leq le re
+  | "VERSION_GREATER_EQUAL" -> e_ver_geq le re
+  | "MATCHES" -> e_matches le r  (* regex is raw string, not expr *)
+  | "IN_LIST" -> e_in_list le re
+  | _ -> assert false
+
+let parse_cond_tokens (toks : string list) : Yelu_cmake.expr =
+  let cur = ref toks in
+  let peek () = match !cur with [] -> None | h :: _ -> Some h in
+  let advance () = match !cur with [] -> () | _ :: t -> cur := t in
+  let rec parse_or () =
+    let left = parse_and () in
+    match peek () with
+    | Some "OR" -> advance (); let right = parse_or () in e_or left right
+    | _ -> left
+  and parse_and () =
+    let left = parse_not () in
+    match peek () with
+    | Some "AND" -> advance (); let right = parse_and () in e_and left right
+    | _ -> left
+  and parse_not () =
+    match peek () with
+    | Some "NOT" -> advance (); e_not (parse_not ())
+    | _ -> parse_atom ()
+  and parse_atom () =
+    match !cur with
+    | "(" :: rest ->
+      cur := rest;
+      let inner = parse_or () in
+      (match peek () with
+       | Some ")" -> advance (); inner
+       | _ -> inner  (* unbalanced — keep what we have *))
+    | "DEFINED" :: name :: rest -> cur := rest; e_var_defined name
+    | "TARGET" :: name :: rest ->
+      cur := rest; e_target_exists (cond_token_to_expr name)
+    | l :: op :: r :: rest when is_binary_op op ->
+      cur := rest; build_binary op l r
+    | x :: rest -> cur := rest; cond_token_to_expr x
+    | [] -> e_bool true
   in
-  let split_top_kw toks kw =
-    let rec loop depth acc = function
-      | [] -> None
-      | "(" :: rest -> loop (depth + 1) ("(" :: acc) rest
-      | ")" :: rest -> loop (depth - 1) (")" :: acc) rest
-      | tok :: rest when depth = 0 && String.equal tok kw ->
-        Some (List.rev acc, rest)
-      | tok :: rest -> loop depth (tok :: acc) rest
-    in
-    loop 0 [] toks
-  in
-  match split_top_kw toks "AND" with
-  | Some (l, r) -> e_and (parse_cond_tokens l) (parse_cond_tokens r)
-  | None ->
-    begin match split_top_kw toks "OR" with
-    | Some (l, r) -> e_or (parse_cond_tokens l) (parse_cond_tokens r)
-    | None ->
-      begin match toks with
-      | [] -> e_bool true
-      | [ x ] -> cond_token_to_expr x
-      | [ "NOT"; x ] -> e_not (cond_token_to_expr x)
-      | "NOT" :: rest -> e_not (parse_cond_tokens rest)
-      | [ "DEFINED"; name ] -> e_var_defined name
-      | [ "TARGET"; name ] -> e_target_exists (cond_token_to_expr name)
-      | [ l; "STREQUAL"; r ] ->
-        e_streq (cond_token_to_expr l) (cond_token_to_expr r)
-      | [ l; "EQUAL"; r ] ->
-        e_int_eq (cond_token_to_expr l) (cond_token_to_expr r)
-      | [ l; "LESS"; r ] ->
-        e_int_less (cond_token_to_expr l) (cond_token_to_expr r)
-      | [ l; "GREATER"; r ] ->
-        e_int_gt (cond_token_to_expr l) (cond_token_to_expr r)
-      | [ l; "LESS_EQUAL"; r ] ->
-        e_int_leq (cond_token_to_expr l) (cond_token_to_expr r)
-      | [ l; "GREATER_EQUAL"; r ] ->
-        e_int_geq (cond_token_to_expr l) (cond_token_to_expr r)
-      | [ l; "VERSION_LESS"; r ] ->
-        e_ver_less (cond_token_to_expr l) (cond_token_to_expr r)
-      | [ l; "VERSION_GREATER"; r ] ->
-        e_ver_gt (cond_token_to_expr l) (cond_token_to_expr r)
-      | [ l; "VERSION_EQUAL"; r ] ->
-        e_ver_eq (cond_token_to_expr l) (cond_token_to_expr r)
-      | [ l; "VERSION_LESS_EQUAL"; r ] ->
-        e_ver_leq (cond_token_to_expr l) (cond_token_to_expr r)
-      | [ l; "VERSION_GREATER_EQUAL"; r ] ->
-        e_ver_geq (cond_token_to_expr l) (cond_token_to_expr r)
-      | [ l; "MATCHES"; r ] ->
-        e_matches (cond_token_to_expr l) r
-      | [ l; "IN_LIST"; r ] ->
-        e_in_list (cond_token_to_expr l) (cond_token_to_expr r)
-      | _ ->
-        bridge_warn
-          (Printf.sprintf "cond[%s]" (String.concat ~sep:" " toks));
-        e_bool true
-      end
-    end
+  let result = parse_or () in
+  (match !cur with
+   | [] -> ()
+   | leftover ->
+     bridge_warn
+       (Printf.sprintf "cond[%s] (leftover: %s)"
+          (String.concat ~sep:" " toks)
+          (String.concat ~sep:" " leftover)));
+  result
 
 (* ============================================================
    Cmake version / mode / cache_type -> string. *)
