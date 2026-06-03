@@ -160,25 +160,55 @@ let arg_to_expr (a : C.arg) : Yelu_cmake.expr =
 let args_to_exprs args = List.map args ~f:arg_to_expr
 
 (* ============================================================
+   cmake bool-literal recognition — ONE place, two callers.
+
+   Background. cmake's actual semantic model is "everything is a
+   string; bool coercion is a viewing rule applied at consume
+   sites" (see yelu_cmake.ml's expect_bool). So `set(X On)` stores
+   the literal "On" and `if(X)` later coerces that string. We
+   *could* model this purely on the eval side and never produce
+   EBool at parse time.
+
+   We don't, because two parse-time positions are unambiguously
+   constants in cmake's grammar:
+     1. inside if() conditions — bare ON/OFF/etc. are bool atoms,
+        not variable references (cmake doc, "Constants").
+     2. cmake's parse_cmd-known-bool slots that surface here as
+        C.Var_exp (option() defaults, etc.)
+
+   Case-insensitive (cmake source freely uses On/On/yes/etc).
+   Predicate-style API (returns None on non-bool) so the caller
+   decides the fallback for non-bool tokens.
+
+   FUTURE (Y17 typing redesign): collapse this into eval-side
+   expect_bool only. See doc/yelu_cmake/io_architecture.md §
+   "Bool literals — parse-time vs eval-time" for the migration
+   path. Until then, this is the single source of truth for
+   parse-time cmake bool literals. *)
+let bool_literal_of_string (s : string) : Yelu_cmake.expr option =
+  match String.uppercase s with
+  | "TRUE" | "ON" | "YES" | "Y" | "1" -> Some (e_bool true)
+  | "FALSE" | "OFF" | "NO" | "N" | "0" | "IGNORE" | "NOTFOUND" ->
+    Some (e_bool false)
+  | _ -> None
+
+(* ============================================================
    cond-token -> expr.
    Bare identifier "FOO" treated as ${FOO} (EVar lookup).
    Quoted "literal" -> EString.
-   TRUE/ON/YES/1 -> EBool true; FALSE/OFF/NO/0/N/IGNORE/NOTFOUND -> EBool false.
+   Bool literal (case-insensitive) -> EBool via [bool_literal_of_string].
    Numeric -> EInt. *)
 let cond_token_to_expr (s : string) : Yelu_cmake.expr =
   let n = String.length s in
   if n >= 2 && Char.equal s.[0] '"' && Char.equal s.[n - 1] '"' then
     e_str (String.sub s ~pos:1 ~len:(n - 2))
-  else begin
-    match String.uppercase s with
-    | "TRUE" | "ON" | "YES" | "Y" | "1" -> e_bool true
-    | "FALSE" | "OFF" | "NO" | "N" | "0" | "IGNORE" | "NOTFOUND" ->
-      e_bool false
-    | _ ->
+  else
+    match bool_literal_of_string s with
+    | Some e -> e
+    | None ->
       (match Int.of_string_opt s with
        | Some i -> e_int i
        | None -> e_var s)
-  end
 
 (* ============================================================
    Cond parser: token list -> yc cond expr.
@@ -326,12 +356,10 @@ let rec from_emit (e : C.exp) : Yelu_cmake.expr =
        && Char.equal s.[0] '$' && Char.equal s.[1] '{'
        && Char.equal s.[n - 1] '}'
     then e_var (String.sub s ~pos:2 ~len:(n - 3))
-    else begin match String.uppercase s with
-      | "ON" | "TRUE" | "YES" | "Y" | "1" -> e_bool true
-      | "OFF" | "FALSE" | "NO" | "N" | "0" | "IGNORE" | "NOTFOUND" ->
-        e_bool false
-      | _ -> e_var s
-    end
+    else
+      (match bool_literal_of_string s with
+       | Some e -> e
+       | None -> e_var s)
   | C.Quote s -> e_str s
 
   (* Store *)

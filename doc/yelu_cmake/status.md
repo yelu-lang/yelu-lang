@@ -237,13 +237,64 @@ In order of value:
 
 ## Deferred
 
+### File loader / module system gaps
+
+Captured here from the 2026-06-03 fmt-matrix work — see
+`doc/yelu_cmake/io_architecture.md` §§ 5, 7 for the full picture.
+Pick up as cmake-corpus expansion demands them.
+
+- **`include_guard()` + load-once cache.** Today every
+  `include()` re-evaluates. Add `evaluated : Set.M(String).t` to
+  env; `include_guard()` consults; subsequent loads short-circuit.
+  ~20 LOC. Bites when modules accumulate state across calls.
+- **cmake stdlib `Modules/` dir in default `module_path`.** The
+  3 stuck real-only entries in fmt's matrix (DOXYGEN,
+  FIND_PACKAGE_MESSAGE_DETAILS_Threads, compile_result_unused)
+  all live behind `FindThreads.cmake` / `CheckSymbolExists.cmake`
+  / `FindPackageHandleStandardArgs.cmake`. ~10 LOC to wire the
+  install path. Closes those 3 gaps for any project that uses
+  cmake stdlib `Find*` / `Check*` modules.
+- **`find_package(X)` recursion.** The big missing piece for
+  llvm / z3 / torch scale corpora. Third loader callback
+  (`package_loader`) + search-semantics modeling. 200–400 LOC.
+  Own milestone, not a one-sitting task.
+- **`find_program` / `find_path` / `find_library`** as canned
+  stubs. Simplest version: hard-code common results
+  (doxygen → /usr/bin/doxygen or NOTFOUND). Bridges enough of
+  the matrix-corner shapes without modeling full `$PATH` search.
+- **`file(READ)` / `file(WRITE)` / `file(STRINGS)` / `file(GLOB)`.**
+  Per-subcommand callback slots. `file(READ)` is the most
+  load-bearing (configure-time templates).
+- **`execute_process(…)`.** Subprocess runner callback. Rarely
+  produces cache state directly but feeds variables that DO.
+- **`try_compile(…)` / `try_run(…)`.** Compiler probes —
+  unmodeled means missing `<X>_COMPILE_RESULT` cache entries.
+  Needs a real compiler runner to predict honestly.
+- **`configure_file(…)`.** Reads template, substitutes
+  `${X}`, writes. Different from include — produces files not
+  cache state.
+
+### Bool literal handling (Y17 follow-up)
+
+`bool_literal_of_string` in `yelu_cmake_from_emit.ml` is the
+single source of truth for parse-time recognition of cmake bool
+spellings (case-insensitive). Eval-time coercion lives in
+`expect_bool` (yelu_cmake.ml). The dual-site arrangement is
+cmake-tolerance, not principled — see `io_architecture.md` § 8
+for the migration path to eval-side-only as part of Y17.
+
+### Other
+
 - Cache / env namespaces beyond the normal-variable slice.
 - Generator expressions as delayed values (currently flow as
   opaque `EString`s via `Ycs_eval`; real cmake handles them at
   generate time).
 - Fragment-owned parser composition.
-- Subdirectory scope enforcement (`add_subdirectory` records
-  but does not isolate var / target scopes).
+- `add_subdirectory` binary_dir arg (second positional) — ignored;
+  doesn't affect cache prediction.
+- `PARENT_SCOPE` from subdir → parent variables — works via the
+  function-scope mechanism but not separately tested for the subdir
+  path.
 - Property scope expansion beyond target (global / source /
   test / cache).
 - A purer functional-style function theory parallel to the

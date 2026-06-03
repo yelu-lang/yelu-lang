@@ -167,7 +167,62 @@ cmake doesn't do this; ycn doesn't (yet) do this. The current
 include_loader pattern is faithful to cmake's "textual paste"
 semantics.
 
-## 5. Future directions
+### Example: subdir_loader
+
+Added 2026-06-03 alongside the fmt matrix work. Same protocol
+shape as `include_loader`, narrower resolution rule:
+
+```ocaml
+type env = {
+  …
+  subdir_loader : (string -> expr option) option;
+  …
+}
+```
+
+The caller (`EAddSubdirectory` eval) resolves the relative path
+against `CMAKE_CURRENT_SOURCE_DIR` before calling. The runner-side
+loader (`Cmake_bridge.subdir_loader`) just appends `CMakeLists.txt`
+and parses.
+
+What `EAddSubdirectory` eval does differently from `ECmakeInclude`:
+
+| step | include() | add_subdirectory() |
+|---|---|---|
+| resolve | `CMAKE_MODULE_PATH` + cmake's `Modules/` | `CMAKE_CURRENT_SOURCE_DIR/<arg>` |
+| frame | no push (inline) | `push_frame` (directory scope) |
+| path vars | `CMAKE_CURRENT_LIST_DIR` only | + `CMAKE_CURRENT_SOURCE_DIR` |
+| cycle | shared `include_stack` | shared `include_stack` |
+| eval errors | propagate | **soft-fail** (unmodeled commands inside subdirs are common; don't crash the prediction) |
+
+`add_subdirectory()` is the only call site that gives subdirs a
+*real* directory scope (local writes don't leak to parent). cmake's
+own behavior on `include()` is "textual paste"; on
+`add_subdirectory()` is "scoped paste with new CWD". We model both
+faithfully.
+
+## 5. What we model — coverage map
+
+| cmake construct | wired? | callback used | gap if any |
+|---|:-:|---|---|
+| `include(file)` (path) | ✓ | `include_loader` | — |
+| `include(Module)` (bare name → CMAKE_MODULE_PATH) | partial | `include_loader` | cmake's stdlib `Modules/` dir not in default path (see § 7) |
+| `include(Module OPTIONAL)` | ✓ | `include_loader` | — |
+| `include_guard()` | ✗ | — | every call re-evaluates; no "load-once" cache (see § 7) |
+| `add_subdirectory(dir)` | ✓ | `subdir_loader` | — |
+| `add_subdirectory(dir bin)` | partial | `subdir_loader` | binary_dir arg ignored (doesn't affect cache) |
+| `find_package(X)` | ✗ | (none) | search paths, version handling, `Find<X>.cmake` modules all unmodeled |
+| `find_program(X)` | ✗ | (none) | `$PATH` search; produces `<X>-NOTFOUND` if absent |
+| `find_path(X)` / `find_library(X)` | ✗ | (none) | same shape as `find_program` |
+| `file(READ X out)` | ✗ | (none) | — |
+| `file(WRITE X content)` | ✗ | (none) | — |
+| `file(STRINGS …)` / `file(GLOB …)` | ✗ | (none) | — |
+| `execute_process(…)` | ✗ | (none) | — |
+| `try_compile(…)` / `try_run(…)` | ✗ | (none) | compiler probe — would need a real compiler runner |
+| `configure_file(…)` | ✗ | (none) | reads template, substitutes `${X}`, writes |
+| `$<…>` (generator expressions) | passthrough only | — | resolved at cmake's generate phase, after our prediction window |
+
+## 6. Future directions
 
 The same callback-via-env pattern extends to other I/O-bearing
 commands. Likely additions:
@@ -183,7 +238,165 @@ commands. Likely additions:
 Each one keeps `yelu_langs` pure; each one extends the runner's
 adapter surface.
 
-## 6. Relationship to a future ycn module import
+## 7. Known gaps and deferred items
+
+These are filed here (not just in `status.md`) because they affect
+how readers reason about the loader system itself.
+
+### Every call re-evaluates (no module cache)
+
+cmake's `include()` re-evaluates the named file on every call. The
+idempotence primitive is `include_guard()` inside the loaded file:
+
+```cmake
+# Inside SomeModule.cmake:
+include_guard()         # subsequent include(SomeModule) are no-ops
+include_guard(GLOBAL)   # global scope (default DIRECTORY scope)
+```
+
+We currently re-evaluate unconditionally. Our `include_stack` only
+protects against **direct cycles** (A→B→A within a single chain), not
+against load-once semantics. If a file `M.cmake` is included three
+times sequentially, we run it three times.
+
+**Why it usually doesn't matter**: most cmake module side effects
+are idempotent (function defs, variable assignments). For cache
+prediction this is harmless in practice — duplicate writes overwrite
+to the same value.
+
+**When it'll bite**: modules that produce different output on
+re-eval (counters, lists appended to). Add `include_guard` support
+when we hit one.
+
+Effort: ~20 LOC. Add an `evaluated : Set.M(String).t` field to env;
+`include_guard()` consults a callback; `ECmakeInclude` adds path to
+`evaluated` after first load and short-circuits on subsequent loads
+that hit `include_guard()`.
+
+### cmake's stdlib `Modules/` directory not in default module path
+
+cmake ships ~900 `.cmake` files in `${cmake_install}/share/cmake-X.Y/Modules/`
+— `FindThreads.cmake`, `CheckSymbolExists.cmake`, `GNUInstallDirs.cmake`,
+etc. Real `include(GNUInstallDirs)` finds them automatically; we'd
+have to populate `CMAKE_MODULE_PATH` defaults to match.
+
+**Why it matters for the matrix**: the 3 remaining real-only entries
+in fmt's matrix (DOXYGEN, FIND_PACKAGE_MESSAGE_DETAILS_Threads,
+compile_result_unused) are all written by stdlib modules. Loading
+them would close those gaps.
+
+Effort: ~10 LOC to wire the install path into `module_path`
+defaults. The harder question is which install path — cmake's `cmake
+--system-information` reports it; could shell out or hard-code.
+
+### Subdir scope semantics — what we don't preserve
+
+`add_subdirectory()` uses `push_frame/pop_frame`. This gets local
+variable isolation right but doesn't model:
+
+- **`PARENT_SCOPE`** as used by subdirs setting parent values
+  (`set(X val PARENT_SCOPE)` from a subdir CMakeLists). We treat it
+  the same as a function PARENT_SCOPE; should be functionally
+  equivalent but not separately tested.
+- **Per-subdir target lists** — cmake keeps a per-directory target
+  registry; subdirs inherit. We have one global target map. Affects
+  the future `install()` modeling but not cache prediction.
+- **`binary_dir` arg** — the optional second arg to
+  `add_subdirectory(src bin/src)` changes the build output path.
+  Cache writes don't depend on it, so we ignore.
+
+### `find_package()` is the next big missing piece
+
+Most real projects (~all of llvm, z3, torch) drive much of their
+configure-time behavior through `find_package(X REQUIRED)`. We
+predict zero of this. The architecture is clear (a third loader
+callback), the work is in modeling the search semantics:
+
+- Plain mode: search `${pkg}-config.cmake` / `${pkg}Config.cmake`
+  along several prefix path variables (`CMAKE_PREFIX_PATH`,
+  `<Pkg>_ROOT`, system paths)
+- Module mode: search `Find<Pkg>.cmake` along `CMAKE_MODULE_PATH`
+  then stdlib `Modules/`
+- Version comparison (already handled by our `VERSION_*` cond ops)
+- `<Pkg>_FOUND`, `<Pkg>_VERSION`, `<Pkg>_INCLUDE_DIRS`, etc. as
+  output cache entries
+
+Effort estimate: 200–400 LOC for plain mode + a basic Find module
+shim. Big enough to be its own milestone.
+
+## 8. Bool literals — parse-time vs eval-time
+
+Tangential to the loader topic but a related architectural
+question: cmake bool literals (`ON`/`OFF`/`TRUE`/`FALSE`/etc.) are
+recognized at TWO places — once at parse time (in `from_emit.ml`),
+once at eval time (`expect_bool` in `yelu_cmake.ml`).
+
+### Current state — single source of truth at parse time
+
+After 2026-06-03 refactor, parse-time recognition lives in ONE
+helper:
+
+```ocaml
+(* yelu_cmake_from_emit.ml *)
+let bool_literal_of_string : string -> Yelu_cmake.expr option = …
+```
+
+Both `cond_token_to_expr` (cond-position) and the `C.Var_exp` arm
+(cmd-arg position) call it. Single bool table, two callers.
+
+`expect_bool` in `yelu_cmake.ml` is the eval-time coercion for
+when a `VString` flows into a bool context (if conditions, option
+canonicalization). It uses the same set of falsy spellings.
+
+### Why this dual-site arrangement is "cmake-tolerance, legacy"
+
+cmake's actual model is "everything is a string; bool coercion at
+consume sites." `set(X On)` stores the literal "On" (case
+preserved); `if(X)` coerces; `if(X STREQUAL "On")` does a literal
+string compare.
+
+Our parse-time conversion turns `set(X On)` into `ESetVar (X, EBool
+true)` → `VBool true`. Later cache emission writes `"ON"`. Two
+quiet divergences from cmake:
+
+1. **Case-loss**: real cmake keeps `"On"` (mixed case) in a
+   non-cache variable; we lose it to `VBool true → "ON"`.
+2. **STREQUAL surprise**: `set(X On); if(X STREQUAL "On")` is true
+   in real cmake (literal compare) but false-equivalent in ours
+   (`VBool true ≠ VString "On"` unless we add cross-type compare).
+
+Neither bites the current corpus (fmt's matrix doesn't exercise
+either). But they're real bugs waiting for the right cmake input.
+
+### Future (Y17 typing redesign)
+
+Collapse to eval-side only:
+- Drop `bool_literal_of_string`; parse keeps strings as strings.
+- `expect_bool` is the single coercion rule, applied at consume
+  sites (if conditions, option-default canonicalization,
+  `STREQUAL`/numeric-compare LHS, etc.).
+- Storage stays cmake-faithful: `VString "On"` everywhere unless
+  we KNOW the storage is BOOL-typed (cache BOOL slot).
+
+Migration path:
+1. Audit every `EBool`-producing call site outside this helper —
+   most are direct literals from explicit `e_bool true/false`
+   constructions, not coerced strings.
+2. Add a typed cache cell: `cache_vars` already produces VBool for
+   BOOL-typed entries via `expect_bool`. Generalize the same idea
+   to non-cache assignments where the IR type carries BOOL.
+3. Remove `bool_literal_of_string`; switch the two call sites to
+   `e_var s` (treats unknown bare words as variable references,
+   matching cmake's grammar).
+4. Add tests exercising both case-preservation and STREQUAL
+   against unquoted bools.
+
+Effort: ~50 LOC, but the trickiest part is the test pass — much of
+the existing test corpus implicitly relies on parse-time bool
+production. Each test that breaks needs a small fix to either
+quote the bool explicitly or expect a different VString output.
+
+## 9. Relationship to a future ycn module import
 
 ycn (yelu_cmake_normal) is the language's normalized form. It
 currently does NOT have an import expression. If/when we add
@@ -222,7 +435,7 @@ This way the language gradually grows a real module system
 without breaking the cmake-shape compatibility we need for
 existing real-world projects.
 
-## 7. Caveats
+## 10. Caveats
 
 - **A few legacy I/O sites in `yelu_langs`** — there are still
   a couple of `Stdlib.Printf.eprintf` calls in `Yelu_cmake_from_emit`
