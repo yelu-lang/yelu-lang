@@ -68,6 +68,26 @@ let e_int_less a b : Yelu_cmake.expr =
   Yelu_cmake_normal_int.EIntLess (a, b)
 let e_int_gt a b : Yelu_cmake.expr =
   Yelu_cmake_normal_int.EIntGreater (a, b)
+let e_int_leq a b : Yelu_cmake.expr =
+  Yelu_cmake_normal_int.EIntLessEqual (a, b)
+let e_int_geq a b : Yelu_cmake.expr =
+  Yelu_cmake_normal_int.EIntGreaterEqual (a, b)
+
+let e_ver_less a b : Yelu_cmake.expr =
+  Yelu_cmake_string.ECmakeVersionLess (a, b)
+let e_ver_gt a b : Yelu_cmake.expr =
+  Yelu_cmake_string.ECmakeVersionGreater (a, b)
+let e_ver_eq a b : Yelu_cmake.expr =
+  Yelu_cmake_string.ECmakeVersionEqual (a, b)
+let e_ver_leq a b : Yelu_cmake.expr =
+  Yelu_cmake_string.ECmakeVersionLessEqual (a, b)
+let e_ver_geq a b : Yelu_cmake.expr =
+  Yelu_cmake_string.ECmakeVersionGreaterEqual (a, b)
+
+let e_matches expr_ regex : Yelu_cmake.expr =
+  Yelu_cmake_string.ECmakeMatches { expr_; regex }
+let e_in_list item list_ : Yelu_cmake.expr =
+  Yelu_cmake_string.ECmakeInList { item; list_ }
 
 let e_var_defined s : Yelu_cmake.expr =
   Yelu_cmake_store.ECmakeVarDefined s
@@ -164,7 +184,10 @@ let cond_token_to_expr (s : string) : Yelu_cmake.expr =
    Cond parser: token list -> yc cond expr.
    Recursive descent. Handles:
      <atom> | NOT <expr> | DEFINED name | TARGET name |
-     <l> STREQUAL <r> | <l> EQUAL/LESS/GREATER <r> |
+     <l> STREQUAL <r> |
+     <l> EQUAL/LESS/GREATER/LESS_EQUAL/GREATER_EQUAL <r> |
+     <l> VERSION_LESS/GREATER/EQUAL/LESS_EQUAL/GREATER_EQUAL <r> |
+     <l> MATCHES <r> | <l> IN_LIST <r> |
      paren-balanced AND/OR.
    Unrecognized shapes -> EBool true (safe direction; yc-eval
    will execute the then-branch, over-populating the predicted
@@ -213,6 +236,24 @@ let rec parse_cond_tokens (toks : string list) : Yelu_cmake.expr =
         e_int_less (cond_token_to_expr l) (cond_token_to_expr r)
       | [ l; "GREATER"; r ] ->
         e_int_gt (cond_token_to_expr l) (cond_token_to_expr r)
+      | [ l; "LESS_EQUAL"; r ] ->
+        e_int_leq (cond_token_to_expr l) (cond_token_to_expr r)
+      | [ l; "GREATER_EQUAL"; r ] ->
+        e_int_geq (cond_token_to_expr l) (cond_token_to_expr r)
+      | [ l; "VERSION_LESS"; r ] ->
+        e_ver_less (cond_token_to_expr l) (cond_token_to_expr r)
+      | [ l; "VERSION_GREATER"; r ] ->
+        e_ver_gt (cond_token_to_expr l) (cond_token_to_expr r)
+      | [ l; "VERSION_EQUAL"; r ] ->
+        e_ver_eq (cond_token_to_expr l) (cond_token_to_expr r)
+      | [ l; "VERSION_LESS_EQUAL"; r ] ->
+        e_ver_leq (cond_token_to_expr l) (cond_token_to_expr r)
+      | [ l; "VERSION_GREATER_EQUAL"; r ] ->
+        e_ver_geq (cond_token_to_expr l) (cond_token_to_expr r)
+      | [ l; "MATCHES"; r ] ->
+        e_matches (cond_token_to_expr l) r
+      | [ l; "IN_LIST"; r ] ->
+        e_in_list (cond_token_to_expr l) (cond_token_to_expr r)
       | _ ->
         bridge_warn
           (Printf.sprintf "cond[%s]" (String.concat ~sep:" " toks));
