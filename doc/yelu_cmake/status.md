@@ -239,40 +239,56 @@ In order of value:
 
 ### File loader / module system gaps
 
-Captured here from the 2026-06-03 fmt-matrix work — see
-`doc/yelu_cmake/io_architecture.md` §§ 5, 7 for the full picture.
-Pick up as cmake-corpus expansion demands them.
+Updated 2026-06-03 after fmt matrix completion. See
+[doc/yelu_cmake/io_architecture.md](io_architecture.md) §§ 5, 7
+for the full picture. Pick up as cmake-corpus expansion demands them.
 
 - **`include_guard()` + load-once cache.** Today every
   `include()` re-evaluates. Add `evaluated : Set.M(String).t` to
   env; `include_guard()` consults; subsequent loads short-circuit.
   ~20 LOC. Bites when modules accumulate state across calls.
-- **cmake stdlib `Modules/` dir in default `module_path`.** The
-  3 stuck real-only entries in fmt's matrix (DOXYGEN,
-  FIND_PACKAGE_MESSAGE_DETAILS_Threads, compile_result_unused)
-  all live behind `FindThreads.cmake` / `CheckSymbolExists.cmake`
-  / `FindPackageHandleStandardArgs.cmake`. ~10 LOC to wire the
-  install path. Closes those 3 gaps for any project that uses
-  cmake stdlib `Find*` / `Check*` modules.
-- **`find_package(X)` recursion.** The big missing piece for
-  llvm / z3 / torch scale corpora. Third loader callback
-  (`package_loader`) + search-semantics modeling. 200–400 LOC.
-  Own milestone, not a one-sitting task.
-- **`find_program` / `find_path` / `find_library`** as canned
-  stubs. Simplest version: hard-code common results
-  (doxygen → /usr/bin/doxygen or NOTFOUND). Bridges enough of
-  the matrix-corner shapes without modeling full `$PATH` search.
+- **`find_package(X)` real recursion.** Today: whitelist of
+  assumed-found packages (`assumed_found_packages = [ "Threads" ]`
+  in [yelu_cmake_find.ml](../../src/langs/yelu/fragments/yelu_cmake_find.ml))
+  writes a canned `FIND_PACKAGE_MESSAGE_DETAILS_<pkg>` cache entry.
+  Real implementation: third loader callback (`package_loader`) +
+  search semantics for `<Pkg>Config.cmake` / `Find<Pkg>.cmake`.
+  200–400 LOC. The big missing piece for llvm / z3 / torch scale
+  corpora; own milestone.
+- **`find_program` / `find_path` / `find_library` / `find_file`
+  real `$PATH` / `HINTS` / `PATHS` search.** Today: always-NOTFOUND
+  stub ([yelu_cmake_find.ml](../../src/langs/yelu/fragments/yelu_cmake_find.ml)).
+  Correct when the target binary is absent (matches fmt's DOXYGEN
+  on this host); flips to mismatch on a system that has the tool.
+  Plan: probe `$PATH` via `Sys.command "which X"` when names look
+  bare; otherwise honor `PATHS`/`HINTS`.
+- **`try_compile(…)` / `try_run(…)` real probes.** Today:
+  always-FALSE stub
+  ([yelu_cmake_try.ml](../../src/langs/yelu/fragments/yelu_cmake_try.ml)) —
+  writes `<result_var>=FALSE` to var and `"FALSE"` to cache.
+  Safe-direction; matches fmt's `compile_result_unused`. Real
+  modeling needs a compiler runner.
 - **`file(READ)` / `file(WRITE)` / `file(STRINGS)` / `file(GLOB)`.**
   Per-subcommand callback slots. `file(READ)` is the most
   load-bearing (configure-time templates).
-- **`execute_process(…)`.** Subprocess runner callback. Rarely
-  produces cache state directly but feeds variables that DO.
-- **`try_compile(…)` / `try_run(…)`.** Compiler probes —
-  unmodeled means missing `<X>_COMPILE_RESULT` cache entries.
-  Needs a real compiler runner to predict honestly.
+- **`execute_process(…)`.** Today returns result=0 and empty
+  output. Full impl needs subprocess runner callback.
 - **`configure_file(…)`.** Reads template, substitutes
   `${X}`, writes. Different from include — produces files not
   cache state.
+
+### Done (was on this list, now landed)
+
+- ~~cmake stdlib `Modules/` dir in default `module_path`~~ — wired
+  via `Cmake_bridge.probe_cmake_modules_dir` (lazy probe of
+  `${CMAKE_ROOT}/Modules` via `cmake -P`); fallback to
+  `/usr/share/cmake-4.3/Modules`. Done as part of the original
+  include() loader work.
+- ~~`add_subdirectory(dir)` recursion~~ — `subdir_loader` callback,
+  `push_frame` for directory scope, soft-fail on eval errors inside
+  subdirs.
+- ~~`return()` in functions~~ — `ECmakeReturn` bridged from
+  `C.Return`; raises `Return_function` caught by function eval.
 
 ### Bool literal handling (Y17 follow-up)
 

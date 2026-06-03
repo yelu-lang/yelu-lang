@@ -203,24 +203,28 @@ faithfully.
 
 ## 5. What we model — coverage map
 
-| cmake construct | wired? | callback used | gap if any |
+Updated 2026-06-03 after the fmt-matrix-closing work.
+
+| cmake construct | wired? | mechanism | gap if any |
 |---|:-:|---|---|
 | `include(file)` (path) | ✓ | `include_loader` | — |
-| `include(Module)` (bare name → CMAKE_MODULE_PATH) | partial | `include_loader` | cmake's stdlib `Modules/` dir not in default path (see § 7) |
+| `include(Module)` (bare name) | ✓ | `include_loader` searches `CMAKE_MODULE_PATH` then cmake's stdlib `Modules/` (auto-probed via `cmake -P` in [cmake_bridge.ml](../../src/runner/cmake_bridge.ml)) | — |
 | `include(Module OPTIONAL)` | ✓ | `include_loader` | — |
-| `include_guard()` | ✗ | — | every call re-evaluates; no "load-once" cache (see § 7) |
-| `add_subdirectory(dir)` | ✓ | `subdir_loader` | — |
-| `add_subdirectory(dir bin)` | partial | `subdir_loader` | binary_dir arg ignored (doesn't affect cache) |
-| `find_package(X)` | ✗ | (none) | search paths, version handling, `Find<X>.cmake` modules all unmodeled |
-| `find_program(X)` | ✗ | (none) | `$PATH` search; produces `<X>-NOTFOUND` if absent |
-| `find_path(X)` / `find_library(X)` | ✗ | (none) | same shape as `find_program` |
-| `file(READ X out)` | ✗ | (none) | — |
-| `file(WRITE X content)` | ✗ | (none) | — |
-| `file(STRINGS …)` / `file(GLOB …)` | ✗ | (none) | — |
-| `execute_process(…)` | ✗ | (none) | — |
-| `try_compile(…)` / `try_run(…)` | ✗ | (none) | compiler probe — would need a real compiler runner |
-| `configure_file(…)` | ✗ | (none) | reads template, substitutes `${X}`, writes |
-| `$<…>` (generator expressions) | passthrough only | — | resolved at cmake's generate phase, after our prediction window |
+| `include_guard()` | ✗ | (no-op stub) | every `include()` re-evaluates; no load-once cache (§ 7) |
+| `add_subdirectory(dir)` | ✓ | `subdir_loader`; `push_frame` for directory scope | — |
+| `add_subdirectory(dir bin)` | partial | `subdir_loader` | `binary_dir` arg ignored (cache-irrelevant) |
+| `find_package(X)` | stub | bookkeeping + whitelist (`assumed_found_packages`) writes `FIND_PACKAGE_MESSAGE_DETAILS_<X>` for known packages | no real config-file or Find-module search; whitelist is currently `[ "Threads" ]` |
+| `find_program(X)` | stub | writes `<X>-NOTFOUND` to local var + cache | always NOTFOUND direction — wrong when target is installed (§ 7) |
+| `find_path(X)` / `find_library(X)` / `find_file(X)` | stub | same NOTFOUND pattern as `find_program` | same |
+| `try_compile(<resultVar> [<bindir>] SOURCES …)` | stub | writes `VBool false` to var, `VString "FALSE"` to cache (INTERNAL type) | assumed-failed direction; no real compiler probe |
+| `try_run(…)` | stub | compile-result=false, run-result=0 | same |
+| `file(READ X out)` | ✗ | (none) | unmodeled |
+| `file(WRITE X content)` | ✗ | (none) | unmodeled |
+| `file(STRINGS …)` / `file(GLOB …)` | ✗ | (none) | unmodeled |
+| `execute_process(…)` | partial | result_variable set to "0"; output_variable / error_variable set to "" | no subprocess; output empty |
+| `configure_file(…)` | ✗ | (none) | reads template, substitutes, writes — unmodeled |
+| `$<…>` (generator expressions) | passthrough | flow as opaque `EString` via `Ycs_eval` | resolved at cmake's generate phase, after our prediction window |
+| `return()` (in functions) | ✓ | `ECmakeReturn` raises `Return_function` exception; function eval catches | — |
 
 ## 6. Future directions
 
@@ -273,21 +277,26 @@ Effort: ~20 LOC. Add an `evaluated : Set.M(String).t` field to env;
 `evaluated` after first load and short-circuits on subsequent loads
 that hit `include_guard()`.
 
-### cmake's stdlib `Modules/` directory not in default module path
+### cmake's stdlib `Modules/` directory IS wired (2026-06-03)
 
-cmake ships ~900 `.cmake` files in `${cmake_install}/share/cmake-X.Y/Modules/`
-— `FindThreads.cmake`, `CheckSymbolExists.cmake`, `GNUInstallDirs.cmake`,
-etc. Real `include(GNUInstallDirs)` finds them automatically; we'd
-have to populate `CMAKE_MODULE_PATH` defaults to match.
+`Cmake_bridge.probe_cmake_modules_dir` shells out `printf
+'message("${CMAKE_ROOT}")' | cmake -P /dev/stdin` once per session
+(lazy-cached), then `resolve_include` appends `${CMAKE_ROOT}/Modules`
+to the search path after `CMAKE_MODULE_PATH`. Fallback hard-codes
+`/usr/share/cmake-4.3/Modules` for this host.
 
-**Why it matters for the matrix**: the 3 remaining real-only entries
-in fmt's matrix (DOXYGEN, FIND_PACKAGE_MESSAGE_DETAILS_Threads,
-compile_result_unused) are all written by stdlib modules. Loading
-them would close those gaps.
+So `include(GNUInstallDirs)` actually loads the real cmake module.
+The 3 fmt-matrix real-only entries that used to be blamed on this
+gap (DOXYGEN, FIND_PACKAGE_MESSAGE_DETAILS_Threads,
+compile_result_unused) are instead closed by per-command stubs
+([yelu_cmake_find.ml](../../src/langs/yelu/fragments/yelu_cmake_find.ml),
+[yelu_cmake_try.ml](../../src/langs/yelu/fragments/yelu_cmake_try.ml)) —
+we never actually need the real `FindThreads.cmake` to execute, we
+just emit the cache entries it would have written.
 
-Effort: ~10 LOC to wire the install path into `module_path`
-defaults. The harder question is which install path — cmake's `cmake
---system-information` reports it; could shell out or hard-code.
+This is the pragmatic shortcut: stdlib modules CAN load (and do for
+GNUInstallDirs), but for find_package / find_program / CheckXxx the
+stub gives correct output faster than executing the module.
 
 ### Subdir scope semantics — what we don't preserve
 

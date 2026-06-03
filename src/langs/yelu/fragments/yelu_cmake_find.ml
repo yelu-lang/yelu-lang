@@ -17,8 +17,11 @@ type expr +=
         optional_components : string list;
       }
   (* find_library / find_path / find_program / find_file — same shape,
-     different cmake command. Eval stub: bind out_var to placeholder
-     (real path search happens at cmake configure). *)
+     different cmake command. Eval writes `<OUT>-NOTFOUND` to BOTH the
+     local var AND the cache (real cmake stores find results in cache
+     so re-configures don't re-search). Always-NOTFOUND direction —
+     correct when the target tool/lib is absent, wrong when present.
+     See doc/yelu_cmake/status.md Deferred for the real-search plan. *)
   | ECmakeFindLibrary of {
       out : string; names : expr list; paths : expr list;
       hints : expr list; required : bool

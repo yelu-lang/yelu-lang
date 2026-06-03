@@ -15,23 +15,40 @@
    projects (fmt is the first target) without hand-translating
    each program.
 
-   SCOPE (Day 1, minimal first cut).
-     Modeled: Set, Set_cache, Unset, Set_env, Unset_env,
-     Cmake_option, Cmake_minimum_required, Project, Message,
-     Include, Apply (no-op).
+   SCOPE (updated 2026-06-03 — fmt-matrix complete).
+     Modeled:
+       Store     : Set / Set_cache / Unset / Set_env / Unset_env
+                 / Cmake_option / Set_parent_scope
+       Cond      : full recursive-descent — NOT / AND / OR / DEFINED
+                 / TARGET / STREQUAL / EQUAL / LESS / GREATER
+                 / LESS_EQUAL / GREATER_EQUAL / VERSION_LESS / GREATER
+                 / EQUAL / LESS_EQUAL / GREATER_EQUAL
+                 / MATCHES / IN_LIST / EXISTS / COMMAND / IS_ABSOLUTE
+       Control   : If / Return / Function / Macro / Apply (Apply is
+                   the lenient fallback for unmodeled cmds + user-defined
+                   dispatch via env.functions)
+       I/O       : Include (via include_loader) / Add_subdirectory
+                   (via subdir_loader)
+       Find/Try  : Find_program / Find_path / Find_library / Find_file
+                   (stub: <OUT>-NOTFOUND to var + cache);
+                   Find_package (stub: bookkeeping + whitelist;
+                   see assumed_found_packages in yelu_cmake_find.ml);
+                   Try_compile (stub: result=FALSE to var + cache)
+       Misc      : Cmake_minimum_required / Project / Message
 
-     If: minimal support — single-token / NOT / STREQUAL /
-     DEFINED / TARGET. Complex multi-clause conds bail to
-     "always true" (then-branch evaluates).
-
-   DEFERRED.
-     Foreach, add_library, add_executable, target_* family,
-     install, set_target_properties, set_property,
-     configure_file, find_program, file commands. Each maps to
-     EUnit (no-op for eval). yc-eval will run but its
-     predicted cache will be missing entries these commands
-     would have populated; the diff against real cmake
-     captures the gap.
+   DEFERRED. Each maps to EUnit (no-op for eval); diff against
+   real cmake captures the gap.
+     - Foreach, While, Break, Continue, Block
+     - Add_executable / Add_library / Target_* family
+     - Install rules (Install_targets, Install_files, etc.)
+     - Set_target_properties / Set_property / Get_property
+     - File commands (file(READ/WRITE/STRINGS/GLOB/...))
+     - Configure_file
+     - Execute_process (partial — result_variable set to "0")
+     - Try_run
+     - Custom commands / Custom targets
+     - $<…> generator expressions (resolved at cmake's generate
+       phase, after our prediction window)
 
    IMPLEMENTATION NOTE.
      The extensible-variant ctors of [yelu_cmake.expr] need
@@ -483,8 +500,9 @@ let rec from_emit (e : C.exp) : Yelu_cmake.expr =
     e_unit
 
   | _ ->
-    (* Deferred (foreach / add_library / target_* / install /
-       configure_file / find_program / file / set_target_properties /
+    (* Deferred — see the SCOPE.DEFERRED list at the top of this
+       file. Foreach / add_library / target_* / install / configure_file
+       / file / set_target_properties /
        set_property / etc.). Same no-op as Apply. *)
     e_unit
 

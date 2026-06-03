@@ -8,9 +8,11 @@ let provides = [ "find.find_package" ]
 type expr +=
   | EFindPackage of { package_name : string; required : bool }
 
-(* Mirrors yelu_cmake_find.ml's assumed_found_packages list so the
-   yc ↔ ycn translation roundtrip preserves env. See that module for
-   the rationale (Threads always-found stub for matrix prediction). *)
+(* MUST stay in sync with yelu_cmake_find.ml's assumed_found_packages.
+   The yc ↔ ycn translation roundtrip test (test_yelu_lift_lower.ml)
+   asserts identical env on both sides — if this list and its yc-side
+   twin drift, find_package tests will fail at "translation preserves
+   env" pointing here. See that module for the rationale. *)
 let assumed_found_packages = [ "Threads" ]
 
 let eval_case ~eval:_ env = function
