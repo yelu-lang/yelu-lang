@@ -62,6 +62,11 @@ type expr +=
     }
   | ECmakeIncludeGuard of { scope : string }
   | ECmakeQuoteCmd of string
+  (* Cond predicate: `if(COMMAND name)` — true iff [name] resolves to a
+     defined command, function, or macro in the current scope. Built-in
+     cmake commands return false here (we don't model the built-in
+     name table); that's safe-direction in conds. *)
+  | ECmakeCommandDefined of expr
   (* [foreach(<loop_var> <items>...)] — list iteration. On each iteration
      [loop_var] is set in the caller's variable scope; **the binding
      persists after the loop ends**, retaining its final iteration
@@ -365,6 +370,9 @@ let eval_case ~eval env = function
        end)
   | ECmakeAtVar _ -> Some (env, VUnit)
   | ECmakeMath _ -> Some (env, VUnit)
+  | ECmakeCommandDefined name ->
+    let env, name = eval_string ~eval env name in
+    Some (env, VBool (Option.is_some (find_function env name)))
   | ECmakeEnableLanguage _ | ECmakePolicySet _
   | ECmakeLanguageEval _ | ECmakeVariableWatch _
   | ECmakeIncludeGuard _ | ECmakeQuoteCmd _ ->

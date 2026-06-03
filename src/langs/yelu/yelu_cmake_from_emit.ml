@@ -93,6 +93,12 @@ let e_var_defined s : Yelu_cmake.expr =
   Yelu_cmake_store.ECmakeVarDefined s
 let e_target_exists e : Yelu_cmake.expr =
   Yelu_cmake_target.ECmakeTargetExists e
+let e_file_exists e : Yelu_cmake.expr =
+  Yelu_cmake_file.ECmakeFileExists e
+let e_is_absolute e : Yelu_cmake.expr =
+  Yelu_cmake_string.ECmakeIsAbsolute e
+let e_command_defined e : Yelu_cmake.expr =
+  Yelu_cmake_cmake_op.ECmakeCommandDefined e
 
 let e_unset_var s : Yelu_cmake.expr = Yelu_cmake_store.ECmakeUnsetVar s
 let e_unset_var_cache s : Yelu_cmake.expr =
@@ -221,6 +227,8 @@ let cond_token_to_expr (s : string) : Yelu_cmake.expr =
      not   := "NOT" not | atom
      atom  := "(" or ")" | unary | binary | <token>
      unary := "DEFINED" <token> | "TARGET" <token>
+            | "EXISTS" <token> | "COMMAND" <token>
+            | "IS_ABSOLUTE" <token>
      binary:= <token> OP <token>
                where OP ∈ STREQUAL | EQUAL | LESS | GREATER
                         | LESS_EQUAL | GREATER_EQUAL
@@ -291,6 +299,12 @@ let parse_cond_tokens (toks : string list) : Yelu_cmake.expr =
     | "DEFINED" :: name :: rest -> cur := rest; e_var_defined name
     | "TARGET" :: name :: rest ->
       cur := rest; e_target_exists (cond_token_to_expr name)
+    | "EXISTS" :: path :: rest ->
+      cur := rest; e_file_exists (cond_token_to_expr path)
+    | "COMMAND" :: name :: rest ->
+      cur := rest; e_command_defined (cond_token_to_expr name)
+    | "IS_ABSOLUTE" :: path :: rest ->
+      cur := rest; e_is_absolute (cond_token_to_expr path)
     | l :: op :: r :: rest when is_binary_op op ->
       cur := rest; build_binary op l r
     | x :: rest -> cur := rest; cond_token_to_expr x
