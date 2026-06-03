@@ -109,7 +109,7 @@ unrelated to recent work.
 - **Bar #3-lite — syntactic cmake round-trip on z3 + llvm.** ✅ Shipped
   2026-05-15..20. STRUCT=0 / FORMAT=0 across 729 files in tutorial + z3 +
   llvm. Surfaced and fixed 5 production-IR bugs along the way. Audit-ready
-  writeup at [`yelu_cmake/bar3_lite.md`](yelu_cmake/bar3_lite.md).
+  writeup at [`probes/methodology/parse_print_oracle.md`](probes/methodology/parse_print_oracle.md).
 - **Bar #3 — real-world cmake hand-rewrites (z3 / llvm / torch).** ⏳ Not
   started; the manifesto-level "does this scale" test.
 
@@ -180,7 +180,7 @@ in [`yelu_cmake/status.md`](yelu_cmake/status.md).
 | `yelu_cmake/design.md`                     | Durable design notes for the yelu_cmake harness.                   |
 | `yelu_cmake/structure.md`                  | Code-anchored guide to the yelu_cmake modules.                     |
 | `yelu_cmake/status.md`                     | Living tracker for current open work (IR cleanup, Y17, E2, etc.).  |
-| `yelu_cmake/bar3_lite.md`                  | Bar #3-lite audit-ready report + per-parser contract sheet.        |
+| `probes/methodology/parse_print_oracle.md`                  | Bar #3-lite audit-ready report + per-parser contract sheet.        |
 | `yelu_theory/plan.md`                      | Theory-fragment structural split plan.                             |
 | `yelu_theory/boolean_and_theories.md`      | Post-mortem of the `yelu_cond` / `yelu_expr` merge; design conclusions. |
 | `yelu_theory/extensible_expr_design.md`    | Original framing of the extensible-expression problem.             |
