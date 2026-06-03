@@ -24,7 +24,14 @@ let rec eval_expr env = function
         if(NOT CMAKE_BUILD_TYPE) at the top, for example).
         Discovered via the fmt bridge smoke. *)
      | None -> env, VString "")
-  | EString s -> env, VString s
+  | EString s ->
+    (* cmake-style ${X} interpolation. Strings that came from cmake
+       source can contain ${...}; substitute against env at eval
+       time. For strings without ${, substitute is a no-op (single
+       linear scan; cheap). Consolidates the previous ad-hoc
+       parse-time substitution at 5 different sites — see
+       Yelu_cmake.substitute's docstring. *)
+    env, VString (substitute env s)
   | EBool b -> env, VBool b
   | EInt n -> env, VInt n
   | EUnit -> env, VUnit

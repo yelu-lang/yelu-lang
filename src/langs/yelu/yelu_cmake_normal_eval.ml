@@ -21,7 +21,9 @@ let rec eval_expr env = function
      (* Same cmake semantics as yc-eval: undefined → empty string,
         not a crash. See yelu_cmake_eval.ml for context. *)
      | None -> env, VString "")
-  | EString s -> env, VString s
+  | EString s ->
+    (* Same ${X} interpolation as yc-eval — see Yelu_cmake.substitute. *)
+    env, VString (substitute env s)
   | EBool b -> env, VBool b
   | EInt n -> env, VInt n
   | EUnit -> env, VUnit

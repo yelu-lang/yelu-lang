@@ -473,6 +473,101 @@ let remove_var env name =
       locals = Map.remove f.locals name;
       touched = Set.add f.touched name })
 
+(* ============================================================
+   Cmake string interpolation — ${X} substitution.
+
+   The single source of truth for ${...} substitution in
+   yelu_langs. Used everywhere a string slot is consumed at
+   eval time (ECmakeSetCache.name, EString eval, etc.).
+
+   Handles:
+   - ${X}  → find_var env X, stringified; "" if unbound
+            (cmake silent-deref semantics)
+   - Nested ${${prefix}_X}: inner-first, single recursive pass
+   - Mid-string: "prefix${X}suffix" → "prefix<val>suffix"
+   - Multiple refs: "${A}-${B}" → "<A>-<B>"
+   - Balanced braces inside: tracks nesting via depth counter
+
+   NOT handled (deferred — different scopes / phases):
+   - @X@  → configure_file substitution (different command set)
+   - $ENV{X} → process env read (needs I/O callback)
+   - $CACHE{X} → explicit cache lookup
+                 (implicit via find_var's normal→cache fallback)
+   - $<...> → generator expressions (generate-time, not configure)
+   - \${X} → escape (cmake's escaping is rare in practice)
+   See doc/cmake/cache_var_namespacing.md § 7 for the deferred
+   set. Each surfaces in the matrix smoke as a diff when it
+   bites; closing them happens then.
+
+   Before this function existed, ${X} was handled inconsistently
+   in 5 different parse-time places (arg_to_expr in from_emit,
+   Var_exp arm, cond_token_to_expr, an inline ECmakeSetCache name
+   hack, and the cmd_line entry channel). This function
+   consolidates the eval-time mechanism; the parse-time places
+   stay (they're correct for whole-arg shapes) but no longer
+   need to handle nested / mid-string cases. *)
+
+(* Stringify a value for substitution into a cmake-shaped string.
+   Matches cmake's behavior: ON/OFF for bools, decimal for ints,
+   string as-is for strings, ; for lists. *)
+let value_to_cmake_string = function
+  | VString s -> s
+  | VBool true -> "ON"
+  | VBool false -> "OFF"
+  | VInt n -> Int.to_string n
+  | VUnit -> ""
+  | VList _ | VTarget _ -> ""  (* lists shouldn't reach here directly *)
+
+let rec substitute env s =
+  let n = String.length s in
+  let buf = Buffer.create n in
+  (* Find the matching '}' for the '{' at position p+1 (we're
+     called when s.[p] = '$' and s.[p+1] = '{'). Returns the
+     position of the matching '}'. Tracks ${...} nesting via
+     depth so inner ${...} count as one unit. None on
+     unbalanced (treated as literal). *)
+  let find_match p =
+    let rec loop i depth =
+      if i >= n then None
+      else if Char.equal s.[i] '}' then
+        if depth = 0 then Some i else loop (i + 1) (depth - 1)
+      else if i + 1 < n
+           && Char.equal s.[i] '$' && Char.equal s.[i + 1] '{'
+      then loop (i + 2) (depth + 1)
+      else loop (i + 1) depth
+    in
+    loop p 0
+  in
+  let rec scan i =
+    if i >= n then ()
+    else if i + 1 < n
+         && Char.equal s.[i] '$' && Char.equal s.[i + 1] '{' then
+      (match find_match (i + 2) with
+       | None ->
+         Buffer.add_char buf s.[i];
+         scan (i + 1)
+       | Some close ->
+         let raw = String.sub s ~pos:(i + 2) ~len:(close - i - 2) in
+         (* Nested ${...} inside the name slot: recursively
+            substitute that first, then look up the resolved name. *)
+         let name = if String.is_substring raw ~substring:"${"
+                    then substitute env raw
+                    else raw
+         in
+         let value = match find_var env name with
+           | Some v -> value_to_cmake_string v
+           | None -> ""
+         in
+         Buffer.add_string buf value;
+         scan (close + 1))
+    else begin
+      Buffer.add_char buf s.[i];
+      scan (i + 1)
+    end
+  in
+  scan 0;
+  Buffer.contents buf
+
 let var_defined env name =
   let f = top_frame env in
   Map.mem f.locals name

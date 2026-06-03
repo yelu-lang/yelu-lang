@@ -7,6 +7,7 @@
   test_yelu_dual_eval
   test_yelu_cache
   test_cache_classify
+  test_substitute
   test_yelu_steps
   test_yelu_emit_debug
   test_yelu_emit
