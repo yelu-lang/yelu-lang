@@ -270,16 +270,13 @@ let rec emit_exp ~env (e : expr) : C.exp =
   | ECmakeOption { name; message; value } ->
     C.Cmake_option { var = name; msg = message; value = arg ~env value }
   | ECmakeSetCache { name; values; cache_type; docstring; force } ->
-    let ct = match cache_type with
-      | "BOOL" -> C.Ct_bool | "FILEPATH" -> C.Ct_filepath
-      | "PATH" -> C.Ct_path | "STRING" -> C.Ct_string
-      | "INTERNAL" -> C.Ct_internal
-      | _ -> fail "emit_ast: unknown set(CACHE) type %S" cache_type
-    in
+    (* cache_type now passes through as a string (was enum, changed
+       2026-06-03). Was: enum convert + fail on unknown. Now: just
+       pass the string. *)
     C.Set_cache
       { var = name;
         values = List.map values ~f:(arg ~env);
-        cache_type = ct;
+        cache_type;
         docstring;
         force }
 

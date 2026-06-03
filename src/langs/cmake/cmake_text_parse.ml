@@ -306,25 +306,22 @@ let parse_set args : L.exp option =
        let values = List.take rest i in
        (match after_cache with
         | type_s :: doc_s :: rest_after ->
-          let cache_type = match type_s with
-            | "BOOL" -> Some L.Ct_bool
-            | "FILEPATH" -> Some L.Ct_filepath
-            | "PATH" -> Some L.Ct_path
-            | "STRING" -> Some L.Ct_string
-            | "INTERNAL" -> Some L.Ct_internal
-            | _ -> None
-          in
-          (match cache_type with
-           | None -> None
-           | Some ct ->
-             let force = List.mem rest_after "FORCE" ~equal:String.equal in
-             Some (Set_cache {
-               var = str_of_raw var;
-               values = List.map values ~f:arg_of_raw;
-               cache_type = ct;
-               docstring = str_of_raw doc_s;
-               force;
-             }))
+          (* cache_type is now a raw string (was enum, changed
+             2026-06-03). The static path (type_s = "STRING"/etc.)
+             and the dynamic path (type_s = "${type}") both go
+             through verbatim — the source text round-trips
+             byte-identically via Lang_cmake_pp, and eval can
+             substitute dynamic types if needed at write time.
+             This closes fmt's set_verbose() pattern that used to
+             bail at parse time. *)
+          let force = List.mem rest_after "FORCE" ~equal:String.equal in
+          Some (Set_cache {
+            var = str_of_raw var;
+            values = List.map values ~f:arg_of_raw;
+            cache_type = type_s;
+            docstring = str_of_raw doc_s;
+            force;
+          })
         | _ -> None)
      | None ->
        let parent_scope, values =

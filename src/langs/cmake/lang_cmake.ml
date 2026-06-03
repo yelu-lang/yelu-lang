@@ -491,7 +491,18 @@ and exp =
   | Set_cache of {
       var : var;
       values : arg list;
-      cache_type : cache_type;
+      cache_type : string;
+      (* CACHE TYPE held as the raw cmake source token (e.g.
+         "STRING", "BOOL", or a dynamic "${type}"). Was an enum
+         (Ct_bool/Ct_string/Ct_path/...) before 2026-06-03; changed
+         to string to handle fmt's set_verbose() pattern
+           set(${var} ${val} CACHE ${type} ${doc})
+         where ${type} can't fit in an enum. parse_set passes the
+         source string verbatim; the printer renders it back; eval
+         optionally substitutes when it contains ${X}. The
+         cache_type enum below is kept for backward-compat (some
+         non-cmake-internal code may reference it) but no longer
+         constrains this slot. *)
       docstring : string;
       force : bool;
     }

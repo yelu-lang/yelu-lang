@@ -354,7 +354,11 @@ let message ?(mode = Mm_status) texts = Message { mode; texts }
 let math ?(output_format = Decical) ~var exp =
   Math_lib { var; exp; output_format }
 
-let set_cache ?(force = false) ?(cache_type = Ct_string) ?(docstring = "") var values =
+(* cache_type now a raw string (was enum). Default to "STRING" for
+   backwards compat with old call sites that didn't pass anything.
+   Callers that previously used the enum (Ct_bool etc.) now pass
+   the string directly. *)
+let set_cache ?(force = false) ?(cache_type = "STRING") ?(docstring = "") var values =
   Set_cache { var; values; cache_type; docstring; force }
 
 let unset_cache var = Unset { var; cache = true; parent_scope = false }

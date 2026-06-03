@@ -571,11 +571,12 @@ let rec pp ff e =
         pf ff "set(%a %a %a)" pp_var var (list_sp pp_arg) values pp_parent_scope
           parent_scope)
   | Set_cache { var; values; cache_type; docstring; force } ->
-      let type_str = match cache_type with
-        | Ct_bool -> "BOOL" | Ct_filepath -> "FILEPATH" | Ct_path -> "PATH"
-        | Ct_string -> "STRING" | Ct_internal -> "INTERNAL" in
+      (* cache_type is now a raw string (was enum, changed
+         2026-06-03). Print verbatim — covers "STRING"/"BOOL"/etc.
+         for the static path AND "${type}" for the dynamic path
+         that parse_set used to reject. *)
       Fmt.(pf ff "set(%a %a CACHE %s %S%s)"
-        pp_var var (list_sp pp_arg) values type_str docstring
+        pp_var var (list_sp pp_arg) values cache_type docstring
         (if force then " FORCE" else ""))
   | Set_env { var; value } ->
       Fmt.(pf ff "set(ENV{%a} %a)" pp_var var pp_arg value)

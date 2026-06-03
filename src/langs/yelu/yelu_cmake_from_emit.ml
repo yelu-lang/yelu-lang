@@ -243,12 +243,9 @@ let message_mode_to_string : C.message_mode -> string = function
   | C.Mm_check_fail -> "CHECK_FAIL"
   | C.Mm_none -> "STATUS"
 
-let cache_type_to_string : C.cache_type -> string = function
-  | C.Ct_bool -> "BOOL"
-  | C.Ct_filepath -> "FILEPATH"
-  | C.Ct_path -> "PATH"
-  | C.Ct_string -> "STRING"
-  | C.Ct_internal -> "INTERNAL"
+(* cache_type used to be an enum (C.cache_type). As of 2026-06-03
+   it's a raw string carried verbatim through parse → IR → emit.
+   The cache_type_to_string conversion is now identity; removed. *)
 
 (* ============================================================
    Main bridge. *)
@@ -306,8 +303,8 @@ let rec from_emit (e : C.exp) : Yelu_cmake.expr =
   | C.Option { var; help_text; value } ->
     e_option var (String.concat ~sep:" " help_text) (from_emit value)
   | C.Set_cache { var; values; cache_type; docstring; force } ->
-    e_set_cache var (args_to_exprs values)
-      (cache_type_to_string cache_type) docstring force
+    (* cache_type now a raw string (no enum conversion). *)
+    e_set_cache var (args_to_exprs values) cache_type docstring force
 
   (* Control flow *)
   | C.If { cond; then_; else_ } ->
