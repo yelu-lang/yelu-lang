@@ -110,6 +110,7 @@ let predicted_cache_for ~cmd_line : (string * string) list =
     (* See test_fmt_bridge_smoke for the cmake-defaults rationale. *)
     let defaults =
       [ "CMAKE_CURRENT_LIST_DIR", fmt_dir;
+        "CMAKE_CURRENT_SOURCE_DIR", fmt_dir;
         "CMAKE_INSTALL_PREFIX", "/usr/local";
         "CMAKE_SOURCE_DIR", fmt_dir;
         "CMAKE_BINARY_DIR", "/tmp/cmake_predict";
@@ -119,7 +120,9 @@ let predicted_cache_for ~cmd_line : (string * string) list =
       List.fold defaults ~init:env ~f:(fun env (k, v) ->
         Yc.set_var env ~key:k ~data:(Yc.VString v))
     in
-    { env with include_loader = Some Cmake_bridge.loader }
+    { env with
+      include_loader = Some Cmake_bridge.loader;
+      subdir_loader = Some Cmake_bridge.subdir_loader }
   in
   let env, _ = Convert.eval_yelu_cmake_expr ~cmd_line initial_env prog in
   Map.to_alist env.cache_vars

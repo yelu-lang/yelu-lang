@@ -347,6 +347,13 @@ type env = {
      include is a no-op. Prevents infinite recursion on
      accidental A→B→A circular includes. *)
   include_stack : string list;
+
+  (* add_subdirectory(): given the source_dir (resolved against
+     CMAKE_CURRENT_SOURCE_DIR by the caller), return the parsed
+     CMakeLists.txt in that directory as a yc expr. None = no loader
+     registered, EAddSubdirectory eval falls back to bookkeeping-only
+     (records the path in env.subdirectories without recursing). *)
+  subdir_loader : (string -> expr option) option;
 }
 
 let empty_env : env =
@@ -381,6 +388,7 @@ let empty_env : env =
        ECmakeInclude falls back to bookkeeping-only. *)
     include_loader = None;
     include_stack = [];
+    subdir_loader = None;
   }
 
 let equal_frame a b =

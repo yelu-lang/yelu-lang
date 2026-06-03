@@ -170,7 +170,7 @@ let cond_token_to_expr (s : string) : Yelu_cmake.expr =
   if n >= 2 && Char.equal s.[0] '"' && Char.equal s.[n - 1] '"' then
     e_str (String.sub s ~pos:1 ~len:(n - 2))
   else begin
-    match s with
+    match String.uppercase s with
     | "TRUE" | "ON" | "YES" | "Y" | "1" -> e_bool true
     | "FALSE" | "OFF" | "NO" | "N" | "0" | "IGNORE" | "NOTFOUND" ->
       e_bool false
@@ -326,7 +326,7 @@ let rec from_emit (e : C.exp) : Yelu_cmake.expr =
        && Char.equal s.[0] '$' && Char.equal s.[1] '{'
        && Char.equal s.[n - 1] '}'
     then e_var (String.sub s ~pos:2 ~len:(n - 3))
-    else begin match s with
+    else begin match String.uppercase s with
       | "ON" | "TRUE" | "YES" | "Y" | "1" -> e_bool true
       | "OFF" | "FALSE" | "NO" | "N" | "0" | "IGNORE" | "NOTFOUND" ->
         e_bool false
@@ -379,6 +379,8 @@ let rec from_emit (e : C.exp) : Yelu_cmake.expr =
       (List.map texts ~f:e_str)
   | C.Include { file; optional; _ } ->
     e_include (arg_to_expr file) optional
+  | C.Project_cmd (C.Add_subdirectory { source_dir; _ }) ->
+    Yelu_cmake_normal_dir.EAddSubdirectory (e_str source_dir)
 
   (* Generic fallback: Apply (unmodeled command call) becomes a
      no-op for eval. Real cmake's behavior is missing from the

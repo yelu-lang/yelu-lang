@@ -234,3 +234,13 @@ let loader file ~current_list_dir ~module_path : Yc.expr option =
   match resolve_include ~current_list_dir ~cmake_module_path:module_path ~file with
   | None -> None
   | Some path -> parse_file ~path
+
+(* The subdir_loader registered into env. Signature matches
+   Yelu_cmake.env's subdir_loader slot: source_dir -> expr option.
+
+   The caller (EAddSubdirectory eval in yelu_cmake_normal_dir.ml)
+   passes a directory path already resolved against
+   CMAKE_CURRENT_SOURCE_DIR. We append CMakeLists.txt and parse. *)
+let subdir_loader source_dir : Yc.expr option =
+  let path = Stdlib.Filename.concat source_dir "CMakeLists.txt" in
+  if Stdlib.Sys.file_exists path then parse_file ~path else None

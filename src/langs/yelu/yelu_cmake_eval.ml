@@ -114,6 +114,9 @@ let rec eval_expr env = function
     match Yelu_cmake_dir.eval_case ~eval:eval_expr env expr with
      | Some value -> value
      | None ->
+    match Yelu_cmake_normal_dir.eval_case ~eval:eval_expr env expr with
+     | Some value -> value
+     | None ->
     match Yelu_cmake_test.eval_case ~eval:eval_expr env expr with
      | Some value -> value
      | None ->
