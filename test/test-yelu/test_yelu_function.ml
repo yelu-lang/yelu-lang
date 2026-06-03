@@ -48,7 +48,7 @@ open Yelu_langs.Yelu_cmake_convert
 let eval_from_empty expr = eval_yelu_cmake_expr empty_env expr
 
 (* Helper: assert a specific exception substring fires. *)
-let expect_eval_error name expr ~substring =
+let[@warning "-32"] expect_eval_error name expr ~substring =
   Alcotest.test_case name `Quick (fun () ->
     match eval_from_empty expr with
     | exception Eval_error msg ->
@@ -277,19 +277,32 @@ let unknown_theory_apply_fails =
       | _ ->
         Alcotest.failf "expected Eval_error; theory EApply was lenient")
 
-(* --- Arity mismatch fails. --- *)
-
-let arity_mismatch_fails =
-  expect_eval_error "wrong number of args fails"
-    (ESeq
-       [ ECmakeFunction
-           { name = EString "needs_two";
-             params = [ "a"; "b" ];
-             body = EUnit };
-         ECmakeApply
-           { name = EString "needs_two"; args = [ EString "only_one" ] };
-       ])
-    ~substring:"arity mismatch"
+(* --- Arity is now LENIENT (cmake-compatible).
+   Was: strict arity-mismatch raised an error.
+   Now: missing args bind to VString "", excess args bind to
+   ${ARGN}. cmake's function() doesn't enforce strict arity —
+   the variadic-tail-via-ARGN pattern is idiomatic (e.g., fmt's
+   set_verbose declares 4 params but is called with 6 args; the
+   extras form the docstring via join(doc ${ARGN})).
+   The "needs_two only_one" call now binds a="only_one", b="". *)
+let arity_mismatch_is_lenient =
+  Alcotest.test_case "lenient arity: missing args bind to empty" `Quick
+    (fun () ->
+      let _, value =
+        eval_yelu_cmake_expr empty_env
+          (ESeq
+             [ ECmakeFunction
+                 { name = EString "needs_two";
+                   params = [ "a"; "b" ];
+                   body = EVar "b" };
+               ECmakeApply
+                 { name = EString "needs_two";
+                   args = [ EString "only_one" ] };
+             ])
+      in
+      Alcotest.(check string) "b bound to empty for missing arg"
+        "(VString\"\")"
+        (Sexp.to_string ([%sexp_of: value] value)))
 
 (* --- Re-definition: later definition wins (cmake redefines on duplicate). --- *)
 
@@ -391,7 +404,7 @@ let () =
       ( "errors",
         [ unknown_surface_apply_is_lenient;
           unknown_theory_apply_fails;
-          arity_mismatch_fails;
+          arity_mismatch_is_lenient;
         ] );
       ( "translate_and_theory_side",
         [ lift_lower_roundtrip_for_function;

@@ -40,7 +40,7 @@ open Yelu_runner
    the tool/snapshot locations relative to project root. *)
 
 let fmt_dir       = "/home/red/code/contrib/fmt-all/fmt"
-let parse_py      = "tool/cmake_roundtrip/parse.py"
+let _parse_py      = "tool/cmake_roundtrip/parse.py"  (* now in Cmake_bridge *)
 let reserved_path = "tool/cmake_roundtrip/cmake_reserved.tsv"
 let cache_vars_exe = "_build/default/tool/cmake_roundtrip/cache_vars.exe"
 
@@ -77,52 +77,11 @@ let run_capture cmd =
   let _ = Unix.close_process_in ic in
   out
 
-(* Parse a cmake file via parse.py → JSON → Stage-1 stmt list. *)
-let parse_cmake_file path : Cp.stmt list =
-  let cmd =
-    Printf.sprintf "python3 %s %s 2>/dev/null"
-      (Stdlib.Filename.quote parse_py)
-      (Stdlib.Filename.quote path)
-  in
-  let json_str = run_capture cmd in
-  if String.is_empty json_str then
-    failwith (Printf.sprintf "parse.py produced no output for %s" path);
-  let json = Yojson.Safe.from_string json_str in
-  Cp.file_of_json json
-
-(* ============================================================
-   Stage-1 AST → yelu_cmake.expr.
-
-   For each Stage-1 stmt:
-   - Cmd  c        → parse_cmd c → Some _ → from_emit | None → EUnit
-   - Block (if)    → ECmakeIfStmt with cond from head.args + body
-   - Other blocks  → EUnit (foreach/function/macro/block — Day 2+)
-   - Raw / Unknown → EUnit *)
-
-let rec stmts_to_yelu (stmts : Cp.stmt list) : Yc.expr =
-  Yc.ESeq (List.map stmts ~f:stmt_to_yelu)
-
-and stmt_to_yelu (s : Cp.stmt) : Yc.expr =
-  match s with
-  | Cp.Cmd c ->
-    (match Cp.parse_cmd c with
-     | Some exp -> Fe.from_emit exp
-     | None -> Yc.EUnit)
-  | Cp.Block { block_type = "if"; head; body; clauses; _ } ->
-    let cond = Fe.parse_cond_tokens head.args in
-    let then_ = stmts_to_yelu body in
-    (* clauses are elseif/else with their own heads + bodies.
-       For Day-1 we collapse: if any else clause exists, use the
-       LAST else's body. elseif gets dropped (next-day work). *)
-    let else_ =
-      match List.last clauses with
-      | Some (_, body) when not (List.is_empty body) ->
-        Some (stmts_to_yelu body)
-      | _ -> None
-    in
-    If_frag.ECmakeIfStmt { cond; then_; else_ }
-  | Cp.Block _ -> Yc.EUnit
-  | Cp.Raw _ | Cp.Unknown _ -> Yc.EUnit
+(* parse_cmake_file + stmts_to_yelu were inlined here in earlier
+   commits. Now consolidated into Yelu_runner.Cmake_bridge.parse_file
+   so the same logic (with function/macro/Apply support, ${X}
+   substitution, etc.) is used by both the top-level test parse and
+   the include() loader. *)
 
 (* ============================================================
    Run real cmake against fmt with the cmd_line flags;
@@ -154,8 +113,11 @@ let real_cache () : (string * string) list =
 let predicted_cache () : (string * string) list =
   let cmake_file = fmt_dir ^ "/CMakeLists.txt" in
   Stdlib.Printf.printf "[smoke] parse %s + bridge + eval ...\n%!" cmake_file;
-  let stmts = parse_cmake_file cmake_file in
-  let prog = stmts_to_yelu stmts in
+  let prog =
+    match Cmake_bridge.parse_file ~path:cmake_file with
+    | Some expr -> expr
+    | None -> Alcotest.failf "Cmake_bridge.parse_file failed on %s" cmake_file
+  in
   let initial_env =
     let env = Yc.empty_env in
     (* Pre-populate cmake's most common auto-detected defaults.

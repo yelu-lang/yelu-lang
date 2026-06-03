@@ -39,7 +39,7 @@ module If_frag = Yelu_langs.Yelu_cmake_if
 open Yelu_runner
 
 let fmt_dir       = "/home/red/code/contrib/fmt-all/fmt"
-let parse_py      = "tool/cmake_roundtrip/parse.py"
+let _parse_py     = "tool/cmake_roundtrip/parse.py"  (* now in Cmake_bridge *)
 let reserved_path = "tool/cmake_roundtrip/cmake_reserved.tsv"
 let cache_vars_exe = "_build/default/tool/cmake_roundtrip/cache_vars.exe"
 let matrix_root   = "/tmp/fmt_matrix_smoke"
@@ -67,46 +67,20 @@ let run_capture cmd =
   let _ = Unix.close_process_in ic in
   out
 
-let parse_cmake_file path : Cp.stmt list =
-  let cmd =
-    Printf.sprintf "python3 %s %s 2>/dev/null"
-      (Stdlib.Filename.quote parse_py)
-      (Stdlib.Filename.quote path)
-  in
-  let json_str = run_capture cmd in
-  if String.is_empty json_str then
-    failwith (Printf.sprintf "parse.py produced no output for %s" path);
-  let json = Yojson.Safe.from_string json_str in
-  Cp.file_of_json json
-
-let rec stmts_to_yelu (stmts : Cp.stmt list) : Yc.expr =
-  Yc.ESeq (List.map stmts ~f:stmt_to_yelu)
-
-and stmt_to_yelu (s : Cp.stmt) : Yc.expr =
-  match s with
-  | Cp.Cmd c ->
-    (match Cp.parse_cmd c with
-     | Some exp -> Fe.from_emit exp
-     | None -> Yc.EUnit)
-  | Cp.Block { block_type = "if"; head; body; clauses; _ } ->
-    let cond = Fe.parse_cond_tokens head.args in
-    let then_ = stmts_to_yelu body in
-    let else_ =
-      match List.last clauses with
-      | Some (_, body) when not (List.is_empty body) ->
-        Some (stmts_to_yelu body)
-      | _ -> None
-    in
-    If_frag.ECmakeIfStmt { cond; then_; else_ }
-  | Cp.Block _ -> Yc.EUnit
-  | Cp.Raw _ | Cp.Unknown _ -> Yc.EUnit
+(* parse + bridge consolidated into Yelu_runner.Cmake_bridge.parse_file
+   so function/macro/Apply support + ${X} substitution land in one
+   place used by both the top-level parse and the include() loader. *)
 
 (* Pre-parse fmt's CMakeLists ONCE. Same AST is reused per cell;
    only the cmd_line + cache state differ. *)
 let fmt_program =
   lazy (
-    let stmts = parse_cmake_file (fmt_dir ^ "/CMakeLists.txt") in
-    stmts_to_yelu stmts)
+    match Cmake_bridge.parse_file ~path:(fmt_dir ^ "/CMakeLists.txt") with
+    | Some expr -> expr
+    | None ->
+      failwith
+        (Printf.sprintf "Cmake_bridge.parse_file failed on %s/CMakeLists.txt"
+           fmt_dir))
 
 (* ============================================================
    Per-cell runs. *)

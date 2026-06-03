@@ -70,7 +70,38 @@ let eval_case ~eval env = function
        expressions resolve at write time. Previously only EString /
        EBool / EInt literal patterns matched, with everything else
        falling through to VString "" — caught by the fmt bridge
-       smoke when set(X ${Y} CACHE ...) was being written as empty. *)
+       smoke when set(X ${Y} CACHE ...) was being written as empty.
+
+       Name substitution: cmake substitutes ${X} in the VAR slot
+       before writing to cache. Our IR stores name as a plain
+       string (set at parse time), so a function body like
+         set(${variable} ... CACHE STRING ...)
+       gets var = "${variable}" — useless without runtime
+       substitution. Quick case here: if the WHOLE name is
+       ${IDENT}, resolve via find_var; if the resolved value is
+       a non-empty string, use that as the cache key. Nested /
+       partial substitution stays deferred. Discovered via
+       fmt's set_verbose() function call.
+       cmake itself never writes a cache entry whose name is
+       literally "${X}" — if substitution fails, the right
+       behavior is to skip the write (cache_semantics is silent
+       on this; the predictor stays safe). *)
+    let n_str = String.length name in
+    let effective_name =
+      if n_str >= 4
+         && Char.equal name.[0] '$' && Char.equal name.[1] '{'
+         && Char.equal name.[n_str - 1] '}'
+      then
+        let inner = String.sub name ~pos:2 ~len:(n_str - 3) in
+        match find_var env inner with
+        | Some (VString s) when not (String.is_empty s) -> s
+        | _ -> name  (* leave as-is; the skip below catches it *)
+      else name
+    in
+    if String.is_substring effective_name ~substring:"${" then
+      Some (env, VUnit)
+    else
+    let name = effective_name in
     if cache_var_defined env name && not force
     then Some (env, VUnit)
     else

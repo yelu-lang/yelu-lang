@@ -150,15 +150,54 @@ type expr +=
      PROPAGATE list (verified in P22). *)
   | ECmakeReturn of { propagate_vars : string list }
 
+(* cmake function-call binding semantics. cmake binds:
+   - declared <param_i> → arg_values[i]
+   - ${ARGV} → ;-joined all args
+   - ${ARGC} → count of args (as string)
+   - ${ARGN} → ;-joined args BEYOND the declared params (variadic tail)
+   - ${ARGV0} ${ARGV1} ... → each arg individually
+   Missing args (too few) are bound to empty string; excess args go
+   into ARGN. cmake doesn't require strict arity for function() calls.
+
+   Discovered via fmt's set_verbose(4 params) called with 6 args —
+   the variadic tail forms the docstring via `join(doc ${ARGN})`. *)
 let bind_params env params arg_values =
-  match List.zip params arg_values with
-  | Ok pairs ->
-    List.fold pairs ~init:env ~f:(fun env (name, value) ->
+  let value_to_string = function
+    | VString s -> s
+    | VBool true -> "ON" | VBool false -> "OFF"
+    | VInt n -> Int.to_string n
+    | _ -> ""
+  in
+  let n_params = List.length params in
+  let n_args = List.length arg_values in
+  (* Bind declared params; missing ones get VString "". *)
+  let env =
+    List.foldi params ~init:env ~f:(fun i env name ->
+      let value =
+        if i < n_args then List.nth_exn arg_values i
+        else VString ""
+      in
       set_var env ~key:name ~data:value)
-  | Unequal_lengths ->
-    fail
-      "apply: arity mismatch — function expects %d params, got %d args"
-      (List.length params) (List.length arg_values)
+  in
+  (* Bind ARGV (full join), ARGC, ARGN (extras), ARGV0..ARGVi. *)
+  let all_strs = List.map arg_values ~f:value_to_string in
+  let env =
+    set_var env ~key:"ARGV"
+      ~data:(VString (String.concat ~sep:";" all_strs))
+  in
+  let env =
+    set_var env ~key:"ARGC" ~data:(VString (Int.to_string n_args))
+  in
+  let env =
+    let extras = List.drop all_strs n_params in
+    set_var env ~key:"ARGN"
+      ~data:(VString (String.concat ~sep:";" extras))
+  in
+  let env =
+    List.foldi arg_values ~init:env ~f:(fun i env value ->
+      set_var env ~key:(Printf.sprintf "ARGV%d" i) ~data:value)
+  in
+  env
 
 let eval_args ~eval env args =
   let env, rev_values =

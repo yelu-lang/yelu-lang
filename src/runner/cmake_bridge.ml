@@ -86,6 +86,22 @@ let read_all ic =
    - Other blocks → EUnit (Day 2/3 work)
    - Raw / Unknown → EUnit *)
 
+(* Convert a raw cmake argument string to a yc expression, applying
+   the same ${X} substitution as arg_to_expr in from_emit. Used for
+   ECmakeApply's args list (which carries raw strings from parse_cmd
+   rather than typed C.arg values). *)
+let str_to_yelu_expr s =
+  Fe.arg_to_expr (Cp.arg_of_raw s)
+
+(* Helpers for the function/macro/apply construction sites (same
+   extensible-variant gotcha as elsewhere — qualify the module). *)
+let e_function name params body =
+  Yelu_langs.Yelu_cmake_cmake_op.ECmakeFunction { name; params; body }
+let e_macro name params body =
+  Yelu_langs.Yelu_cmake_cmake_op.ECmakeMacro { name; params; body }
+let e_apply name args =
+  Yelu_langs.Yelu_cmake_cmake_op.ECmakeApply { name; args }
+
 let rec stmts_to_yelu (stmts : Cp.stmt list) : Yc.expr =
   Yc.ESeq (List.map stmts ~f:stmt_to_yelu)
 
@@ -94,7 +110,15 @@ and stmt_to_yelu (s : Cp.stmt) : Yc.expr =
   | Cp.Cmd c ->
     (match Cp.parse_cmd c with
      | Some exp -> Fe.from_emit exp
-     | None -> Yc.EUnit)
+     | None ->
+       (* Unmodeled cmake command OR project-defined function call.
+          ECmakeApply's eval looks up env.functions; if not found,
+          evaluates args for side effects and returns VUnit (lenient).
+          So this single arm covers both user-defined dispatch AND
+          unmodeled-builtin tolerance. *)
+       let arg_exprs = List.map c.args ~f:str_to_yelu_expr in
+       e_apply (Yc.EString c.name) arg_exprs)
+
   | Cp.Block { block_type = "if"; head; body; clauses; _ } ->
     let cond = Fe.parse_cond_tokens head.args in
     let then_ = stmts_to_yelu body in
@@ -105,6 +129,26 @@ and stmt_to_yelu (s : Cp.stmt) : Yc.expr =
       | _ -> None
     in
     If_frag.ECmakeIfStmt { cond; then_; else_ }
+
+  | Cp.Block { block_type = "function"; head; body; _ } ->
+    (* head.args = [name; param1; param2; ...]. Empty head bails. *)
+    (match head.args with
+     | name :: params ->
+       e_function (Yc.EString name) params (stmts_to_yelu body)
+     | [] -> Yc.EUnit)
+
+  | Cp.Block { block_type = "macro"; head; body; _ } ->
+    (* Same shape as function. Macro/function scope distinction
+       (macro = textual paste, function = isolated scope) is
+       collapsed at this slice — ECmakeMacro and ECmakeFunction
+       have the same eval semantics today. Difference is captured
+       in the IR (is_macro flag in env.functions) for future
+       refinement. *)
+    (match head.args with
+     | name :: params ->
+       e_macro (Yc.EString name) params (stmts_to_yelu body)
+     | [] -> Yc.EUnit)
+
   | Cp.Block _ -> Yc.EUnit
   | Cp.Raw _ | Cp.Unknown _ -> Yc.EUnit
 
