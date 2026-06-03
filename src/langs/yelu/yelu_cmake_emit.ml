@@ -1064,6 +1064,7 @@ let rec emit_exp ~env (e : expr) : C.exp =
     C.Project_cmd
       (C.Try_compile
          { tc_result_var = result_var;
+           tc_bindir = None;
            tc_sources = List.map sources ~f:(arg ~env);
            tc_compile_definitions = []; tc_link_libraries = [];
            tc_link_options = []; tc_cmake_flags = [];
@@ -1074,6 +1075,7 @@ let rec emit_exp ~env (e : expr) : C.exp =
     C.Project_cmd
       (C.Try_compile
          { tc_result_var = r.result_var;
+           tc_bindir = None;
            tc_sources = List.map r.sources ~f:(arg ~env);
            tc_compile_definitions = List.map r.compile_definitions ~f:(arg ~env);
            tc_link_libraries = List.map r.link_libraries ~f:(arg ~env);

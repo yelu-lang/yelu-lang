@@ -1289,8 +1289,6 @@ let parse_include_directories args : L.exp option =
    IR distinguishes the two surface forms via [short_form] (added
    2026-05-25). HINTS/PATHS/PATH_SUFFIXES/DOC/etc. still bail. *)
 let parse_find_var_names ctor args : L.exp option =
-  if not (all_bare args) then None
-  else
   let reserved =
     ["NAMES";"HINTS";"PATHS";"PATH_SUFFIXES";"DOC";"NO_CACHE";
      "NO_DEFAULT_PATH";"NO_PACKAGE_ROOT_PATH";"NO_CMAKE_PATH";
@@ -1298,45 +1296,192 @@ let parse_find_var_names ctor args : L.exp option =
      "NO_CMAKE_SYSTEM_PATH";"NO_CMAKE_INSTALL_PREFIX";
      "REGISTRY_VIEW";"REQUIRED"]
   in
-  let mk var names short_form required =
+  let mk var names short_form ~hints ~paths ~path_suffixes ~doc ~required
+      ~no_cache ~no_default_path ~no_package_root_path ~no_cmake_path
+      ~no_cmake_environment_path ~no_system_environment_path
+      ~no_cmake_system_path ~no_cmake_install_prefix =
     Some (ctor
             { L.var;
               names = List.map names ~f:arg_of_raw;
               short_form;
-              hints = []; paths = []; path_suffixes = [];
-              doc = None;
+              hints = List.map hints ~f:arg_of_raw;
+              paths = List.map paths ~f:arg_of_raw;
+              path_suffixes;
+              doc;
               required;
-              no_cache = false; no_default_path = false;
-              no_package_root_path = false; no_cmake_path = false;
-              no_cmake_environment_path = false;
-              no_system_environment_path = false;
-              no_cmake_system_path = false;
-              no_cmake_install_prefix = false })
+              no_cache; no_default_path;
+              no_package_root_path; no_cmake_path;
+              no_cmake_environment_path;
+              no_system_environment_path;
+              no_cmake_system_path;
+              no_cmake_install_prefix })
+  in
+  (* Group keyword-prefixed sections. Returns (positional_prefix, groups)
+     where positional_prefix is what comes before the first reserved kw,
+     and groups is [(kw, args_until_next_kw); ...]. *)
+  let split_keyword_groups tokens =
+    let is_kw t = List.mem reserved t ~equal:String.equal in
+    let rec gather_prefix acc = function
+      | [] -> List.rev acc, []
+      | t :: rest when is_kw t -> List.rev acc, t :: rest
+      | t :: rest -> gather_prefix (t :: acc) rest
+    in
+    let rec gather_groups = function
+      | [] -> []
+      | kw :: rest ->
+        let body, tail = gather_prefix [] rest in
+        (kw, body) :: gather_groups tail
+    in
+    let prefix, kw_tail = gather_prefix [] tokens in
+    prefix, gather_groups kw_tail
   in
   match args with
-  (* Short form: find_program(VAR name [REQUIRED]). Exactly one
-     positional name, no reserved keywords. *)
-  | [ var; name ] when not (List.mem reserved name ~equal:String.equal) ->
-    mk var [ name ] true false
-  | [ var; name; "REQUIRED" ]
-    when not (List.mem reserved name ~equal:String.equal) ->
-    mk var [ name ] true true
-  (* NAMES form: find_program(VAR NAMES n1 [n2 ...] [REQUIRED]). *)
-  | var :: "NAMES" :: rest when not (List.is_empty rest) ->
-    let names, required =
-      match List.rev rest with
-      | "REQUIRED" :: r -> List.rev r, true
-      | _ -> rest, false
+  | var :: rest ->
+    let prefix, groups = split_keyword_groups rest in
+    (* Positional name(s): either a single bare name (short form) OR
+       NAMES n1 n2 ... (long form). *)
+    let names_opt, short_form =
+      match prefix, List.find groups ~f:(fun (k, _) -> String.equal k "NAMES") with
+      | [ name ], None -> Some [name], true
+      | [], Some (_, names) when not (List.is_empty names) -> Some names, false
+      | _ -> None, false
     in
-    if List.is_empty names
-       || List.exists names ~f:(fun n ->
-         List.mem reserved n ~equal:String.equal)
-    then None
-    else mk var names false required
+    (match names_opt with
+     | None -> None
+     | Some names ->
+       let find_group kw =
+         List.find_map groups ~f:(fun (k, v) ->
+           if String.equal k kw then Some v else None)
+       in
+       let hints = Option.value (find_group "HINTS") ~default:[] in
+       let paths = Option.value (find_group "PATHS") ~default:[] in
+       let path_suffixes = Option.value (find_group "PATH_SUFFIXES") ~default:[] in
+       let doc =
+         Option.bind (find_group "DOC") ~f:List.hd
+         |> Option.map ~f:str_of_raw
+       in
+       let has_kw kw =
+         List.exists groups ~f:(fun (k, _) -> String.equal k kw)
+       in
+       (* Refuse on any NO_* search-modifier — the printer always
+          emits these AFTER PATH_SUFFIXES, but cmake source freely
+          interleaves them between NAMES/HINTS/PATHS. Reordering
+          breaks the bar3-lite STRUCT byte-equality oracle. Falling
+          back to Apply preserves the source token order verbatim.
+          REQUIRED is fine: cmake convention always puts it last
+          anyway. *)
+       let no_kws =
+         ["NO_CACHE"; "NO_DEFAULT_PATH"; "NO_PACKAGE_ROOT_PATH";
+          "NO_CMAKE_PATH"; "NO_CMAKE_ENVIRONMENT_PATH";
+          "NO_SYSTEM_ENVIRONMENT_PATH"; "NO_CMAKE_SYSTEM_PATH";
+          "NO_CMAKE_INSTALL_PREFIX"]
+       in
+       if List.exists no_kws ~f:has_kw then None
+       else
+       let required = has_kw "REQUIRED" in
+       mk var names short_form ~hints ~paths ~path_suffixes ~doc
+         ~required ~no_cache:false ~no_default_path:false
+         ~no_package_root_path:false
+         ~no_cmake_path:false ~no_cmake_environment_path:false
+         ~no_system_environment_path:false ~no_cmake_system_path:false
+         ~no_cmake_install_prefix:false)
   | _ -> None
 
 let parse_find_program args = parse_find_var_names (fun a -> L.Find_program a) args
 let parse_find_path args = parse_find_var_names (fun a -> L.Find_path a) args
+
+(* try_compile(<resultVar> [<bindir>]
+               SOURCES src1 [src2 ...]
+               [COMPILE_DEFINITIONS ...] [LINK_LIBRARIES ...]
+               [LINK_OPTIONS ...] [OUTPUT_VARIABLE outvar]
+               [NO_CACHE] [C_STANDARD n] [CXX_STANDARD n])
+
+   Only the new keyword-style signature is parsed. The legacy
+   try_compile(<resultVar> <bindir> <srcfile> ...) form is left to
+   the Apply fallback — fmt and modern cmake projects use the new
+   form. result_var (first positional arg) is the only required
+   piece; everything else is optional groups. *)
+let parse_try_compile args : L.exp option =
+  let kws =
+    [ "SOURCES"; "COMPILE_DEFINITIONS"; "LINK_LIBRARIES"; "LINK_OPTIONS";
+      "CMAKE_FLAGS"; "OUTPUT_VARIABLE"; "COPY_FILE"; "COPY_FILE_ERROR";
+      "C_STANDARD"; "CXX_STANDARD"; "C_STANDARD_REQUIRED";
+      "CXX_STANDARD_REQUIRED"; "C_EXTENSIONS"; "CXX_EXTENSIONS";
+      "OBJC_STANDARD"; "OBJCXX_STANDARD";
+      "PROJECT"; "TARGET"; "SOURCE_FROM_CONTENT"; "SOURCE_FROM_VAR";
+      "SOURCE_FROM_FILE"; "LOG_DESCRIPTION"; "NO_CACHE";
+      "NO_LOG"; "WORKING_DIRECTORY" ]
+  in
+  let is_kw t = List.mem kws t ~equal:String.equal in
+  let split_groups tokens =
+    let rec gather acc = function
+      | [] -> List.rev acc, []
+      | t :: rest when is_kw t -> List.rev acc, t :: rest
+      | t :: rest -> gather (t :: acc) rest
+    in
+    let rec groups = function
+      | [] -> []
+      | kw :: rest ->
+        let body, tail = gather [] rest in
+        (kw, body) :: groups tail
+    in
+    let prefix, kw_tail = gather [] tokens in
+    prefix, groups kw_tail
+  in
+  match args with
+  | result_var :: rest ->
+    let prefix, groups = split_groups rest in
+    (* prefix is whatever non-keyword tokens followed result_var.
+       In the new signature this is the optional [<bindir>] — at
+       most one positional arg. More than one means a malformed or
+       legacy call; bail to Apply. *)
+    let bindir_opt =
+      match prefix with
+      | [] -> Some None
+      | [ b ] -> Some (Some (arg_of_raw b))
+      | _ -> None
+    in
+    (match bindir_opt with
+     | None -> None
+     | Some bindir ->
+       let find_group kw =
+         List.find_map groups ~f:(fun (k, v) ->
+           if String.equal k kw then Some v else None)
+       in
+       let group_args kw =
+         Option.value (find_group kw) ~default:[]
+         |> List.map ~f:arg_of_raw
+       in
+       let sources = group_args "SOURCES" in
+       let compile_definitions = group_args "COMPILE_DEFINITIONS" in
+       let link_libraries = group_args "LINK_LIBRARIES" in
+       let link_options = group_args "LINK_OPTIONS" in
+       let cmake_flags = group_args "CMAKE_FLAGS" in
+       let output_variable =
+         Option.bind (find_group "OUTPUT_VARIABLE") ~f:List.hd
+       in
+       let no_cache = List.exists groups ~f:(fun (k, _) ->
+         String.equal k "NO_CACHE") in
+       let c_standard =
+         Option.bind (find_group "C_STANDARD") ~f:List.hd
+       in
+       let cxx_standard =
+         Option.bind (find_group "CXX_STANDARD") ~f:List.hd
+       in
+       Some (L.Project_cmd (L.Try_compile
+         { tc_result_var = result_var;
+           tc_bindir = bindir;
+           tc_sources = sources;
+           tc_compile_definitions = compile_definitions;
+           tc_link_libraries = link_libraries;
+           tc_link_options = link_options;
+           tc_cmake_flags = cmake_flags;
+           tc_output_variable = output_variable;
+           tc_copy_file = None;
+           tc_no_cache = no_cache;
+           tc_c_standard = c_standard;
+           tc_cxx_standard = cxx_standard })))
+  | _ -> None
 
 (* add_custom_command(TARGET <t> PRE_BUILD|PRE_LINK|POST_BUILD COMMAND <prog> <args>...)
    The TARGET form (Add_custom_command_target). Bail on COMMENT/VERBATIM/
@@ -2010,6 +2155,7 @@ let parse_cmd (c : cmd) : L.exp option =
   | "unset" -> parse_unset c.args
   | "add_dependencies" -> parse_add_dependencies c.args
   | "find_package" -> parse_find_package c.args
+  | "try_compile" -> parse_try_compile c.args
   | "get_filename_component" -> parse_get_filename_component c.args
   | "set_target_properties" -> parse_set_target_properties c.args
   | "add_custom_target" -> parse_add_custom_target c.args

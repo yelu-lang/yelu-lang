@@ -424,6 +424,57 @@ let rec from_emit (e : C.exp) : Yelu_cmake.expr =
   | C.Project_cmd (C.Add_subdirectory { source_dir; _ }) ->
     Yelu_cmake_normal_dir.EAddSubdirectory (e_str source_dir)
 
+  (* find_program / find_path / find_library / find_file — all the
+     same shape (find_var_args). out=var, names/paths/hints all carry
+     args. Eval stub assumes NOTFOUND and writes both var and cache. *)
+  | C.Find_program { var; names; paths; hints; required; _ } ->
+    Yelu_cmake_find.ECmakeFindProgram
+      { out = var;
+        names = args_to_exprs names;
+        paths = args_to_exprs paths;
+        hints = args_to_exprs hints;
+        required }
+  | C.Find_path { var; names; paths; hints; required; _ } ->
+    Yelu_cmake_find.ECmakeFindPath
+      { out = var;
+        names = args_to_exprs names;
+        paths = args_to_exprs paths;
+        hints = args_to_exprs hints;
+        required }
+  | C.Find_library { var; names; paths; hints; required; _ } ->
+    Yelu_cmake_find.ECmakeFindLibrary
+      { out = var;
+        names = args_to_exprs names;
+        paths = args_to_exprs paths;
+        hints = args_to_exprs hints;
+        required }
+  | C.Find_file { var; names; paths; hints; required; _ } ->
+    Yelu_cmake_find.ECmakeFindFile
+      { out = var;
+        names = args_to_exprs names;
+        paths = args_to_exprs paths;
+        hints = args_to_exprs hints;
+        required }
+  | C.Find_package
+      { name; version; exact; quiet; config_mode; required;
+        components; optional_components } ->
+    Yelu_cmake_find.ECmakeFindPackage
+      { package_name = name; version; exact; quiet; config_mode;
+        required; components; optional_components }
+  | C.Return { propogate_vars } ->
+    Yelu_cmake_cmake_op.ECmakeReturn { propagate_vars = propogate_vars }
+  | C.Project_cmd (C.Try_compile tc) ->
+    Yelu_cmake_try.ECmakeTryCompileEx
+      { result_var = tc.tc_result_var;
+        sources = args_to_exprs tc.tc_sources;
+        compile_definitions = args_to_exprs tc.tc_compile_definitions;
+        link_libraries = args_to_exprs tc.tc_link_libraries;
+        link_options = args_to_exprs tc.tc_link_options;
+        output_variable = tc.tc_output_variable;
+        no_cache = tc.tc_no_cache;
+        c_standard = tc.tc_c_standard;
+        cxx_standard = tc.tc_cxx_standard }
+
   (* Generic fallback: Apply (unmodeled command call) becomes a
      no-op for eval. Real cmake's behavior is missing from the
      predicted cache; the diff captures the gap. *)

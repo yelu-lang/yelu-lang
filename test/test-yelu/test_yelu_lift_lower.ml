@@ -450,24 +450,37 @@ let yelu1_to_yelu2 =
                "INNER_VIEW", VString "inner";
                "OUTER_VIEW", VString "outer";
              ]);
+      (* Use a non-whitelisted package name so this test stays focused
+         on the bookkeeping shape — "Threads" triggers the
+         assumed_found_packages cache write (see yelu_cmake_find.ml),
+         which mixes two concerns into one assertion. *)
       check_yelu1_to_yelu2 "find_package declaration"
         (ECmakeFindPackage
-           { package_name = "Threads"; required = false;
+           { package_name = "MyTestPkg"; required = false;
              version = None; exact = false; quiet = false; config_mode = false;
              components = []; optional_components = [] })
         ~expected_value:VUnit
         ~expected_env:
           (env_of_bindings
-             ~find_packages:[ { package_name = "Threads"; required = false } ]
+             ~find_packages:[ { package_name = "MyTestPkg"; required = false } ]
              []);
+      (* try_compile stub now writes FALSE (safe direction — assumed
+         failed compile, matches real cmake's behavior on this system
+         for compile_result_unused). Also writes the cache_var
+         "FALSE" to mirror real cmake's INTERNAL cache type. The test
+         here only checks the local var; cache_vars assertion would
+         need an env_of_bindings extension. *)
       check_yelu1_to_yelu2 "try_compile records and stubs result_var"
         (ECmakeTryCompile
            { result_var = "HAS_C"; sources = [ EString "src/probe.c" ] })
         ~expected_value:VUnit
         ~expected_env:
-          (env_of_bindings
-             ~try_compiles:[ { result_var = "HAS_C"; sources = [ "src/probe.c" ] } ]
-             [ "HAS_C", VBool true ]);
+          (let base =
+             env_of_bindings
+               ~try_compiles:[ { result_var = "HAS_C"; sources = [ "src/probe.c" ] } ]
+               [ "HAS_C", VBool false ]
+           in
+           set_cache_var base ~key:"HAS_C" ~data:(VString "FALSE"));
     ] )
 
 let yelu2_to_yelu1 =
@@ -914,21 +927,28 @@ let yelu2_to_yelu1 =
              body = ESetVar ("OUT", EVar "x") })
         ~expected_value:VUnit
         ~expected_env:(env_of_bindings [ "OUT", VString "hello" ]);
+      (* Non-whitelisted package — "Threads" would also write the
+         FIND_PACKAGE_MESSAGE_DETAILS cache entry, mixing two concerns. *)
       check_yelu2_to_yelu1 "find_package lower to cmake"
-        (EFindPackage { package_name = "Threads"; required = true })
+        (EFindPackage { package_name = "MyTestPkg"; required = true })
         ~expected_value:VUnit
         ~expected_env:
           (env_of_bindings
-             ~find_packages:[ { package_name = "Threads"; required = true } ]
+             ~find_packages:[ { package_name = "MyTestPkg"; required = true } ]
              []);
+      (* try_compile stub: result=FALSE (safe direction). Mirrors
+         yc-side behavior — see the yc test sibling above. *)
       check_yelu2_to_yelu1 "try_compile lower to cmake"
         (ETryCompile
            { result_var = "HAS_C"; sources = [ EString "src/probe.c" ] })
         ~expected_value:VUnit
         ~expected_env:
-          (env_of_bindings
-             ~try_compiles:[ { result_var = "HAS_C"; sources = [ "src/probe.c" ] } ]
-             [ "HAS_C", VBool true ]);
+          (let base =
+             env_of_bindings
+               ~try_compiles:[ { result_var = "HAS_C"; sources = [ "src/probe.c" ] } ]
+               [ "HAS_C", VBool false ]
+           in
+           set_cache_var base ~key:"HAS_C" ~data:(VString "FALSE"));
       check_yelu2_to_yelu1 "property set/get lower to cmake"
         (ESeq [
           ESetVar

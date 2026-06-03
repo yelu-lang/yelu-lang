@@ -367,11 +367,11 @@ let macro name ?(args = []) commands = Macro { name; args; commands }
 
 let file_relative_path ~var ~base file = File_relative_path { var; base; file }
 
-let try_compile ?(compile_defs = []) ?(link_libs = []) ?(link_opts = [])
+let try_compile ?bindir ?(compile_defs = []) ?(link_libs = []) ?(link_opts = [])
     ?(cmake_flags = []) ?output_variable ?copy_file ?(no_cache = false)
     ?c_standard ?cxx_standard result_var sources =
   Try_compile {
-    tc_result_var = result_var; tc_sources = sources;
+    tc_result_var = result_var; tc_bindir = bindir; tc_sources = sources;
     tc_compile_definitions = compile_defs; tc_link_libraries = link_libs;
     tc_link_options = link_opts; tc_cmake_flags = cmake_flags;
     tc_output_variable = output_variable; tc_copy_file = copy_file;

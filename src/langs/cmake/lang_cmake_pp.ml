@@ -1388,10 +1388,15 @@ and pp_project_cmd ff cmd =
           (pp_list_with_key "FILES" string)
           files)
   | Try_compile {
-      tc_result_var; tc_sources; tc_compile_definitions; tc_link_libraries;
-      tc_link_options; tc_cmake_flags; tc_output_variable; tc_copy_file;
-      tc_no_cache; tc_c_standard; tc_cxx_standard } ->
-    Fmt.(pf ff "try_compile(%a " pp_var tc_result_var);
+      tc_result_var; tc_bindir; tc_sources; tc_compile_definitions;
+      tc_link_libraries; tc_link_options; tc_cmake_flags;
+      tc_output_variable; tc_copy_file; tc_no_cache;
+      tc_c_standard; tc_cxx_standard } ->
+    Fmt.(pf ff "try_compile(%a" pp_var tc_result_var);
+    (match tc_bindir with
+     | None -> ()
+     | Some a -> Fmt.(pf ff " %a" pp_arg a));
+    Fmt.pf ff " ";
     pp_list_with_key "SOURCES" pp_arg ff tc_sources;
     if not (List.is_empty tc_compile_definitions) then
       pp_list_with_key "COMPILE_DEFINITIONS" pp_arg ff tc_compile_definitions;

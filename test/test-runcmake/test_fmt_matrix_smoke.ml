@@ -260,6 +260,31 @@ let print_real_only_rollup results =
     let pct = 100 * cnt / total in
     Stdlib.Printf.printf "  %3d/%d (%2d%%)  %s\n" cnt total pct name)
 
+let print_pred_only_rollup results =
+  let counts =
+    List.fold results ~init:(Map.empty (module String)) ~f:(fun acc r ->
+      List.fold r.pred_only ~init:acc ~f:(fun acc (name, _) ->
+        Map.update acc name ~f:(function None -> 1 | Some n -> n + 1)))
+  in
+  if Map.is_empty counts then ()
+  else begin
+    let total = List.length results in
+    let sorted =
+      Map.to_alist counts
+      |> List.sort ~compare:(fun (_, a) (_, b) -> Int.compare b a)
+    in
+    Stdlib.Printf.printf "\n=== Pred-only entries by cell-count (out of %d cells) ===\n"
+      total;
+    List.iter sorted ~f:(fun (name, cnt) ->
+      let pct = 100 * cnt / total in
+      let example =
+        List.find_map results ~f:(fun r ->
+          List.find r.pred_only ~f:(fun (n, _) -> String.equal n name))
+      in
+      let val_s = match example with Some (_, v) -> v | None -> "?" in
+      Stdlib.Printf.printf "  %3d/%d (%2d%%)  %s = %s\n" cnt total pct name val_s)
+  end
+
 let print_mismatched_rollup results =
   let counts =
     List.fold results ~init:(Map.empty (module String)) ~f:(fun acc r ->
@@ -355,6 +380,7 @@ let smoke () =
 
   print_per_cell_table results;
   print_real_only_rollup results;
+  print_pred_only_rollup results;
   print_mismatched_rollup results;
   print_option_flip_analysis results;
 

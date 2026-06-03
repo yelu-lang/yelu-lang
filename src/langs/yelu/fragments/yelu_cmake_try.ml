@@ -31,13 +31,27 @@ type expr +=
       args : expr list;
     }
 
+(* try_compile() writes its boolean result to BOTH the local var AND
+   the cache (INTERNAL type). Real cmake serializes the cache entry as
+   literal "TRUE"/"FALSE" — not "ON"/"OFF" — because INTERNAL preserves
+   the raw spelling. We write VString "FALSE" directly to side-step the
+   VBool → "OFF" canonicalization in cache_serialize.
+
+   Safe stub direction is FALSE (assume compile failed). Matches real
+   cmake when run without an actual probe — fmt's
+   `try_compile(compile_result_unused ...)` for std::filesystem
+   detection fails on this system, which is what we emit. *)
+let stub_try_compile_result env result_var =
+  let env = set_var env ~key:result_var ~data:(VBool false) in
+  set_cache_var env ~key:result_var ~data:(VString "FALSE")
+
 let eval_case ~eval env = function
   | ECmakeTryCompile { result_var; sources } ->
     let env, sources = eval_string_list ~eval env sources in
     let env = add_try_compile env { result_var; sources } in
-    Some (set_var env ~key:result_var ~data:(VBool true), VUnit)
+    Some (stub_try_compile_result env result_var, VUnit)
   | ECmakeTryCompileEx { result_var; output_variable; _ } ->
-    let env = set_var env ~key:result_var ~data:(VBool true) in
+    let env = stub_try_compile_result env result_var in
     let env = match output_variable with
       | Some v -> set_var env ~key:v ~data:(VString "")
       | None -> env

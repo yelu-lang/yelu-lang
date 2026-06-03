@@ -964,6 +964,11 @@ and project_cmd =
 
 and try_compile_exp = {
   tc_result_var : var;
+  tc_bindir : arg option;
+    (* Optional second positional arg in the new-signature
+       try_compile(<resultVar> [<bindir>] SOURCES ...). cmake uses it
+       to locate the test build dir; for byte-equality round-trip we
+       carry it verbatim. None when omitted. *)
   tc_sources : arg list;
   tc_compile_definitions : arg list;
   tc_link_libraries : arg list;
