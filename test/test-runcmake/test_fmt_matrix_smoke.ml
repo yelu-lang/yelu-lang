@@ -133,8 +133,17 @@ let predicted_cache_for ~cmd_line : (string * string) list =
   let prog = Lazy.force fmt_program in
   let initial_env =
     let env = Yc.empty_env in
+    (* See test_fmt_bridge_smoke for the cmake-defaults rationale. *)
+    let defaults =
+      [ "CMAKE_CURRENT_LIST_DIR", fmt_dir;
+        "CMAKE_INSTALL_PREFIX", "/usr/local";
+        "CMAKE_SOURCE_DIR", fmt_dir;
+        "CMAKE_BINARY_DIR", "/tmp/cmake_predict";
+      ]
+    in
     let env =
-      Yc.set_var env ~key:"CMAKE_CURRENT_LIST_DIR" ~data:(Yc.VString fmt_dir)
+      List.fold defaults ~init:env ~f:(fun env (k, v) ->
+        Yc.set_var env ~key:k ~data:(Yc.VString v))
     in
     { env with include_loader = Some Cmake_bridge.loader }
   in

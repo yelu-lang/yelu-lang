@@ -158,8 +158,22 @@ let predicted_cache () : (string * string) list =
   let prog = stmts_to_yelu stmts in
   let initial_env =
     let env = Yc.empty_env in
+    (* Pre-populate cmake's most common auto-detected defaults.
+       cmake itself sets these during configure; our predictor
+       doesn't simulate the autodetect machinery. Each one is
+       a real-only / mismatched diff entry until populated.
+       Future: factor into a Yelu_runner.Cmake_defaults module
+       keyed by host OS + cmake version. *)
+    let defaults =
+      [ "CMAKE_CURRENT_LIST_DIR", fmt_dir;
+        "CMAKE_INSTALL_PREFIX", "/usr/local";
+        "CMAKE_SOURCE_DIR", fmt_dir;
+        "CMAKE_BINARY_DIR", "/tmp/cmake_predict";
+      ]
+    in
     let env =
-      Yc.set_var env ~key:"CMAKE_CURRENT_LIST_DIR" ~data:(Yc.VString fmt_dir)
+      List.fold defaults ~init:env ~f:(fun env (k, v) ->
+        Yc.set_var env ~key:k ~data:(Yc.VString v))
     in
     { env with include_loader = Some Cmake_bridge.loader }
   in

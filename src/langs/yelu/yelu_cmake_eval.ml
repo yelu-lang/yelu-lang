@@ -118,6 +118,6 @@ let rec eval_expr env = function
      | None ->
     (* Store fragment last — most store ops are inlined above; this
        catches the new ECmakeSetParentScope added in R4-b.3c. *)
-    match Yelu_cmake_store.eval_case env expr with
+    match Yelu_cmake_store.eval_case ~eval:eval_expr env expr with
      | Some value -> value
      | None -> fail "unknown expression in yelu_cmake")

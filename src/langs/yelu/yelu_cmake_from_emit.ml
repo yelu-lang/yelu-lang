@@ -102,11 +102,40 @@ let e_if cond then_ else_ : Yelu_cmake.expr =
 (* ============================================================
    Argument helpers: C.arg -> expr. *)
 
+(* Detect a whole-string [${IDENT}] wrapping; return the inner
+   name. Matches the cond-token unwrapping below — same helper
+   could be shared.
+
+   QUICK CASE: this handles the common pattern where an arg or
+   value is exactly [${X}] — converted to e_var "X" so eval-time
+   variable lookup happens. DEFERRED CORNERS (treated as literal
+   string, may diverge from cmake at the diff layer):
+   - nested [${${prefix}_X}]
+   - mid-string [prefix${X}suffix]
+   - list expansion (cmake expands ${LIST} to multiple args)
+   - escapes [\${X}]
+   - [@VAR@] (configure_file substitution)
+   - generator expressions [$<...>] (generate-time, separate phase)
+   Each surfaces as a diff entry in the matrix smoke when it
+   bites; close in its own commit when it does. *)
+let unwrap_var_ref s : string option =
+  let n = String.length s in
+  if n >= 4
+     && Char.equal s.[0] '$' && Char.equal s.[1] '{'
+     && Char.equal s.[n - 1] '}'
+     (* No nested ${ inside — corner case deferred *)
+     && not (String.is_substring
+              (String.sub s ~pos:2 ~len:(n - 3))
+              ~substring:"${")
+  then Some (String.sub s ~pos:2 ~len:(n - 3))
+  else None
+
 let arg_to_expr (a : C.arg) : Yelu_cmake.expr =
   match a with
-  | C.Bare s    -> e_str s
-  | C.Quoted s  -> e_str s
-  | C.Bracket (_, s) -> e_str s
+  | C.Bare s | C.Quoted s | C.Bracket (_, s) ->
+    (match unwrap_var_ref s with
+     | Some name -> e_var name
+     | None -> e_str s)
 
 let args_to_exprs args = List.map args ~f:arg_to_expr
 

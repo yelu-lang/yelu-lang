@@ -34,7 +34,10 @@ type expr +=
       force : bool;
     }
 
-let eval_case env = function
+(* Accept the recursive [~eval] callback. ECmakeSetCache /
+   ECmakeOption need it to evaluate value expressions like
+   [EVar X] that come from arg_to_expr's ${X} substitution. *)
+let eval_case ~eval env = function
   | ECmakeUnsetVar name -> Some (remove_var env name, VUnit)
   (* unset(VAR CACHE) clears BOTH normal AND cache namespaces —
      cache_semantics.md row 3.3. *)
@@ -62,15 +65,35 @@ let eval_case env = function
     (* cache_semantics.md § "Write path":
          - If cache_vars[name] exists AND not force -> NO-OP entirely.
          - Otherwise write cache_vars[name] AND dual-write to current
-           frame's locals (so reads in this run see it). *)
+           frame's locals (so reads in this run see it).
+       Values are EVALUATED (not pattern-matched) so EVar / nested
+       expressions resolve at write time. Previously only EString /
+       EBool / EInt literal patterns matched, with everything else
+       falling through to VString "" — caught by the fmt bridge
+       smoke when set(X ${Y} CACHE ...) was being written as empty. *)
     if cache_var_defined env name && not force
     then Some (env, VUnit)
     else
-      let data = match values with
-        | [ EString s ] -> VString s
-        | [ EBool b ] -> VBool b
-        | [ EInt n ] -> VInt n
-        | _ -> VString ""
+      let env, data = match values with
+        | [] -> env, VString ""
+        | [ v ] -> eval env v
+        | vs ->
+          (* Multi-value: eval each, join with ";" (cmake list form). *)
+          let env, evaluated =
+            List.fold vs ~init:(env, []) ~f:(fun (env, acc) v ->
+              let env, value = eval env v in
+              env, value :: acc)
+          in
+          let parts =
+            List.rev evaluated
+            |> List.map ~f:(function
+                | VString s -> s
+                | VBool true -> "ON"
+                | VBool false -> "OFF"
+                | VInt n -> Int.to_string n
+                | _ -> "")
+          in
+          env, VString (String.concat ~sep:";" parts)
       in
       let env = set_cache_var env ~key:name ~data in
       let env = set_var env ~key:name ~data in
