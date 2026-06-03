@@ -145,14 +145,26 @@ let real_cache () : (string * string) list =
       result.run.exit_code result.run.stderr;
   result.cache
 
-(* Run yc-eval on the bridged program; capture predicted cache_vars. *)
+(* Run yc-eval on the bridged program; capture predicted cache_vars.
+   The env is pre-populated with:
+   - CMAKE_CURRENT_LIST_DIR set to fmt_dir (for resolving relative
+     includes like the project-local support/cmake/JoinPaths.cmake)
+   - include_loader set to Yelu_runner.Cmake_bridge.loader (so
+     include(GNUInstallDirs) etc. actually loads the module file). *)
 let predicted_cache () : (string * string) list =
   let cmake_file = fmt_dir ^ "/CMakeLists.txt" in
   Stdlib.Printf.printf "[smoke] parse %s + bridge + eval ...\n%!" cmake_file;
   let stmts = parse_cmake_file cmake_file in
   let prog = stmts_to_yelu stmts in
+  let initial_env =
+    let env = Yc.empty_env in
+    let env =
+      Yc.set_var env ~key:"CMAKE_CURRENT_LIST_DIR" ~data:(Yc.VString fmt_dir)
+    in
+    { env with include_loader = Some Cmake_bridge.loader }
+  in
   let env, _ =
-    Convert.eval_yelu_cmake_expr ~cmd_line Yc.empty_env prog
+    Convert.eval_yelu_cmake_expr ~cmd_line initial_env prog
   in
   Cache_serialize.write_predicted_cache
     ~env ~path:(yc_predict_dir ^ "/predicted_cache.txt");

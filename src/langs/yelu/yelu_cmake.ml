@@ -317,6 +317,36 @@ type env = {
 
   (* Install-time: deferred actions. *)
   install_rules : install_rule list;
+
+  (* I/O callback for include() / find_package / etc. The library
+     itself does NO filesystem I/O (the [yelu_langs] module never
+     spawns subprocesses or reads files). The caller (runner /
+     tests) registers a loader that takes the raw file argument
+     from cmake source + the resolution context, and returns
+     either the loaded module's expression or None.
+
+     Loader signature:
+       file ~current_list_dir ~module_path -> expr option
+     where:
+       file: raw arg from include(<file>), e.g. "GNUInstallDirs"
+             or "cmake/Helpers.cmake".
+       current_list_dir: value of CMAKE_CURRENT_LIST_DIR at the
+             include call site (for resolving relative paths).
+       module_path: list of dirs from CMAKE_MODULE_PATH (for
+             resolving bare module names).
+
+     If None registered, ECmakeInclude falls back to bookkeeping-
+     only mode (pre-2026-06-02 behavior). Excluded from equal_env
+     (functions can't be compared). *)
+  include_loader :
+    (string -> current_list_dir:string -> module_path:string list ->
+     expr option) option;
+
+  (* Cycle protection: paths currently being processed by an
+     include() chain. If a path is already on this stack, the
+     include is a no-op. Prevents infinite recursion on
+     accidental A→B→A circular includes. *)
+  include_stack : string list;
 }
 
 let empty_env : env =
@@ -346,6 +376,11 @@ let empty_env : env =
 
     (* Install-time: deferred actions. *)
     install_rules = [];
+
+    (* I/O callback — see env type comment. None = no loader,
+       ECmakeInclude falls back to bookkeeping-only. *)
+    include_loader = None;
+    include_stack = [];
   }
 
 let equal_frame a b =

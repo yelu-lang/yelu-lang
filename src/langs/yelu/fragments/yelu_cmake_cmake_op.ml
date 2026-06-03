@@ -264,9 +264,66 @@ let eval_case ~eval env = function
            | None -> remove_var env name)
        in
        Some (env, result))
-  | ECmakeInclude { file; optional = _ } ->
+  | ECmakeInclude { file; optional } ->
     let env, file = eval_string ~eval env file in
-    Some (add_include env file, VUnit)
+    let env = add_include env file in
+    (* If no loader is registered (the I/O-free default), fall
+       back to bookkeeping-only — env.includes records the
+       include request but no module file is loaded. This was
+       the pre-2026-06-02 behavior; tests that don't need real
+       module loading don't have to opt in.
+
+       When a loader IS registered (typically by the runner /
+       test setup via Yelu_runner.Cmake_bridge.loader), we:
+       1. Resolve the file path against CMAKE_CURRENT_LIST_DIR
+          and CMAKE_MODULE_PATH (read from env).
+       2. Check the include stack for cycles.
+       3. Update CMAKE_CURRENT_LIST_DIR + push to stack.
+       4. Eval the loader's returned expr in the current env.
+       5. Restore CMAKE_CURRENT_LIST_DIR + pop the stack. *)
+    (match env.include_loader with
+     | None -> Some (env, VUnit)
+     | Some loader ->
+       let current_list_dir =
+         match find_var env "CMAKE_CURRENT_LIST_DIR" with
+         | Some (VString s) when not (String.is_empty s) -> s
+         | _ -> Stdlib.Sys.getcwd ()
+       in
+       let module_path =
+         match find_var env "CMAKE_MODULE_PATH" with
+         | Some (VString s) when not (String.is_empty s) ->
+           String.split s ~on:';'
+           |> List.filter ~f:(fun p -> not (String.is_empty p))
+         | _ -> []
+       in
+       if List.mem env.include_stack file ~equal:String.equal then
+         (* Cycle — skip. cmake itself errors loudly on direct
+            cycles; for the predictor a soft skip is safer than
+            crashing. include_guard() style protection. *)
+         Some (env, VUnit)
+       else begin
+         let saved_list_dir = find_var env "CMAKE_CURRENT_LIST_DIR" in
+         let env = { env with include_stack = file :: env.include_stack } in
+         match loader file ~current_list_dir ~module_path with
+         | None when optional -> Some (env, VUnit)
+         | None ->
+           (* Not optional + couldn't load. Soft-fail rather than
+              crash — gap-discovery harness wants to keep going. *)
+           Some (env, VUnit)
+         | Some included_expr ->
+           let env, _ = eval env included_expr in
+           let env =
+             match saved_list_dir with
+             | Some v -> set_var env ~key:"CMAKE_CURRENT_LIST_DIR" ~data:v
+             | None -> env
+           in
+           let env = { env with
+                       include_stack =
+                         List.tl env.include_stack
+                         |> Option.value ~default:[] }
+           in
+           Some (env, VUnit)
+       end)
   | ECmakeAtVar _ -> Some (env, VUnit)
   | ECmakeMath _ -> Some (env, VUnit)
   | ECmakeEnableLanguage _ | ECmakePolicySet _

@@ -131,7 +131,14 @@ let real_cache_for ~cmd_line ~build_dir : (string * string) list =
 
 let predicted_cache_for ~cmd_line : (string * string) list =
   let prog = Lazy.force fmt_program in
-  let env, _ = Convert.eval_yelu_cmake_expr ~cmd_line Yc.empty_env prog in
+  let initial_env =
+    let env = Yc.empty_env in
+    let env =
+      Yc.set_var env ~key:"CMAKE_CURRENT_LIST_DIR" ~data:(Yc.VString fmt_dir)
+    in
+    { env with include_loader = Some Cmake_bridge.loader }
+  in
+  let env, _ = Convert.eval_yelu_cmake_expr ~cmd_line initial_env prog in
   Map.to_alist env.cache_vars
   |> List.map ~f:(fun (k, v) ->
        let s = match v with

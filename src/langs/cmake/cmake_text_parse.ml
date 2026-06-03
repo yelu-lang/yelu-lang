@@ -281,18 +281,60 @@ let parse_project args : L.exp option =
                     languages = langs })))
   | _ -> None
 
-(* set(<var> <value>... [PARENT_SCOPE]) — only the simple form. *)
+(* set(<var> <value>... [PARENT_SCOPE]) — plain form.
+   set(<var> <value>... CACHE <type> "<doc>" [FORCE]) — cache form.
+
+   The CACHE form routes to L.Set_cache so eval populates
+   env.cache_vars correctly (per cache_semantics.md). For the
+   round-trip oracle, Lang_cmake_pp's Set_cache emit produces
+   identical text to the plain Set arm — Bar #3-lite holds.
+
+   Discovered via the fmt include-loader smoke (2026-06-02):
+   fmt has `set(FMT_DEBUG_POSTFIX d CACHE STRING "Debug library
+   postfix.")` which was being parsed as plain Set and writing
+   to normal vars only — yc-eval's predicted cache missed it. *)
 let parse_set args : L.exp option =
   match args with
   | var :: rest when not (String.is_prefix var ~prefix:"\"") ->
-    let parent_scope, values =
-      match List.rev rest with
-      | "PARENT_SCOPE" :: rev_rest -> true, List.rev rev_rest
-      | _ -> false, rest
+    let rec find_cache_idx i = function
+      | [] -> None
+      | "CACHE" :: tail -> Some (i, tail)
+      | _ :: tail -> find_cache_idx (i + 1) tail
     in
-    Some (Set { var = str_of_raw var;
-                values = List.map values ~f:arg_of_raw;
-                parent_scope })
+    (match find_cache_idx 0 rest with
+     | Some (i, after_cache) ->
+       let values = List.take rest i in
+       (match after_cache with
+        | type_s :: doc_s :: rest_after ->
+          let cache_type = match type_s with
+            | "BOOL" -> Some L.Ct_bool
+            | "FILEPATH" -> Some L.Ct_filepath
+            | "PATH" -> Some L.Ct_path
+            | "STRING" -> Some L.Ct_string
+            | "INTERNAL" -> Some L.Ct_internal
+            | _ -> None
+          in
+          (match cache_type with
+           | None -> None
+           | Some ct ->
+             let force = List.mem rest_after "FORCE" ~equal:String.equal in
+             Some (Set_cache {
+               var = str_of_raw var;
+               values = List.map values ~f:arg_of_raw;
+               cache_type = ct;
+               docstring = str_of_raw doc_s;
+               force;
+             }))
+        | _ -> None)
+     | None ->
+       let parent_scope, values =
+         match List.rev rest with
+         | "PARENT_SCOPE" :: rev_rest -> true, List.rev rev_rest
+         | _ -> false, rest
+       in
+       Some (Set { var = str_of_raw var;
+                   values = List.map values ~f:arg_of_raw;
+                   parent_scope }))
   | _ -> None
 
 let message_mode_of_first_arg = function
