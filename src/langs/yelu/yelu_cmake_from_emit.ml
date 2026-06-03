@@ -196,12 +196,28 @@ let bridge_warn what =
   Stdlib.Printf.eprintf "yelu_cmake_from_emit: bridging %s -> default\n" what
 
 let rec parse_cond_tokens (toks : string list) : Yelu_cmake.expr =
+  (* Strip a single layer of outer parens IFF the leading "(" depth-pairs
+     with the trailing ")". Naive first/last pairing breaks `(A) OR (B)`,
+     where the first "(" actually closes mid-list. Needed for shapes
+     like `if((A AND B))` where everything is wrapped. *)
   let toks =
     match toks with
-    | "(" :: rest ->
-      (match List.rev rest with
-       | ")" :: rev_rest -> List.rev rev_rest
-       | _ -> toks)
+    | "(" :: _ ->
+      let arr = Array.of_list toks in
+      let n = Array.length arr in
+      let depth = ref 1 in
+      let close = ref (-1) in
+      let i = ref 1 in
+      while !depth > 0 && !i < n do
+        (match arr.(!i) with
+         | "(" -> Int.incr depth
+         | ")" -> Int.decr depth; if !depth = 0 then close := !i
+         | _ -> ());
+        Int.incr i
+      done;
+      if !close = n - 1 then
+        Array.sub arr ~pos:1 ~len:(n - 2) |> Array.to_list
+      else toks
     | _ -> toks
   in
   let split_top_kw toks kw =

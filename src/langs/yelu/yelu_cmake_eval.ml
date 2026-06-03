@@ -50,11 +50,14 @@ let rec eval_expr env = function
     (* cache_semantics.md § "Equivalences": option() is set(CACHE BOOL).
        NO-OP if name already in cache (-D pre-populated, or earlier
        option/set CACHE in this run). Otherwise dual-write
-       cache + current frame. *)
+       cache + current frame, after canonicalizing the value to BOOL
+       (cmake's option() rule — `${FOO}` substituting to "FALSE" must
+       land in the cache as "OFF", not "FALSE"). *)
     if cache_var_defined env name
     then env, VUnit
     else
-      let env, data = eval_expr env value in
+      let env, raw = eval_expr env value in
+      let data = VBool (expect_bool raw) in
       let env = set_cache_var env ~key:name ~data in
       set_var env ~key:name ~data, VUnit
   | ESeq exprs ->

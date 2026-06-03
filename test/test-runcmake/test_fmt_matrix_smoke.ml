@@ -275,7 +275,18 @@ let print_mismatched_rollup results =
       total;
     List.iter sorted ~f:(fun (name, cnt) ->
       let pct = 100 * cnt / total in
-      Stdlib.Printf.printf "  %3d/%d (%2d%%)  %s\n" cnt total pct name)
+      Stdlib.Printf.printf "  %3d/%d (%2d%%)  %s\n" cnt total pct name);
+    (* DEBUG: show one example (real, pred) pair per mismatched name *)
+    Stdlib.Printf.printf "\n=== Mismatched values (one example each) ===\n";
+    List.iter sorted ~f:(fun (name, _) ->
+      let example =
+        List.find_map results ~f:(fun r ->
+          List.find r.mismatched ~f:(fun (n, _, _) -> String.equal n name))
+      in
+      match example with
+      | Some (_, real, pred) ->
+        Stdlib.Printf.printf "  %s\n    real: %s\n    pred: %s\n" name real pred
+      | None -> ())
   end
 
 let print_option_flip_analysis results =

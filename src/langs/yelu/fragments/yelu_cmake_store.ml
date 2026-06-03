@@ -123,16 +123,22 @@ let eval_case ~eval env = function
     then Some (env, VUnit)
     else (match value with
      | EBool _ | EString _ | EVar _ ->
-       let env, data =
+       let env, raw =
          match value with
          | EBool b -> env, VBool b
          | EString s -> env, VString s
          | EVar var ->
            (match find_var env var with
             | Some v -> env, v
-            | None -> fail "unbound variable %S" var)
+            | None -> env, VString "")
          | _ -> assert false
        in
+       (* cmake's option() canonicalizes the default to BOOL — any truthy
+          spelling (TRUE/ON/YES/Y/1/non-empty) → ON, any falsy spelling
+          (FALSE/OFF/NO/N/0/IGNORE/NOTFOUND/"") → OFF. Without this,
+          option(X "" ${FMT_USE_CMAKE_MODULES}) with FMT_USE_CMAKE_MODULES=FALSE
+          stores "FALSE" while real cmake stores "OFF". *)
+       let data = VBool (Yelu_cmake.expect_bool raw) in
        let env = set_cache_var env ~key:name ~data in
        let env = set_var env ~key:name ~data in
        Some (env, VUnit)
