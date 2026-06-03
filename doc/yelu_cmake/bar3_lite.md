@@ -68,12 +68,21 @@ content (modulo whitespace and inline-arg comments).
 ## 3. Results
 
 ```
-tutorial step outputs : 25/25  OK   modeled=165   stdlib=0    resolved=0     generic=25   other=23
-z3                    : 108/108 OK  modeled=1123  stdlib=128  resolved=133   generic=379  other=1711
-llvm/llvm             : 596/596 OK  modeled=3863  stdlib=164  resolved=1534  generic=621  other=4029
+tutorial step outputs : 25/25     OK   modeled=165   stdlib=0    resolved=0     generic=25   other=23
+fmt                   : 11/11     OK   modeled=244   stdlib=9    resolved=60    generic=63   other=268
+z3                    : 108/108   OK   modeled=1123  stdlib=128  resolved=133   generic=379  other=1711
+llvm/llvm             : 596/596   OK   modeled=3863  stdlib=164  resolved=1534  generic=621  other=4029
+llvm/full (3035 files): 3004/3035 OK + 1 FORMAT + 30 STRUCT (pre-existing project()-printer issues)
 ```
 
-All three corpora: **STRUCT=0, FORMAT=0**.
+Three primary corpora: **STRUCT=0, FORMAT=0**. The full
+llvm-project (3035 cmake files including third-party deps) was
+re-tested 2026-06-03 to validate today's fmt-matrix work; 30
+STRUCT failures are pre-existing (mostly project() printer
+issues in polly/bolt/libcxx/clang); 1 FORMAT is FindOpenMPTarget
+(cosmetic gersemi diff after the docstring-printer tightening).
+**fmt added** (2026-06-03): 11/11 OK after the smart docstring
+printer fix landed (commit `4bdf646` + `5ec0030`).
 
 > **Counts updated 2026-05-31** with the stdlib bucket added
 > (Class A Phase 1 extended). `stdlib` slices off names defined

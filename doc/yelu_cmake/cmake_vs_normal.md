@@ -140,14 +140,14 @@ no case for it. Fixed in commit `4338167`.
 | `iteration`        | ⏭ 0      | needs `foreach` ycn lowering check first                                 |
 | `loop_control`     | ⏭ 0      | depends on iteration                                                     |
 | `scripting_ext`    | ⏭ 0      | deferred                                                                 |
-| `find_package`     | ⏭ 0      | expected ycn-gap heavy                                                   |
+| `find_package`     | ⚠ stub   | ycn `EFindPackage` mirrors yc; `assumed_found_packages` whitelist writes `FIND_PACKAGE_MESSAGE_DETAILS_<X>` for Threads. Real search-semantics still gap (2026-06-03) |
 | `genex`            | ⏭ 0      | needs delayed-eval model                                                 |
 | `execute_process`  | ⏭ 0      | side-effecting; needs sandbox                                            |
 | `file_ops`         | ⏭ 0      | needs filesystem env                                                     |
 | `cmake_path`       | ⏭ 0      | deferred                                                                 |
 | `cmake_language`   | ⏭ 0      | meta — deferred                                                          |
 | `block`            | ⏭ 0      | scope-aware; deferred                                                    |
-| `try_compile`      | ⏭ 0      | side-effecting                                                           |
+| `try_compile`      | ⚠ stub   | ycn `ETryCompile` mirrors yc; writes FALSE-direction to var + cache (INTERNAL "FALSE"). Real probe still gap (2026-06-03) |
 | `target_property`  | ⏭ 0      | deferred                                                                 |
 | `define_property`  | ⏭ 0      | deferred                                                                 |
 

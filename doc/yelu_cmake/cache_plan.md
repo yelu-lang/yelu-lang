@@ -297,8 +297,11 @@ roll forward.
 - Not a redesign of `find_var`'s fallback chain beyond
   adding cache lookup.
 - Not the behavior-level oracle itself — only the cache subset
-  of it. Full oracle still needs `include()` resolution,
-  `find_package` filesystem probe, etc.
+  of it. `include()` resolution + cmake stdlib `Modules/` search
+  landed 2026-06-03; full `find_package` filesystem probe (real
+  Find<X>.cmake + Config-mode search) still future. Today's stubs
+  (whitelist for Threads) close the fmt-matrix surface without
+  modeling the search.
 - Not Y17 typing (`STRING` / `BOOL` / `PATH` distinctions). Cache
   values stay untyped (`value`).
 - Not cache persistence across runs — the `-D` channel is the

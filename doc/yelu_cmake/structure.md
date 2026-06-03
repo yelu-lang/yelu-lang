@@ -202,15 +202,15 @@ for the long tail. See `design.md`'s "Fragment kinds" section.
 | `target`   | real   |                181 |                       275 | add_executable, add_library, target_* visibility-aware                                                    |
 | `install`  | real   |                105 |                       102 | install(TARGETS / FILES / EXPORT) + package-config writer                                                 |
 | `test`     | real   |                 19 |                        19 | enable_testing, add_test                                                                                  |
-| `dir`      | real   |                 31 |                        15 | add_subdirectory + dir-level include/compile/link commands; scope isolation deferred                      |
+| `dir`      | real   |                 31 |                        77 | add_subdirectory + dir-level include/compile/link commands; ycn `EAddSubdirectory` recurses via `subdir_loader` w/ push_frame scope (2026-06-03)         |
 | `string`   | mixed  |                224 |                        61 | core (concat/replace/length/equal): real; regex / timestamp / uuid / json: emit-faithful stubs            |
 | `list`     | mixed  |                105 |                        31 | core (append/get/length/join/sort): real; advanced transforms: emit-faithful                              |
 | `path`     | mixed  |                130 |                        44 | core (set / normalize / get-filename): real; native/cmake conversion + many subcommands: emit-faithful    |
 | `file`     | mixed  |                131 |                        41 | in-memory fs for write / read / exists: real; glob / copy / many fs ops: emit-faithful                    |
 | `property` | mixed  |                 80 |                        47 | target-property: real; global / source / test / directory scopes: emit-faithful                           |
 | `cmake_op` | compat |                390 |                       103 | project / message / math / include / function / macro / block / while / foreach / execute_process — broad surface bucket |
-| `find`     | compat |                 37 |                        13 | find_package / library / path / program / file — eval is placeholder; real semantics depend on host       |
-| `try`      | compat |                 60 |                        20 | try_compile + try_run — eval stubs result; real probe runs only when emitted cmake script runs            |
+| `find`     | compat |                 81 |                        38 | find_package / library / path / program / file — eval writes `<OUT>-NOTFOUND` to var+cache (find_program family) and canned `FIND_PACKAGE_MESSAGE_DETAILS_<X>` for `assumed_found_packages` whitelist (Threads) (2026-06-03) |
+| `try`      | compat |                 60 |                        38 | try_compile + try_run — eval writes FALSE result to var + cache (INTERNAL type, "FALSE" verbatim); real probe runs only when emitted cmake script runs (2026-06-03) |
 
 Shared theories (`bool`, `int` — no yelu_cmake counterpart) are used
 directly by both evaluators.
