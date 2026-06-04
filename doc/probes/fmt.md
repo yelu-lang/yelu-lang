@@ -40,6 +40,30 @@ mismatched / real_only / pred_only) at their target values. See
 [cache_matrix.md](cache_matrix.md)
 for the pipeline.
 
+#### Output layout
+
+```
+_out/fmt/
+├── config.json                  manifest — options, cells, dir map
+└── matrix/
+    └── <option>_<value>/        e.g. FMT_FUZZ_ON
+        ├── real/                cmake configure on vendor/fmt (reference)
+        └── ycn/                 RESERVED — future: cmake configure on
+                                 yelu-emitted source for comparison
+```
+
+`config.json` is regenerated each run and lists every option
+discovered, every cell tested, the per-cell directory layout, and
+the result counts. Downstream tools (e.g. a future ycn-vs-real
+comparator) can read it to re-derive the cell list without
+re-running `cache_vars.exe`.
+
+The `ycn/` slot in each cell is reserved but unused today — once
+we wire up "yelu emits a cmake script that real cmake then
+configures", that script's build dir lands there and a second
+diff (real-vs-ycn) becomes possible alongside the current
+predicted-vs-real.
+
 ## Adaptation footprint
 
 What the predictor needed to handle fmt completely (each maps to

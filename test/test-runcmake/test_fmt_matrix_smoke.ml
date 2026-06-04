@@ -8,8 +8,14 @@
 
     Per cell (option × value):
       cmd_line   = [(opt, val)]
-      build_dir  = _out/fmt/matrix/<opt>_<val>/
-      yc_dir     = _out/fmt/matrix/<opt>_<val>.yc/
+      Per-cell directory layout (under _out/fmt/matrix/<opt>_<val>/):
+        real/                 real cmake on vendor/fmt (reference)
+        ycn/                  RESERVED — future: real cmake on yelu-emitted source
+        predicted_cache.txt   yc-eval predicted env.cache_vars
+
+      After the run, _out/fmt/config.json summarizes the spec
+      (options discovered, cells enumerated, dir layout) so
+      downstream tools can re-derive what was tested.
       diff counts {matched, mismatched, real_only, pred_only}
 
     All cells share the same fmt_project_names + reserved_names —
@@ -142,6 +148,9 @@ let predicted_cache_for ~cmd_line : (string * string) list =
 type cell_result = {
   option : string;
   value : string;
+  cell_dir : string;       (* _out/fmt/matrix/<option>_<value>/ *)
+  ref_build_dir : string;  (* <cell_dir>/real — real cmake on vendor/fmt *)
+  ycn_build_dir : string;  (* <cell_dir>/ycn — RESERVED for future *)
   matched : int;
   mismatched : (string * string * string) list;  (* name, real, pred *)
   real_only : (string * string) list;             (* name, real *)
@@ -218,15 +227,16 @@ let load_fmt_options () : opt_decl list =
 
 let run_cell option value ~project ~reserved : cell_result =
   let cmd_line = [ option, value ] in
-  let build_dir =
-    Printf.sprintf "%s/%s_%s" matrix_root option value
-  in
-  let real = real_cache_for ~cmd_line ~build_dir in
+  let cell_dir = Printf.sprintf "%s/%s_%s" matrix_root option value in
+  let ref_build_dir = cell_dir ^ "/real" in
+  let ycn_build_dir = cell_dir ^ "/ycn" in
+  let real = real_cache_for ~cmd_line ~build_dir:ref_build_dir in
   let predicted = predicted_cache_for ~cmd_line in
   let matched, mismatched, real_only, pred_only =
     diff ~real ~predicted ~project ~reserved
   in
-  { option; value; matched; mismatched; real_only; pred_only }
+  { option; value; cell_dir; ref_build_dir; ycn_build_dir;
+    matched; mismatched; real_only; pred_only }
 
 (* ============================================================
    Summary printers. *)
@@ -348,6 +358,72 @@ let print_option_flip_analysis results =
              opt (List.length cells))
 
 (* ============================================================
+   config.json manifest.
+
+   Generated after the matrix run; lands at _out/fmt/config.json.
+   Lists what was tested:
+   - source dir (vendor/fmt)
+   - discovered options
+   - enumerated cells with their per-cell directory layout
+   - the matrix strategy currently used
+   Downstream tools (e.g. a future ycn-vs-real comparator) can read
+   this to re-derive the cell list without re-running cache_vars.exe.
+
+   Simple sprintf-built JSON (no Yojson dep needed). *)
+let json_escape s =
+  String.concat_map s ~f:(function
+    | '"' -> "\\\""
+    | '\\' -> "\\\\"
+    | '\n' -> "\\n"
+    | '\t' -> "\\t"
+    | c -> String.of_char c)
+
+let write_config_manifest (options : opt_decl list) (results : cell_result list) : unit =
+  let path = "_out/fmt/config.json" in
+  Yelu_runner.Cache_serialize.mkdirp (Stdlib.Filename.dirname path);
+  let buf = Buffer.create 4096 in
+  let p = Buffer.add_string buf in
+  p "{\n";
+  p (Printf.sprintf "  \"project\": \"fmt\",\n");
+  p (Printf.sprintf "  \"source_dir\": \"%s\",\n" fmt_dir);
+  p (Printf.sprintf "  \"out_root\": \"_out/fmt\",\n");
+  p (Printf.sprintf "  \"matrix_root\": \"%s\",\n" matrix_root);
+  p (Printf.sprintf "  \"strategy\": \"flip-one-from-default\",\n");
+  p "  \"strategies_supported\": [\"flip-one-from-default\"],\n";
+  p "  \"per_cell_layout\": {\n";
+  p "    \"real\": \"<cell_dir>/real    — real cmake on source_dir\",\n";
+  p "    \"ycn\": \"<cell_dir>/ycn     — RESERVED: future cmake on yelu-emitted source\",\n";
+  p "    \"pred\": \"<cell_dir>/pred.txt — yc-eval predicted cache (written separately if desired)\"\n";
+  p "  },\n";
+  p (Printf.sprintf "  \"options\": [\n");
+  List.iteri options ~f:(fun i o ->
+    let comma = if i = List.length options - 1 then "" else "," in
+    p (Printf.sprintf
+        "    { \"name\": \"%s\", \"kind\": \"%s\", \"default\": \"%s\" }%s\n"
+        (json_escape o.name) (json_escape o.kind) (json_escape o.default) comma));
+  p "  ],\n";
+  p (Printf.sprintf "  \"cells\": [\n");
+  List.iteri results ~f:(fun i r ->
+    let comma = if i = List.length results - 1 then "" else "," in
+    p "    {\n";
+    p (Printf.sprintf "      \"name\": \"%s_%s\",\n" r.option r.value);
+    p (Printf.sprintf "      \"cmd_line\": [{ \"key\": \"%s\", \"value\": \"%s\" }],\n"
+         r.option r.value);
+    p (Printf.sprintf "      \"cell_dir\": \"%s\",\n" r.cell_dir);
+    p (Printf.sprintf "      \"ref_build_dir\": \"%s\",\n" r.ref_build_dir);
+    p (Printf.sprintf "      \"ycn_build_dir\": \"%s\",\n" r.ycn_build_dir);
+    p (Printf.sprintf "      \"result\": { \"matched\": %d, \"mismatched\": %d, \"real_only\": %d, \"pred_only\": %d }\n"
+         r.matched (List.length r.mismatched)
+         (List.length r.real_only) (List.length r.pred_only));
+    p (Printf.sprintf "    }%s\n" comma));
+  p "  ]\n";
+  p "}\n";
+  let oc = Stdlib.open_out path in
+  Stdlib.output_string oc (Buffer.contents buf);
+  Stdlib.close_out oc;
+  Stdlib.Printf.printf "[matrix] wrote %s\n%!" path
+
+(* ============================================================
    Test driver. *)
 
 let smoke () =
@@ -383,6 +459,8 @@ let smoke () =
   print_pred_only_rollup results;
   print_mismatched_rollup results;
   print_option_flip_analysis results;
+
+  write_config_manifest options results;
 
   (* Regression gate: median matched per cell should hold at the
      level the single-shot bridge achieves. With Day-1 from_emit
