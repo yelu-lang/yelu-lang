@@ -175,6 +175,7 @@ Total unit: 655. Total cmake-backed: 40.
 | `doc/yelu_cmake/cmake_vs_normal.md`   | yelu_cmake ↔ yelu_cmake_normal ecosystem comparison (parser/eval/emit coverage, per-fragment ctor counts, gaps) |
 | `doc/yelu_cmake/io_architecture.md`   | I/O architecture: library/runner split, callback-via-env pattern, relationship to a future ycn module-import feature |
 | `doc/yelu_cmake/cache_plan.md`        | Active plan: cache namespace + `-D` cmd-line input — design, impl steps, three-tier test strategy |
+| `doc/yelu_cmake/hybrid_strategy.md`   | Y16 reframed as gradual hybrid adoption (side-by-side .ye + .cmake, or whole-file with raw_cmake escape). cmake-as-assembly framing; no embedded-in-cmake shape. |
 | `doc/yelu_cmake/status.md`            | Living tracker: current open work for yelu_cmake    |
 
 ## Architecture
@@ -325,7 +326,7 @@ Numbers are stable (never renumbered). Priority order tracks `doc/project_overvi
 | Y13 | Persistent value primitive    | `@cached` with content-addressed store                                                                                                                                                                                                                             |
 | Y14 | Reserved keyword validation   | Enumerate cmake keywords, warn on clashes                                                                                                                                                                                                                          |
 | Y15 | Binding feature library       | Design space of binding mechanisms — lexical vs global, immutable vs mutable, expression vs statement, name-as-syntax vs name-as-data. Current: `let` (lexical/immutable/expression) + `set` (global/mutable/statement). Future: named choices selectable per pack |
-| Y16 | Real-world cmake rewrite      | Rewrite z3/llvm/torch build in yelu, prove structural equivalence. Optimize yelu_cmake, prove optimized ≡ original |
+| Y16 | Real-world cmake rewrite      | Rewrite z3/llvm/torch build in yelu, prove structural equivalence. Reframed 2026-06-04 as gradual hybrid adoption — see [doc/yelu_cmake/hybrid_strategy.md](doc/yelu_cmake/hybrid_strategy.md). |
 | Y17 | Types on yelu_cmake           | Post-retirement: retrofit a fresh typing pass once `yelu_cmake ↔ Lang_cmake` and `yelu_cmake ↔ yelu_cmake_normal` are stable. Replaces the abandoned R7 "carry production checker over" plan — the theory split gives type design real semantic ground (namespace separation, set-once vs mutable, identity per theory) instead of the shallow per-fragment Stage_typecheck. |
 
 ### Research (likely papers/material)

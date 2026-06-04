@@ -137,8 +137,12 @@ unrelated to recent work.
   - `bool_literal_of_string` parse-time consolidation
   Audit-ready writeup at [`../probes/fmt/README.md`](../probes/fmt/README.md).
 - **Bar #3 — real-world cmake hand-rewrites (z3 / llvm / torch).** ⏳ Not
-  started; the manifesto-level "does this scale" test. Next probe will
-  pick the second project per [`../probes/candidates.md`](probes/candidates.md).
+  started; the manifesto-level "does this scale" test. Reframed
+  2026-06-04 as a gradual hybrid adoption strategy
+  (cmake-as-assembly, per-helper migration, raw_cmake escape) —
+  see [`yelu_cmake/hybrid_strategy.md`](yelu_cmake/hybrid_strategy.md).
+  Next probe will pick the second project per
+  [`../probes/candidates.md`](probes/candidates.md).
 
 Full chronological history in [`worklog/worklog_2026_05.md`](worklog/worklog_2026_05.md)
 and [`worklog/worklog_2026_04.md`](worklog/worklog_2026_04.md). Current TODOs
@@ -180,7 +184,7 @@ in [`yelu_cmake/status.md`](yelu_cmake/status.md).
 | Y13 | Persistent value primitive     | `@cached` with content-addressed store.                              |
 | Y14 | Reserved keyword validation    | Enumerate cmake keywords, warn on clashes.                           |
 | Y15 | Binding feature library        | Design space (lexical/global, mutable/immutable, expr/stmt).         |
-| Y16 | Real-world cmake hand-rewrite  | z3 / llvm / torch builds in yelu, prove structural equivalence.      |
+| Y16 | Real-world cmake hand-rewrite  | z3 / llvm / torch builds in yelu, prove structural equivalence. Reframed as hybrid adoption — see [`yelu_cmake/hybrid_strategy.md`](yelu_cmake/hybrid_strategy.md). |
 | Y17 | Types on yelu_cmake            | Fresh typing pass over post-retirement IR (replaces retired per-fragment `Stage_typecheck`). |
 
 ### Research (likely papers / material)
@@ -209,6 +213,7 @@ in [`yelu_cmake/status.md`](yelu_cmake/status.md).
 | `yelu_cmake/cmake_vs_normal.md`            | yc ↔ ycn ecosystem comparison: per-theory fragment coverage.       |
 | `yelu_cmake/io_architecture.md`            | I/O library/runner split + callback-via-env pattern (include_loader, subdir_loader). |
 | `yelu_cmake/cache_plan.md`                 | Active plan: cache namespace + `-D` cmd-line input (shipped 2026-06-01). |
+| `yelu_cmake/hybrid_strategy.md`            | Y16 reframed: cmake-as-assembly; gradual hybrid adoption (.ye + .cmake side-by-side, or whole-file w/ raw_cmake escape). |
 | `yelu_cmake/status.md`                     | Living tracker for current open work (IR cleanup, Y17, E2, etc.).  |
 | `../probes/README.md`                         | Probe cluster intro: real-world cmake projects as predictor testbeds. |
 | `../probes/candidates.md`                     | Shortlist of next projects to probe.                               |
