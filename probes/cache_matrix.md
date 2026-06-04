@@ -301,6 +301,190 @@ universal gaps — `find_package(X)` recursion is the next big
 piece; until that lands, each new project will surface a
 batch of bridges-to-stubs (Threads-style whitelisting).
 
+## Beyond 1-wise — design space for larger matrices
+
+What's documented above is the **1-wise covering** strategy:
+each (option, value) appears in at least one cell, and only one
+option flips per cell from the project's default state. For
+fmt that's `2 × 12 = 24` cells, ~12s real cmake. Plenty for the
+predictor work we're currently doing.
+
+This section captures the design space when 1-wise stops being
+enough. Not implemented today; documented so the next person to
+need it doesn't reinvent.
+
+### Two axes
+
+The matrix probe sits at the intersection of two distinct
+analyses:
+
+```
+       cache-var space (X axis)        matrix space (Y axis)
+       ───────────────────────         ────────────────────────
+       "what knobs exist?"             "which knob-combinations to test?"
+
+       ↓ static analysis of source     ↓ combinatorial test design
+
+       cache_vars.exe + extensions     1-wise / pairwise / cartesian
+                                       + static slicing / dynamic
+                                       feedback
+```
+
+The first answers **"what's the SPEC of this project's
+configurability?"** The second answers **"how do we COVER the
+spec at acceptable cost?"**
+
+### Cache-var space — the spec
+
+What `cache_vars.exe` produces today: `OPTION` + `BOOL CACHE`
+declarations from the root CMakeLists. ~12 entries for fmt.
+
+What a complete spec would also cover:
+
+| category | example | how to discover |
+|---|---|---|
+| **User knobs (today)** | `option(FMT_FUZZ "...")` at top level | static walk of `option()` / `set(... CACHE ...)` |
+| **Subdir-gated knobs** | `option(FMT_FUZZ_LINKMAIN ...)` inside `add_subdirectory(test/fuzzing)` — visible only when parent gates ON | recursive walk through `add_subdirectory`, conditional on enclosing `if()`s |
+| **Probe-written entries** | `DOXYGEN_EXECUTABLE` from `find_program`, `Threads_FOUND` from `find_package` | static enumeration of `find_*` / `check_*` / `try_compile` callsites |
+| **Inherited cmake builtins** | `CMAKE_*`, `CTEST_*` (~1500 names) | external — cmake docs / `--system-information` (already in `cmake_reserved.tsv`) |
+| **Defaults-on-defaults** | `option(FMT_DOC … ${FMT_MASTER_PROJECT})` — default references another knob | static analysis of default expressions |
+| **Cross-knob gating** | `if(FMT_FUZZ) add_subdirectory(test/fuzzing)` exposes more knobs | static: which conditional gates which subdir/include |
+
+Value if structured (JSON / similar):
+- Documentation: "what does this project configure?"
+- Tool input: matrix design reads it to decide what to test
+- Diff over time: upstream-added knob detected in CI
+- Cross-project comparison: how does fmt's spec compare to z3's?
+
+### Matrix space — coverage strategies at scale
+
+For N binary options, full cartesian is 2^N. fmt at N=12 is
+4096 — borderline tractable (~20min). For N=50 (think llvm),
+2^N is impossible.
+
+Strength curve for binary options:
+
+| strength | cells | what it proves | tractable up to |
+|---|---|---|---|
+| **1-wise** (today) | 2N | each (opt, val) appears once | any N |
+| **Pairwise** (2-wise) | ~6–20 for N up to ~50 | every (opt_a=v_a, opt_b=v_b) pair appears | N ≤ hundreds |
+| **3-wise** | ~30–100 for N ≤ 30 | every triple appears | N ≤ tens |
+| **t-wise** | O(2^t · log N) | every t-tuple appears | t up to ~5–6 |
+| **Cartesian** | 2^N | every full assignment | N ≤ ~20 |
+
+Empirical result from combinatorial-testing literature: most
+real interaction bugs are pairwise or 3-wise. Going to 4-wise+
+rarely catches new bugs but multiplies cost. **Pairwise is the
+practical sweet spot.**
+
+Off-the-shelf tools (PICT, ACTS, allpairs) generate covering
+arrays from a config spec. Plug-and-play once we have the spec.
+
+### Why 1-wise has been enough for fmt
+
+fmt's options are mostly orthogonal: each option toggles one
+feature. `FMT_DOC × FMT_FUZZ` ON-ON behaves like
+`(DOC effects) ∪ (FUZZ effects)` — no cross-talk. Empirically
+1-wise has caught all the real bugs the matrix has surfaced
+(FMT_FUZZ_LINKMAIN cache leak, `${type}` dynamic CACHE TYPE,
+docstring smart-printer regression, etc.).
+
+The diminishing-returns point matches the project's option
+structure. For fmt-class projects, going to 2-wise wouldn't
+add much beyond cost.
+
+### Where 1-wise breaks down
+
+It fails when:
+
+- **Default cross-dependencies.** `FMT_MODULE`'s default
+  depends on a complex VERSION check involving `CMAKE_VERSION`
+  + `CMAKE_CXX_STANDARD`. 1-wise misses cases where two options
+  need to be co-set to exercise the default-computation path.
+- **Non-trivial composition.** `FMT_PEDANTIC=ON ∧ FMT_WERROR=ON`
+  could trigger a flag combination that fails compilation
+  only in the intersection (neither flip alone triggers it).
+- **Subdir-gating-subdir.** `FMT_TEST=ON` might need
+  `FMT_INSTALL=ON` for some install-test-target paths.
+
+None have manifested in fmt, but they're the kinds of things
+1-wise silently misses.
+
+### Static + dynamic — coverage-guided configuration testing
+
+The "giant topic" version, sketched for future use.
+
+**Static side**: build a configuration dependency graph from
+the source:
+- Nodes: cache vars (user knobs + implicit + cmake builtins)
+- Edges: `A → B` if A's default expression mentions B;
+  `A → effect_X` if A gates effect_X via a conditional;
+  `effect_X → cache_var Z` if effect_X writes Z.
+
+Algorithms over this graph:
+- **Slicing**: given a target cache var Z, find minimal set
+  of options influencing Z. Test only those.
+- **Topological clustering**: independent components → each
+  has its own small matrix; total cost is sum-of-clusters,
+  not product.
+- **Sink detection**: options with no downstream effect on
+  cache → test once at default.
+
+For fmt this would discover: `FMT_PEDANTIC`, `FMT_WERROR`,
+`FMT_SYSTEM_HEADERS`, `FMT_UNICODE` are sinks (no cross-effects).
+`FMT_FUZZ`/`FMT_TEST`/`FMT_DOC`/`FMT_INSTALL` form one cluster
+(MASTER_PROJECT-flag default dependency). `FMT_MODULE` is its
+own thing.
+
+**Dynamic side**: each configure run produces evidence —
+which conditionals fired, which subdirs were entered, which
+functions were called. After a single run, compare against the
+static dependency graph: did the oracle exercise everything
+the static analysis says depends on this knob?
+
+Feedback loop:
+1. Run a small matrix.
+2. Compare static-predicted exercised paths vs dynamically-
+   observed.
+3. Identify untouched paths.
+4. Generate cells that hit untouched paths next iteration.
+5. Stop when coverage saturates.
+
+This is AFL-for-configure-time. Research-grade but the
+engineering is tractable.
+
+### Cost / strength / use-case matrix
+
+| approach | cost | coverage | when |
+|---|---|---|---|
+| 1-wise (today) | 2N | each (opt, val) once | small N, orthogonal options |
+| Pairwise | ~10–20 cells | all pairs | medium N, want interaction coverage |
+| Static-sliced clusters | Σ-of-cluster-sizes | per-cluster interactions | large N with knowable structure |
+| Static + dynamic guided | adaptive | targets unknown unknowns | very large N, deep cross-cutting |
+
+Per-project, the right tier follows from the spec analysis. For
+fmt, 1-wise has been adequate. For llvm-class projects (50+
+user-facing options, deep cross-cutting), at least pairwise plus
+static slicing.
+
+### What's parked
+
+Not landing today. The current 1-wise matrix on fmt is
+producing all the signal we need for the predictor work in
+flight. Items on the to-do list when expansion becomes
+necessary:
+
+- Extend `cache_vars.exe` to emit the full structured spec
+  (subdir-gated knobs, probe writes, defaults-on-defaults
+  edges).
+- Add a `strategy` field to per-project `<name>/README.md`
+  documenting which approach is in use ("1-wise" today;
+  "pairwise via PICT, 18 cells" for the first project that
+  needs it).
+- Wire a pairwise generator (PICT is the smallest dependency
+  add) and validate it produces equivalent or better coverage
+  on fmt before scaling to a larger project.
+
 ## Related docs
 
 - [../doc/yelu_cmake/io_architecture.md](../doc/yelu_cmake/io_architecture.md) —
