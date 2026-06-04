@@ -1,4 +1,5 @@
 _build/
+_out/
 debug.log
 *.exe
 __pycache__/

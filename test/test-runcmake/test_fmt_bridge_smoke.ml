@@ -10,7 +10,7 @@
         ↓ eval_yelu_cmake_expr ~cmd_line:[("FMT_FUZZ", "ON")]
       env.cache_vars
         ↓ Cache_serialize.write_predicted_cache
-      /tmp/fmt_bridge_smoke/build_<args>.yc/predicted_cache.txt
+      _out/fmt/bridge_smoke/build_<args>.yc/predicted_cache.txt
 
     Compared against real cmake's CMakeCache.txt for the same
     -D flags (via run_configure ~source_dir ~build_dir ~cmd_line).
@@ -39,7 +39,7 @@ open Yelu_runner
    Inputs (paths). The smoke test pins fmt's clone path and
    the tool/snapshot locations relative to project root. *)
 
-let fmt_dir       = "/home/red/code/contrib/fmt-all/fmt"
+let fmt_dir       = "vendor/fmt"
 let _parse_py      = "tool/cmake_roundtrip/parse.py"  (* now in Cmake_bridge *)
 let reserved_path = "tool/cmake_roundtrip/cmake_reserved.tsv"
 let cache_vars_exe = "_build/default/tool/cmake_roundtrip/cache_vars.exe"
@@ -52,7 +52,7 @@ let cmd_line_label =
   |> List.map ~f:(fun (k, v) -> k ^ "_" ^ v)
   |> String.concat ~sep:"_"
 
-let smoke_root = "/tmp/fmt_bridge_smoke"
+let smoke_root = "_out/fmt/bridge_smoke"
 let real_build_dir = smoke_root ^ "/build_" ^ cmd_line_label
 let yc_predict_dir = real_build_dir ^ ".yc"
 

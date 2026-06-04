@@ -8,8 +8,8 @@
 
     Per cell (option × value):
       cmd_line   = [(opt, val)]
-      build_dir  = /tmp/fmt_matrix_smoke/<opt>_<val>/
-      yc_dir     = /tmp/fmt_matrix_smoke/<opt>_<val>.yc/
+      build_dir  = _out/fmt/matrix/<opt>_<val>/
+      yc_dir     = _out/fmt/matrix/<opt>_<val>.yc/
       diff counts {matched, mismatched, real_only, pred_only}
 
     All cells share the same fmt_project_names + reserved_names —
@@ -38,11 +38,11 @@ module Convert = Yelu_langs.Yelu_cmake_convert
 module If_frag = Yelu_langs.Yelu_cmake_if
 open Yelu_runner
 
-let fmt_dir       = "/home/red/code/contrib/fmt-all/fmt"
+let fmt_dir       = "vendor/fmt"
 let _parse_py     = "tool/cmake_roundtrip/parse.py"  (* now in Cmake_bridge *)
 let reserved_path = "tool/cmake_roundtrip/cmake_reserved.tsv"
 let cache_vars_exe = "_build/default/tool/cmake_roundtrip/cache_vars.exe"
-let matrix_root   = "/tmp/fmt_matrix_smoke"
+let matrix_root   = "_out/fmt/matrix"
 
 (* ============================================================
    Subprocess + parse helpers (duplicated from

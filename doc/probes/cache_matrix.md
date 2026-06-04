@@ -117,8 +117,8 @@ let real_cache_for ~cmd_line ~build_dir =
 spawns cmake:
 
 ```
-cmake -B /tmp/fmt_matrix_smoke/FMT_FUZZ_ON \
-      -S /home/red/code/contrib/fmt-all/fmt \
+cmake -B _out/fmt/matrix/FMT_FUZZ_ON \
+      -S vendor/fmt \
       -DFMT_FUZZ=ON
 ```
 

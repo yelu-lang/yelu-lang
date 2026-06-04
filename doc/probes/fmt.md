@@ -1,7 +1,7 @@
 # fmt — predictor probe status
 
 > **Project**: `{fmt}` C++ formatting library
-> **Source**: github.com/fmtlib/fmt (vendored at `/home/red/code/contrib/fmt-all/fmt`)
+> **Source**: github.com/fmtlib/fmt (vendored at `vendor/fmt`)
 > **Why this probe**: small CMakeLists with rich configure-time
 > work (find_program, find_package, try_compile, add_subdirectory,
 > function definitions). Good first probe — broad coverage in <600
@@ -23,7 +23,7 @@ value across all 24 (option × ON/OFF) configurations.
 ### Parse-print
 
 ```sh
-bash tool/cmake_roundtrip/test_corpus.sh /home/red/code/contrib/fmt-all/fmt
+bash tool/cmake_roundtrip/test_corpus.sh vendor/fmt
 ```
 
 Last result: `OK=11 FORMAT=0 STRUCT=0 PARSE=0`. See

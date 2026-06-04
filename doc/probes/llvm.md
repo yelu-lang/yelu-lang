@@ -1,7 +1,7 @@
 # llvm — predictor probe status
 
 > **Project**: LLVM compiler infrastructure
-> **Source**: github.com/llvm/llvm-project (vendored at `/home/red/code/contrib/llvm-all/llvm-project`)
+> **Source**: github.com/llvm/llvm-project (vendored at `vendor/llvm`)
 > **Why this probe**: largest real-world cmake corpus we test
 > against — 3035 cmake files including third-party deps. Stress
 > test for parser/printer scale.
@@ -19,7 +19,7 @@
 ### Parse-print — canonical (llvm/llvm subset)
 
 ```sh
-bash tool/cmake_roundtrip/test_corpus.sh /home/red/code/contrib/llvm-all/llvm-project/llvm
+bash tool/cmake_roundtrip/test_corpus.sh vendor/llvm/llvm
 ```
 
 This is the historical bar3-lite corpus. 596 files. Has held at
@@ -28,7 +28,7 @@ This is the historical bar3-lite corpus. 596 files. Has held at
 ### Parse-print — full llvm-project (added 2026-06-03)
 
 ```sh
-bash tool/cmake_roundtrip/test_corpus.sh /home/red/code/contrib/llvm-all
+bash tool/cmake_roundtrip/test_corpus.sh vendor/llvm
 ```
 
 3035 files including polly, bolt, libcxx, libc, libcxxabi, clang,

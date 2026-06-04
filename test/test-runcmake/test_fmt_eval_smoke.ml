@@ -7,7 +7,7 @@
    This test exercises both end-to-end on a single fmt configure with
    FMT_TEST=OFF FMT_FUZZ=ON: real cmake configure (Task A), yc-eval predicted
    cache (Task B), and ycn-eval predicted cache (Task B via to_normal).
-   Outputs land under /tmp/fmt_eval_scaffold/ for inspection.
+   Outputs land under _out/fmt/eval_scaffold/ for inspection.
 
    Not wired into a dune alias yet — run with
      dune exec test/test-runcmake/test_fmt_eval_smoke.exe
@@ -19,8 +19,8 @@ open Yelu_langs.Yelu_cmake_convert
 open Yelu_runner.Cmake_runner
 module Cs = Yelu_runner.Cache_serialize
 
-let source_dir = "/home/red/code/contrib/fmt-all/fmt"
-let build_dir  = "/tmp/fmt_eval_scaffold/build_FMT_TEST_OFF_FMT_FUZZ_ON"
+let source_dir = "vendor/fmt"
+let build_dir  = "_out/fmt/eval_scaffold/build_FMT_TEST_OFF_FMT_FUZZ_ON"
 let yc_pred    = build_dir ^ ".yc/predicted_cache.txt"
 let ycn_pred   = build_dir ^ ".ycn/predicted_cache.txt"
 let cmd_line   = [ ("FMT_TEST", "OFF"); ("FMT_FUZZ", "ON") ]

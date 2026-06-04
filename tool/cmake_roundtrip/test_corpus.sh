@@ -285,7 +285,9 @@ done < <(
   if [ -z "${NO_CORPUS_CACHE:-}" ] && [ -f "$cache_file" ]; then
     : # use cached file list
   else
-    find "$corpus" \( -name CMakeLists.txt -o -name "*.cmake" \) -type f \
+    # -L follows symlinks; needed when $corpus is itself a symlink
+    # (e.g. vendor/fmt → /home/red/code/contrib/fmt-all/fmt).
+    find -L "$corpus" \( -name CMakeLists.txt -o -name "*.cmake" \) -type f \
       2>/dev/null > "$cache_file"
   fi
   if [ -n "${FILTER_PATTERN:-}" ]; then
