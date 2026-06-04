@@ -166,6 +166,10 @@ Generalizing: each next helper migrated follows the same pattern
 (write `probes/fmt/<helper>.ml`, splice into hybrid_smoke, run
 all cells). No new oracle infrastructure needed.
 
+Full-project migration plan and progress tracker in
+[`migration_plan.md`](migration_plan.md) — 7 phases, ~16 days
+realistic estimate, decision point after Phase 3.
+
 ## Historical record
 
 [probe_report.md](probe_report.md) — the 2026-06-01 pre-implementation
