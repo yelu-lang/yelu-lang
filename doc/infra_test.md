@@ -288,16 +288,58 @@ codemodel-v2 JSON between the cmake-generated reference and yelu-generated outpu
 
 ---
 
-## Coverage counts (current)
+## Level 6 — `matrix-probe`: predictor vs real cmake cache (added 2026-06-03)
 
-| Level         | Count             |
-| ------------- | ----------------- |
-| `text`        | ~193 unit tests   |
-| `script`      | 61 compat tests (1 blocked)   |
-| `script-pair` | 50 pairs          |
-| `configure`   | 23 tests          |
-| `build`       | 26 tests (growing) |
-| `file-api`    | 12 step pairs     |
+A different shape from levels 1–5: instead of comparing emitted text
+or build output, the matrix probe runs `yelu_cmake_eval` on a real
+project's `CMakeLists.txt` and compares the **predicted
+`env.cache_vars`** against `CMakeCache.txt` from real
+`cmake -DOPT=val -S … -B …`. Per-cell diff produces
+`{matched, mismatched, real_only, pred_only}` lists that surface
+gaps in the eval bridge.
+
+Not attached to `(alias runtest)` — depends on real cmake + a vendored
+project. Invoke explicitly:
+
+```sh
+dune exec test/test-runcmake/test_fmt_matrix_smoke.exe
+```
+
+Three smokes currently exist:
+
+| Test                          | Scope                                                      |
+| ----------------------------- | ---------------------------------------------------------- |
+| `test_fmt_bridge_smoke.ml`    | Single-cell: parse fmt → eval → diff predicted vs real     |
+| `test_fmt_eval_smoke.ml`      | Multiple cmd-line shapes against fmt, per-cell breakdown   |
+| `test_fmt_matrix_smoke.ml`    | Full 24-cell matrix: 11 flippable options × {ON, OFF}      |
+
+Plus the related unit test:
+
+| Test                  | What it pins                                                       |
+| --------------------- | ------------------------------------------------------------------ |
+| `test_substitute.ml`  | 24 cases for `Yelu_cmake.substitute env s` — the `${X}` substitution helper that the matrix bridge depends on. Covers basic / mid_string / nested / edges / deferred / stringify / cache_fallback. |
+
+Methodology + per-project results live in [`probes/`](probes/):
+
+- [`probes/methodology/cache_matrix.md`](probes/methodology/cache_matrix.md) —
+  pipeline walkthrough
+- [`probes/projects/fmt/README.md`](probes/projects/fmt/README.md) —
+  fmt: 24/24 cells perfect
+
+---
+
+## Coverage counts (current — 2026-06-03)
+
+| Level         | Count            | Notes                                            |
+| ------------- | ---------------- | ------------------------------------------------ |
+| `text`        | ~280 unit tests  | text-level lift_lower (65), parse (170), lexer (25), substitute (24), check (57) |
+| `script`      | 61 compat tests (1 blocked) | unchanged                              |
+| `script-pair` | 50 pairs         | unchanged                                        |
+| `configure`   | 23 tests + 40 yelu_cmake | `test_yelu_cmake.ml` (40) covers smoke through real cmake |
+| `build`       | 26 tests         | unchanged                                        |
+| `file-api`    | 12 step pairs    | unchanged                                        |
+| `bar3-lite parse-print` | 740 / 740 canonical + 3004 / 3035 full llvm | tutorial 25 + fmt 11 + z3 108 + llvm/llvm 596 |
+| `matrix-probe` | 24 / 24 cells (fmt) | mismatched=0, real-only=0, pred-only=0, median=20 |
 
 ---
 

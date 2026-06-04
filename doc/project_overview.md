@@ -1,6 +1,6 @@
 # Yelu — Project Overview
 
-> Last updated: 2026-05-20
+> Last updated: 2026-06-03
 
 ## Scope
 
@@ -95,7 +95,8 @@ tracked in [`yelu_cmake/status.md`](yelu_cmake/status.md) "Open work".
 | `make cmake-check-v2`              | 11 / 11  | Tutorial v2 structural-equivalence via gersemi.               |
 | `make file-api-test`               | 12 / 12  | codemodel-v2 JSON diff on tutorial steps.                     |
 | End-to-end (`make step1`–`step12`) | 12       | Generate → configure → build → run.                           |
-| Bar #3-lite syntactic round-trip   | 729 / 729 | tutorial + z3 + llvm: STRUCT=0 / FORMAT=0.                   |
+| Bar #3-lite parse-print round-trip | 740 / 740 (canonical) + 3004 / 3035 (full llvm-project) | tutorial 25/25 + fmt 11/11 + z3 108/108 + llvm/llvm 596/596 = canonical 740. Full llvm-project (3035 files) adds 3004 OK + 1 FORMAT + 30 STRUCT pre-existing. See [`probes/methodology/parse_print_oracle.md`](probes/methodology/parse_print_oracle.md). |
+| fmt cache matrix smoke             | 24 / 24 cells | Predicted vs real cmake cache per (option × ON/OFF); median matched=20, mismatched=0, real-only=0, pred-only=0. See [`probes/methodology/cache_matrix.md`](probes/methodology/cache_matrix.md). |
 
 `make cmake-commands` has pre-existing cmake build issues (not blocking).
 `test_yelu_compile::ylet chain` has a pre-existing single-test failure
@@ -106,12 +107,38 @@ unrelated to recent work.
 - **Bar #1 — tutorial v1 step1–step12.** ✅ All bridge through `yelu_cmake`;
   all 12 configure through real cmake; 12 file-api JSON diffs match.
 - **Bar #2 — every production theory has at least a first slice.** ✅ All 14.
-- **Bar #3-lite — syntactic cmake round-trip on z3 + llvm.** ✅ Shipped
+- **Bar #3-lite — parse-print cmake round-trip on z3 + llvm.** ✅ Shipped
   2026-05-15..20. STRUCT=0 / FORMAT=0 across 729 files in tutorial + z3 +
-  llvm. Surfaced and fixed 5 production-IR bugs along the way. Audit-ready
+  llvm canonical. Surfaced and fixed 5 production-IR bugs. Audit-ready
   writeup at [`probes/methodology/parse_print_oracle.md`](probes/methodology/parse_print_oracle.md).
+  Extended 2026-06-03 to include fmt (11/11 OK) and the full llvm-project
+  corpus (3004/3035 OK + 1 FORMAT + 30 STRUCT pre-existing).
+- **Cache namespace + `-D` cmd-line input.** ✅ Shipped 2026-06-01.
+  `ECmakeSetCache` and `ECmakeOption` now write into `env.cache_vars`
+  (separate from `env.frames`); `-D` populates cache before eval so
+  `option()` is correctly a NO-OP when the entry exists. Plan in
+  [`yelu_cmake/cache_plan.md`](yelu_cmake/cache_plan.md).
+- **fmt predictor probe complete.** ✅ Shipped 2026-06-03. 24-cell matrix
+  (11 options × ON/OFF) — all cells perfect: real-only=0, mismatched=0,
+  pred-only=0, median matched 20. Closing it required:
+  - `include()` recursive eval + cmake stdlib `Modules/` path search
+  - `add_subdirectory()` recursion via `subdir_loader` callback
+  - `${X}` substitution unified via `substitute env s`
+  - Cond compounds (`VERSION_*`, `IN_LIST`, `MATCHES`, `LE/GE`) +
+    unaries (`EXISTS`, `COMMAND`, `IS_ABSOLUTE`) + recursive-descent
+    parser
+  - `find_program` / `find_path` / `find_library` / `find_file` stubs
+    (NOTFOUND-direction); `find_package(Threads)` whitelist; `try_compile`
+    stub (FALSE-direction)
+  - `ECmakeReturn` bridge from `C.Return`
+  - Smart `Set_cache` docstring + dynamic `CACHE TYPE` printer
+  - `option()` canonicalization via `expect_bool`
+  - Function/macro/`Apply` dispatch + ARGN
+  - `bool_literal_of_string` parse-time consolidation
+  Audit-ready writeup at [`probes/projects/fmt/README.md`](probes/projects/fmt/README.md).
 - **Bar #3 — real-world cmake hand-rewrites (z3 / llvm / torch).** ⏳ Not
-  started; the manifesto-level "does this scale" test.
+  started; the manifesto-level "does this scale" test. Next probe will
+  pick the second project per [`probes/candidates.md`](probes/candidates.md).
 
 Full chronological history in [`worklog/worklog_2026_05.md`](worklog/worklog_2026_05.md)
 and [`worklog/worklog_2026_04.md`](worklog/worklog_2026_04.md). Current TODOs
@@ -179,8 +206,18 @@ in [`yelu_cmake/status.md`](yelu_cmake/status.md).
 | `lang/concrete_syntax_parser.md`           | Implemented two-pass parser (Angstrom + pure OCaml).               |
 | `yelu_cmake/design.md`                     | Durable design notes for the yelu_cmake harness.                   |
 | `yelu_cmake/structure.md`                  | Code-anchored guide to the yelu_cmake modules.                     |
+| `yelu_cmake/cmake_vs_normal.md`            | yc ↔ ycn ecosystem comparison: per-theory fragment coverage.       |
+| `yelu_cmake/io_architecture.md`            | I/O library/runner split + callback-via-env pattern (include_loader, subdir_loader). |
+| `yelu_cmake/cache_plan.md`                 | Active plan: cache namespace + `-D` cmd-line input (shipped 2026-06-01). |
 | `yelu_cmake/status.md`                     | Living tracker for current open work (IR cleanup, Y17, E2, etc.).  |
-| `probes/methodology/parse_print_oracle.md`                  | Bar #3-lite audit-ready report + per-parser contract sheet.        |
+| `probes/README.md`                         | Probe cluster intro: real-world cmake projects as predictor testbeds. |
+| `probes/candidates.md`                     | Shortlist of next projects to probe.                               |
+| `probes/methodology/parse_print_oracle.md` | Parse-print round-trip oracle audit (was bar3_lite.md).            |
+| `probes/methodology/cache_matrix.md`       | fmt matrix smoke coverage pipeline walkthrough.                    |
+| `probes/projects/fmt/README.md`            | fmt probe status — 24/24 cells perfect; adaptation footprint.      |
+| `probes/projects/fmt/probe_report.md`      | fmt 2026-06-01 pre-implementation scoping (SUPERSEDED banner).     |
+| `probes/projects/z3/README.md`             | z3 probe — 108/108 parse-print OK; matrix not yet built.           |
+| `probes/projects/llvm/README.md`           | llvm probe — 3004/3035 parse-print OK; matrix not yet built.       |
 | `yelu_theory/plan.md`                      | Theory-fragment structural split plan.                             |
 | `yelu_theory/boolean_and_theories.md`      | Post-mortem of the `yelu_cond` / `yelu_expr` merge; design conclusions. |
 | `yelu_theory/extensible_expr_design.md`    | Original framing of the extensible-expression problem.             |
