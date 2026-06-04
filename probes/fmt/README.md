@@ -85,6 +85,51 @@ specific commits — see git log):
   + `return()` bridge (`c42aae8`)
 - Function/macro dispatch + ARGN (`631402e`)
 
+## Hybrid pilot — step 1.a (text-level codegen)
+
+[`set_verbose.ml`](set_verbose.ml) reproduces fmt's
+`join` + `set_verbose` helpers (CMakeLists.txt lines 21–39) in
+yelu IR. Build & emit:
+
+```sh
+dune exec probes/fmt/set_verbose.exe
+```
+
+Compare against the original (gersemi-normalized, comments
+stripped):
+
+```sh
+gersemi --line-length 99999 /tmp/fmt_orig.cmake   # from sed -n '21,39p' vendor/fmt/CMakeLists.txt
+gersemi --line-length 99999 /tmp/fmt_yelu.cmake   # from set_verbose.exe stdout
+```
+
+**Result**: gersemi-equivalent modulo two known cosmetic gaps:
+
+1. Comments dropped — yelu IR doesn't carry comments.
+2. One extra blank line inside `set_verbose`'s body after the
+   `join(...)` call. Caused by `Apply` printer ending with `@.`
+   while `list_br` force-newlines between commands — a
+   pre-existing printer inconsistency, not specific to this pilot.
+   Filed for future cleanup.
+
+The semantic content (every command, every arg, every
+quote/bare distinction) round-trips correctly. The
+quote/bare distinction was the load-bearing one — fmt's source
+mixes `${ARGN}` bare (foreach items, function call args) with
+`"${result}"` quoted (set values inside join). Pilot matches
+per-line; uses `EVar` for bare-ref positions and `EString` for
+quoted-ref positions.
+
+### Pilot scope (step 1.a)
+
+Codegen only — no real cmake configure, no build oracle.
+Achievement: yelu IR → cmake text faithfully reproduces fmt's
+hand-written helpers within whitespace normalization.
+
+**Step 1.b** (build-level oracle): splice the generated cmake
+back into fmt's CMakeLists, run the matrix oracle on the hybrid,
+verify cache identity. Not started.
+
 ## Historical record
 
 [probe_report.md](probe_report.md) — the 2026-06-01 pre-implementation
