@@ -27,7 +27,7 @@ bash tool/cmake_roundtrip/test_corpus.sh vendor/fmt
 ```
 
 Last result: `OK=11 FORMAT=0 STRUCT=0 PARSE=0`. See
-[parse_print_oracle.md](parse_print_oracle.md).
+[parse_print_oracle.md](../parse_print_oracle.md).
 
 ### Cache matrix
 
@@ -37,32 +37,32 @@ dune exec test/test-runcmake/test_fmt_matrix_smoke.exe
 
 Last result: median matched 20, all four diff classes (matched /
 mismatched / real_only / pred_only) at their target values. See
-[cache_matrix.md](cache_matrix.md)
+[cache_matrix.md](../cache_matrix.md)
 for the pipeline.
 
 #### Output layout
 
 ```
-_out/fmt/
-├── config.json                  manifest — options, cells, dir map
-└── matrix/
-    └── <option>_<value>/        e.g. FMT_FUZZ_ON
-        ├── real/                cmake configure on vendor/fmt (reference)
-        └── ycn/                 RESERVED — future: cmake configure on
-                                 yelu-emitted source for comparison
+_out/fmt/matrix/<option>_<value>/    e.g. FMT_FUZZ_ON/
+├── real/         cmake on vendor/fmt (reference — today)
+├── ycn-cmake/    RESERVED — cmake on yelu-emitted cmake source
+│                  (parse vendor/fmt → ycn IR → emit cmake → run cmake on THAT)
+└── ycn-native/   RESERVED — ycn's own backend output (ninja/make/etc.)
+                  bypassing cmake entirely
 ```
 
-`config.json` is regenerated each run and lists every option
-discovered, every cell tested, the per-cell directory layout, and
-the result counts. Downstream tools (e.g. a future ycn-vs-real
-comparator) can read it to re-derive the cell list without
-re-running `cache_vars.exe`.
+Three backend slots anticipated:
 
-The `ycn/` slot in each cell is reserved but unused today — once
-we wire up "yelu emits a cmake script that real cmake then
-configures", that script's build dir lands there and a second
-diff (real-vs-ycn) becomes possible alongside the current
-predicted-vs-real.
+- **`real/`** is the reference: real cmake configures the original
+  `vendor/fmt/CMakeLists.txt`. Today's matrix diffs this against
+  the yc-eval predicted cache (no build dir for that side).
+- **`ycn-cmake/`** (future): parse cmake → ycn IR (via the existing
+  `to_normal` / `from_normal` convert path) → emit cmake → real
+  cmake configures THAT. A second diff (`real/CMakeCache.txt` vs
+  `ycn-cmake/CMakeCache.txt`) proves the ycn round-trip is
+  semantically faithful.
+- **`ycn-native/`** (speculative): ycn emits ninja/make/etc.
+  directly, no cmake involved. Bar #3 / Y16 territory.
 
 ## Adaptation footprint
 

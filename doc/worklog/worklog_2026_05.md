@@ -254,7 +254,7 @@ fixes produce visible test diffs.
 The Bar #3-lite milestone built a tree-sitter-based round-trip
 oracle for real-world cmake source, exercising the production
 `Lang_cmake.exp` IR + `Lang_cmake_pp` printer end to end. Audit-
-ready state lives at `doc/probes/parse_print_oracle.md`; this section
+ready state lives at `probes/parse_print_oracle.md`; this section
 is the chronological record.
 
 ### Stages
@@ -360,7 +360,7 @@ worklog section.
 | llvm/llvm | 596 | 596 | 0 | 0 | 0 | 3,572 | 2,610 |
 
 30 cmake builtins modeled in `tool/cmake_roundtrip/print2.ml`.
-Audit-ready writeup at `doc/probes/parse_print_oracle.md`.
+Audit-ready writeup at `probes/parse_print_oracle.md`.
 
 ### Retirement final state (from the archived retirement_plan.md)
 
@@ -419,7 +419,7 @@ Bar #3-lite static round-trip declared complete and archived:
 ## Linked artifacts
 
 - `doc/yelu_cmake/status.md` — current open work (the slim living tracker).
-- `doc/probes/parse_print_oracle.md` — Bar #3-lite final report (archived 2026-05-31).
+- `probes/parse_print_oracle.md` — Bar #3-lite final report (archived 2026-05-31).
 - `doc/yelu_cmake/design.md` — durable design notes.
 - `doc/yelu_cmake/structure.md` — code-anchored module guide.
 - `src/langs/yelu/` — the production language (post-retirement rename).

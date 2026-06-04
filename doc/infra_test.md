@@ -319,11 +319,11 @@ Plus the related unit test:
 | --------------------- | ------------------------------------------------------------------ |
 | `test_substitute.ml`  | 24 cases for `Yelu_cmake.substitute env s` — the `${X}` substitution helper that the matrix bridge depends on. Covers basic / mid_string / nested / edges / deferred / stringify / cache_fallback. |
 
-Methodology + per-project results live in [`probes/`](probes/):
+Methodology + per-project results live in [`../probes/`](../probes/):
 
-- [`probes/cache_matrix.md`](probes/cache_matrix.md) —
+- [`../probes/cache_matrix.md`](../probes/cache_matrix.md) —
   pipeline walkthrough
-- [`probes/fmt.md`](probes/fmt.md) —
+- [`../probes/fmt/README.md`](../probes/fmt/README.md) —
   fmt: 24/24 cells perfect
 
 ---

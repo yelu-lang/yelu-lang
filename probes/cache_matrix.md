@@ -268,7 +268,7 @@ Three pieces are load-bearing but invisible inside the test file:
    `loader` and `subdir_loader` as values registered into the
    pure `Yelu_cmake.env`. The library never spawns processes;
    the runner does. See
-   [io_architecture.md § 3](../yelu_cmake/io_architecture.md#3-the-callback-via-env-pattern).
+   [io_architecture.md § 3](../doc/yelu_cmake/io_architecture.md#3-the-callback-via-env-pattern).
 2. **Reserved-name index** — 1597 entries in
    `cmake_reserved.tsv` make tier filtering meaningful. Without
    it the matrix would drown in false positives.
@@ -303,12 +303,12 @@ batch of bridges-to-stubs (Threads-style whitelisting).
 
 ## Related docs
 
-- [../yelu_cmake/io_architecture.md](../yelu_cmake/io_architecture.md) —
+- [../doc/yelu_cmake/io_architecture.md](../doc/yelu_cmake/io_architecture.md) —
   the library/runner split this whole thing depends on
-- [../yelu_cmake/status.md](../yelu_cmake/status.md) — what's
+- [../doc/yelu_cmake/status.md](../doc/yelu_cmake/status.md) — what's
   still deferred and what's loader-stub-only
 - [parse_print_oracle.md](parse_print_oracle.md) — the sibling
   oracle (parse → print → tree-sitter-diff round-trip)
-- [../cmake/cache_semantics.md](../cmake/cache_semantics.md) —
+- [../doc/cmake/cache_semantics.md](../doc/cmake/cache_semantics.md) —
   cmake's cache vs normal variable namespace (drives why we
   classify Reserved_cmake separately)

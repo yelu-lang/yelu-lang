@@ -50,7 +50,7 @@ as separate artifacts, we'll promote it to a folder then.
    Expect mostly OK on small projects; STRUCT failures point at
    specific printer/parser gaps to fix.
 3. Build a matrix smoke test, modelled on
-   [test_fmt_matrix_smoke.ml](../../test/test-runcmake/test_fmt_matrix_smoke.ml):
+   [test_fmt_matrix_smoke.ml](../test/test-runcmake/test_fmt_matrix_smoke.ml):
    - point `<name>_dir` at the project root
    - run `cache_vars.exe` to extract flippable options
    - register `include_loader` + `subdir_loader` from `Cmake_bridge`
@@ -62,24 +62,24 @@ as separate artifacts, we'll promote it to a folder then.
    - Build a new ECmake* arm? (for unmodeled commands)
    - Accept as a gap? (for cmake-stdlib-coverage limits)
 5. Create `doc/probes/<name>.md` with current status (see
-   [fmt.md](fmt.md) as a reference). Add
+   [fmt.md](fmt/) as a reference). Add
    `<name>_probe_report.md` if first-pass scoping was substantial
    (multiple agents, deep gap analysis — see
-   [fmt_probe_report.md](fmt_probe_report.md)).
+   [fmt_probe_report.md](fmt/probe_report.md)).
 
 ## Current per-project state
 
 | project | parse-print | cache matrix | adaptation status |
 |---|---|---|---|
-| [fmt](fmt.md) | 11/11 OK | 24/24 cells matched, median 20 | complete; whitelist + stubs added |
-| [z3](z3.md) | 108/108 OK | not yet built | parse-print only |
-| [llvm](llvm.md) | 3004/3035 OK (30 pre-existing STRUCT) | not yet built | parse-print only |
+| [fmt](fmt/) | 11/11 OK | 24/24 cells matched, median 20 | complete; whitelist + stubs added |
+| [z3](z3/) | 108/108 OK | not yet built | parse-print only |
+| [llvm](llvm/) | 3004/3035 OK (30 pre-existing STRUCT) | not yet built | parse-print only |
 
 ## Related docs
 
-- [../yelu_cmake/io_architecture.md](../yelu_cmake/io_architecture.md) —
+- [../doc/yelu_cmake/io_architecture.md](../doc/yelu_cmake/io_architecture.md) —
   the library/runner I/O split that enables both oracles
-- [../yelu_cmake/status.md](../yelu_cmake/status.md) — predictor-wide
+- [../doc/yelu_cmake/status.md](../doc/yelu_cmake/status.md) — predictor-wide
   open work (cross-cuts all probes)
-- [../yelu_cmake/structure.md](../yelu_cmake/structure.md) — fragment
+- [../doc/yelu_cmake/structure.md](../doc/yelu_cmake/structure.md) — fragment
   map showing what's wired vs deferred

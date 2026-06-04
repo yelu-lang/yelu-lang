@@ -302,7 +302,7 @@ identical text against the legacy compile output.
 
 - `design.md` — the *why* behind the two-language model, theory
   invariants, let-binding architecture, F2 function semantics.
-- `probes/parse_print_oracle.md` — Bar #3-lite syntactic round-trip audit
+- `../probes/parse_print_oracle.md` — Bar #3-lite syntactic round-trip audit
   (claim, oracles, per-parser contract sheet, code-quality posture).
 - `status.md` — living tracker for current work.
 - `../worklog/worklog_2026_05.md` — chronological history of the

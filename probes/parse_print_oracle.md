@@ -5,7 +5,7 @@
 > This doc is the audit-ready record of the Bar #3-lite static
 > round-trip work (May 15 → May 31). The work is shipped and the
 > file is preserved as-is for future reference; **forward-looking
-> tracking has moved to [`status.md`](../yelu_cmake/status.md)**.
+> tracking has moved to [`status.md`](../doc/yelu_cmake/status.md)**.
 >
 > Headline result: STRUCT=0 / FORMAT=0 across tutorial (25/25),
 > z3 (108/108), llvm (596/596) — 729 real-world cmake files
@@ -17,8 +17,8 @@
 > expressions — and is out of scope for a tree-sitter-only pass.
 >
 > Successor work — **behavior-level oracle** — is
-> tracked in [`status.md`](../yelu_cmake/status.md). Chronological context lives
-> in [`../worklog/worklog_2026_05.md`](../worklog/worklog_2026_05.md).
+> tracked in [`status.md`](../doc/yelu_cmake/status.md). Chronological context lives
+> in [`../worklog/worklog_2026_05.md`](../doc/worklog/worklog_2026_05.md).
 
 ## 1. Claim and counter-claim
 
@@ -348,7 +348,7 @@ reused there.
 These have a `Lang_cmake.exp` constructor but currently flow
 through `Apply` because the printer drops fields or shape
 inversion is brittle. They are the target of the upcoming
-**IR-printer cleanup** in [`status.md`](../yelu_cmake/status.md):
+**IR-printer cleanup** in [`status.md`](../doc/yelu_cmake/status.md):
 
 - Several `file` subcommands (READ, STRINGS, COPY, DOWNLOAD,
   UPLOAD, LOCK, path-query family).

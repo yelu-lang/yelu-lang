@@ -22,7 +22,7 @@ bash tool/cmake_roundtrip/test_corpus.sh vendor/z3
 ```
 
 Last result: `OK=108 FORMAT=0 STRUCT=0 PARSE=0`. See
-[parse_print_oracle.md](parse_print_oracle.md).
+[parse_print_oracle.md](../parse_print_oracle.md).
 
 z3 has been the **regression gate** for parser/printer changes
 since the bar3-lite work landed. Every printer fix that closed an
@@ -40,7 +40,7 @@ Not yet built. Building one would mean:
    OCaml, .NET).
 
 This is a candidate for the next probe-building session, per
-[candidates.md](candidates.md).
+[candidates.md](../candidates.md).
 
 ## Open issues
 

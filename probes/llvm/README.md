@@ -60,4 +60,4 @@ hard on `find_package(LLVM REQUIRED)`).
 - 30 STRUCT failures in full llvm corpus — pre-existing project()
   printer issues. None are regressions from recent work.
 - Cache matrix for any llvm sub-project — blocked on real
-  `find_package` (see [../yelu_cmake/status.md](../yelu_cmake/status.md)).
+  `find_package` (see [../yelu_cmake/status.md](../../doc/yelu_cmake/status.md)).
