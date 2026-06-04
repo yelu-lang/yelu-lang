@@ -137,6 +137,41 @@ identical to inline-paste.
 
 ## 4. What this is *not*
 
+### A semantic claim — not the I/O-free framing
+
+A clarification on what the I/O-free framing in §§ 2-3 actually
+claims. **File loading IS part of yelu_cmake's semantics** — we
+don't pretend otherwise. Without a registered loader,
+`ECmakeInclude` degrades to a no-op stub (just appends to
+`env.includes` for bookkeeping); the language doesn't pretend
+the file isn't there.
+
+The factoring is architectural, not semantic. Compare with
+Python:
+
+| layer | Python | yelu |
+|---|---|---|
+| interpreter core | CPython eval loop (no file I/O) | `yelu_langs.eval` (no file I/O) |
+| module system | `importlib` / `sys.path_hooks` (configurable, registered into the interpreter) | `include_loader` / `subdir_loader` in `env` (configurable callbacks) |
+| OS adapter | `imp.find_module`, filesystem calls | `Cmake_bridge.parse_file` (spawns parse.py, reads disk) |
+
+Python's `import` is unquestionably part of the language *spec*.
+The factoring just keeps the eval loop clean and embeddable.
+Same for us. "I/O-free" describes the implementation boundary,
+not a semantic one.
+
+What the factoring buys us:
+
+1. **Embeddability** — anything that wants to run yelu_cmake in
+   a constrained environment (no shell, no parse.py available)
+   registers a different loader (e.g. an in-memory map) and the
+   language semantics still hold.
+2. **Determinism for tests** — unit tests register a hand-
+   controlled loader; no filesystem state in fixtures.
+3. **Layer separation for porting** — backends (cmake today,
+   ninja someday) plug in at the bridge layer; the eval loop
+   stays untouched.
+
 ### Not yelu-level meta-programming
 
 The injected loader is an OCaml function, not a `yelu_cmake.expr`.
@@ -162,10 +197,15 @@ A real module system would:
 - Isolate the included file's bindings in a sub-scope
 - Expose only an explicit interface
 - Resolve symbol references through that interface
+- Provide first-class introspection (e.g. Python's `sys.modules`
+  dict + per-module `__dict__`): "what did include(GNUInstallDirs)
+  contribute to the env?"
 
-cmake doesn't do this; ycn doesn't (yet) do this. The current
-include_loader pattern is faithful to cmake's "textual paste"
-semantics.
+cmake doesn't do any of this; ycn doesn't (yet) do this. The
+current include_loader pattern is faithful to cmake's "textual
+paste" semantics. The introspection slot ("track per-module
+binding origins so we can answer 'where did CMAKE_INSTALL_PREFIX
+come from?'") is in the ycn-future bucket — see § 9.
 
 ### Example: subdir_loader
 
@@ -443,6 +483,61 @@ When the time comes, the migration path is:
 This way the language gradually grows a real module system
 without breaking the cmake-shape compatibility we need for
 existing real-world projects.
+
+### Module-as-introspectable-object (the Python `sys.modules` axis)
+
+A separate question: even if we get module-scope semantics via
+`EImport`, should the loaded modules be first-class
+introspectable objects?
+
+Python's design: `sys.modules : dict[str, ModuleType]`; each
+module exposes `__dict__` with its top-level bindings; `import X;
+X.foo` works because `X` IS a value. This enables: "what's in
+module X?", "where did this binding come from?", dependency
+tracking, dead-module elimination.
+
+cmake has no equivalent — variables and targets are globally
+namespaced after include. Today yelu_cmake follows cmake; after
+`include(GNUInstallDirs)`, the contributions are folded into
+env.cache_vars / env.functions / etc. with no record of
+provenance.
+
+For ycn, this is the natural shape:
+
+```ocaml
+type env += {
+  …
+  modules : (string, module_t) Map.M(String).t;
+}
+and module_t = {
+  name : string;
+  source : source_origin;        (* file path / virtual *)
+  bindings : (string, expr) Map.M(String).t;  (* exposed surface *)
+  hidden : Set.M(String).t;      (* things kept private *)
+}
+```
+
+`EImport "M"` populates `env.modules["M"]`; `EImportFrom { M;
+[foo; bar] }` selectively binds names; subsequent `EVar "M.foo"`
+reads through the module record.
+
+A lighter middle ground for yelu_cmake-now (no module abstraction,
+but provenance tagging for debugging):
+
+```ocaml
+type env += {
+  binding_origins : (string, source_origin) Map.M(String).t;
+}
+and source_origin =
+  | Inline
+  | From_include of string
+  | From_subdir of string
+```
+
+This adds ~20 LOC + bookkeeping in include / add_subdirectory
+eval arms, and gives the "where did this come from?" answer
+without committing to a module system. **Not landed today** —
+filed as "consider if pain emerges."
 
 ## 10. Caveats
 
