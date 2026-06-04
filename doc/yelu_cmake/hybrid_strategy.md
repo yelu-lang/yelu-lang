@@ -200,16 +200,21 @@ What's **not** needed for the pilot:
 
 ## Tradeoffs and risks
 
-- **Two-file maintenance burden.** Shape B means both `.ye` and
-  generated `.cmake` live in the tree. If someone edits the
-  `.cmake` directly, the two drift. Mitigate with a header comment
-  ("generated from foo.ye — do not edit") and a CI check that the
-  `.cmake` matches `ycn compile foo.ye` output.
-- **Upstream PR resistance.** Adding a `.ye` file to a real
-  project (fmt, z3, llvm) requires maintainer buy-in. The
-  side-by-side shape minimizes this — they can ignore the `.ye`
-  and just review the generated `.cmake`. But we should not
-  count on upstream adoption for the pilot; a fork is fine.
+- **Two-file maintenance burden — manageable.** Shape B has both
+  `.ye` and a generated `.cmake`. Our policy:
+  - **Local experiments**: generated `.cmake` is regenerated each
+    run, lives under `_out/<proj>/`, never committed. Source of
+    truth is the `.ye`.
+  - **Future / shipping**: regenerated-at-build (bazel-style), with
+    a CI check that the generated output matches a fresh
+    `ycn compile`. The protobuf "commit both" convention is
+    explicitly NOT what we want — we don't ship `.ye` to upstream
+    projects.
+- **Not pushing `.ye` to real-world upstream projects.** Out of
+  scope. Our adoption story is internal: `.ye` lives in our tree,
+  generated `.cmake` plugs into the project's build. Means we have
+  no maintainer buy-in problem and no "two source-of-truth files
+  in someone else's repo" problem.
 - **`raw_cmake` becomes a crutch.** Shape C's escape hatch lets
   you punt indefinitely. A discipline: count `raw_cmake` blocks
   per project; track them in `status.md`; aim for monotonic
@@ -235,16 +240,77 @@ What's **not** needed for the pilot:
   pure-cmake reference. No changes needed to the matrix
   infrastructure to support hybrid inputs.
 
-## Open questions (for the pilot discussion)
+## Pilot decisions (2026-06-04)
 
-1. Which fmt helper for step 1? Candidates: `set_verbose`
-   (5 lines, fmt-local), `add_module_library` (~30 lines, more
-   substantial), `add_doc_target` (find_program-heavy, exercises
-   the find stubs).
-2. Shape B's `.cmake` artifacts: committed to git, regenerated
-   at build, or both? Protobuf convention is "committed";
-   bazel-generated-files convention is "regenerated."
-3. Where do `.ye` files for upstream-pilot projects live? In a
-   fork of `vendor/fmt/`? In `probes/fmt/`? In a separate
-   `probes-upstream/` directory? My instinct: `probes/fmt/`
-   (the project IS one thing, regardless of source vs spec).
+The three open questions from the original doc draft, now
+resolved:
+
+1. **Migration order: small to large.** Step 1 is the smallest
+   meaningful helper — `set_verbose` in fmt (~5 lines, fmt-local,
+   no find_program / no try_compile). After that, move outward:
+   bigger helpers (`add_module_library`, `add_doc_target`), then
+   full subdirs, then whole projects.
+
+2. **Generated `.cmake` is regenerated, not committed.** Local
+   experiments leave nothing in git — the `.ye` is the source of
+   truth, the `.cmake` lands in `_out/<proj>/` and is rebuilt
+   each run. When/if shipping comes up, the regenerated-at-build
+   pattern stays (with a CI check that the generated output
+   matches `ycn compile`).
+
+3. **`.ye` files live in `probes/<proj>/`.** Per-project folder
+   under the existing `probes/` cluster — keeps each project as
+   one thing in the tree. Build outputs already external (under
+   `_out/`), so adding `.ye` source here doesn't conflict. The
+   `ycn` CLI accepts a `--source-dir` (or similar) flag so it can
+   serve any probe directory.
+
+```
+probes/fmt/
+├── README.md            (existing — probe status)
+├── probe_report.md      (existing — historical scoping)
+└── set_verbose.ye       ← pilot's first .ye file
+
+_out/fmt/
+├── matrix/<cell>/real/  (existing matrix oracle output)
+└── hybrid/              ← future: generated .cmake artifacts
+    └── set_verbose.cmake
+```
+
+## Pilot path
+
+With the decisions above, the pilot is a small, sequenced piece
+of work. Not yet started; tracked here so the next session can
+pick it up cleanly.
+
+**Step 1.a — text-level pilot.** Smallest possible test of the
+codegen path.
+
+- Write `probes/fmt/set_verbose.ye` reproducing fmt's
+  `set_verbose` helper (~5 lines of cmake).
+- Build the `ycn compile` CLI: takes `.ye` input, emits `.cmake`
+  text via the existing `Yelu_parse` → `yelu_cmake.expr` →
+  `Yelu_cmake_emit` → `Lang_cmake_pp` chain. ~30 LOC wrapper.
+- Assert byte-equivalence to fmt's original `set_verbose` block
+  (after `gersemi` normalization or similar).
+
+Output: confirms one helper round-trips. Cost: a few hours.
+
+**Step 1.b — build-level pilot.** Same helper, but proves the
+generated `.cmake` produces equivalent build behavior.
+
+- Take fmt's `CMakeLists.txt`. Splice out the original
+  `set_verbose` block; replace with `include(set_verbose.cmake)`.
+  Generated file is the output of Step 1.a.
+- Run the existing matrix oracle on this hybrid source.
+- Assert: real-only / mismatched / pred-only all still zero,
+  median matched unchanged from 20.
+
+Output: proves one helper rewrite is build-equivalent. Cost:
+medium — needs a small test_fmt_hybrid_smoke.ml mirroring
+test_fmt_matrix_smoke.ml.
+
+**Step 2+.** Expand outward. Each subsequent helper adds at most
+one new fragment to `yelu_parse.ml` (if needed) and one new
+entry to `probes/fmt/`. Whole-fmt is a composition of steps,
+not a new project.
