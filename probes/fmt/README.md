@@ -170,13 +170,48 @@ Full-project migration plan and progress tracker in
 [`migration_plan.md`](migration_plan.md) — 7 phases, ~16 days
 realistic estimate, decision point after Phase 3.
 
-## Historical record
+## Project spec — user-knob surface
 
-[probe_report.md](probe_report.md) — the 2026-06-01 pre-implementation
-scoping report from workflow `wcu6hr40t`. Identifies fmt's option
-declarations and the cache surface area; the gaps it lists are now
-mostly filled. Kept as a reference for how the initial gap analysis
-was conducted.
+The 12 OPTION declarations in `vendor/fmt/CMakeLists.txt`. Each
+is what a downstream user can flip via `-DFMT_X=…`. Default
+column matches `cache_vars.exe vendor/fmt`.
+
+| name | default | gating impact |
+|---|---|---|
+| `FMT_DOC` | `${FMT_MASTER_PROJECT}` | `add_doc_target()` helper (find_program doxygen/mkdocs, custom commands) |
+| `FMT_INSTALL` | `${FMT_MASTER_PROJECT}` | all `install()`, `export()`, `configure_package_config_file`, CPack source-package, pkgconfig — the entire packaging block |
+| `FMT_TEST` | `${FMT_MASTER_PROJECT}` | `add_subdirectory(test)` — entire test tree |
+| `FMT_FUZZ` | `OFF` | `add_subdirectory(test/fuzzing)` + `FMT_FUZZ` compile def; **also writes `FMT_FUZZ_LINKMAIN` and `FMT_FUZZ_LDFLAGS` to cache** (only option that gates sibling cache entries) |
+| `FMT_CUDA_TEST` | `OFF` | `enable_language(CUDA)` probe. Silent NOTFOUND on missing toolchain. |
+| `FMT_OS` | `ON` | `target_sources(fmt PRIVATE src/os.cc)` vs `target_compile_definitions(... FMT_OS=0)`. **Zero cache delta despite materially changing the library.** Cache-only oracles are blind to this. |
+| `FMT_MODULE` | `${FMT_USE_CMAKE_MODULES}` | `add_module_library()` with `FILE_SET TYPE CXX_MODULES`. Major C++20 module branch. |
+| `FMT_SYSTEM_HEADERS` | `OFF` | `SYSTEM` flag on include dirs |
+| `FMT_UNICODE` | `ON` | compile def + MSVC `/utf-8` |
+| `FMT_PEDANTIC` | `OFF` | large GNU/Clang/MSVC `PEDANTIC_COMPILE_FLAGS` blocks; ON triggers `HAVE_FNO_EXCEPTIONS_FLAG` cache write (compiler-probe side effect, non-FMT_* namespace) |
+| `FMT_WERROR` | `OFF` | `-Werror` / `/WX` |
+| `FMT_FUZZ_LINKMAIN` | `On` | INSIDE fuzz subdir; only active when FMT_FUZZ=ON |
+
+Four defaults reference other variables (`${FMT_MASTER_PROJECT}`,
+`${FMT_USE_CMAKE_MODULES}`) — these compute earlier in the
+script. The predictor's `${X}` substitution resolves them at
+eval time; matrix testing flips them independently of their
+dependencies.
+
+### Observations beyond the user-knob list
+
+- **Only `FMT_FUZZ` gates sibling FMT_* cache entries.**
+  `FMT_FUZZ_LINKMAIN` and `FMT_FUZZ_LDFLAGS` exist only when
+  `FMT_FUZZ=ON` triggers `add_subdirectory(test/fuzzing)`.
+- **`FMT_OS=OFF` produces zero cache delta.** All effects on
+  target properties, not cache. A cache-only oracle (what we
+  have today) cannot detect this regression surface.
+- **`FMT_CUDA_TEST=ON` is silent on missing toolchain.** cmake
+  logs NOTFOUND and proceeds — no error. A naive correctness
+  oracle expecting either success-with-target or failure would
+  mis-flag the success-without-target case.
+- **`FMT_PEDANTIC=ON` writes `HAVE_FNO_EXCEPTIONS_FLAG`** to
+  cache (compiler-probe side effect; non-FMT_* namespace). Easy
+  to overlook in a FMT_*-only filter.
 
 ## Open issues specific to fmt
 

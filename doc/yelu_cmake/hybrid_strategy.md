@@ -267,8 +267,8 @@ resolved:
 
 ```
 probes/fmt/
-├── README.md            (existing — probe status)
-├── probe_report.md      (existing — historical scoping)
+├── README.md            (existing — probe status + project spec)
+├── migration_plan.md    (existing — full-project hybrid tracker)
 └── set_verbose.ye       ← pilot's first .ye file
 
 _out/fmt/

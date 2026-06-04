@@ -24,19 +24,21 @@ per-project — each project's gaps are different.
 ## Layout
 
 ```
-doc/probes/
+probes/
   README.md                # this file
   candidates.md            # shortlist of next projects to probe
-  cache_matrix.md          # how the matrix probe works
+  cache_matrix.md          # how the matrix probe works (methodology)
   parse_print_oracle.md    # how the parse-print round-trip works
-  <project>.md             # current status — one file per project
-  <project>_probe_report.md  # first-pass scoping report when one exists
-                             # (currently: fmt_probe_report.md only)
+  <project>/               # one folder per project
+    README.md              # current status — landing page
+    migration_plan.md      # full-project hybrid migration plan + tracker
+    <helper>.ml            # per-helper yelu IR (Phase 1+; ad-hoc as needed)
+    hybrid_smoke.sh        # build-oracle harness (per project; pattern from fmt)
 ```
 
-Flat by design. One file per project is enough for the current state;
-if a project later needs adaptation_notes / matrix_results / gaps_open
-as separate artifacts, we'll promote it to a folder then.
+One folder per project. Files inside grow as the probe matures
+(spec → migration plan → per-helper yelu IR → hybrid smoke).
+Small projects may stay at just README.md.
 
 ## How to add a new project probe
 
@@ -61,11 +63,11 @@ as separate artifacts, we'll promote it to a folder then.
      packages like Threads)
    - Build a new ECmake* arm? (for unmodeled commands)
    - Accept as a gap? (for cmake-stdlib-coverage limits)
-5. Create `doc/probes/<name>.md` with current status (see
-   [fmt.md](fmt/) as a reference). Add
-   `<name>_probe_report.md` if first-pass scoping was substantial
-   (multiple agents, deep gap analysis — see
-   [fmt_probe_report.md](fmt/probe_report.md)).
+5. Create `probes/<name>/README.md` with current status (see
+   [fmt/README.md](fmt/README.md) as a reference — captures probe
+   status, project spec, adaptation footprint, hybrid pilot
+   results). If migrating to yelu, add a `migration_plan.md`
+   (see [fmt/migration_plan.md](fmt/migration_plan.md)).
 
 ## Current per-project state
 

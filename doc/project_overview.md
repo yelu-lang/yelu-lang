@@ -219,8 +219,8 @@ in [`yelu_cmake/status.md`](yelu_cmake/status.md).
 | `../probes/candidates.md`                     | Shortlist of next projects to probe.                               |
 | `probes/parse_print_oracle.md` | Parse-print round-trip oracle audit (was bar3_lite.md).            |
 | `probes/cache_matrix.md`       | fmt matrix smoke coverage pipeline walkthrough.                    |
-| `../probes/fmt/README.md`            | fmt probe status — 24/24 cells perfect; adaptation footprint.      |
-| `../probes/fmt/probe_report.md`      | fmt 2026-06-01 pre-implementation scoping (SUPERSEDED banner).     |
+| `../probes/fmt/README.md`            | fmt probe status — 24/24 cells perfect; project spec; adaptation footprint; hybrid pilot result. |
+| `../probes/fmt/migration_plan.md`    | fmt full-project migration plan + progress tracker (7 phases).     |
 | `../probes/z3/README.md`             | z3 probe — 108/108 parse-print OK; matrix not yet built.           |
 | `../probes/llvm/README.md`           | llvm probe — 3004/3035 parse-print OK; matrix not yet built.       |
 | `yelu_theory/plan.md`                      | Theory-fragment structural split plan.                             |
