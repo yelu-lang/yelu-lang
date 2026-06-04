@@ -5,7 +5,7 @@
 > This doc is the audit-ready record of the Bar #3-lite static
 > round-trip work (May 15 → May 31). The work is shipped and the
 > file is preserved as-is for future reference; **forward-looking
-> tracking has moved to [`status.md`](../../yelu_cmake/status.md)**.
+> tracking has moved to [`status.md`](../yelu_cmake/status.md)**.
 >
 > Headline result: STRUCT=0 / FORMAT=0 across tutorial (25/25),
 > z3 (108/108), llvm (596/596) — 729 real-world cmake files
@@ -17,7 +17,7 @@
 > expressions — and is out of scope for a tree-sitter-only pass.
 >
 > Successor work — **behavior-level oracle** — is
-> tracked in [`status.md`](../../yelu_cmake/status.md). Chronological context lives
+> tracked in [`status.md`](../yelu_cmake/status.md). Chronological context lives
 > in [`../worklog/worklog_2026_05.md`](../worklog/worklog_2026_05.md).
 
 ## 1. Claim and counter-claim
@@ -40,7 +40,7 @@ enough to carry every command-call shape real projects use.
 ## 2. Oracles
 
 Per-file verdict produced by
-[`test_corpus.sh`](../../tool/cmake_roundtrip/test_corpus.sh):
+[`test_corpus.sh`](../tool/cmake_roundtrip/test_corpus.sh):
 
 - **STRUCT** (load-bearing) — extract `(name, args)` tuples
   from source and reprint via tree-sitter; exact string match.
@@ -217,19 +217,19 @@ OK with `other > 0` via the raw-passthrough fallback.
 
 | file | LOC | role |
 | --- | ---: | --- |
-| [`parse.py`](../../tool/cmake_roundtrip/parse.py) | 214 | tree-sitter-cmake → JSON CST. Adjacent-arg concatenation, ERROR-root passthrough, block recognition. |
-| [`print2.ml`](../../tool/cmake_roundtrip/print2.ml) | ~1,150 | JSON reader + 30 per-command typed parsers + dispatch + emit + driver. |
-| [`strip_comments.py`](../../tool/cmake_roundtrip/strip_comments.py) | 70 | tree-sitter–based comment stripper for the FORMAT oracle preprocessor. |
-| [`project_index.ml`](../../tool/cmake_roundtrip/project_index.ml) | ~210 | Class A Phase 1 corpus walker. Emits `<name>\t<file>\t<function\|macro>` TSV for every project-defined callable. |
-| [`test_corpus.sh`](../../tool/cmake_roundtrip/test_corpus.sh) | ~210 | Harness: per-file STRUCT + FORMAT + summary; builds + passes the corpus index. |
+| [`parse.py`](../tool/cmake_roundtrip/parse.py) | 214 | tree-sitter-cmake → JSON CST. Adjacent-arg concatenation, ERROR-root passthrough, block recognition. |
+| [`print2.ml`](../tool/cmake_roundtrip/print2.ml) | ~1,150 | JSON reader + 30 per-command typed parsers + dispatch + emit + driver. |
+| [`strip_comments.py`](../tool/cmake_roundtrip/strip_comments.py) | 70 | tree-sitter–based comment stripper for the FORMAT oracle preprocessor. |
+| [`project_index.ml`](../tool/cmake_roundtrip/project_index.ml) | ~210 | Class A Phase 1 corpus walker. Emits `<name>\t<file>\t<function\|macro>` TSV for every project-defined callable. |
+| [`test_corpus.sh`](../tool/cmake_roundtrip/test_corpus.sh) | ~210 | Harness: per-file STRUCT + FORMAT + summary; builds + passes the corpus index. |
 | `dune` | 8 | Builds `print2.exe`. |
 
 ### Production modules exercised (`src/langs/cmake/`)
 
-- [`lang_cmake.ml`](../../src/langs/cmake/lang_cmake.ml) — IR.
+- [`lang_cmake.ml`](../src/langs/cmake/lang_cmake.ml) — IR.
   Round-trip surfaced two bugs here (`Include.no_policy_scope`
   type, `arg.Bracket` level loss) — both fixed in production.
-- [`lang_cmake_pp.ml`](../../src/langs/cmake/lang_cmake_pp.ml) —
+- [`lang_cmake_pp.ml`](../src/langs/cmake/lang_cmake_pp.ml) —
   printer. Round-trip surfaced three bugs here (`Configure_file`
   flag cross-swap, `Include.result_var` missing keyword,
   `pp_arg.Bracket` newline injection) — all fixed in production.
@@ -286,7 +286,7 @@ ctor would require reading the function's signature from its
 definition, which is configure-time information).
 
 **Phase 1 — function-aware accounting**. The same walker
-([`project_index.exe`](../../tool/cmake_roundtrip/project_index.ml))
+([`project_index.exe`](../tool/cmake_roundtrip/project_index.ml))
 runs over two roots and emits two TSV indices; `print2.exe`
 loads both and partitions ex-generic calls into three buckets
 by lookup precedence (**project-first**, like Python's
@@ -348,7 +348,7 @@ reused there.
 These have a `Lang_cmake.exp` constructor but currently flow
 through `Apply` because the printer drops fields or shape
 inversion is brittle. They are the target of the upcoming
-**IR-printer cleanup** in [`status.md`](../../yelu_cmake/status.md):
+**IR-printer cleanup** in [`status.md`](../yelu_cmake/status.md):
 
 - Several `file` subcommands (READ, STRINGS, COPY, DOWNLOAD,
   UPLOAD, LOCK, path-query family).
@@ -419,9 +419,9 @@ would populate it.
 
 ### 8.1 cmake_minimum_required
 
-- **Location**: [`print2.ml:210`](../../tool/cmake_roundtrip/print2.ml#L210)
-- **IR**: [`Cmake_minimum_required` at `lang_cmake.ml:599`](../../src/langs/cmake/lang_cmake.ml#L599)
-- **Printer**: [`lang_cmake_pp.ml:781`](../../src/langs/cmake/lang_cmake_pp.ml#L781)
+- **Location**: [`print2.ml:210`](../tool/cmake_roundtrip/print2.ml#L210)
+- **IR**: [`Cmake_minimum_required` at `lang_cmake.ml:599`](../src/langs/cmake/lang_cmake.ml#L599)
+- **Printer**: [`lang_cmake_pp.ml:781`](../src/langs/cmake/lang_cmake_pp.ml#L781)
 - **Accepts**:
   - `cmake_minimum_required(VERSION <min>)` with numeric
     dot-separated `<min>`.
@@ -433,9 +433,9 @@ would populate it.
 
 ### 8.2 project
 
-- **Location**: [`print2.ml:240`](../../tool/cmake_roundtrip/print2.ml#L240)
-- **IR**: [`Project` at `lang_cmake.ml:875`](../../src/langs/cmake/lang_cmake.ml#L875)
-- **Printer**: [`lang_cmake_pp.ml:966`](../../src/langs/cmake/lang_cmake_pp.ml#L966)
+- **Location**: [`print2.ml:240`](../tool/cmake_roundtrip/print2.ml#L240)
+- **IR**: [`Project` at `lang_cmake.ml:875`](../src/langs/cmake/lang_cmake.ml#L875)
+- **Printer**: [`lang_cmake_pp.ml:966`](../src/langs/cmake/lang_cmake_pp.ml#L966)
 - **Accepts**: `project(<name> [VERSION <ver>] [LANGUAGES <l>...])`,
   numeric VERSION.
 - **Bails on**: non-numeric VERSION, DESCRIPTION / HOMEPAGE_URL
@@ -447,9 +447,9 @@ would populate it.
 
 ### 8.3 set
 
-- **Location**: [`print2.ml:277`](../../tool/cmake_roundtrip/print2.ml#L277)
-- **IR**: [`Set` at `lang_cmake.ml:421`](../../src/langs/cmake/lang_cmake.ml#L421)
-- **Printer**: [`lang_cmake_pp.ml:566`](../../src/langs/cmake/lang_cmake_pp.ml#L566)
+- **Location**: [`print2.ml:277`](../tool/cmake_roundtrip/print2.ml#L277)
+- **IR**: [`Set` at `lang_cmake.ml:421`](../src/langs/cmake/lang_cmake.ml#L421)
+- **Printer**: [`lang_cmake_pp.ml:566`](../src/langs/cmake/lang_cmake_pp.ml#L566)
 - **Accepts**: `set(<var> <val>... [PARENT_SCOPE])`.
 - **Bails on**: CACHE form, `set(ENV{<var>} <val>)`.
 - **Known gaps**: cache / env namespaces are tracked in
@@ -457,29 +457,29 @@ would populate it.
 
 ### 8.4 message
 
-- **Location**: [`print2.ml:310`](../../tool/cmake_roundtrip/print2.ml#L310)
-- **IR**: [`Message` at `lang_cmake.ml:535`](../../src/langs/cmake/lang_cmake.ml#L535)
-- **Printer**: [`lang_cmake_pp.ml:654`](../../src/langs/cmake/lang_cmake_pp.ml#L654)
+- **Location**: [`print2.ml:310`](../tool/cmake_roundtrip/print2.ml#L310)
+- **IR**: [`Message` at `lang_cmake.ml:535`](../src/langs/cmake/lang_cmake.ml#L535)
+- **Printer**: [`lang_cmake_pp.ml:654`](../src/langs/cmake/lang_cmake_pp.ml#L654)
 - **Accepts**: `message([<mode>] <text>...)` with all-quoted texts.
 - **Bails on**: bare text (printer always quotes), mixed
   quoted/bare, `CONFIGURE_LOG` mode (separate ctor).
 
 ### 8.5 configure_file
 
-- **Location**: [`print2.ml:328`](../../tool/cmake_roundtrip/print2.ml#L328)
-- **IR**: [`Configure_file` at `lang_cmake.ml:619`](../../src/langs/cmake/lang_cmake.ml#L619)
-- **Printer**: [`lang_cmake_pp.ml:783`](../../src/langs/cmake/lang_cmake_pp.ml#L783)
+- **Location**: [`print2.ml:328`](../tool/cmake_roundtrip/print2.ml#L328)
+- **IR**: [`Configure_file` at `lang_cmake.ml:619`](../src/langs/cmake/lang_cmake.ml#L619)
+- **Printer**: [`lang_cmake_pp.ml:783`](../src/langs/cmake/lang_cmake_pp.ml#L783)
 - **Accepts**: `configure_file(<in> <out> [COPYONLY] [ESCAPE_QUOTES]
   [@ONLY])` with bare in/out.
 - **Bails on**: quoted in/out, `NEWLINE_STYLE`, permission keywords.
 
 ### 8.6 add_executable
 
-- **Location**: [`print2.ml:355`](../../tool/cmake_roundtrip/print2.ml#L355)
-- **IR**: [`Add_executable`](../../src/langs/cmake/lang_cmake.ml#L727)
-  + [`Add_executable_imported`](../../src/langs/cmake/lang_cmake.ml#L732)
-  + [`Add_executable_alias`](../../src/langs/cmake/lang_cmake.ml#L733)
-- **Printer**: [`lang_cmake_pp.ml:1013`](../../src/langs/cmake/lang_cmake_pp.ml#L1013)
+- **Location**: [`print2.ml:355`](../tool/cmake_roundtrip/print2.ml#L355)
+- **IR**: [`Add_executable`](../src/langs/cmake/lang_cmake.ml#L727)
+  + [`Add_executable_imported`](../src/langs/cmake/lang_cmake.ml#L732)
+  + [`Add_executable_alias`](../src/langs/cmake/lang_cmake.ml#L733)
+- **Printer**: [`lang_cmake_pp.ml:1013`](../src/langs/cmake/lang_cmake_pp.ml#L1013)
 - **Accepts** (updated 2026-05-29):
   - `add_executable(<name> [WIN32] [MACOSX_BUNDLE] [EXCLUDE_FROM_ALL] <src>...)`
     — options consumed positionally in source order into the IR's
@@ -493,13 +493,13 @@ would populate it.
 
 ### 8.7 add_library
 
-- **Location**: [`print2.ml:372`](../../tool/cmake_roundtrip/print2.ml#L372)
-- **IR**: [`Add_library`](../../src/langs/cmake/lang_cmake.ml#L734)
-  + [`Add_library_imported`](../../src/langs/cmake/lang_cmake.ml#L740)
-  + [`Add_library_object`](../../src/langs/cmake/lang_cmake.ml#L741)
-  + [`Add_library_interface`](../../src/langs/cmake/lang_cmake.ml#L742)
-  + [`Add_library_alias`](../../src/langs/cmake/lang_cmake.ml#L743)
-- **Printer**: [`lang_cmake_pp.ml:1036`](../../src/langs/cmake/lang_cmake_pp.ml#L1036)
+- **Location**: [`print2.ml:372`](../tool/cmake_roundtrip/print2.ml#L372)
+- **IR**: [`Add_library`](../src/langs/cmake/lang_cmake.ml#L734)
+  + [`Add_library_imported`](../src/langs/cmake/lang_cmake.ml#L740)
+  + [`Add_library_object`](../src/langs/cmake/lang_cmake.ml#L741)
+  + [`Add_library_interface`](../src/langs/cmake/lang_cmake.ml#L742)
+  + [`Add_library_alias`](../src/langs/cmake/lang_cmake.ml#L743)
+- **Printer**: [`lang_cmake_pp.ml:1036`](../src/langs/cmake/lang_cmake_pp.ml#L1036)
 - **Accepts** (updated 2026-05-29):
   - `add_library(<name> [STATIC|SHARED|MODULE|UNKNOWN] [EXCLUDE_FROM_ALL] <src>...)`
   - `add_library(<name> OBJECT <src>...)` → `Add_library_object`.
@@ -512,9 +512,9 @@ would populate it.
 
 ### 8.8 target_link_libraries
 
-- **Location**: [`print2.ml:430`](../../tool/cmake_roundtrip/print2.ml#L430)
-- **IR**: [`Target_link_libraries` at `lang_cmake.ml:732`](../../src/langs/cmake/lang_cmake.ml#L732)
-- **Printer**: [`lang_cmake_pp.ml:1034`](../../src/langs/cmake/lang_cmake_pp.ml#L1034)
+- **Location**: [`print2.ml:430`](../tool/cmake_roundtrip/print2.ml#L430)
+- **IR**: [`Target_link_libraries` at `lang_cmake.ml:732`](../src/langs/cmake/lang_cmake.ml#L732)
+- **Printer**: [`lang_cmake_pp.ml:1034`](../src/langs/cmake/lang_cmake_pp.ml#L1034)
 - **Accepts**: `target_link_libraries(<t> {PRIVATE|PUBLIC|INTERFACE <lib>...}+)`
   with at least one visibility keyword. Mixed visibility groups
   round-trip correctly.
@@ -522,16 +522,16 @@ would populate it.
 
 ### 8.9 target_include_directories
 
-- **Location**: [`print2.ml:560`](../../tool/cmake_roundtrip/print2.ml#L560)
-- **IR**: [`Target_include_directories` at `lang_cmake.ml:721`](../../src/langs/cmake/lang_cmake.ml#L721)
-- **Printer**: [`lang_cmake_pp.ml:1039`](../../src/langs/cmake/lang_cmake_pp.ml#L1039)
+- **Location**: [`print2.ml:560`](../tool/cmake_roundtrip/print2.ml#L560)
+- **IR**: [`Target_include_directories` at `lang_cmake.ml:721`](../src/langs/cmake/lang_cmake.ml#L721)
+- **Printer**: [`lang_cmake_pp.ml:1039`](../src/langs/cmake/lang_cmake_pp.ml#L1039)
 - **Accepts**: `target_include_directories(<t> [SYSTEM] [BEFORE|AFTER]
   {PRIVATE|PUBLIC|INTERFACE <dir>...}+)`.
 - **Bails on**: plain form, SYSTEM positioned after visibility.
 
 ### 8.10–8.12 target_compile_{definitions,options,features}
 
-- **Locations**: [`print2.ml:443/455/474`](../../tool/cmake_roundtrip/print2.ml#L443)
+- **Locations**: [`print2.ml:443/455/474`](../tool/cmake_roundtrip/print2.ml#L443)
 - **IR / Printer**: see `Target_compile_*` family in
   `lang_cmake.ml:707..` and `lang_cmake_pp.ml:1018..`.
 - **Accepts**: `target_compile_X(<t> [BEFORE] {PRIVATE|PUBLIC|INTERFACE <item>...}+)`.
@@ -539,9 +539,9 @@ would populate it.
 
 ### 8.13 option
 
-- **Location**: [`print2.ml:497`](../../tool/cmake_roundtrip/print2.ml#L497)
-- **IR**: [`Option` at `lang_cmake.ml:537`](../../src/langs/cmake/lang_cmake.ml#L537)
-- **Printer**: [`lang_cmake_pp.ml:658`](../../src/langs/cmake/lang_cmake_pp.ml#L658)
+- **Location**: [`print2.ml:497`](../tool/cmake_roundtrip/print2.ml#L497)
+- **IR**: [`Option` at `lang_cmake.ml:537`](../src/langs/cmake/lang_cmake.ml#L537)
+- **Printer**: [`lang_cmake_pp.ml:658`](../src/langs/cmake/lang_cmake_pp.ml#L658)
 - **Accepts**: `option(<var> <help> [<value>])` with quoted help,
   value ∈ {ON, OFF, TRUE, FALSE, …}.
 - **Bails on**: bare help.
@@ -550,33 +550,33 @@ would populate it.
 
 ### 8.14 include
 
-- **Location**: [`print2.ml:513`](../../tool/cmake_roundtrip/print2.ml#L513)
-- **IR**: [`Include` at `lang_cmake.ml:395`](../../src/langs/cmake/lang_cmake.ml#L395)
-- **Printer**: [`lang_cmake_pp.ml:539`](../../src/langs/cmake/lang_cmake_pp.ml#L539)
+- **Location**: [`print2.ml:513`](../tool/cmake_roundtrip/print2.ml#L513)
+- **IR**: [`Include` at `lang_cmake.ml:395`](../src/langs/cmake/lang_cmake.ml#L395)
+- **Printer**: [`lang_cmake_pp.ml:539`](../src/langs/cmake/lang_cmake_pp.ml#L539)
 - **Accepts**: `include(<file> [OPTIONAL] [RESULT_VARIABLE <v>] [NO_POLICY_SCOPE])`.
 - **Bails on**: unknown trailing keywords.
 
 ### 8.15 add_subdirectory
 
-- **Location**: [`print2.ml:535`](../../tool/cmake_roundtrip/print2.ml#L535)
-- **IR**: [`Add_subdirectory` at `lang_cmake.ml:700`](../../src/langs/cmake/lang_cmake.ml#L700)
-- **Printer**: [`lang_cmake_pp.ml:991`](../../src/langs/cmake/lang_cmake_pp.ml#L991)
+- **Location**: [`print2.ml:535`](../tool/cmake_roundtrip/print2.ml#L535)
+- **IR**: [`Add_subdirectory` at `lang_cmake.ml:700`](../src/langs/cmake/lang_cmake.ml#L700)
+- **Printer**: [`lang_cmake_pp.ml:991`](../src/langs/cmake/lang_cmake_pp.ml#L991)
 - **Accepts**: `add_subdirectory(<src> [<bin>] [EXCLUDE_FROM_ALL] [SYSTEM])`.
 - **Bails on**: quoted src/bin.
 
 ### 8.16 unset
 
-- **Location**: [`print2.ml:594`](../../tool/cmake_roundtrip/print2.ml#L594)
-- **IR**: [`Unset` at `lang_cmake.ml:432`](../../src/langs/cmake/lang_cmake.ml#L432)
-- **Printer**: [`lang_cmake_pp.ml:584`](../../src/langs/cmake/lang_cmake_pp.ml#L584)
+- **Location**: [`print2.ml:594`](../tool/cmake_roundtrip/print2.ml#L594)
+- **IR**: [`Unset` at `lang_cmake.ml:432`](../src/langs/cmake/lang_cmake.ml#L432)
+- **Printer**: [`lang_cmake_pp.ml:584`](../src/langs/cmake/lang_cmake_pp.ml#L584)
 - **Accepts**: `unset(<var> [CACHE | PARENT_SCOPE])`.
 - **Bails on**: `unset(ENV{<var>})` (separate `Unset_env` ctor).
 
 ### 8.17 add_dependencies
 
-- **Location**: [`print2.ml:604`](../../tool/cmake_roundtrip/print2.ml#L604)
-- **IR**: [`Add_dependencies` at `lang_cmake.ml:681`](../../src/langs/cmake/lang_cmake.ml#L681)
-- **Printer**: [`lang_cmake_pp.ml:1171`](../../src/langs/cmake/lang_cmake_pp.ml#L1171)
+- **Location**: [`print2.ml:604`](../tool/cmake_roundtrip/print2.ml#L604)
+- **IR**: [`Add_dependencies` at `lang_cmake.ml:681`](../src/langs/cmake/lang_cmake.ml#L681)
+- **Printer**: [`lang_cmake_pp.ml:1171`](../src/langs/cmake/lang_cmake_pp.ml#L1171)
 - **Accepts**: `add_dependencies(<target> <dep>...)` — one or more
   bare deps. IR widened to `deps : depend list` 2026-05-25; the
   yelu_cmake `ECmakeAddDependencies` and `EAddDependencies`
@@ -587,9 +587,9 @@ would populate it.
 
 ### 8.18 find_package
 
-- **Location**: [`print2.ml:614`](../../tool/cmake_roundtrip/print2.ml#L614)
-- **IR**: [`Find_package` at `lang_cmake.ml:518`](../../src/langs/cmake/lang_cmake.ml#L518)
-- **Printer**: [`lang_cmake_pp.ml:761`](../../src/langs/cmake/lang_cmake_pp.ml#L761)
+- **Location**: [`print2.ml:614`](../tool/cmake_roundtrip/print2.ml#L614)
+- **IR**: [`Find_package` at `lang_cmake.ml:518`](../src/langs/cmake/lang_cmake.ml#L518)
+- **Printer**: [`lang_cmake_pp.ml:761`](../src/langs/cmake/lang_cmake_pp.ml#L761)
 - **Accepts**: `find_package(<name> [<ver>] [EXACT] [QUIET] [REQUIRED]
   [CONFIG|MODULE|NO_MODULE] [COMPONENTS <c>...]
   [OPTIONAL_COMPONENTS <c>...])`.
@@ -600,9 +600,9 @@ would populate it.
 
 ### 8.19 get_filename_component
 
-- **Location**: [`print2.ml:676`](../../tool/cmake_roundtrip/print2.ml#L676)
-- **IR**: [`Get_filename_component` at `lang_cmake.ml:414`](../../src/langs/cmake/lang_cmake.ml#L414)
-- **Printer**: [`lang_cmake_pp.ml:562`](../../src/langs/cmake/lang_cmake_pp.ml#L562)
+- **Location**: [`print2.ml:676`](../tool/cmake_roundtrip/print2.ml#L676)
+- **IR**: [`Get_filename_component` at `lang_cmake.ml:414`](../src/langs/cmake/lang_cmake.ml#L414)
+- **Printer**: [`lang_cmake_pp.ml:562`](../src/langs/cmake/lang_cmake_pp.ml#L562)
 - **Accepts**: `get_filename_component(<var> <filename> <mode> [CACHE])`
   with valid mode.
 - **Bails on**: `PROGRAM_ARGS <var>` (unmodeled), `BASE_DIR`,
@@ -610,9 +610,9 @@ would populate it.
 
 ### 8.20 set_target_properties
 
-- **Location**: [`print2.ml:691`](../../tool/cmake_roundtrip/print2.ml#L691)
-- **IR**: [`Set_target_properties` at `lang_cmake.ml:650`](../../src/langs/cmake/lang_cmake.ml#L650)
-- **Printer**: [`lang_cmake_pp.ml:1127`](../../src/langs/cmake/lang_cmake_pp.ml#L1127)
+- **Location**: [`print2.ml:691`](../tool/cmake_roundtrip/print2.ml#L691)
+- **IR**: [`Set_target_properties` at `lang_cmake.ml:650`](../src/langs/cmake/lang_cmake.ml#L650)
+- **Printer**: [`lang_cmake_pp.ml:1127`](../src/langs/cmake/lang_cmake_pp.ml#L1127)
 - **Accepts**: `set_target_properties(<target>... PROPERTIES <k> <v>...)`
   — one or more bare targets, bare keys, values may be quoted.
   IR widened to `targets : target list` 2026-05-25.
@@ -621,9 +621,9 @@ would populate it.
 
 ### 8.21 add_custom_target
 
-- **Location**: [`print2.ml:713`](../../tool/cmake_roundtrip/print2.ml#L713)
-- **IR**: [`Add_custom_target` at `lang_cmake.ml:775`](../../src/langs/cmake/lang_cmake.ml#L775)
-- **Printer**: [`lang_cmake_pp.ml:1101`](../../src/langs/cmake/lang_cmake_pp.ml#L1101)
+- **Location**: [`print2.ml:713`](../tool/cmake_roundtrip/print2.ml#L713)
+- **IR**: [`Add_custom_target` at `lang_cmake.ml:775`](../src/langs/cmake/lang_cmake.ml#L775)
+- **Printer**: [`lang_cmake_pp.ml:1101`](../src/langs/cmake/lang_cmake_pp.ml#L1101)
 - **Accepts** (Tier 4 expansion 2026-05-29):
   `add_custom_target(<name> [ALL] [COMMAND <cmd> [<args>...]]...
    [DEPENDS <dep>...] [WORKING_DIRECTORY <dir>] [COMMENT <comment>]
@@ -642,8 +642,8 @@ would populate it.
 
 ### 8.22 list (subcommand dispatch)
 
-- **Location**: [`print2.ml:739`](../../tool/cmake_roundtrip/print2.ml#L739)
-- **IR**: [`List_cmd` at `lang_cmake.ml:531`](../../src/langs/cmake/lang_cmake.ml#L531)
+- **Location**: [`print2.ml:739`](../tool/cmake_roundtrip/print2.ml#L739)
+- **IR**: [`List_cmd` at `lang_cmake.ml:531`](../src/langs/cmake/lang_cmake.ml#L531)
 - **Accepts** (Stage 2-b + Tier 4 list batch 2026-05-29): LENGTH,
   REVERSE, REMOVE_DUPLICATES, APPEND, PREPEND, REMOVE_ITEM, FIND,
   JOIN, GET (multi-index), SUBLIST, INSERT, REMOVE_AT, POP_BACK,
@@ -659,8 +659,8 @@ would populate it.
 
 ### 8.23 string (subcommand dispatch)
 
-- **Location**: [`print2.ml:767`](../../tool/cmake_roundtrip/print2.ml#L767)
-- **IR**: [`String_cmd` at `lang_cmake.ml:532`](../../src/langs/cmake/lang_cmake.ml#L532)
+- **Location**: [`print2.ml:767`](../tool/cmake_roundtrip/print2.ml#L767)
+- **IR**: [`String_cmd` at `lang_cmake.ml:532`](../src/langs/cmake/lang_cmake.ml#L532)
 - **Accepts** (Stage 2-b + Tier 4 string batch 2026-05-29):
   TOUPPER, TOLOWER, LENGTH, STRIP, CONCAT, APPEND, PREPEND,
   REPLACE, FIND, SUBSTRING, COMPARE, MAKE_C_IDENTIFIER, HEX,
@@ -672,16 +672,16 @@ would populate it.
 
 ### 8.24 return
 
-- **Location**: [`print2.ml:809`](../../tool/cmake_roundtrip/print2.ml#L809)
-- **IR**: [`Return` at `lang_cmake.ml:370`](../../src/langs/cmake/lang_cmake.ml#L370)
-- **Printer**: [`lang_cmake_pp.ml:473`](../../src/langs/cmake/lang_cmake_pp.ml#L473)
+- **Location**: [`print2.ml:809`](../tool/cmake_roundtrip/print2.ml#L809)
+- **IR**: [`Return` at `lang_cmake.ml:370`](../src/langs/cmake/lang_cmake.ml#L370)
+- **Printer**: [`lang_cmake_pp.ml:473`](../src/langs/cmake/lang_cmake_pp.ml#L473)
 - **Accepts**: `return()`, `return(PROPAGATE <var>...)`.
 
 ### 8.25 include_directories
 
-- **Location**: [`print2.ml:822`](../../tool/cmake_roundtrip/print2.ml#L822)
-- **IR**: [`Include_directories` at `lang_cmake.ml:791`](../../src/langs/cmake/lang_cmake.ml#L791)
-- **Printer**: [`lang_cmake_pp.ml:1176`](../../src/langs/cmake/lang_cmake_pp.ml#L1176)
+- **Location**: [`print2.ml:822`](../tool/cmake_roundtrip/print2.ml#L822)
+- **IR**: [`Include_directories` at `lang_cmake.ml:791`](../src/langs/cmake/lang_cmake.ml#L791)
+- **Printer**: [`lang_cmake_pp.ml:1176`](../src/langs/cmake/lang_cmake_pp.ml#L1176)
 - **Accepts**: `include_directories([AFTER|BEFORE] [SYSTEM] <dir>...)`
   — one or more bare dirs, with optional `BEFORE`/`AFTER` and
   `SYSTEM` prefixes (matching cmake spec and the printer's emit
@@ -691,9 +691,9 @@ would populate it.
 
 ### 8.26 find_program / find_path (shared `parse_find_var_names`)
 
-- **Location**: [`print2.ml:839`](../../tool/cmake_roundtrip/print2.ml#L839)
+- **Location**: [`print2.ml:839`](../tool/cmake_roundtrip/print2.ml#L839)
 - **IR**: `Find_program` / `Find_path`, both use `find_var_args`
-  at [`lang_cmake.ml:135`](../../src/langs/cmake/lang_cmake.ml#L135).
+  at [`lang_cmake.ml:135`](../src/langs/cmake/lang_cmake.ml#L135).
 - **Printer**: `pp_find_var` at `lang_cmake_pp.ml:235`.
 - **Accepts**:
   - **Short form**: `find_program(<var> <name> [REQUIRED])` —
@@ -709,10 +709,10 @@ would populate it.
 
 ### 8.27 install
 
-- **Location**: [`print2.ml:946`](../../tool/cmake_roundtrip/print2.ml#L946)
-- **IR**: [`Install_targets`](../../src/langs/cmake/lang_cmake.ml#L840),
-  [`Install_files`](../../src/langs/cmake/lang_cmake.ml#L849).
-- **Printer**: [`lang_cmake_pp.ml:1221`](../../src/langs/cmake/lang_cmake_pp.ml#L1221) (TARGETS), [`1227`](../../src/langs/cmake/lang_cmake_pp.ml#L1227) (FILES).
+- **Location**: [`print2.ml:946`](../tool/cmake_roundtrip/print2.ml#L946)
+- **IR**: [`Install_targets`](../src/langs/cmake/lang_cmake.ml#L840),
+  [`Install_files`](../src/langs/cmake/lang_cmake.ml#L849).
+- **Printer**: [`lang_cmake_pp.ml:1221`](../src/langs/cmake/lang_cmake_pp.ml#L1221) (TARGETS), [`1227`](../src/langs/cmake/lang_cmake_pp.ml#L1227) (FILES).
 - **Accepts**:
   - `install(TARGETS <t>... [EXPORT <name>]
      [<artifact-kind> [DESTINATION <d>]]... [DESTINATION <d>])`
@@ -730,10 +730,10 @@ would populate it.
 
 ### 8.28 add_custom_command (TARGET form only)
 
-- **Location**: [`print2.ml:878`](../../tool/cmake_roundtrip/print2.ml#L878)
-- **IR**: [`Add_custom_command_target` at `lang_cmake.ml:767`](../../src/langs/cmake/lang_cmake.ml#L767)
-  (OUTPUT form has [`Add_custom_command`](../../src/langs/cmake/lang_cmake.ml#L748) but no parser yet).
-- **Printer**: [`lang_cmake_pp.ml:1090`](../../src/langs/cmake/lang_cmake_pp.ml#L1090) (TARGET); [`1076`](../../src/langs/cmake/lang_cmake_pp.ml#L1076) (OUTPUT).
+- **Location**: [`print2.ml:878`](../tool/cmake_roundtrip/print2.ml#L878)
+- **IR**: [`Add_custom_command_target` at `lang_cmake.ml:767`](../src/langs/cmake/lang_cmake.ml#L767)
+  (OUTPUT form has [`Add_custom_command`](../src/langs/cmake/lang_cmake.ml#L748) but no parser yet).
+- **Printer**: [`lang_cmake_pp.ml:1090`](../src/langs/cmake/lang_cmake_pp.ml#L1090) (TARGET); [`1076`](../src/langs/cmake/lang_cmake_pp.ml#L1076) (OUTPUT).
 - **Accepts**: `add_custom_command(TARGET <t> {PRE_BUILD|PRE_LINK|POST_BUILD}
   COMMAND <prog> <args>...)` with bare args, single COMMAND.
 - **Bails on**: OUTPUT form, multiple COMMAND blocks,
@@ -742,7 +742,7 @@ would populate it.
 
 ### 8.29 file (subcommand dispatch)
 
-- **Location**: [`print2.ml:909`](../../tool/cmake_roundtrip/print2.ml#L909)
+- **Location**: [`print2.ml:909`](../tool/cmake_roundtrip/print2.ml#L909)
 - **IR**: `File_*` family in `lang_cmake.ml:493..515`.
 - **Printer**: `lang_cmake_pp.ml:699..756`.
 - **Accepts**: WRITE, APPEND, MAKE_DIRECTORY, REMOVE,
@@ -771,9 +771,9 @@ would populate it.
 
 ### 8.32 execute_process (Tier 2 cleanup, 2026-05-29)
 
-- **Location**: [`print2.ml`](../../tool/cmake_roundtrip/print2.ml) `parse_execute_process`
-- **IR**: [`Execute_process` at `lang_cmake.ml:522`](../../src/langs/cmake/lang_cmake.ml#L522) — unchanged, the existing record already covered the keywords parser handles.
-- **Printer**: [`lang_cmake_pp.ml:705`](../../src/langs/cmake/lang_cmake_pp.ml#L705) — unchanged, emits multi-line with `\n  KW <args>` per keyword.
+- **Location**: [`print2.ml`](../tool/cmake_roundtrip/print2.ml) `parse_execute_process`
+- **IR**: [`Execute_process` at `lang_cmake.ml:522`](../src/langs/cmake/lang_cmake.ml#L522) — unchanged, the existing record already covered the keywords parser handles.
+- **Printer**: [`lang_cmake_pp.ml:705`](../src/langs/cmake/lang_cmake_pp.ml#L705) — unchanged, emits multi-line with `\n  KW <args>` per keyword.
 - **Accepts**: `execute_process(COMMAND <c1> [<args>...] [COMMAND <c2> [<args>...]]... [WORKING_DIRECTORY <d>] [TIMEOUT <s>] [RESULT_VARIABLE <v>] [OUTPUT_VARIABLE <v>] [ERROR_VARIABLE <v>] [INPUT_FILE <f>] [OUTPUT_FILE <f>] [ERROR_FILE <f>] [OUTPUT_QUIET] [ERROR_QUIET] [OUTPUT_STRIP_TRAILING_WHITESPACE] [ERROR_STRIP_TRAILING_WHITESPACE] [COMMAND_ERROR_IS_FATAL <ANY|LAST|NONE>])` — keywords MUST appear in the canonical order above (matching the printer's emit order), or the parser bails. COMMAND blocks may repeat at the start.
 - **Bails on**:
   - Keywords out of canonical order in source (e.g. `OUTPUT_QUIET` before `RESULT_VARIABLE`) — printer would silently reorder, breaking STRUCT.
@@ -784,11 +784,11 @@ would populate it.
 
 ### 8.31 get_property (Tier 2 cleanup, 2026-05-29)
 
-- **Location**: [`print2.ml`](../../tool/cmake_roundtrip/print2.ml) `parse_get_property`
-- **IR**: [`Get_property` at `lang_cmake.ml:459`](../../src/langs/cmake/lang_cmake.ml#L459)
+- **Location**: [`print2.ml`](../tool/cmake_roundtrip/print2.ml) `parse_get_property`
+- **IR**: [`Get_property` at `lang_cmake.ml:459`](../src/langs/cmake/lang_cmake.ml#L459)
   with the new `get_property_scope` sum type at `lang_cmake.ml:140`
   and `get_property_mode` enum at `lang_cmake.ml:160`.
-- **Printer**: [`lang_cmake_pp.ml:593`](../../src/langs/cmake/lang_cmake_pp.ml#L593)
+- **Printer**: [`lang_cmake_pp.ml:593`](../src/langs/cmake/lang_cmake_pp.ml#L593)
 - **Accepts**:
   - `get_property(<var> GLOBAL PROPERTY <name> [SET|DEFINED|BRIEF_DOCS|FULL_DOCS])`
   - `get_property(<var> DIRECTORY [<dir>] PROPERTY <name> [...])`
@@ -814,10 +814,10 @@ would populate it.
 
 ### 8.30 set_property (Tier 2 cleanup, 2026-05-29)
 
-- **Location**: [`print2.ml`](../../tool/cmake_roundtrip/print2.ml) `parse_set_property`
-- **IR**: [`Set_property` at `lang_cmake.ml:455`](../../src/langs/cmake/lang_cmake.ml#L455)
+- **Location**: [`print2.ml`](../tool/cmake_roundtrip/print2.ml) `parse_set_property`
+- **IR**: [`Set_property` at `lang_cmake.ml:455`](../src/langs/cmake/lang_cmake.ml#L455)
   with the new `set_property_scope` sum type at `lang_cmake.ml:108`.
-- **Printer**: [`lang_cmake_pp.ml:622`](../../src/langs/cmake/lang_cmake_pp.ml#L622)
+- **Printer**: [`lang_cmake_pp.ml:622`](../src/langs/cmake/lang_cmake_pp.ml#L622)
 - **Accepts**:
   - `set_property(GLOBAL [APPEND] [APPEND_STRING] PROPERTY <name> [<value>...])`
   - `set_property(DIRECTORY [<dir>] [APPEND] [APPEND_STRING] PROPERTY <name> [<value>...])`

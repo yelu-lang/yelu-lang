@@ -9,14 +9,14 @@
 > This report identified what fmt's CMakeLists would need from a real
 > yc-eval probe. That probe has since been built and the matrix
 > closed: 24 cells, real-only=0, mismatched=0, pred-only=0, median
-> matched 20 (see [`cache_matrix.md`](../../methodology/cache_matrix.md)
+> matched 20 (see [`cache_matrix.md`](cache_matrix.md)
 > for the infrastructure,
-> [`status.md`](../../../yelu_cmake/status.md) for follow-ups).
+> [`status.md`](../yelu_cmake/status.md) for follow-ups).
 >
 > Most "would need" gaps below are now filled (find_program /
 > find_package(Threads) / try_compile stubs in
-> [yelu_cmake_find.ml](../../../../src/langs/yelu/fragments/yelu_cmake_find.ml),
-> [yelu_cmake_try.ml](../../../../src/langs/yelu/fragments/yelu_cmake_try.ml);
+> [yelu_cmake_find.ml](../../src/langs/yelu/fragments/yelu_cmake_find.ml),
+> [yelu_cmake_try.ml](../../src/langs/yelu/fragments/yelu_cmake_try.ml);
 > include() recursion + cmake stdlib path, add_subdirectory recursion
 > via subdir_loader, return() bridge). The "Top 3 oracle tests to
 > add" recommendation at § 4 is fully realized as

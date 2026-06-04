@@ -156,12 +156,12 @@ Total unit: 655. Total cmake-backed: 40.
 | `doc/cmake/equiv_research.md`        | Z3 / e-graph equivalence research prompts           |
 | `doc/probes/README.md`                | Probe cluster intro: real-world cmake projects as predictor testbeds; per-project + methodology layout |
 | `doc/probes/candidates.md`            | Candidate open-source cmake projects for ycn benchmarking (5-project first round) |
-| `doc/probes/methodology/cache_matrix.md`   | fmt matrix smoke coverage pipeline — static-option-discovery / parse-once / per-cell real-vs-predicted diff / classifier tier filter / cross-cell rollups |
-| `doc/probes/methodology/parse_print_oracle.md` | Parse-print round-trip oracle audit (was bar3_lite.md) — z3 + llvm + fmt corpus tallies, per-parser contract sheet |
-| `doc/probes/projects/fmt/README.md`   | fmt probe status — 24/24 cells matched, 11/11 parse-print OK, adaptation footprint, open issues |
-| `doc/probes/projects/fmt/probe_report.md` | fmt pre-implementation scoping report (2026-06-01); historical, SUPERSEDED banner points at current status |
-| `doc/probes/projects/z3/README.md`    | z3 probe status — 108/108 parse-print OK, matrix not yet built |
-| `doc/probes/projects/llvm/README.md`  | llvm probe status — 3004/3035 parse-print OK (30 pre-existing STRUCT), matrix not yet built |
+| `doc/probes/cache_matrix.md`   | fmt matrix smoke coverage pipeline — static-option-discovery / parse-once / per-cell real-vs-predicted diff / classifier tier filter / cross-cell rollups |
+| `doc/probes/parse_print_oracle.md` | Parse-print round-trip oracle audit (was bar3_lite.md) — z3 + llvm + fmt corpus tallies, per-parser contract sheet |
+| `doc/probes/fmt.md`   | fmt probe status — 24/24 cells matched, 11/11 parse-print OK, adaptation footprint, open issues |
+| `doc/probes/fmt_probe_report.md` | fmt pre-implementation scoping report (2026-06-01); historical, SUPERSEDED banner points at current status |
+| `doc/probes/z3.md`    | z3 probe status — 108/108 parse-print OK, matrix not yet built |
+| `doc/probes/llvm.md`  | llvm probe status — 3004/3035 parse-print OK (30 pre-existing STRUCT), matrix not yet built |
 | `doc/research/beyond.md`              | Multi-pack architecture, AI language stacks (speculative, 中文) |
 | `doc/research/research_framing.md`    | Benchmark design, contamination-aware eval          |
 | `doc/infra_test.md`                   | Test harness, dune aliases, gotchas                 |

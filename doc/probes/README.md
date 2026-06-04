@@ -9,11 +9,11 @@ A probe is a real cmake project (fmt, z3, llvm, …) pointed at the
 predictor to surface gaps the unit tests can't. Each probe runs two
 oracles:
 
-- **Parse-print oracle** ([methodology/parse_print_oracle.md](methodology/parse_print_oracle.md))
+- **Parse-print oracle** ([parse_print_oracle.md](parse_print_oracle.md))
   — `cmake_source → parse.py → Lang_cmake.exp → pp → text`. Does the
   AST round-trip byte-equivalently? Catches printer bugs and parser
   drops.
-- **Cache matrix oracle** ([methodology/cache_matrix.md](methodology/cache_matrix.md))
+- **Cache matrix oracle** ([cache_matrix.md](cache_matrix.md))
   — `cmake_source → yc-eval → predicted cache_vars` compared against
   `cmake -DOPT=val → CMakeCache.txt` for each option × {ON, OFF}.
   Catches eval-level fidelity gaps.
@@ -25,19 +25,18 @@ per-project — each project's gaps are different.
 
 ```
 doc/probes/
-  README.md              # this file
-  candidates.md          # shortlist of next projects to probe
-  
-  methodology/
-    cache_matrix.md      # how the matrix probe works
-    parse_print_oracle.md # how the parse-print round-trip works
-  
-  projects/
-    <name>/
-      README.md          # current status — oracles run, headline numbers, links
-      probe_report.md    # first-pass scoping report (if one exists)
-      (future: adaptation_notes.md, matrix_results.md, gaps_open.md)
+  README.md                # this file
+  candidates.md            # shortlist of next projects to probe
+  cache_matrix.md          # how the matrix probe works
+  parse_print_oracle.md    # how the parse-print round-trip works
+  <project>.md             # current status — one file per project
+  <project>_probe_report.md  # first-pass scoping report when one exists
+                             # (currently: fmt_probe_report.md only)
 ```
+
+Flat by design. One file per project is enough for the current state;
+if a project later needs adaptation_notes / matrix_results / gaps_open
+as separate artifacts, we'll promote it to a folder then.
 
 ## How to add a new project probe
 
@@ -62,23 +61,25 @@ doc/probes/
      packages like Threads)
    - Build a new ECmake* arm? (for unmodeled commands)
    - Accept as a gap? (for cmake-stdlib-coverage limits)
-5. Create `doc/probes/projects/<name>/README.md` with current status.
-   Add a `probe_report.md` if the first-pass scoping was substantial
-   (multiple agents, deep gap analysis — see fmt's as a reference).
+5. Create `doc/probes/<name>.md` with current status (see
+   [fmt.md](fmt.md) as a reference). Add
+   `<name>_probe_report.md` if first-pass scoping was substantial
+   (multiple agents, deep gap analysis — see
+   [fmt_probe_report.md](fmt_probe_report.md)).
 
 ## Current per-project state
 
 | project | parse-print | cache matrix | adaptation status |
 |---|---|---|---|
-| [fmt](projects/fmt/) | 11/11 OK | 24/24 cells matched, median 20 | complete; whitelist + stubs added |
-| [z3](projects/z3/) | 108/108 OK | not yet built | parse-print only |
-| [llvm](projects/llvm/) | 3004/3035 OK (30 pre-existing STRUCT) | not yet built | parse-print only |
+| [fmt](fmt.md) | 11/11 OK | 24/24 cells matched, median 20 | complete; whitelist + stubs added |
+| [z3](z3.md) | 108/108 OK | not yet built | parse-print only |
+| [llvm](llvm.md) | 3004/3035 OK (30 pre-existing STRUCT) | not yet built | parse-print only |
 
 ## Related docs
 
-- [doc/yelu_cmake/io_architecture.md](../yelu_cmake/io_architecture.md) —
+- [../yelu_cmake/io_architecture.md](../yelu_cmake/io_architecture.md) —
   the library/runner I/O split that enables both oracles
-- [doc/yelu_cmake/status.md](../yelu_cmake/status.md) — predictor-wide
+- [../yelu_cmake/status.md](../yelu_cmake/status.md) — predictor-wide
   open work (cross-cuts all probes)
-- [doc/yelu_cmake/structure.md](../yelu_cmake/structure.md) — fragment
+- [../yelu_cmake/structure.md](../yelu_cmake/structure.md) — fragment
   map showing what's wired vs deferred

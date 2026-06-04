@@ -27,7 +27,7 @@ bash tool/cmake_roundtrip/test_corpus.sh /home/red/code/contrib/fmt-all/fmt
 ```
 
 Last result: `OK=11 FORMAT=0 STRUCT=0 PARSE=0`. See
-[methodology/parse_print_oracle.md](../../methodology/parse_print_oracle.md).
+[parse_print_oracle.md](parse_print_oracle.md).
 
 ### Cache matrix
 
@@ -37,7 +37,7 @@ dune exec test/test-runcmake/test_fmt_matrix_smoke.exe
 
 Last result: median matched 20, all four diff classes (matched /
 mismatched / real_only / pred_only) at their target values. See
-[methodology/cache_matrix.md](../../methodology/cache_matrix.md)
+[cache_matrix.md](cache_matrix.md)
 for the pipeline.
 
 ## Adaptation footprint

@@ -321,9 +321,9 @@ Plus the related unit test:
 
 Methodology + per-project results live in [`probes/`](probes/):
 
-- [`probes/methodology/cache_matrix.md`](probes/methodology/cache_matrix.md) —
+- [`probes/cache_matrix.md`](probes/cache_matrix.md) —
   pipeline walkthrough
-- [`probes/projects/fmt/README.md`](probes/projects/fmt/README.md) —
+- [`probes/fmt.md`](probes/fmt.md) —
   fmt: 24/24 cells perfect
 
 ---

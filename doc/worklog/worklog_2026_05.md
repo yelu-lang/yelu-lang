@@ -254,7 +254,7 @@ fixes produce visible test diffs.
 The Bar #3-lite milestone built a tree-sitter-based round-trip
 oracle for real-world cmake source, exercising the production
 `Lang_cmake.exp` IR + `Lang_cmake_pp` printer end to end. Audit-
-ready state lives at `doc/probes/methodology/parse_print_oracle.md`; this section
+ready state lives at `doc/probes/parse_print_oracle.md`; this section
 is the chronological record.
 
 ### Stages
@@ -347,7 +347,7 @@ correction landing.
 Bar #3-lite produced four overlapping docs during the build:
 `bar3_feasibility.md`, `bar3_lite_report.md`,
 `bar3_lite_audit_kit.md`, `bar3_lite_audit_review.md`. Collapsed
-in two passes to a single durable doc `probes/methodology/parse_print_oracle.md` (commit
+in two passes to a single durable doc `probes/parse_print_oracle.md` (commit
 `d63d7dc` + this commit), with audit history archived to this
 worklog section.
 
@@ -360,7 +360,7 @@ worklog section.
 | llvm/llvm | 596 | 596 | 0 | 0 | 0 | 3,572 | 2,610 |
 
 30 cmake builtins modeled in `tool/cmake_roundtrip/print2.ml`.
-Audit-ready writeup at `doc/probes/methodology/parse_print_oracle.md`.
+Audit-ready writeup at `doc/probes/parse_print_oracle.md`.
 
 ### Retirement final state (from the archived retirement_plan.md)
 
@@ -407,7 +407,7 @@ Bar #3-lite static round-trip declared complete and archived:
   "dynamic-only" items genuinely require cmake evaluation.
   Verdict: claim holds.
 - Audit-ready report preserved as-is at
-  [`../probes/methodology/parse_print_oracle.md`](../probes/methodology/parse_print_oracle.md)
+  [`../probes/parse_print_oracle.md`](../probes/parse_print_oracle.md)
   with an archived banner.
 - Forward tracking moved to
   [`../yelu_cmake/status.md`](../yelu_cmake/status.md). Lead
@@ -419,7 +419,7 @@ Bar #3-lite static round-trip declared complete and archived:
 ## Linked artifacts
 
 - `doc/yelu_cmake/status.md` — current open work (the slim living tracker).
-- `doc/probes/methodology/parse_print_oracle.md` — Bar #3-lite final report (archived 2026-05-31).
+- `doc/probes/parse_print_oracle.md` — Bar #3-lite final report (archived 2026-05-31).
 - `doc/yelu_cmake/design.md` — durable design notes.
 - `doc/yelu_cmake/structure.md` — code-anchored module guide.
 - `src/langs/yelu/` — the production language (post-retirement rename).

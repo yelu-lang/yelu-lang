@@ -1,7 +1,7 @@
 # fmt matrix smoke — coverage pipeline infra
 
 > **Purpose.** Code-anchored walkthrough of the fmt matrix smoke test
-> ([test/test-runcmake/test_fmt_matrix_smoke.ml](../../test/test-runcmake/test_fmt_matrix_smoke.ml)) —
+> ([test/test-runcmake/test_fmt_matrix_smoke.ml](../test/test-runcmake/test_fmt_matrix_smoke.ml)) —
 > the per-cell real-vs-predicted cmake-cache diff that's been our
 > primary signal for closing the predictor's gaps.
 
@@ -52,7 +52,7 @@
 
 ## Phase 1 — Static option discovery
 
-[`tool/cmake_roundtrip/cache_vars.ml`](../../tool/cmake_roundtrip/cache_vars.ml)
+[`tool/cmake_roundtrip/cache_vars.ml`](../tool/cmake_roundtrip/cache_vars.ml)
 statically walks the cmake CST (parse.py → JSON) and emits one TSV
 row per cache-writing site:
 
@@ -64,7 +64,7 @@ where `<kind> = OPTION | BOOL | STRING | PATH | FILEPATH | INTERNAL`.
 `<default>` may be a literal, empty, or a `${VAR}` reference (kept
 verbatim — eval-time problem, not parse-time).
 
-[`load_fmt_options`](../../test/test-runcmake/test_fmt_matrix_smoke.ml#L202)
+[`load_fmt_options`](../test/test-runcmake/test_fmt_matrix_smoke.ml#L202)
 keeps only the `OPTION` + `BOOL` rows — those become the flip axis.
 For fmt, 11 such declarations × {ON, OFF} = **24 cells**.
 
@@ -84,11 +84,11 @@ let fmt_program =
     | None -> failwith ...)
 ```
 
-[`Cmake_bridge.parse_file`](../../src/runner/cmake_bridge.ml#L160):
+[`Cmake_bridge.parse_file`](../src/runner/cmake_bridge.ml#L160):
 
 1. shells out to `parse.py` → JSON CST
 2. `Cmake_text_parse.file_of_json` → Stage-1 `cmd | block | raw`
-3. [`stmts_to_yelu`](../../src/runner/cmake_bridge.ml#L105) maps each
+3. [`stmts_to_yelu`](../src/runner/cmake_bridge.ml#L105) maps each
    stmt:
    - `Cmd c`: `Cp.parse_cmd c` → `Lang_cmake.exp option`
      - `Some exp → Fe.from_emit exp` (typed bridge)
@@ -113,7 +113,7 @@ let real_cache_for ~cmd_line ~build_dir =
   if result.run.exit_code <> 0 then [] else result.cache
 ```
 
-[`Cmake_runner.run_configure`](../../src/runner/cmake_runner.ml#L203)
+[`Cmake_runner.run_configure`](../src/runner/cmake_runner.ml#L203)
 spawns cmake:
 
 ```
@@ -122,7 +122,7 @@ cmake -B /tmp/fmt_matrix_smoke/FMT_FUZZ_ON \
       -DFMT_FUZZ=ON
 ```
 
-After exit, [`parse_cache`](../../src/runner/cmake_runner.ml#L160)
+After exit, [`parse_cache`](../src/runner/cmake_runner.ml#L160)
 reads `CMakeCache.txt`, strips comments/types, returns `(key,
 value)` pairs. ~300ms per cell.
 
@@ -136,7 +136,7 @@ Map.to_alist env.cache_vars
 
 Three pre-populated state pieces matter:
 
-- **defaults** ([line 111-117](../../test/test-runcmake/test_fmt_matrix_smoke.ml#L111)):
+- **defaults** ([line 111-117](../test/test-runcmake/test_fmt_matrix_smoke.ml#L111)):
   cmake auto-sets `CMAKE_CURRENT_LIST_DIR`, `CMAKE_CURRENT_SOURCE_DIR`,
   `CMAKE_INSTALL_PREFIX`, `CMAKE_SOURCE_DIR`, `CMAKE_BINARY_DIR`.
   Without them, `${CMAKE_CURRENT_LIST_DIR}/...` substitutions yield
@@ -156,7 +156,7 @@ val` before evaluation starts. That's how `-DFMT_FUZZ=ON` skips
 fmt's `option(FMT_FUZZ "..." OFF)` — `option()` is a NO-OP when
 the cache entry already exists.
 
-Value rendering ([line 129-137](../../test/test-runcmake/test_fmt_matrix_smoke.ml#L129)):
+Value rendering ([line 129-137](../test/test-runcmake/test_fmt_matrix_smoke.ml#L129)):
 `VBool → "ON"/"OFF"`, `VString` verbatim, `VInt → number`. Matches
 `CMakeCache.txt` format.
 
@@ -174,7 +174,7 @@ match tier with
   | None, Some p -> pred_only := …
 ```
 
-[`Cache_classify`](../../src/runner/cache_classify.ml) is the
+[`Cache_classify`](../src/runner/cache_classify.ml) is the
 **noise filter**. Four tiers:
 
 | tier | source | example |
@@ -199,7 +199,7 @@ The diff yields four lists:
 After per-cell diffs, three views aggregate the same name across
 all 24 cells:
 
-**Real-only rollup** ([`print_real_only_rollup`](../../test/test-runcmake/test_fmt_matrix_smoke.ml#L246)):
+**Real-only rollup** ([`print_real_only_rollup`](../test/test-runcmake/test_fmt_matrix_smoke.ml#L246)):
 
 ```
 23/24 (95%)  DOXYGEN              ← present in 23 of 24 cells
@@ -217,13 +217,13 @@ universal**:
   (FMT_FUZZ_LDFLAGS only when FMT_FUZZ=ON because
   `add_subdirectory(test/fuzzing)` is gated)
 
-**Pred-only rollup** ([`print_pred_only_rollup`](../../test/test-runcmake/test_fmt_matrix_smoke.ml#L263)):
+**Pred-only rollup** ([`print_pred_only_rollup`](../test/test-runcmake/test_fmt_matrix_smoke.ml#L263)):
 mirror of the above; tells you what WE write that real cmake
 doesn't. Useful for catching over-eager evaluation — fmt's
 MKDOCS leaking past `add_doc_target`'s early `return()` showed
 up here at 100% before the `ECmakeReturn` bridge.
 
-**Option flip analysis** ([`print_option_flip_analysis`](../../test/test-runcmake/test_fmt_matrix_smoke.ml#L281)):
+**Option flip analysis** ([`print_option_flip_analysis`](../test/test-runcmake/test_fmt_matrix_smoke.ml#L281)):
 per-option signature comparison.
 
 ```
@@ -268,7 +268,7 @@ Three pieces are load-bearing but invisible inside the test file:
    `loader` and `subdir_loader` as values registered into the
    pure `Yelu_cmake.env`. The library never spawns processes;
    the runner does. See
-   [io_architecture.md § 3](../../yelu_cmake/io_architecture.md#3-the-callback-via-env-pattern).
+   [io_architecture.md § 3](../yelu_cmake/io_architecture.md#3-the-callback-via-env-pattern).
 2. **Reserved-name index** — 1597 entries in
    `cmake_reserved.tsv` make tier filtering meaningful. Without
    it the matrix would drown in false positives.
@@ -303,12 +303,12 @@ batch of bridges-to-stubs (Threads-style whitelisting).
 
 ## Related docs
 
-- [../../yelu_cmake/io_architecture.md](../../yelu_cmake/io_architecture.md) —
+- [../yelu_cmake/io_architecture.md](../yelu_cmake/io_architecture.md) —
   the library/runner split this whole thing depends on
-- [../../yelu_cmake/status.md](../../yelu_cmake/status.md) — what's
+- [../yelu_cmake/status.md](../yelu_cmake/status.md) — what's
   still deferred and what's loader-stub-only
 - [parse_print_oracle.md](parse_print_oracle.md) — the sibling
   oracle (parse → print → tree-sitter-diff round-trip)
-- [../../cmake/cache_semantics.md](../../cmake/cache_semantics.md) —
+- [../cmake/cache_semantics.md](../cmake/cache_semantics.md) —
   cmake's cache vs normal variable namespace (drives why we
   classify Reserved_cmake separately)
