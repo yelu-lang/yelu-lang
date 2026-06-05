@@ -140,9 +140,16 @@ parse errors) will shift items toward `.ml`.
      identifier was being slurped as a value.~~ ✓ fixed.
      p_set_command_y1 now recognizes the trailing keyword and
      sets `~parent_scope:true`.
+   - **Dynamic target names** (`Target ${var}`) — the target
+     command parsers (p_target_command_y1_inner) only accept
+     literal identifiers in target slots. fmt's `add_fuzzer`
+     uses `${name}` (a function parameter) for every target op.
+     Bigger fix than the previous two (cascades through 8 target
+     commands); deferred. add_fuzzer landed as `.ml`.
 
-   Both fixes unlocked `join_paths` as `.ye`. The discover-fix
-   loop costs ~10–20 min per gap so far.
+   The discover-fix loop costs ~10–20 min per small gap so far.
+   Larger gaps (dynamic-target-name above) get deferred and the
+   helper falls back to `.ml`.
 
 ## Recommendation
 
@@ -170,7 +177,7 @@ source file's extension and the toolchain it goes through.
 |---|---|---|---|---|
 | 0 (pilot: join + set_verbose) | ✓ | 2026-06-04 | 2026-06-04 | step 1.a + 1.b done; 24/24 cells match |
 | 0+ (mixed-format demo: use_cmake_modules_false.ye) | ✓ | 2026-06-04 | 2026-06-04 | first `.ye` source in manifest alongside `.ml`; 24/24 still match (commit `12da517`) |
-| 1 (remaining helpers) | in progress | 2026-06-04 | — | 1/8 done: `join_paths` (`.ye`, after fixing `foreach IN LISTS` + `set ... PARENT_SCOPE` parser gaps). 7 remaining. |
+| 1 (remaining helpers) | in progress | 2026-06-04 | — | 2/8 done. `join_paths` (`.ye`, after fixing `foreach IN LISTS` + `set ... PARENT_SCOPE` parser gaps). `add_fuzzer` (`.ml`, dynamic-target-name gap surfaced; deferred). 6 remaining. |
 | 2 (support/) | not started | — | — | |
 | 3 (small test subdirs) | not started | — | — | DECISION POINT after this |
 | 4 (large test subdirs) | not started | — | — | gated on Phase 1 surfacing risks |

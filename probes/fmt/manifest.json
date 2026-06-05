@@ -23,6 +23,13 @@
       "anchor_start": "function (join_paths joined_path first_path_segment)",
       "anchor_end": "endfunction ()",
       "anchor_end_occurrence": 1
+    },
+    {
+      "source": "probes/fmt/add_fuzzer.ml",
+      "target_file": "test/fuzzing/CMakeLists.txt",
+      "anchor_start": "function (add_fuzzer source)",
+      "anchor_end": "endfunction ()",
+      "anchor_end_occurrence": 1
     }
   ]
 }
