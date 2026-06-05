@@ -58,13 +58,4 @@ let helpers =
       ];
   ]
 
-let () =
-  let cmake_ast = Yelu_langs.Yelu_cmake_emit.emit_ast helpers in
-  let buf = Buffer.create 512 in
-  let ff = Format.formatter_of_buffer buf in
-  Format.pp_open_vbox ff 0;
-  Yelu_langs.Lang_cmake_pp.pp ff cmake_ast;
-  Format.pp_close_box ff ();
-  Format.pp_print_flush ff ();
-  print_string (Buffer.contents buf);
-  print_newline ()
+let () = Yelu_langs.Yelu_emit_main.print helpers
