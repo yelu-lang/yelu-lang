@@ -180,13 +180,22 @@ let p_set_command_y1 toks =
       let rec collect_vals acc toks =
         match toks with
         | (RPAREN :: _) | (SEMI :: _) | [] -> List.rev acc, toks
+        | IDENT "PARENT_SCOPE" :: rest' ->
+          (* Trailing PARENT_SCOPE keyword — terminate value collection.
+             Mirrors cmake's `set(X v PARENT_SCOPE)` shape. *)
+          List.rev acc, IDENT "PARENT_SCOPE" :: rest'
         | _ ->
           (match p_expr_y1 toks with
            | Some (v, rest) -> collect_vals (v :: acc) rest
            | None -> List.rev acc, toks)
       in
       let values, rest = collect_vals [] rest in
-      Some (yc_set name values, rest)
+      let parent_scope, rest =
+        match rest with
+        | IDENT "PARENT_SCOPE" :: r -> true, r
+        | _ -> false, rest
+      in
+      Some (yc_set ~parent_scope name values, rest)
     | _ -> None
 
 (* `option NAME value` *)
@@ -1344,6 +1353,24 @@ and p_foreach_y1 toks =
                   | _ -> None))
             | _ -> None)
          | None ->
+           (* IN LISTS <ident>+ — iterate over the contents of one or
+              more list variables. Surface form mirrors cmake's
+              `foreach(v IN LISTS A B)`. Emits ECmakeForeachInList. *)
+           match kw "LISTS" toks with
+           | Some ((), r) ->
+             let rec idents acc = function
+               | IDENT id :: rest -> idents (id :: acc) rest
+               | toks' -> (List.rev acc, toks')
+             in
+             let lists, r = idents [] r in
+             if List.is_empty lists then None
+             else
+               (match p_block_y1 r with
+                | Some (body, r') ->
+                  Some (ECmakeForeachInList
+                          { loop_var = lv; lists; items = []; body }, r')
+                | None -> None)
+           | None ->
            (* [ items ] bracketed list *)
            match toks with
            | LBRACK :: r ->
