@@ -16,6 +16,13 @@
       "anchor_start": "set(FMT_USE_CMAKE_MODULES FALSE)",
       "anchor_end": "set(FMT_USE_CMAKE_MODULES FALSE)",
       "anchor_end_occurrence": 1
+    },
+    {
+      "source": "probes/fmt/join_paths.ml",
+      "target_file": "support/cmake/JoinPaths.cmake",
+      "anchor_start": "function (join_paths joined_path first_path_segment)",
+      "anchor_end": "endfunction ()",
+      "anchor_end_occurrence": 1
     }
   ]
 }

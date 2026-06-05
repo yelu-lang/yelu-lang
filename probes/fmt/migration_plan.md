@@ -133,6 +133,13 @@ parse errors) will shift items toward `.ml`.
    issues against `yelu_parse.ml` as found). The fmt migration
    doubles as a parser coverage test.
 
+   **Parser gaps surfaced so far** (file under future work):
+   - **`foreach IN LISTS X`** (cmake's iteration over a list var's
+     contents). Parser supports `foreach v in RANGE` and bracketed
+     literal lists only. Hit while attempting `join_paths` as `.ye`
+     → fell back to `.ml`. Fix would be in `p_foreach_y1` —
+     accept `IN LISTS <ident>+` shape, emit `yc_foreach_in`.
+
 ## Recommendation
 
 Don't commit to the whole 16-day plan up-front — the per-phase
@@ -159,7 +166,7 @@ source file's extension and the toolchain it goes through.
 |---|---|---|---|---|
 | 0 (pilot: join + set_verbose) | ✓ | 2026-06-04 | 2026-06-04 | step 1.a + 1.b done; 24/24 cells match |
 | 0+ (mixed-format demo: use_cmake_modules_false.ye) | ✓ | 2026-06-04 | 2026-06-04 | first `.ye` source in manifest alongside `.ml`; 24/24 still match (commit `12da517`) |
-| 1 (remaining helpers) | not started | — | — | next on deck |
+| 1 (remaining helpers) | in progress | 2026-06-04 | — | 1/8 done: `join_paths` (`.ml` — parser gap surfaced, see below). 7 remaining. |
 | 2 (support/) | not started | — | — | |
 | 3 (small test subdirs) | not started | — | — | DECISION POINT after this |
 | 4 (large test subdirs) | not started | — | — | gated on Phase 1 surfacing risks |

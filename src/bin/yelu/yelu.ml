@@ -203,20 +203,53 @@ let splice ~target_content ~anchor_start ~anchor_end ~anchor_end_occurrence
    cmake output into target files; run cmake on both; diff. *)
 
 let build_hybrid_tree ~source_dir ~hybrid_root ~spliced_files =
-  (* Remove old hybrid_root if present. *)
+  (* Mirror source_dir as a tree of symlinks, except files that are
+     spliced (real, with new content) and the directories above them
+     (real, so the spliced descendants are reachable). Spliced files
+     are keyed by relative path from source_dir, so "CMakeLists.txt"
+     and "support/cmake/JoinPaths.cmake" both work. *)
   let _ = run_capture (Printf.sprintf "rm -rf %s" (Stdlib.Filename.quote hybrid_root)) in
-  mkdirp hybrid_root;
   let source_abs = run_capture (Printf.sprintf "realpath %s" (Stdlib.Filename.quote source_dir)) |> fst |> String.strip in
-  let entries =
-    Stdlib.Sys.readdir source_abs |> Array.to_list
+  (* Set of relative paths that must be REAL directories (vs symlinks):
+     every ancestor of every spliced file. *)
+  let real_dirs =
+    let acc = ref (Set.empty (module String)) in
+    Map.iter_keys spliced_files ~f:(fun rel_path ->
+      let parts = String.split rel_path ~on:'/' in
+      let rec walk current = function
+        | [] | [_] -> ()  (* last part is the file itself, not a dir *)
+        | part :: rest ->
+          let next = if String.is_empty current then part else current ^ "/" ^ part in
+          acc := Set.add !acc next;
+          walk next rest
+      in
+      walk "" parts);
+    !acc
   in
-  List.iter entries ~f:(fun name ->
-    let dst = Stdlib.Filename.concat hybrid_root name in
-    match Map.find spliced_files name with
-    | Some content -> write_all dst content
-    | None ->
-      let src = Stdlib.Filename.concat source_abs name in
-      Unix.symlink src dst)
+  let rec mirror rel_dir =
+    let src_dir =
+      if String.is_empty rel_dir then source_abs
+      else Stdlib.Filename.concat source_abs rel_dir
+    in
+    let dst_dir =
+      if String.is_empty rel_dir then hybrid_root
+      else Stdlib.Filename.concat hybrid_root rel_dir
+    in
+    mkdirp dst_dir;
+    let entries = Stdlib.Sys.readdir src_dir |> Array.to_list in
+    List.iter entries ~f:(fun name ->
+      let rel_path =
+        if String.is_empty rel_dir then name else rel_dir ^ "/" ^ name
+      in
+      let src = Stdlib.Filename.concat src_dir name in
+      let dst = Stdlib.Filename.concat dst_dir name in
+      match Map.find spliced_files rel_path with
+      | Some content -> write_all dst content
+      | None ->
+        if Set.mem real_dirs rel_path then mirror rel_path
+        else Unix.symlink src dst)
+  in
+  mirror ""
 
 (* Run cmake -B build_dir -S source_dir with -D flags. *)
 let cmake_configure ~source_dir ~build_dir ~d_flags =
