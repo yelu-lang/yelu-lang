@@ -159,7 +159,7 @@ Total unit: 655. Total cmake-backed: 40.
 | `probes/cache_matrix.md`   | fmt matrix smoke coverage pipeline — static-option-discovery / parse-once / per-cell real-vs-predicted diff / classifier tier filter / cross-cell rollups |
 | `probes/parse_print_oracle.md` | Parse-print round-trip oracle audit (was bar3_lite.md) — z3 + llvm + fmt corpus tallies, per-parser contract sheet |
 | `probes/fmt/README.md`   | fmt probe status — 24/24 cells matched, 11/11 parse-print OK, project spec (12 OPTIONs + observations), adaptation footprint, hybrid pilot result |
-| `probes/fmt/migration_plan.md` | fmt full-project migration plan (7 phases, decision point after Phase 3) |
+| `probes/fmt/migration_status.md` | fmt full-project migration status — all 7 phases closed; explains the configure-time matrix oracle, the `raw_cmake` escape, and the unverified Windows / CUDA branches |
 | `probes/z3/README.md`    | z3 probe status — 108/108 parse-print OK, matrix not yet built |
 | `probes/llvm/README.md`  | llvm probe status — 3004/3035 parse-print OK (30 pre-existing STRUCT), matrix not yet built |
 | `doc/research/beyond.md`              | Multi-pack architecture, AI language stacks (speculative, 中文) |

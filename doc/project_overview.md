@@ -220,7 +220,7 @@ in [`yelu_cmake/status.md`](yelu_cmake/status.md).
 | `probes/parse_print_oracle.md` | Parse-print round-trip oracle audit (was bar3_lite.md).            |
 | `probes/cache_matrix.md`       | fmt matrix smoke coverage pipeline walkthrough.                    |
 | `../probes/fmt/README.md`            | fmt probe status — 24/24 cells perfect; project spec; adaptation footprint; hybrid pilot result. |
-| `../probes/fmt/migration_plan.md`    | fmt full-project migration plan + progress tracker (7 phases).     |
+| `../probes/fmt/migration_status.md`  | fmt full-project migration status — all 7 phases closed; configure-time oracle + raw_cmake + unverified Windows/CUDA limits documented. |
 | `../probes/z3/README.md`             | z3 probe — 108/108 parse-print OK; matrix not yet built.           |
 | `../probes/llvm/README.md`           | llvm probe — 3004/3035 parse-print OK; matrix not yet built.       |
 | `yelu_theory/plan.md`                      | Theory-fragment structural split plan.                             |

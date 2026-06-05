@@ -189,9 +189,10 @@ choose `.ml` (OCaml-as-host, full IR ergonomics) or `.ye`
 (concrete syntax, when the parser covers the construct) per
 helper.
 
-Full-project migration plan and progress tracker in
-[`migration_plan.md`](migration_plan.md) — 7 phases, ~16 days
-realistic estimate, decision point after Phase 3.
+Full-project migration status in
+[`migration_status.md`](migration_status.md) — all 7 phases
+closed; covers what the matrix oracle does and doesn't prove,
+the `raw_cmake` escape, and the unverified Windows / CUDA branches.
 
 ## Project spec — user-knob surface
 

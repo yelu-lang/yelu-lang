@@ -31,7 +31,7 @@ probes/
   parse_print_oracle.md    # how the parse-print round-trip works
   <project>/               # one folder per project
     README.md              # current status — landing page
-    migration_plan.md      # full-project hybrid migration plan + tracker
+    migration_status.md    # full-project hybrid migration status report
     <helper>.ml            # per-helper yelu IR (Phase 1+; ad-hoc as needed)
     manifest.json           # build-oracle manifest (per project; read by `yelu hybrid`)
 ```
@@ -66,8 +66,8 @@ Small projects may stay at just README.md.
 5. Create `probes/<name>/README.md` with current status (see
    [fmt/README.md](fmt/README.md) as a reference — captures probe
    status, project spec, adaptation footprint, hybrid pilot
-   results). If migrating to yelu, add a `migration_plan.md`
-   (see [fmt/migration_plan.md](fmt/migration_plan.md)).
+   results). If migrating to yelu, add a `migration_status.md`
+   (see [fmt/migration_status.md](fmt/migration_status.md)).
 
 ## Current per-project state
 
