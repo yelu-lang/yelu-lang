@@ -20,9 +20,7 @@
     {
       "source": "probes/fmt/join_paths.ye",
       "target_file": "support/cmake/JoinPaths.cmake",
-      "anchor_start": "function (join_paths joined_path first_path_segment)",
-      "anchor_end": "endfunction ()",
-      "anchor_end_occurrence": 1
+      "whole_file": true
     },
     {
       "source": "probes/fmt/add_fuzzer.ml",
@@ -72,6 +70,11 @@
       "anchor_start": "function (run_tests)",
       "anchor_end": "endfunction ()",
       "anchor_end_occurrence": 1
+    },
+    {
+      "source": "probes/fmt/find_setenv.ml",
+      "target_file": "support/cmake/FindSetEnv.cmake",
+      "whole_file": true
     }
   ]
 }

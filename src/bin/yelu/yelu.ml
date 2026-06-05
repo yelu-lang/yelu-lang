@@ -124,6 +124,7 @@ let compile file =
 type helper = {
   source : string;
   target_file : string;
+  whole_file : bool;
   anchor_start : string;
   anchor_end : string;
   anchor_end_occurrence : int;
@@ -141,10 +142,20 @@ let load_manifest path : manifest =
   let open Yojson.Safe.Util in
   let helpers =
     json |> member "helpers" |> to_list |> List.map ~f:(fun h ->
+      let whole_file =
+        h |> member "whole_file" |> to_bool_option
+        |> Option.value ~default:false
+      in
+      let str_or_empty k =
+        match h |> member k with
+        | `Null -> ""
+        | j -> to_string j
+      in
       { source       = h |> member "source"       |> to_string;
         target_file  = h |> member "target_file"  |> to_string;
-        anchor_start = h |> member "anchor_start" |> to_string;
-        anchor_end   = h |> member "anchor_end"   |> to_string;
+        whole_file;
+        anchor_start = str_or_empty "anchor_start";
+        anchor_end   = str_or_empty "anchor_end";
         anchor_end_occurrence =
           h |> member "anchor_end_occurrence" |> to_int_option
           |> Option.value ~default:1 })
@@ -297,12 +308,14 @@ let cmd_hybrid manifest_path d_flags =
       Hashtbl.find_or_add by_target h.target_file
         ~default:(fun () -> read_all target_path)
     in
-    let new_content = splice
-      ~target_content:current
-      ~anchor_start:h.anchor_start
-      ~anchor_end:h.anchor_end
-      ~anchor_end_occurrence:h.anchor_end_occurrence
-      ~replacement:generated
+    let new_content =
+      if h.whole_file then generated
+      else splice
+        ~target_content:current
+        ~anchor_start:h.anchor_start
+        ~anchor_end:h.anchor_end
+        ~anchor_end_occurrence:h.anchor_end_occurrence
+        ~replacement:generated
     in
     Hashtbl.set by_target ~key:h.target_file ~data:new_content);
 
