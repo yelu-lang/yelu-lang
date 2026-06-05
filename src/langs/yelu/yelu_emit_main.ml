@@ -18,6 +18,12 @@ let escape s =
   ) s;
   Buffer.contents buf
 
+(* Raw cmake escape — verbatim text dropped into the emitted file.
+   Use sparingly: each call is unmodeled surface. See
+   doc/yelu_cmake/hybrid_strategy.md Shape C. *)
+let raw_cmake (text : string) : Yelu_cmake.expr =
+  Yelu_cmake_raw.ECmakeRaw text
+
 let print (helpers : Yelu_cmake.expr) : unit =
   let cmake_ast = Yelu_cmake_emit.emit_ast helpers in
   let buf = Buffer.create 512 in

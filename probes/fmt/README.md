@@ -244,3 +244,90 @@ match fmt's reference cmake behavior on this host. They'd flip to
 mismatches on a system where the underlying tools/libs differ —
 which is the next adaptation problem (per-host vs per-project
 stubs), not a fmt-specific one.
+
+## Shape C lockup (Phase 7, 2026-06-04)
+
+All vendor/fmt cmake sources are migrated to `whole_file` `.ml`
+emits — 11 source files, ~870 cmake lines total, replaced by
+~1.7k lines of OCaml in `probes/fmt/*.ml`:
+
+| Target file | Migrator |
+|---|---|
+| `CMakeLists.txt` | [`main.ml`](main.ml) — 593 → 690 lines |
+| `support/cmake/JoinPaths.cmake` | [`join_paths.ye`](join_paths.ye) |
+| `support/cmake/FindSetEnv.cmake` | [`find_setenv.ml`](find_setenv.ml) |
+| `test/CMakeLists.txt` | [`test_main.ml`](test_main.ml) |
+| `test/compile-error-test/CMakeLists.txt` | [`compile_error_test.ml`](compile_error_test.ml) |
+| `test/cuda-test/CMakeLists.txt` | [`cuda_test.ml`](cuda_test.ml) |
+| `test/add-subdirectory-test/CMakeLists.txt` | [`add_subdirectory_test.ml`](add_subdirectory_test.ml) |
+| `test/find-package-test/CMakeLists.txt` | [`find_package_test.ml`](find_package_test.ml) |
+| `test/gtest/CMakeLists.txt` | [`gtest.ml`](gtest.ml) |
+| `test/static-export-test/CMakeLists.txt` | [`static_export_test.ml`](static_export_test.ml) |
+| `test/fuzzing/CMakeLists.txt` | [`fuzzing.ml`](fuzzing.ml) |
+
+24/24 matrix cells still match after each phase. End-to-end:
+`vendor/fmt → hybrid tree of .ml-generated cmake → identical
+CMakeCache.txt`.
+
+### Two escape hatches
+
+1. **`yc_apply (ystr "<command>") [args...]`** — lenient untyped
+   command call. Bypasses the typed IR but still goes through the
+   yelu_cmake AST and emit. Used for commands that aren't worth a
+   typed constructor (user-defined functions, find/check helpers,
+   `cmake_parse_arguments`, etc.). 100+ uses across the 11 files;
+   see footprint table below.
+
+2. **`Yelu_emit_main.raw_cmake "<text>"`** — verbatim cmake source
+   inserted into the output stream. Bypasses the AST entirely. Used
+   for blocks where the cmake-pp quoting layer can't round-trip
+   cleanly (e.g. backslash-laden Windows paths with embedded
+   quotes). Current count: **1 site** — the
+   `FMT_MASTER_PROJECT AND Visual Studio` WINSDK / netfxpath /
+   run-msbuild.bat block in `main.ml` (dead code on Linux).
+
+### `yc_apply` footprint (Phase 7 audit)
+
+| Command | Count | Modeled? |
+|---|---:|---|
+| `message` | 13 | partial — typed for `STATUS`, untyped for `FATAL_ERROR`/`SEND_ERROR`/`WARNING` mix-ins |
+| `target_compile_options` | 12 | yes (`ECmakeTargetCompileOptions`) — untyped used when args mix EVar/ystr inconsistently |
+| `target_link_libraries` | 9 | yes (`ECmakeTargetLinkLibraries`) — same |
+| `include` | 8 | no IR constructor; always via apply |
+| `add_test` | 8 | no — meta command |
+| `set_verbose` / `join` | 10 | user-defined fmt functions |
+| `list` | 7 | yes (multi-form) — apply for ergonomics |
+| `set_target_properties` | 6 | no IR — meta property setter |
+| `file` | 6 | partial — `READ`/`STRINGS`/`EXISTS` typed; `WRITE`/`MAKE_DIRECTORY`/`TO_NATIVE_PATH` untyped |
+| `add_subdirectory` | 6 | no IR constructor |
+| `target_compile_definitions` | 5 | yes — apply for ergonomics |
+| `project` | 5 | no IR constructor; always via apply |
+| `install` | 5 | partial — `ECmakeInstallTargets/Files/Export` exist but lack COMPONENT / FILE_SET / multi-DESTINATION |
+| `execute_process` | 5 | no IR constructor |
+| `cmake_minimum_required` | 5 | no IR constructor |
+| `set_property` | 4 | partial — `ECmakeSetProperty` exists but not `CACHE` / `SOURCE` / `APPEND` forms |
+| `find_program` / `find_package` | 6 | partial — find-stubs in eval but no typed args |
+| `cmake_parse_arguments` | 3 | no — would require ~1 day of modeling |
+| `enable_language` / `cmake_policy` / `check_*` | 5 | no IR constructors |
+| user-defined fns (`add_fmt_test`, `expect_compile`, …) | 7 | n/a — these go through apply by design |
+
+**Read**: the bulk of `yc_apply` is for typed commands where we
+chose ergonomics over the structured ctor — not for unmodeled
+surface. Genuinely unmodeled (no IR at all): `include`,
+`add_subdirectory`, `project`, `cmake_minimum_required`,
+`execute_process`, `enable_language`, `cmake_policy`,
+`cmake_parse_arguments`, plus the long tail of `check_*` /
+`set_target_properties` / `set_property CACHE`. The `raw_cmake`
+escape is reserved for content that isn't even one command —
+multi-line bat-file bodies, Windows-path-with-quotes blocks,
+etc.
+
+### What this proves
+
+Y16 framing (from the manifesto): "Rewrite z3/llvm/torch build in
+yelu, prove structural equivalence." fmt is the first specimen —
+~870 lines of real-world cmake, fully migrated through a hybrid
+path that preserves byte-equivalent cache output across the full
+12-option × 2-value matrix. The next step is the same exercise
+on z3 or llvm; their probe scaffolding lives under
+`probes/{z3,llvm}/` and the matrix harness is reusable.

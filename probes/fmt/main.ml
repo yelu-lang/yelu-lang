@@ -306,22 +306,22 @@ let visibility_and_flags = ESeq [
        (EVar "FMT_MASTER_PROJECT",
         Yelu_langs.Yelu_cmake_string.ECmakeMatches
           { expr_ = EVar "CMAKE_GENERATOR"; regex = "Visual Studio" }))
-    (ESeq [
-      yc_apply (ystr "include") [ystr "FindSetEnv"];
-      yifthen (EVar "WINSDK_SETENV")
-        (yc_set (ycvar "MSBUILD_SETUP")
-           [ystr (Yelu_langs.Yelu_emit_main.escape "call \"${WINSDK_SETENV}\"")]);
-      yc_apply (ystr "join") [
-        ystr "netfxpath";
-        ystr "C:\\\\Program Files\\\\Reference Assemblies\\\\Microsoft\\\\Framework\\\\";
-        ystr ".NETFramework\\\\v4.0";
-      ];
-      yc_apply (ystr "file") [
-        ystr "WRITE"; ystr "run-msbuild.bat";
-        ystr (Yelu_langs.Yelu_emit_main.escape
-                "${MSBUILD_SETUP}\n    ${CMAKE_MAKE_PROGRAM} -p:FrameworkPathOverride=\"${netfxpath}\" %*");
-      ];
-    ]);
+    (* Shape C escape: this block embeds backslash-laden Windows
+       paths and a multi-line bat-file body that the cmake-pp
+       quoting layer can't round-trip cleanly. Emit it as raw
+       cmake text — semantically equivalent, dead code on
+       non-Visual-Studio configurations. *)
+    (Yelu_langs.Yelu_emit_main.raw_cmake
+       {|include(FindSetEnv)
+if (WINSDK_SETENV)
+  set(MSBUILD_SETUP "call \"${WINSDK_SETENV}\"")
+endif ()
+join(netfxpath
+     "C:\\Program Files\\Reference Assemblies\\Microsoft\\Framework\\"
+     ".NETFramework\\v4.0")
+file(WRITE run-msbuild.bat "${MSBUILD_SETUP}
+  ${CMAKE_MAKE_PROGRAM} -p:FrameworkPathOverride=\"${netfxpath}\" %*")
+|});
 ]
 
 (* ============================================================

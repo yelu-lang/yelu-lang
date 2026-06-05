@@ -246,6 +246,7 @@ let rec emit_exp ~env (e : expr) : C.exp =
   | EUnit -> C.Exp_list []
   | ESeq exprs ->
     C.Exp_list (List.map exprs ~f:(emit_exp ~env))
+  | Yelu_cmake_raw.ECmakeRaw text -> C.Quote text
   | ELet { var; value; body } ->
     let env = Map.set env ~key:var ~data:value in
     emit_exp ~env body
