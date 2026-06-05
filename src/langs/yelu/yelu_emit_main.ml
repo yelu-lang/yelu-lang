@@ -5,6 +5,19 @@
      let helpers = ESeq [ ... ]
      let () = Yelu_emit_main.print helpers *)
 
+(* Escape a raw string for embedding inside a cmake-quoted argument.
+   Lang_cmake_pp.quoted wraps with "..." but does NOT escape inner
+   '"' or '\'. Call qstr s = ystr (Yelu_emit_main.escape s) when the
+   raw content contains either character. *)
+let escape s =
+  let buf = Buffer.create (String.length s) in
+  String.iter (fun c -> match c with
+    | '"' -> Buffer.add_string buf "\\\""
+    | '\\' -> Buffer.add_string buf "\\\\"
+    | c -> Buffer.add_char buf c
+  ) s;
+  Buffer.contents buf
+
 let print (helpers : Yelu_cmake.expr) : unit =
   let cmake_ast = Yelu_cmake_emit.emit_ast helpers in
   let buf = Buffer.create 512 in

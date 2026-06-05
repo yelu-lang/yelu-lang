@@ -49,25 +49,14 @@
       "anchor_end_occurrence": 1
     },
     {
-      "source": "probes/fmt/add_fmt_test.ml",
+      "source": "probes/fmt/test_main.ml",
       "target_file": "test/CMakeLists.txt",
-      "anchor_start": "function (add_fmt_test name)",
-      "anchor_end": "endfunction ()",
-      "anchor_end_occurrence": 1
+      "whole_file": true
     },
     {
-      "source": "probes/fmt/expect_compile.ml",
+      "source": "probes/fmt/compile_error_test.ml",
       "target_file": "test/compile-error-test/CMakeLists.txt",
-      "anchor_start": "function (expect_compile name code_fragment)",
-      "anchor_end": "endfunction ()",
-      "anchor_end_occurrence": 1
-    },
-    {
-      "source": "probes/fmt/run_tests.ml",
-      "target_file": "test/compile-error-test/CMakeLists.txt",
-      "anchor_start": "function (run_tests)",
-      "anchor_end": "endfunction ()",
-      "anchor_end_occurrence": 1
+      "whole_file": true
     },
     {
       "source": "probes/fmt/find_setenv.ml",
