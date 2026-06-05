@@ -202,9 +202,9 @@ let version_of_string s : C.version =
 let items_with_kind ~env ~visibility (items : expr list) : C.items_with_kind list =
   [ { kind = visibility; items = List.map items ~f:(arg ~env) } ]
 
-let target_feature_of_expr ~env (feature : expr) : C.target_feature =
-  (* tiny stores features as plain strings; assume PRIVATE kind by default. *)
-  { kind = "PRIVATE"; feature = target_arg ~env feature }
+let target_feature_of_expr ~env ?(kind = "PRIVATE") (feature : expr)
+  : C.target_feature =
+  { kind; feature = target_arg ~env feature }
 
 (* Inverse of bridge's [Lang_cmake_strings.of_cmake_path_get_field]. Tiny stores
    the field as a keyword string ("ROOT_NAME", "EXTENSION LAST_ONLY", …);
@@ -416,11 +416,12 @@ let rec emit_exp ~env (e : expr) : C.exp =
          { target = target_arg ~env target;
            before;
            items = items_with_kind ~env ~visibility dirs })
-  | ECmakeTargetCompileFeatures { target; visibility = _; features } ->
+  | ECmakeTargetCompileFeatures { target; visibility; features } ->
     C.Project_cmd
       (C.Target_compile_features
          { target = target_arg ~env target;
-           features = List.map features ~f:(target_feature_of_expr ~env) })
+           features = List.map features
+                        ~f:(target_feature_of_expr ~env ~kind:visibility) })
   | ECmakeTargetSources { target; visibility; sources } ->
     C.Project_cmd
       (C.Target_sources

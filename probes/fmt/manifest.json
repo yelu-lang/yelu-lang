@@ -4,18 +4,9 @@
   "out_root": "_out/fmt",
   "helpers": [
     {
-      "source": "probes/fmt/set_verbose.ml",
+      "source": "probes/fmt/main.ml",
       "target_file": "CMakeLists.txt",
-      "anchor_start": "function (join result_var)",
-      "anchor_end": "endfunction ()",
-      "anchor_end_occurrence": 2
-    },
-    {
-      "source": "probes/fmt/use_cmake_modules_false.ye",
-      "target_file": "CMakeLists.txt",
-      "anchor_start": "set(FMT_USE_CMAKE_MODULES FALSE)",
-      "anchor_end": "set(FMT_USE_CMAKE_MODULES FALSE)",
-      "anchor_end_occurrence": 1
+      "whole_file": true
     },
     {
       "source": "probes/fmt/join_paths.ye",
@@ -26,27 +17,6 @@
       "source": "probes/fmt/fuzzing.ml",
       "target_file": "test/fuzzing/CMakeLists.txt",
       "whole_file": true
-    },
-    {
-      "source": "probes/fmt/setup_target.ml",
-      "target_file": "CMakeLists.txt",
-      "anchor_start": "function (setup_target target kind)",
-      "anchor_end": "endfunction ()",
-      "anchor_end_occurrence": 1
-    },
-    {
-      "source": "probes/fmt/add_module_library.ml",
-      "target_file": "CMakeLists.txt",
-      "anchor_start": "function (add_module_library name)",
-      "anchor_end": "endfunction ()",
-      "anchor_end_occurrence": 1
-    },
-    {
-      "source": "probes/fmt/add_doc_target.ml",
-      "target_file": "CMakeLists.txt",
-      "anchor_start": "function (add_doc_target)",
-      "anchor_end": "endfunction ()",
-      "anchor_end_occurrence": 1
     },
     {
       "source": "probes/fmt/test_main.ml",
