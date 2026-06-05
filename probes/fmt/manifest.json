@@ -54,6 +54,11 @@
       "whole_file": true
     },
     {
+      "source": "probes/fmt/cuda_test.ml",
+      "target_file": "test/cuda-test/CMakeLists.txt",
+      "whole_file": true
+    },
+    {
       "source": "probes/fmt/compile_error_test.ml",
       "target_file": "test/compile-error-test/CMakeLists.txt",
       "whole_file": true
