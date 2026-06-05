@@ -177,7 +177,7 @@ source file's extension and the toolchain it goes through.
 |---|---|---|---|---|
 | 0 (pilot: join + set_verbose) | ✓ | 2026-06-04 | 2026-06-04 | step 1.a + 1.b done; 24/24 cells match |
 | 0+ (mixed-format demo: use_cmake_modules_false.ye) | ✓ | 2026-06-04 | 2026-06-04 | first `.ye` source in manifest alongside `.ml`; 24/24 still match (commit `12da517`) |
-| 1 (remaining helpers) | in progress | 2026-06-04 | — | 2/8 done. `join_paths` (`.ye`, after fixing `foreach IN LISTS` + `set ... PARENT_SCOPE` parser gaps). `add_fuzzer` (`.ml`, dynamic-target-name gap surfaced; deferred). 6 remaining. |
+| 1 (remaining helpers) | ✓ | 2026-06-04 | 2026-06-04 | 8/8 done. `join_paths` (`.ye`, after fixing `foreach IN LISTS` + `set ... PARENT_SCOPE` parser gaps). `add_fuzzer`, `setup_target`, `add_module_library`, `add_doc_target`, `add_fmt_test`, `expect_compile`, `run_tests` (`.ml`; dynamic-target-name and `cmake_parse_arguments` gaps handled via `yc_apply` lenient fallback). Default cell matches per helper; 24/24 matrix still green. |
 | 2 (support/) | not started | — | — | |
 | 3 (small test subdirs) | not started | — | — | DECISION POINT after this |
 | 4 (large test subdirs) | not started | — | — | gated on Phase 1 surfacing risks |

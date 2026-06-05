@@ -30,6 +30,48 @@
       "anchor_start": "function (add_fuzzer source)",
       "anchor_end": "endfunction ()",
       "anchor_end_occurrence": 1
+    },
+    {
+      "source": "probes/fmt/setup_target.ml",
+      "target_file": "CMakeLists.txt",
+      "anchor_start": "function (setup_target target kind)",
+      "anchor_end": "endfunction ()",
+      "anchor_end_occurrence": 1
+    },
+    {
+      "source": "probes/fmt/add_module_library.ml",
+      "target_file": "CMakeLists.txt",
+      "anchor_start": "function (add_module_library name)",
+      "anchor_end": "endfunction ()",
+      "anchor_end_occurrence": 1
+    },
+    {
+      "source": "probes/fmt/add_doc_target.ml",
+      "target_file": "CMakeLists.txt",
+      "anchor_start": "function (add_doc_target)",
+      "anchor_end": "endfunction ()",
+      "anchor_end_occurrence": 1
+    },
+    {
+      "source": "probes/fmt/add_fmt_test.ml",
+      "target_file": "test/CMakeLists.txt",
+      "anchor_start": "function (add_fmt_test name)",
+      "anchor_end": "endfunction ()",
+      "anchor_end_occurrence": 1
+    },
+    {
+      "source": "probes/fmt/expect_compile.ml",
+      "target_file": "test/compile-error-test/CMakeLists.txt",
+      "anchor_start": "function (expect_compile name code_fragment)",
+      "anchor_end": "endfunction ()",
+      "anchor_end_occurrence": 1
+    },
+    {
+      "source": "probes/fmt/run_tests.ml",
+      "target_file": "test/compile-error-test/CMakeLists.txt",
+      "anchor_start": "function (run_tests)",
+      "anchor_end": "endfunction ()",
+      "anchor_end_occurrence": 1
     }
   ]
 }
