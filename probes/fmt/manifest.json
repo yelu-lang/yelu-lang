@@ -23,11 +23,9 @@
       "whole_file": true
     },
     {
-      "source": "probes/fmt/add_fuzzer.ml",
+      "source": "probes/fmt/fuzzing.ml",
       "target_file": "test/fuzzing/CMakeLists.txt",
-      "anchor_start": "function (add_fuzzer source)",
-      "anchor_end": "endfunction ()",
-      "anchor_end_occurrence": 1
+      "whole_file": true
     },
     {
       "source": "probes/fmt/setup_target.ml",
@@ -74,6 +72,26 @@
     {
       "source": "probes/fmt/find_setenv.ml",
       "target_file": "support/cmake/FindSetEnv.cmake",
+      "whole_file": true
+    },
+    {
+      "source": "probes/fmt/add_subdirectory_test.ml",
+      "target_file": "test/add-subdirectory-test/CMakeLists.txt",
+      "whole_file": true
+    },
+    {
+      "source": "probes/fmt/find_package_test.ml",
+      "target_file": "test/find-package-test/CMakeLists.txt",
+      "whole_file": true
+    },
+    {
+      "source": "probes/fmt/gtest.ml",
+      "target_file": "test/gtest/CMakeLists.txt",
+      "whole_file": true
+    },
+    {
+      "source": "probes/fmt/static_export_test.ml",
+      "target_file": "test/static-export-test/CMakeLists.txt",
       "whole_file": true
     }
   ]

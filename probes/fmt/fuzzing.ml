@@ -1,54 +1,55 @@
-(* fmt test/fuzzing/CMakeLists.txt — yelu IR for the
-   `add_fuzzer(source)` helper.
-
-   Notes:
-   - .ml not .ye because yelu surface parser doesn't yet support
-     dynamic target names (`Target ${var}` form). All target ops
-     in this helper use `${name}` (a function parameter). Filed
-     under migration_plan risk #6 (parser coverage). *)
+(* fmt test/fuzzing/CMakeLists.txt — whole-file emit.
+   option + cached STRING + add_fuzzer function + foreach. *)
 
 open Yelu_langs.Yelu_cmake
 open Yelu_langs.Yelu_cmake_utils
 open Yelu_langs.Yelu_cmake_target
 
-let helpers =
+let add_fuzzer_fn =
   yc_function (ystr "add_fuzzer") ["source"] [
-    (* get_filename_component(basename ${source} NAME_WE) *)
     yc_get_filename_component ~mode:"NAME_WE" "basename" (EVar "source");
-    (* set(name ${basename}-fuzzer) *)
     yc_set (ycvar "name") [ystr "${basename}-fuzzer"];
-    (* add_executable(${name} ${source} fuzzer-common.h) *)
     ECmakeAddExecutable {
       name = EVar "name";
       sources = [EVar "source"; ystr "fuzzer-common.h"];
     };
-    (* if (FMT_FUZZ_LINKMAIN) target_sources(${name} PRIVATE main.cc) endif() *)
     yifthen (EVar "FMT_FUZZ_LINKMAIN") (
       ECmakeTargetSources {
-        target = EVar "name";
-        visibility = "PRIVATE";
+        target = EVar "name"; visibility = "PRIVATE";
         sources = [ystr "main.cc"];
       });
-    (* target_link_libraries(${name} PRIVATE fmt) *)
     ECmakeTargetLinkLibraries {
-      target = EVar "name";
-      visibility = "PRIVATE";
+      target = EVar "name"; visibility = "PRIVATE";
       items = [ystr "fmt"];
     };
-    (* if (FMT_FUZZ_LDFLAGS) target_link_libraries(${name} PRIVATE ${FMT_FUZZ_LDFLAGS}) endif() *)
     yifthen (EVar "FMT_FUZZ_LDFLAGS") (
       ECmakeTargetLinkLibraries {
-        target = EVar "name";
-        visibility = "PRIVATE";
+        target = EVar "name"; visibility = "PRIVATE";
         items = [EVar "FMT_FUZZ_LDFLAGS"];
       });
-    (* target_compile_features(${name} PRIVATE cxx_std_14) *)
     ECmakeTargetCompileFeatures {
-      target = EVar "name";
-      visibility = "PRIVATE";
+      target = EVar "name"; visibility = "PRIVATE";
       features = [ystr "cxx_std_14"];
     };
   ]
+
+let helpers = ESeq [
+  yc_option "FMT_FUZZ_LINKMAIN"
+    ~msg:"Enables the reproduce mode, instead of libFuzzer"
+    ~value:(EBool true);
+  yc_set_cache (ycvar "FMT_FUZZ_LDFLAGS")
+    ~docstring:"LDFLAGS for the fuzz targets"
+    [ystr ""];
+  add_fuzzer_fn;
+  yc_foreach
+    ~items:[
+      ystr "chrono-duration.cc"; ystr "chrono-timepoint.cc";
+      ystr "float.cc"; ystr "named-arg.cc";
+      ystr "one-arg.cc"; ystr "two-args.cc";
+    ]
+    (ycvar "source")
+    (yc_apply (ystr "add_fuzzer") [EVar "source"]);
+]
 
 let () =
   let cmake_ast = Yelu_langs.Yelu_cmake_emit.emit_ast helpers in

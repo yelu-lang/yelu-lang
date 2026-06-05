@@ -1,3 +1,3 @@
 (executables
- (names set_verbose add_fuzzer setup_target add_module_library add_doc_target add_fmt_test expect_compile run_tests find_setenv)
+ (names set_verbose setup_target add_module_library add_doc_target add_fmt_test expect_compile run_tests find_setenv add_subdirectory_test find_package_test gtest static_export_test fuzzing)
  (libraries yelu_langs))
