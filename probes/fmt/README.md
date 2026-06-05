@@ -164,8 +164,30 @@ drop-in replacement for fmt's hand-written ones.
 The strategy from [`hybrid_strategy.md`](../../doc/yelu_cmake/hybrid_strategy.md)
 is now demonstrated end-to-end on fmt's `join` + `set_verbose`.
 Generalizing: each next helper migrated follows the same pattern
-(write `probes/fmt/<helper>.ml`, add to manifest.json, run
+(write `probes/fmt/<helper>.{ml,ye}`, add to manifest.json, run
 all cells). No new oracle infrastructure needed.
+
+### Mixed-format demo (`.ml` + `.ye`)
+
+[`use_cmake_modules_false.ye`](use_cmake_modules_false.ye) is a
+one-liner concrete-syntax demo:
+
+```
+( FMT_USE_CMAKE_MODULES := "FALSE" )
+```
+
+The manifest has both helpers: `set_verbose.ml` (the original
+pilot) AND `use_cmake_modules_false.ye` (the demo). One run of
+`yelu hybrid probes/fmt` compiles both via their respective
+paths (subprocess for `.ml`, in-process parse for `.ye`),
+splices both into the hybrid CMakeLists, and still produces
+24/24 cache matches.
+
+The demo proves the driver is **input-format-agnostic** — same
+manifest, two source formats, same oracle. Future helpers can
+choose `.ml` (OCaml-as-host, full IR ergonomics) or `.ye`
+(concrete syntax, when the parser covers the construct) per
+helper.
 
 Full-project migration plan and progress tracker in
 [`migration_plan.md`](migration_plan.md) — 7 phases, ~16 days

@@ -176,19 +176,23 @@ let splice ~target_content ~anchor_start ~anchor_end ~anchor_end_occurrence
         "yelu splice: anchor_start %S not found in target\n" anchor_start;
       Stdlib.exit 1
   in
-  (* Find Nth occurrence of anchor_end after start_idx. *)
+  (* Find Nth occurrence of anchor_end at-or-after start_idx. Starting
+     from start_idx (not start_idx+1) lets anchor_start == anchor_end
+     with occurrence=1 mean "replace just this one line". Multi-line
+     cases still work — different anchors won't both match at start_idx,
+     and same-anchor with occurrence>1 still skips to later matches. *)
   let end_idx =
     let rec loop n from =
       match find_line ~from anchor_end with
       | None ->
         Stdlib.Printf.eprintf
-          "yelu splice: anchor_end %S occurrence %d not found after line %d\n"
+          "yelu splice: anchor_end %S occurrence %d not found at-or-after line %d\n"
           anchor_end anchor_end_occurrence start_idx;
         Stdlib.exit 1
       | Some (i, _) ->
         if n = 1 then i else loop (n - 1) (i + 1)
     in
-    loop anchor_end_occurrence (start_idx + 1)
+    loop anchor_end_occurrence start_idx
   in
   let before = List.take lines start_idx in
   let after  = List.drop lines (end_idx + 1) in

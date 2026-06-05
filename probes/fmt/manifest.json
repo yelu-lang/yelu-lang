@@ -9,6 +9,13 @@
       "anchor_start": "function (join result_var)",
       "anchor_end": "endfunction ()",
       "anchor_end_occurrence": 2
+    },
+    {
+      "source": "probes/fmt/use_cmake_modules_false.ye",
+      "target_file": "CMakeLists.txt",
+      "anchor_start": "set(FMT_USE_CMAKE_MODULES FALSE)",
+      "anchor_end": "set(FMT_USE_CMAKE_MODULES FALSE)",
+      "anchor_end_occurrence": 1
     }
   ]
 }
