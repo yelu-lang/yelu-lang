@@ -33,7 +33,7 @@ probes/
     README.md              # current status — landing page
     migration_plan.md      # full-project hybrid migration plan + tracker
     <helper>.ml            # per-helper yelu IR (Phase 1+; ad-hoc as needed)
-    hybrid_smoke.sh        # build-oracle harness (per project; pattern from fmt)
+    manifest.json           # build-oracle manifest (per project; read by `yelu hybrid`)
 ```
 
 One folder per project. Files inside grow as the probe matures

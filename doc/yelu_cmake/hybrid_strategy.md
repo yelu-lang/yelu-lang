@@ -306,11 +306,11 @@ generated `.cmake` produces equivalent build behavior.
 - Assert: real-only / mismatched / pred-only all still zero,
   median matched unchanged from 20.
 
-Output: proves one helper rewrite is build-equivalent. Cost:
-medium — needs a small test_fmt_hybrid_smoke.ml mirroring
-test_fmt_matrix_smoke.ml.
+Output: proves one helper rewrite is build-equivalent. ✓
+Landed via the universal `yelu hybrid` driver
+(src/bin/yelu/yelu.ml + probes/fmt/manifest.json).
 
 **Step 2+.** Expand outward. Each subsequent helper adds at most
 one new fragment to `yelu_parse.ml` (if needed) and one new
-entry to `probes/fmt/`. Whole-fmt is a composition of steps,
-not a new project.
+entry to the project's manifest.json. Whole-fmt is a composition
+of steps, not a new project.

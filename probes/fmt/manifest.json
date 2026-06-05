@@ -1,0 +1,14 @@
+{
+  "project": "fmt",
+  "source_dir": "vendor/fmt",
+  "out_root": "_out/fmt",
+  "helpers": [
+    {
+      "source": "probes/fmt/set_verbose.ml",
+      "target_file": "CMakeLists.txt",
+      "anchor_start": "function (join result_var)",
+      "anchor_end": "endfunction ()",
+      "anchor_end_occurrence": 2
+    }
+  ]
+}

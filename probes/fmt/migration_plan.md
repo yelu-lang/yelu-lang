@@ -42,7 +42,7 @@ Modeled from the pilot's pace: ~1 hour per helper for steps 1.a
 |---|---|---:|---|
 | **1** | Remaining 8 helper functions in main CMakeLists.txt: `setup_target`, `add_module_library`, `add_doc_target`, `add_fmt_test`, `add_fuzzer`, `expect_compile`, `run_tests` + `join_paths` from support/. Each as own `.ml`, spliced in-place. | **2** | Low for most; **`expect_compile` needs `cmake_parse_arguments` modeling** — could grow to 1d on its own |
 | **2** | support/ files: `JoinPaths.cmake` + `FindSetEnv.cmake` as whole-file emits. Pattern: `probes/fmt/support/<name>.ml` produces the full `.cmake` file. | **0.5** | None |
-| **3** | Small test subdirs: find-package-test, add-subdirectory-test, gtest, static-export-test, fuzzing — each ~20–30 lines. One `.ml` per subdir; hybrid_smoke extended to handle subdir replacement. | **2** | Low |
+| **3** | Small test subdirs: find-package-test, add-subdirectory-test, gtest, static-export-test, fuzzing — each ~20–30 lines. One `.ml` per subdir; manifest.json gains subdir-replacement entries. | **2** | Low |
 | **4** | Large test subdirs: test/CMakeLists.txt (20 add_fmt_test calls in foreach) + test/compile-error-test (24 expect_compile callsites generating C++ fragments). | **3** | Medium — exercises any gaps in cmake_parse_arguments / file(WRITE) / string(MAKE_C_IDENTIFIER) eval |
 | **5** | test/cuda-test — `enable_language(CUDA)` + `cuda_add_executable`. May need new IR. | **1** | Medium-High |
 | **6** | Main CMakeLists.txt by section: preamble (project, min_version, FMT_USE_CMAKE_MODULES gate), options(), target setup, compile-options matrix (GNU/Clang/MSVC × std × warning levels), install + export + configure_package_config + version file, CPack, doc/test gating. | **5–7** | High — CPack surface unknown; FMT_MODULE branch uses FILE_SET CXX_MODULES (modern cmake); install pipeline has many ctors to wire |
@@ -97,7 +97,7 @@ after Phase 3 to re-assess.** Phases 4–7 are where the unknowns
 cluster (`cmake_parse_arguments`, FILE_SET, CPack) and where the
 cost-vs-learning ratio inverts.
 
-Concretely: **Phase 1 is the next sensible chunk** — `hybrid_smoke.sh`
+Concretely: **Phase 1 is the next sensible chunk** — `yelu hybrid`
 already supports the splicing pattern; each of the 8 remaining
 helpers is a small repeatable exercise of the strategy. ~2 days
 total, ~15min per helper plus verification.
@@ -118,8 +118,10 @@ total, ~15min per helper plus verification.
 ## Related
 
 - [`README.md`](README.md) — fmt probe status + adaptation footprint
-- [`hybrid_smoke.sh`](hybrid_smoke.sh) — the smoke harness this
-  plan reuses
+- [`manifest.json`](manifest.json) — splice manifest read by
+  `yelu hybrid`
+- `yelu hybrid` (src/bin/yelu/yelu.ml) — the universal driver
+  that this plan extends one helper at a time
 - [`../../doc/yelu_cmake/hybrid_strategy.md`](../../doc/yelu_cmake/hybrid_strategy.md)
   — strategy doc (cmake-as-assembly, shapes B/C, why the
   architecture supports this)

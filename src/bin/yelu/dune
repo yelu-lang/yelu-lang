@@ -1,5 +1,6 @@
 (executables
  (names
+  yelu
   debug_kwarg
   target_scope target_scope_sub target_scope_sub_sub target_scope_sib
   link_interface_loop
@@ -11,5 +12,5 @@
   fetch_content
   project_include
   project_include_before)
- (libraries base yelu_langs step_common)
+ (libraries base yelu_langs step_common yojson unix)
  (promote (until-clean)))
