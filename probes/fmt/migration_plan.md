@@ -33,20 +33,57 @@ Top commands across all files: `if/endif` (93), `set` (85),
 `target_compile_definitions` (12), `option` (12), `foreach`
 (11), `function` (10), `target_include_directories` (10).
 
+## Format choice — `.ye` vs `.ml`
+
+After the mixed-format demo (commit `12da517`), every helper has
+a choice of source format:
+
+- **`.ye`** — concrete yelu surface syntax. Parsed in-process by
+  `Yelu_parse.parse_program_y1`. Tests the language while
+  migrating. The parser covers the full 14-theory IR surface (one
+  `p_<theory>_command_y1` dispatcher per theory family) but
+  individual command shapes have varying coverage. **Preferred
+  when feasible.**
+- **`.ml`** — OCaml host-builds the IR using ergonomic ctors
+  (`yc_function`, `yc_set`, etc.) and emits via `print_cmake`.
+  Full IR ergonomics; subprocesses via `dune exec`. **Use when
+  the surface parser doesn't cover a construct.**
+
+Per-helper choice. Mixed formats coexist in one manifest. When a
+`.ye` attempt fails (parser doesn't recognize a shape), the
+fallback is rewriting that helper as `.ml`. Each `.ye` attempt
+also surfaces a parser gap we could fix — useful side product.
+
+What's known about parser coverage today:
+- ✓ assignment (`X := value`), set, option, unset_cache
+- ✓ if/then/else with full cond surface (defined, target,
+  str_eq, ver_lt, exists, list_in, and/or, not, etc.)
+- ✓ function/macro/apply/foreach/while/break/continue/return
+- ✓ string, list, path, file, target, dir, test, property,
+  find, install, try, cmake_op command families have
+  dedicated dispatchers (specific command shapes vary)
+- ⚠ unknown coverage of: `cmake_parse_arguments`,
+  `FILE_SET CXX_MODULES`, modern install/export keyword
+  patterns, CPack
+
 ## Phased plan
 
 Modeled from the pilot's pace: ~1 hour per helper for steps 1.a
 (text codegen) + 1.b (build oracle) combined.
 
-| phase | scope | est days | new IR risk |
-|---|---|---:|---|
-| **1** | Remaining 8 helper functions in main CMakeLists.txt: `setup_target`, `add_module_library`, `add_doc_target`, `add_fmt_test`, `add_fuzzer`, `expect_compile`, `run_tests` + `join_paths` from support/. Each as own `.ml`, spliced in-place. | **2** | Low for most; **`expect_compile` needs `cmake_parse_arguments` modeling** — could grow to 1d on its own |
-| **2** | support/ files: `JoinPaths.cmake` + `FindSetEnv.cmake` as whole-file emits. Pattern: `probes/fmt/support/<name>.ml` produces the full `.cmake` file. | **0.5** | None |
-| **3** | Small test subdirs: find-package-test, add-subdirectory-test, gtest, static-export-test, fuzzing — each ~20–30 lines. One `.ml` per subdir; manifest.json gains subdir-replacement entries. | **2** | Low |
-| **4** | Large test subdirs: test/CMakeLists.txt (20 add_fmt_test calls in foreach) + test/compile-error-test (24 expect_compile callsites generating C++ fragments). | **3** | Medium — exercises any gaps in cmake_parse_arguments / file(WRITE) / string(MAKE_C_IDENTIFIER) eval |
-| **5** | test/cuda-test — `enable_language(CUDA)` + `cuda_add_executable`. May need new IR. | **1** | Medium-High |
-| **6** | Main CMakeLists.txt by section: preamble (project, min_version, FMT_USE_CMAKE_MODULES gate), options(), target setup, compile-options matrix (GNU/Clang/MSVC × std × warning levels), install + export + configure_package_config + version file, CPack, doc/test gating. | **5–7** | High — CPack surface unknown; FMT_MODULE branch uses FILE_SET CXX_MODULES (modern cmake); install pipeline has many ctors to wire |
-| **7** | Shape C lockup: `probes/fmt/project.ml` becomes the whole-project yelu source. raw_cmake escapes for anything not modeled. Matrix oracle still 24/24. | **2** | Low-Medium |
+The "format" column is a **starting guess** based on each
+helper's complexity. Surprises (parser gaps surfacing as `.ye`
+parse errors) will shift items toward `.ml`.
+
+| phase | scope | est days | format | new IR risk |
+|---|---|---:|---|---|
+| **1** | Remaining 8 helper functions: `setup_target`, `add_module_library`, `add_doc_target`, `add_fmt_test`, `add_fuzzer`, `expect_compile`, `run_tests` + `join_paths` from support/. Each spliced in-place. | **2** | mixed: `run_tests` / `add_fmt_test` / `add_fuzzer` / `join_paths` start as `.ye`; `setup_target` / `add_module_library` / `add_doc_target` / `expect_compile` likely `.ml` (complex cmake constructs or unsupported surface) | Low for most; **`expect_compile` needs `cmake_parse_arguments` modeling** — could grow to 1d |
+| **2** | support/ files: `JoinPaths.cmake` + `FindSetEnv.cmake` as whole-file emits. | **0.5** | both `.ye` candidates — small, single-function files | None |
+| **3** | Small test subdirs: find-package-test, add-subdirectory-test, gtest, static-export-test, fuzzing — each ~20–30 lines. Manifest gains subdir-replacement entries. | **2** | `.ye` preferred; mostly project()/add_executable/target_link_libraries patterns the surface parser covers | Low |
+| **4** | Large test subdirs: test/CMakeLists.txt (20 add_fmt_test calls in foreach) + test/compile-error-test (24 expect_compile callsites). | **3** | mostly `.ml`; foreach + helper-call-in-loop patterns are easier to express with OCaml host iteration than yelu surface foreach | Medium — exercises any gaps in cmake_parse_arguments / file(WRITE) / string(MAKE_C_IDENTIFIER) eval |
+| **5** | test/cuda-test — `enable_language(CUDA)` + `cuda_add_executable`. | **1** | `.ml` likely; CUDA is niche, may need raw_cmake escape | Medium-High |
+| **6** | Main CMakeLists.txt by section: preamble, options(), target setup, compile-options matrix, install + export + version file, CPack, doc/test gating. | **5–7** | sections vary: preamble + options() are `.ye` candidates; target_compile_options matrix and CPack likely `.ml` | High — CPack surface unknown; FMT_MODULE / FILE_SET CXX_MODULES; install pipeline |
+| **7** | Shape C lockup: `probes/fmt/project.{ml,ye}` is the whole-project yelu source. raw_cmake escapes for anything not modeled. Matrix oracle still 24/24. | **2** | starts `.ml` (safer for whole-project); convert to `.ye` once parser proven on individual sections | Low-Medium |
 
 ### Totals
 
@@ -87,6 +124,15 @@ Modeled from the pilot's pace: ~1 hour per helper for steps 1.a
    **Mitigation**: spot-check coverage before Phase 6; may need
    0.5–1d.
 
+6. **Surface parser coverage for `.ye` migrations.** New since
+   the format-choice section above. Per-helper, attempting `.ye`
+   first surfaces concrete parser gaps; falling back to `.ml`
+   when it fails costs only minutes per attempt.
+   **Mitigation**: budget ~10min per `.ye` attempt + fallback;
+   record which command shapes the parser refuses (file separate
+   issues against `yelu_parse.ml` as found). The fmt migration
+   doubles as a parser coverage test.
+
 ## Recommendation
 
 Don't commit to the whole 16-day plan up-front — the per-phase
@@ -102,11 +148,17 @@ already supports the splicing pattern; each of the 8 remaining
 helpers is a small repeatable exercise of the strategy. ~2 days
 total, ~15min per helper plus verification.
 
+Within Phase 1, try `.ye` first for each helper (per the format
+table above). If parser refuses, fall back to `.ml`. Either way
+the splice manifest is the same; the choice only affects the
+source file's extension and the toolchain it goes through.
+
 ## Progress tracker
 
 | phase | status | start | finish | notes |
 |---|---|---|---|---|
 | 0 (pilot: join + set_verbose) | ✓ | 2026-06-04 | 2026-06-04 | step 1.a + 1.b done; 24/24 cells match |
+| 0+ (mixed-format demo: use_cmake_modules_false.ye) | ✓ | 2026-06-04 | 2026-06-04 | first `.ye` source in manifest alongside `.ml`; 24/24 still match (commit `12da517`) |
 | 1 (remaining helpers) | not started | — | — | next on deck |
 | 2 (support/) | not started | — | — | |
 | 3 (small test subdirs) | not started | — | — | DECISION POINT after this |
