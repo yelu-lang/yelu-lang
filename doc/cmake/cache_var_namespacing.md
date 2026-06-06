@@ -186,3 +186,22 @@ Two interesting buckets in the diff result:
   version and date it. The bridge oracle should fail loud
   if classify's "reserved" snapshot is older than the
   installed cmake.
+- **Detector variables (`MSVC`, `WIN32`, `APPLE`, `UNIX`,
+  `CMAKE_CXX_COMPILER_ID`, `MSVC_VERSION`, …)** are set by
+  cmake's compiler / platform detection during `project()`,
+  not declared as user options. The classifier filters them
+  as tier 1 (they appear in `cmake_reserved.tsv`), which is
+  correct for *diff* purposes. But forcing one via
+  `-D<DETECTOR>=…` on a host where cmake's detection wouldn't
+  set it (e.g. `-DMSVC=1` on Linux) bypasses detection without
+  bypassing the cache: cmake creates `MSVC:UNINITIALIZED=1`
+  from the command line; `project()` runs but doesn't touch
+  `MSVC` because no MSVC platform/compiler module loads on a
+  GCC host; the forced value survives. Project code reads it,
+  enters the wrong branch, and downstream cache writes proceed
+  as if the host were Windows. The configure-time oracle then
+  reports "match" because both vendor and hybrid trees are told
+  the same lie. Don't simulate platform coverage this way; use
+  a real runner on the target platform. (Build will fail
+  anyway when GCC sees `/W3`, but the matrix would have been
+  green by then.)
