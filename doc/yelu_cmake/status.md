@@ -34,6 +34,11 @@ Verification baseline:
 - `make cmake-commands` broken pre-E1 (unrelated cmake build issues);
   not blocking.
 
+Parser coverage: 277 tests (126 inline-golden + 151 smoke),
+~90 commands across all 14 theories. Catch-all for unknowns →
+ECmakeApply. fmt probe: 5/11 helpers converted .ml → .yc; per-command
+coverage is on-demand (grep the parser, check probe parse-print oracle).
+
 ## Open work — forward
 
 Static round-trip is at a natural stop ([`worklog_2026_06.md`](../../doc/worklog/worklog_2026_06.md) § 10).
