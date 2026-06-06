@@ -2,7 +2,7 @@
    [Lang_cmake.exp], then reprint via [Lang_cmake_pp].
 
    Pipeline:
-     stdin (Stage-1 JSON from parse.py)
+     stdin (Stage-1 JSON from cmake_to_json.py)
        -> file_of_json     (this file)
        -> parse_cmd        (per-command Lang_cmake.exp when modeled)
        -> Lang_cmake_pp.pp (production cmake printer)
@@ -86,7 +86,7 @@ let untyped_emit (c : cmd) : string =
 (* Block heads/tails are not currently dispatched through [parse_cmd]:
    they're free-form command records bound to a block shape, and the
    block walker reprints them as raw text. The args field is already
-   the source's raw token sequence (preserved by [parse.py]), so this
+   the source's raw token sequence (preserved by [cmake_to_json.py]), so this
    is byte-faithful — but it does mean a head like `if(FOO STREQUAL
    "bar")` is reprinted with whitespace exactly as tree-sitter laid
    it out, with no typed-IR detour. Live with this until block-head
@@ -137,7 +137,7 @@ let emit stmts =
 
 (* Class A Phase 1: two-tier name index — project-local + cmake-stdlib.
 
-   Two TSV files, both produced by project_index.exe (which walks
+   Two TSV files, both produced by cmake_name_index.exe (which walks
    any directory looking for [function(<name> ...)] / [macro(...)]
    defs):
 

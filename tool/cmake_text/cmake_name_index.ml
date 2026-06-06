@@ -1,14 +1,14 @@
-(* project_index: build a corpus-level name→def-site index.
+(* cmake_name_index: build a corpus-level name→def-site index.
 
    Walks every CMakeLists.txt / *.cmake under a corpus root, runs
-   parse.py on each, and extracts every function(<name> ...) and
+   cmake_to_json.py on each, and extracts every function(<name> ...) and
    macro(<name> ...) definition. Emits TSV lines to stdout:
 
      <name>\t<file-relative-to-corpus>\t<function|macro>
 
    Use the harness env var `CORPUS_INDEX_FILE=<path>` (set by
-   test_corpus.sh after running this binary once per corpus) so
-   print2.exe can tag Apply calls as `resolved` (name is a project-
+   cmake_roundtrip_oracle.sh after running this binary once per corpus) so
+   cmake_reprint.exe can tag Apply calls as `resolved` (name is a project-
    defined function/macro) vs `external` (truly unknown).
 
    This is Class A Phase 1 from doc/yelu_cmake/bar3_lite.md § 6 —
@@ -17,15 +17,15 @@
    not; only the coverage tally splits the generic bucket more
    informatively.
 
-   Note: this binary reuses parse.py via subprocess — the same way
-   test_corpus.sh does. Keeping the project pass in OCaml so the
+   Note: this binary reuses cmake_to_json.py via subprocess — the same way
+   cmake_roundtrip_oracle.sh does. Keeping the project pass in OCaml so the
    data structure (and future name lookup) can be reused by the
    yelu_cmake interpreter when it lands. *)
 
 open Base
 
 (* ============================================================
-   Duplicate the Stage-1 JSON reader from print2.ml. (Could share
+   Duplicate the Stage-1 JSON reader from cmake_reprint.ml. (Could share
    via a library; for now copy-paste — small footprint, the harness
    is a prototype.)
    ============================================================ *)
@@ -142,8 +142,8 @@ let collect_defs ~file stmts =
    Corpus walk
    ============================================================ *)
 
-(* Subprocess: run parse.py on a file and read the JSON. Returns
-   the AST or None if parse.py fails. *)
+(* Subprocess: run cmake_to_json.py on a file and read the JSON. Returns
+   the AST or None if cmake_to_json.py fails. *)
 let parse_file ~parse_py path =
   let cmd =
     Printf.sprintf "python3 %s %s 2>/dev/null"
@@ -189,15 +189,15 @@ let rec walk_dir dir acc =
 let () =
   let corpus =
     if Array.length (Sys.get_argv ()) < 2
-    then (Stdlib.prerr_endline "usage: project_index <corpus_dir>"; Stdlib.exit 1)
+    then (Stdlib.prerr_endline "usage: cmake_name_index <corpus_dir>"; Stdlib.exit 1)
     else (Sys.get_argv ()).(1)
   in
   let parse_py =
-    Stdlib.Filename.concat (Stdlib.Filename.dirname (Sys.get_argv ()).(0)) "parse.py"
+    Stdlib.Filename.concat (Stdlib.Filename.dirname (Sys.get_argv ()).(0)) "cmake_to_json.py"
   in
   let parse_py =
     if Stdlib.Sys.file_exists parse_py then parse_py
-    else "tool/cmake_text/parse.py"
+    else "tool/cmake_text/cmake_to_json.py"
   in
   let files = walk_dir corpus [] in
   List.iter files ~f:(fun file ->

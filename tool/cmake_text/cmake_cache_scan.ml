@@ -1,4 +1,4 @@
-(* cache_vars: enumerate every user-settable cmake cache var declared
+(* cmake_cache_scan: enumerate every user-settable cmake cache var declared
    in a project.
 
    Walks every CMakeLists.txt / *.cmake under a project root and
@@ -31,13 +31,13 @@
    This is the static side of the path-2 cache-var enumeration
    discussed in the parent session. Dynamic side is `cmake -LAH`.
 
-   Note: reuses parse.py via subprocess. Stage-1 AST shape is
-   copied from print2.ml / project_index.ml. *)
+   Note: reuses cmake_to_json.py via subprocess. Stage-1 AST shape is
+   copied from cmake_reprint.ml / cmake_name_index.ml. *)
 
 open Base
 
 (* ============================================================
-   Stage-1 AST / JSON reader (copy-paste from project_index.ml).
+   Stage-1 AST / JSON reader (copy-paste from cmake_name_index.ml).
    ============================================================ *)
 
 type cmd = { name : string; args : string list }
@@ -276,15 +276,15 @@ let rec walk_dir dir acc =
 let () =
   let project =
     if Array.length (Sys.get_argv ()) < 2
-    then (Stdlib.prerr_endline "usage: cache_vars <project_dir>"; Stdlib.exit 1)
+    then (Stdlib.prerr_endline "usage: cmake_cache_scan <project_dir>"; Stdlib.exit 1)
     else (Sys.get_argv ()).(1)
   in
   let parse_py =
-    Stdlib.Filename.concat (Stdlib.Filename.dirname (Sys.get_argv ()).(0)) "parse.py"
+    Stdlib.Filename.concat (Stdlib.Filename.dirname (Sys.get_argv ()).(0)) "cmake_to_json.py"
   in
   let parse_py =
     if Stdlib.Sys.file_exists parse_py then parse_py
-    else "tool/cmake_text/parse.py"
+    else "tool/cmake_text/cmake_to_json.py"
   in
   let files = walk_dir project [] in
   List.iter files ~f:(fun file ->

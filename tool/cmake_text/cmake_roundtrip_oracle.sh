@@ -2,13 +2,13 @@
 # [tool-interface]
 # node:     cmake text → cmake text (roundtrip oracle)
 # op:       check (parse-print equivalence)
-# strategy: tool:parse.py, tool:print2.exe, tool:gersemi
+# strategy: tool:cmake_to_json.py, tool:cmake_reprint.exe, tool:gersemi
 # exports:  per-file verdict: OK | FORMAT | STRUCT | PARSE
-# imports:  parse.py (tree-sitter lexer), print2.exe (cmake AST printer),
-#           gersemi (canonical formatter), project_index.exe (name index)
+# imports:  cmake_to_json.py (tree-sitter lexer), cmake_reprint.exe (cmake AST printer),
+#           gersemi (canonical formatter), cmake_name_index.exe (name index)
 # ─────────
 # Per-file test harness for cmake_roundtrip across an arbitrary corpus.
-# Usage: ./test_corpus.sh <corpus_root>
+# Usage: ./cmake_roundtrip_oracle.sh <corpus_root>
 #
 # Prints one line per file with verdict:
 #   OK     <relpath>                   <typed>/<generic>/<other>
@@ -22,16 +22,16 @@
 set -uo pipefail
 
 if [ $# -lt 1 ]; then
-  echo "usage: $0 <corpus_root> [parse.py path] [print2.exe path]"
+  echo "usage: $0 <corpus_root> [cmake_to_json.py path] [cmake_reprint.exe path]"
   exit 1
 fi
 
 corpus="$1"
-parse_py="${2:-$(dirname "$0")/parse.py}"
+cmake_to_json="${2:-$(dirname "$0")/cmake_to_json.py}"
 yelu_root="${YELU_ROOT:-$(cd "$(dirname "$0")/../.." && pwd)}"
-print2="${3:-$yelu_root/_build/default/tool/cmake_text/print2.exe}"
+cmake_reprint="${3:-$yelu_root/_build/default/tool/cmake_text/cmake_reprint.exe}"
 gersemi="${GERSEMI:-/home/red/.venvs/default/bin/gersemi}"
-strip_comments="${STRIP_COMMENTS:-$(dirname "$0")/strip_comments.py}"
+cmake_strip_comments="${STRIP_COMMENTS:-$(dirname "$0")/cmake_strip_comments.py}"
 # Pre-strip comments via tree-sitter on both sides before gersemi.
 # Our parser already drops comments inside argument lists, so
 # gersemi-on-the-reprint sees comment-free args. Stripping the
@@ -60,10 +60,10 @@ if ! "$gersemi" --version >/dev/null 2>&1; then
   exit 2
 fi
 
-# Pre-flight: print2.exe must be built.
-if ! [ -x "$print2" ]; then
-  echo "FATAL: print2.exe not found at: $print2" >&2
-  echo "  Run: dune build tool/cmake_text/print2.exe" >&2
+# Pre-flight: cmake_reprint.exe must be built.
+if ! [ -x "$cmake_reprint" ]; then
+  echo "FATAL: cmake_reprint.exe not found at: $print2" >&2
+  echo "  Run: dune build tool/cmake_text/cmake_reprint.exe" >&2
   exit 2
 fi
 
@@ -71,16 +71,16 @@ ok=0; format=0; struct=0; parse=0
 modeled_total=0; stdlib_total=0; resolved_total=0; generic_total=0; other_total=0
 
 # Two-tier name index (Class A Phase 1 from doc/yelu_cmake/bar3_lite.md
-# § 6). project_index.exe walks any directory and emits
+# § 6). cmake_name_index.exe walks any directory and emits
 # `<name>\t<file>\t<function|macro>` lines for every function/macro
-# def. We build two indices and pass both to print2.exe:
+# def. We build two indices and pass both to cmake_reprint.exe:
 #
 #   CORPUS_INDEX_FILE        — defs found in the corpus root
 #                              -> `resolved` bucket
 #   CMAKE_STDLIB_INDEX_FILE  — defs found in cmake's Modules/ tree
 #                              -> `stdlib` bucket
 #
-# print2.exe splits the un-typed Apply tally as
+# cmake_reprint.exe splits the un-typed Apply tally as
 #   resolved > stdlib > generic
 # (project-first, like Python's sys.path). Reprint output is
 # unchanged whether indices are loaded or not — this is purely
@@ -96,16 +96,16 @@ modeled_total=0; stdlib_total=0; resolved_total=0; generic_total=0; other_total=
 #   REBUILD_CORPUS_INDEX=1 — force rebuild corpus index
 #   REBUILD_CMAKE_STDLIB=1 — force rebuild stdlib index
 #   CMAKE_STDLIB_ROOT=...  — override Modules dir detection
-project_index_exe="${yelu_root}/_build/default/tool/cmake_text/project_index.exe"
+cmake_name_index_exe="${yelu_root}/_build/default/tool/cmake_text/cmake_name_index.exe"
 
 # Prepare the cmake-stdlib name index. Probes cmake for its
 # CMAKE_ROOT (so we pick up whatever version is currently active —
 # e.g. 4.3.1 on this machine, but 3.x on older installs), then runs
-# project_index.exe over Modules/. The index is cached per
+# cmake_name_index.exe over Modules/. The index is cached per
 # Modules-dir path. Echoes the cache file path on stdout; empty
 # string on failure.
 prepare_cmake_stdlib_index() {
-  if [ -n "${NO_CMAKE_STDLIB:-}" ] || [ ! -x "$project_index_exe" ]; then
+  if [ -n "${NO_CMAKE_STDLIB:-}" ] || [ ! -x "$cmake_name_index_exe" ]; then
     return
   fi
   # 1. Locate cmake's Modules dir.
@@ -135,17 +135,17 @@ prepare_cmake_stdlib_index() {
   stdlib_key=$(printf '%s' "$modules_dir" | sha256sum | cut -d' ' -f1)
   local stdlib_file="/tmp/bar3lite_stdlib_${stdlib_key}.tsv"
   if [ ! -f "$stdlib_file" ] || [ -n "${REBUILD_CMAKE_STDLIB:-}" ]; then
-    "$project_index_exe" "$modules_dir" > "$stdlib_file" 2>/dev/null || true
+    "$cmake_name_index_exe" "$modules_dir" > "$stdlib_file" 2>/dev/null || true
   fi
   echo "$stdlib_file"
 }
 
-if [ -z "${NO_CORPUS_INDEX:-}" ] && [ -x "$project_index_exe" ]; then
+if [ -z "${NO_CORPUS_INDEX:-}" ] && [ -x "$cmake_name_index_exe" ]; then
   corpus_abs_for_idx=$(cd "$corpus" && pwd)
   idx_key=$(printf '%s' "$corpus_abs_for_idx" | sha256sum | cut -d' ' -f1)
   CORPUS_INDEX_FILE="/tmp/bar3lite_index_${idx_key}.tsv"
   if [ ! -f "$CORPUS_INDEX_FILE" ] || [ -n "${REBUILD_CORPUS_INDEX:-}" ]; then
-    "$project_index_exe" "$corpus_abs_for_idx" > "$CORPUS_INDEX_FILE" \
+    "$cmake_name_index_exe" "$corpus_abs_for_idx" > "$CORPUS_INDEX_FILE" \
       2>/dev/null || true
   fi
   export CORPUS_INDEX_FILE
@@ -173,7 +173,7 @@ HEADS = ('if_command','elseif_command','else_command','endif_command',
 HEADWORDS = ('if','elseif','else','endif','foreach','endforeach','while','endwhile',
              'function','endfunction','macro','endmacro','block','endblock')
 def cmd(node):
-    # Match parse.py's parse_command_head shape: block heads/tails
+    # Match cmake_to_json.py's parse_command_head shape: block heads/tails
     # (e.g. endforeach(x)) can expose `argument` children directly on
     # the command node rather than wrapped in argument_list. Collect
     # both shapes so the oracle doesn't silently drop args.
@@ -203,7 +203,7 @@ for line in walk(tree.root_node):
 
 while IFS= read -r f; do
   rel=${f#$corpus/}
-  json=$(python3 "$parse_py" "$f" 2>/dev/null)
+  json=$(python3 "$cmake_to_json" "$f" 2>/dev/null)
   if [ -z "$json" ]; then
     echo "PARSE  $rel"
     parse=$((parse+1))
@@ -220,7 +220,7 @@ while IFS= read -r f; do
   # "typed" by Lang_cmake.exp — the ratio conflates "we haven't modeled
   # this builtin yet" with "this is user-defined and should stay
   # generic". Raw counts are the honest indicator.
-  stage2=$(echo "$json" | STAGE2_COVERAGE=1 "$print2" 2>/tmp/_cov_$$.tmp)
+  stage2=$(echo "$json" | STAGE2_COVERAGE=1 "$cmake_reprint" 2>/tmp/_cov_$$.tmp)
   t=$(grep -oE "modeled=[0-9]+" /tmp/_cov_$$.tmp | head -1 | cut -d= -f2); t=${t:-0}
   s=$(grep -oE "stdlib=[0-9]+" /tmp/_cov_$$.tmp | head -1 | cut -d= -f2); s=${s:-0}
   r=$(grep -oE "resolved=[0-9]+" /tmp/_cov_$$.tmp | head -1 | cut -d= -f2); r=${r:-0}
@@ -258,7 +258,7 @@ while IFS= read -r f; do
       | tr -s '[:space:]' ' ' \
       | sed 's/^ //; s/ $//; s/ )/)/g; s/( /(/g'
   }
-  ref=$(python3 "$strip_comments" "$f" 2>/dev/null \
+  ref=$(python3 "$cmake_strip_comments" "$f" 2>/dev/null \
         | "$gersemi" $gersemi_args - 2>/dev/null | normalize)
   got=$(echo "$stage2" | "$gersemi" $gersemi_args - 2>/dev/null | normalize)
   # Per-file slot shape:

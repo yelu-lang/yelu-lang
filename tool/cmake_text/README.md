@@ -1,24 +1,33 @@
-# cmake_text
+# cmake_text — tools that operate on cmake text
 
 Syntactic round-trip oracle for real-world cmake. Parses cmake source
 via tree-sitter-cmake, reprints it through `Lang_cmake.exp` +
 `Lang_cmake_pp` (production yelu IR), and verifies tree-sitter
 re-extracts the same `(command_name, args)` sequence on both sides.
 
-The audit-ready writeup (claim, oracles, per-parser contract
-sheet, code-quality posture) is at
-[`doc/yelu_cmake/bar3_lite.md`](../../doc/yelu_cmake/bar3_lite.md).
+## Files
+
+| file | purpose |
+| --- | --- |
+| `cmake_to_json.py` | Python wrapper around `tree-sitter-cmake`. Reads cmake on stdin or argv[1]; writes CST JSON on stdout. |
+| `cmake_strip_comments.py` | Tree-sitter–based comment stripper, used by the gersemi-diff oracle preprocessor (our parser drops inline-arg comments). |
+| `cmake_reprint.ml` | OCaml driver. JSON reader → per-command typed parsers → `Lang_cmake_pp` → untyped `Apply` fallback. |
+| `cmake_cache_scan.ml` | OCaml. Enumerate every user-settable cmake cache var (`option()` / `set(...CACHE...)`) in a project directory. |
+| `cmake_name_index.ml` | OCaml. Walk a cmake corpus and emit `<name>\t<file>\t<function\|macro>` TSV for every function/macro definition. |
+| `cmake_reserved_vars.tsv` | Data. Snapshot of 1597 reserved cmake variable names (cmake 4.3.1). |
+| `cmake_roundtrip_oracle.sh` | Harness. Runs the pipeline on every `CMakeLists.txt`/`*.cmake` in a directory tree, applies the STRUCT + FORMAT oracles, prints per-file verdicts + summary. |
+| `dune` | Builds `cmake_reprint.exe`, `cmake_cache_scan.exe`, `cmake_name_index.exe`. |
 
 ## Pipeline
 
 ```
 input.cmake
-  → parse.py        (tree-sitter-cmake)    → CST JSON on stdout
-  → print2.exe      (OCaml, Lang_cmake.exp + Apply fallback) → reprinted cmake
-  → gersemi -                                              → canonicalized
+  → cmake_to_json.py      (tree-sitter-cmake)    → CST JSON on stdout
+  → cmake_reprint.exe     (OCaml, Lang_cmake.exp + Apply fallback) → reprinted cmake
+  → gersemi -                                    → canonicalized
 ```
 
-Per-file verdict from `test_corpus.sh`:
+Per-file verdict from `cmake_roundtrip_oracle.sh`:
 
 - **OK** — STRUCT match (tree-sitter extracts same command/arg
   sequence from source and reprint) AND gersemi-normalized text
@@ -27,54 +36,23 @@ Per-file verdict from `test_corpus.sh`:
 - **STRUCT** — STRUCT fail. Real parser/printer/IR bug.
 - **PARSE** — tree-sitter or our reader fails.
 
-## Current results (2026-05-19)
-
-| corpus | files | OK | FORMAT | STRUCT | PARSE | modeled | generic |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| tutorial step outputs | 25 | 25 | 0 | 0 | 0 | 165 | 25 |
-| z3 | 108 | 108 | 0 | 0 | 0 | 1,057 | 706 |
-| llvm/llvm | 596 | 596 | 0 | 0 | 0 | 3,573 | 2,609 |
-
-STRUCT=0 / FORMAT=0 across all three corpora. `modeled` = command
-mapped to a typed `Lang_cmake.exp` constructor; `generic` =
-preserved verbatim via `Apply { name; args }`. No ratio is
-reported — many `generic` calls are project- or module-defined
-cmake functions (`z3_add_component`, `tablegen`, `add_llvm_*`,
-`CheckXxx`) that *should* stay generic.
-
-## Files
-
-| file | purpose |
-| --- | --- |
-| `parse.py` | Python wrapper around `tree-sitter-cmake`. Reads cmake on stdin or argv[1]; writes CST JSON on stdout. |
-| `strip_comments.py` | Tree-sitter–based comment stripper, used by the gersemi-diff oracle preprocessor (our parser drops inline-arg comments). |
-| `print2.ml` | OCaml driver. JSON reader → per-command typed parsers → `Lang_cmake_pp` → untyped `Apply` fallback. |
-| `test_corpus.sh` | Harness. Runs the pipeline on every `CMakeLists.txt`/`*.cmake` in a directory tree, applies the STRUCT + FORMAT oracles, prints per-file verdicts + summary. |
-| `dune` | Builds `print2.exe` (deps: `base`, `yojson`, `yelu_langs`). |
-
 ## Reproducing locally
 
 ```sh
 # Build
-dune build tool/cmake_text/print2.exe
+dune build tool/cmake_text/cmake_reprint.exe
 
 # Round-trip one file
-python3 tool/cmake_text/parse.py path/to/CMakeLists.txt \
-  | _build/default/tool/cmake_text/print2.exe
+python3 tool/cmake_text/cmake_to_json.py path/to/CMakeLists.txt \
+  | _build/default/tool/cmake_text/cmake_reprint.exe
 
 # Run the full oracle on a corpus
-bash tool/cmake_text/test_corpus.sh path/to/cmake_corpus
+bash tool/cmake_text/cmake_roundtrip_oracle.sh path/to/cmake_corpus
 
 # Coverage tally only (stderr line per file)
-python3 tool/cmake_text/parse.py path/to/CMakeLists.txt \
-  | STAGE2_COVERAGE=1 _build/default/tool/cmake_text/print2.exe \
+python3 tool/cmake_text/cmake_to_json.py path/to/CMakeLists.txt \
+  | STAGE2_COVERAGE=1 _build/default/tool/cmake_text/cmake_reprint.exe \
     >/dev/null
-```
-
-Output of the coverage flag:
-
-```
-[stage2] modeled=7 generic=2 other=0
 ```
 
 ## Dependencies
@@ -85,43 +63,3 @@ Output of the coverage flag:
 
 Harness defaults to `gersemi` at `/home/red/.venvs/default/bin/gersemi`;
 override via `GERSEMI=/path/to/gersemi`.
-
-## Known shape gaps
-
-Builtins deliberately routed to `Apply` because the production
-printer in `Lang_cmake_pp` is lossy or shape inversion is brittle
-for a parser-only patch (per-parser detail in
-[`doc/yelu_cmake/bar3_lite.md`](../../doc/yelu_cmake/bar3_lite.md) § 8):
-
-- `set_property` / `get_property` — printer drops most IR fields
-- `execute_process` — multi-line keyword shape, hard to invert safely
-- `file` (`READ` / `STRINGS` / `COPY*` / `DOWNLOAD` / `UPLOAD` /
-  `LOCK` / path-query subcommands)
-
-Closing these is downstream work — they belong with the production
-IR cleanup (Y17, `doc/yelu_cmake/status.md` "Known IR shape gaps"),
-not as parser-only patches.
-
-## Comment handling
-
-Comments inside `argument_list` are dropped by both `parse.py` and
-the production IR. The gersemi-diff oracle compensates by running
-`strip_comments.py` on the source side too, so the comparison is
-content-equivalent modulo comments. Top-level comments
-(between commands) are preserved as `raw` nodes and reprinted
-verbatim.
-
-Whether `yelu_cmake` / `yelu_cmake_normal` should carry comments
-as AST metadata is a separate, deferred design question.
-
-## Class A resolution (deferred)
-
-Calls into project-defined `function()` / `macro()` bodies
-(`z3_add_component`, `tablegen`, the `add_llvm_*` family,
-`CheckXxx` standard-module helpers) round-trip correctly today
-through `Lang_cmake.Apply` and stay in the `generic` bucket. A
-two-phase plan (corpus-wide function-name table, then dynamic
-dispatch resolution) is deferred — it steps into cmake
-configure-time behavior and belongs alongside behavior-level
-oracles rather than as a parser-only patch. See
-[`doc/yelu_cmake/bar3_lite.md`](../../doc/yelu_cmake/bar3_lite.md) § 6.

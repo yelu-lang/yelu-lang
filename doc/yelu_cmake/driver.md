@@ -19,7 +19,7 @@ call sites.
                        │  cmake text │   ← real CMakeLists.txt
                        ╰──┬───────▲──╯
                           │       │
-              parse.py +  │       │  cmake_ast_driver.print
+              cmake_to_json.py +  │       │  cmake_ast_driver.print
        Cmake_text_parse   │       │
                           ▼       │
                        ╭─────────────╮
@@ -96,7 +96,7 @@ Key observations from the graph:
 
 | Op | Function | Strategy | Notes |
 |---|---|---|---|
-| parse → JSON CST | `parse_to_json_cst` | tool:parse.py | tree-sitter + libcmake |
+| parse → JSON CST | `parse_to_json_cst` | tool:cmake_to_json.py | tree-sitter + libcmake |
 | print (canonical) | `canon_format` | tool:gersemi | Canonical formatter |
 | eval (script) | `eval_script` | tool:cmake | `cmake -P` |
 | eval (configure) | `eval_configure` | tool:cmake | `cmake -B -S` |
@@ -122,7 +122,7 @@ dependency graph explicit and the pipeline logic testable.
 |---|---|---|
 | `cmake` | `Cmake_text_driver`, `yelu hybrid`, tests | Configure, build, script execution |
 | `gersemi` | `Cmake_text_driver.canon_format`, cmake-check | Canonical cmake formatting |
-| `parse.py` (tree-sitter) | `Cmake_text_driver.parse_to_json_cst`, oracles | cmake text → JSON CST |
+| `cmake_to_json.py` (tree-sitter) | `Cmake_text_driver.parse_to_json_cst`, oracles | cmake text → JSON CST |
 | `dune` | `yelu compile` (.ml path) | Build OCaml DSL programs |
 
 ## 5. What the matrix reveals
