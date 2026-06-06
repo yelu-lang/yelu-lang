@@ -22,16 +22,79 @@ Text surfaces:
 - **.ycn / .yn** — ycn concrete syntax (proposal only; no parser —
   see [`ycn_concrete_syntax.md`](ycn_concrete_syntax.md)).
 
+## 0. At a glance
+
+### As a graph
+
+```
+                       ╭─────────────╮
+                       │  cmake text │   ← real CMakeLists.txt
+                       ╰──┬───────▲──╯
+                          │       │
+              parse.py +  │       │  Lang_cmake_pp.pp
+       Cmake_text_parse   │       │
+                          ▼       │
+                       ╭─────────────╮
+                       │  cmake AST  │
+                       ╰──┬───────▲──╯
+                          │       │
+            from_emit_top │       │ emit_ast
+                          │       │
+                          ▼       │
+   ╭──────────╮          ╭──────────╮         ╭──────────╮
+   │ .ye text │─Yelu_─→  │    yc    │◄from_normal│  ycn  │
+   │          │ parse    │          │──to_normal→│       │
+   ╰──────────╯          ╰────┬─────╯         ╰────┬─────╯
+                              │                    │
+                       Yelu_cmake_eval     Yelu_cmake_normal_eval
+                              │                    │
+                              ▼                    ▼
+                         (env, value)         (env, value)
+
+   ╭──────────╮          no parser
+   │.ycn text │   ────── no printer ── (yet)
+   ╰──────────╯
+```
+
+Read it as a directed graph: each arrow is a function that takes
+its source as input and produces its destination as output. Three
+edges that don't exist (broken / dashed in your head): `.ycn text
+→ ycn`, `yc → .ye text`, `ycn → .ycn text`.
+
+### As a table — one row per IR / surface
+
+| IR / surface | how to get one (writers / readers FROM other forms) | how to output one (readers FROM this form's text) | evaluator |
+|---|---|---|---|
+| **cmake text** | `Lang_cmake_pp.pp` (from cmake AST) | hand-written; or real cmake binary (output target) | n/a — real cmake runs it |
+| **cmake AST** | `Cmake_text_parse.file_of_json` (from JSON CST); `Yelu_cmake_emit.emit_ast` (from yc) | `Lang_cmake_pp.pp` → cmake text | intermediate only |
+| **yc** | `Yelu_parse.parse_program_y1` (from .ye); `Yelu_cmake_from_emit.from_emit_top` (from cmake AST); `Yelu_cmake_convert.from_normal` (from ycn); hand-written .ml | `emit_ast` → cmake AST; `to_normal` → ycn; `emit_script` → cmake text (debug) | `Yelu_cmake_eval.eval` |
+| **ycn** | `Yelu_cmake_convert.to_normal` (from yc); hand-written .ml | `from_normal` → yc | `Yelu_cmake_normal_eval.eval` |
+| **.ye text** | hand-written | none (no `yc → .ye` printer) | — |
+| **.ycn text** | none (no parser) | none (no printer) | — |
+
+What jumps out:
+- **yc** is the hub. Five inbound paths, three outbound. Everything
+  that flows between cmake and ycn passes through yc.
+- **cmake AST** is a forced intermediate — there's no direct
+  `cmake text ↔ yc`; you always pass through `Lang_cmake.exp`.
+- **ycn** has only one neighbour (yc). Inbound and outbound both
+  go through `Yelu_cmake_convert`. The proposed `.ycn` parser
+  would add a second inbound; ycn-direct-emit would add an
+  outbound.
+- **.ye** is asymmetric: parseable but not printable. We can read
+  `.ye` files but not generate them — the canonical "output" form
+  is cmake text via the yc emit pipeline.
+
 ## 1. Readers (text → IR)
 
-| from | to | entry point | used by |
-|---|---|---|---|
-| cmake text | JSON CST | `tool/cmake_roundtrip/parse.py` (Python subprocess; libcmake's lexer) | cmake_bridge, parse-print oracle |
-| JSON CST | cmake AST | [`Cmake_text_parse.file_of_json`](../../src/langs/cmake/cmake_text_parse.ml) | cmake_bridge, parse-print oracle |
-| cmake AST | yc | [`Yelu_cmake_from_emit.from_emit_top`](../../src/langs/yelu/yelu_cmake_from_emit.ml) | cmake_bridge (matrix oracle) |
-| .ye text | yc | [`Yelu_parse.parse_program_y1`](../../src/langs/yelu/yelu_parse.ml) | `yelu hybrid`, `yelu compile`, .ye probes |
-| .ycn text | ycn | **does not exist** | — |
-| OCaml source (.ml) | yc / ycn | no parser; the `.ml` directly constructs the AST using ergonomic ctors from `yelu_cmake_utils.ml` etc. | probes/*.ml, step files, tests |
+| from               | to        | entry point                                                                                            | used by                                   |
+| ------------------ | --------- | ------------------------------------------------------------------------------------------------------ | ----------------------------------------- |
+| cmake text         | JSON CST  | `tool/cmake_roundtrip/parse.py` (Python subprocess; libcmake's lexer)                                  | cmake_bridge, parse-print oracle          |
+| JSON CST           | cmake AST | [`Cmake_text_parse.file_of_json`](../../src/langs/cmake/cmake_text_parse.ml)                           | cmake_bridge, parse-print oracle          |
+| cmake AST          | yc        | [`Yelu_cmake_from_emit.from_emit_top`](../../src/langs/yelu/yelu_cmake_from_emit.ml)                   | cmake_bridge (matrix oracle)              |
+| .ye text           | yc        | [`Yelu_parse.parse_program_y1`](../../src/langs/yelu/yelu_parse.ml)                                    | `yelu hybrid`, `yelu compile`, .ye probes |
+| .ycn text          | ycn       | **does not exist**                                                                                     | —                                         |
+| OCaml source (.ml) | yc / ycn  | no parser; the `.ml` directly constructs the AST using ergonomic ctors from `yelu_cmake_utils.ml` etc. | probes/*.ml, step files, tests            |
 
 The `cmake text → yc` chain is **three stages**:
 1. `parse.py` is a thin wrapper over cmake's own parser (we call
@@ -48,15 +111,15 @@ cmake so the yc evaluator can run on it (matrix oracle).
 
 ## 2. Writers (IR → text)
 
-| from | to | entry point | used by |
-|---|---|---|---|
-| cmake AST | cmake text | [`Lang_cmake_pp.pp`](../../src/langs/cmake/lang_cmake_pp.ml) | all cmake output paths |
-| yc | cmake AST | [`Yelu_cmake_emit.emit_ast`](../../src/langs/yelu/yelu_cmake_emit.ml) | production yelu compile, probes/fmt emit, step files |
-| yc | cmake text (debug) | [`Yelu_cmake_emit_debug.emit_script`](../../src/langs/yelu/yelu_cmake_emit_debug.ml) | debug introspection only |
-| yc | cmake text (production) | `emit_ast` ▸ `Lang_cmake_pp.pp` (composition) | `Yelu_emit_main.print`, `yelu compile` |
-| ycn | cmake text | via `from_normal` → yc → cmake text (composition) | indirect — no direct emitter |
-| yc | .ye text | **does not exist** | — |
-| ycn | .ycn text | **does not exist** | — |
+| from      | to                      | entry point                                                                          | used by                                              |
+| --------- | ----------------------- | ------------------------------------------------------------------------------------ | ---------------------------------------------------- |
+| cmake AST | cmake text              | [`Lang_cmake_pp.pp`](../../src/langs/cmake/lang_cmake_pp.ml)                         | all cmake output paths                               |
+| yc        | cmake AST               | [`Yelu_cmake_emit.emit_ast`](../../src/langs/yelu/yelu_cmake_emit.ml)                | production yelu compile, probes/fmt emit, step files |
+| yc        | cmake text (debug)      | [`Yelu_cmake_emit_debug.emit_script`](../../src/langs/yelu/yelu_cmake_emit_debug.ml) | debug introspection only                             |
+| yc        | cmake text (production) | `emit_ast` ▸ `Lang_cmake_pp.pp` (composition)                                        | `Yelu_emit_main.print`, `yelu compile`               |
+| ycn       | cmake text              | via `from_normal` → yc → cmake text (composition)                                    | indirect — no direct emitter                         |
+| yc        | .ye text                | **does not exist**                                                                   | —                                                    |
+| ycn       | .ycn text               | **does not exist**                                                                   | —                                                    |
 
 Two emitters from yc exist: `emit_ast` (production; lowers to
 `Lang_cmake` AST first) and `emit_script` (debug; one-shot text).
@@ -67,10 +130,10 @@ introspection.
 
 ## 3. IR ↔ IR converters
 
-| from | to | entry point | what it does |
-|---|---|---|---|
-| yc | ycn | [`Yelu_cmake_convert.to_normal`](../../src/langs/yelu/yelu_cmake_convert.ml) | normalize: ESetVar primitive, decomposed subcommands, bool/int as exprs |
-| ycn | yc | [`Yelu_cmake_convert.from_normal`](../../src/langs/yelu/yelu_cmake_convert.ml) | lift back to yc shape for emission |
+| from | to  | entry point                                                                    | what it does                                                            |
+| ---- | --- | ------------------------------------------------------------------------------ | ----------------------------------------------------------------------- |
+| yc   | ycn | [`Yelu_cmake_convert.to_normal`](../../src/langs/yelu/yelu_cmake_convert.ml)   | normalize: ESetVar primitive, decomposed subcommands, bool/int as exprs |
+| ycn  | yc  | [`Yelu_cmake_convert.from_normal`](../../src/langs/yelu/yelu_cmake_convert.ml) | lift back to yc shape for emission                                      |
 
 The `to_normal ∘ from_normal ≡ identity-modulo-emission` property
 is the lift_lower oracle. 65 tests in
@@ -78,10 +141,10 @@ is the lift_lower oracle. 65 tests in
 
 ## 4. Evaluators (IR → values + env)
 
-| input | entry point | used by |
-|---|---|---|
-| yc | [`Yelu_cmake_eval.eval`](../../src/langs/yelu/yelu_cmake_eval.ml) | matrix oracle (predicts CMakeCache.txt), .ye smoke tests |
-| ycn | [`Yelu_cmake_normal_eval.eval`](../../src/langs/yelu/yelu_cmake_normal_eval.ml) | dual_eval tests, ycn-side checks |
+| input | entry point                                                                     | used by                                                  |
+| ----- | ------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| yc    | [`Yelu_cmake_eval.eval`](../../src/langs/yelu/yelu_cmake_eval.ml)               | matrix oracle (predicts CMakeCache.txt), .ye smoke tests |
+| ycn   | [`Yelu_cmake_normal_eval.eval`](../../src/langs/yelu/yelu_cmake_normal_eval.ml) | dual_eval tests, ycn-side checks                         |
 
 Both evaluators produce `(env, value)` — env is the variable /
 target / property store; value is the expression's result.
