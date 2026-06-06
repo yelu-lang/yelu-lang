@@ -118,6 +118,8 @@ let dotdot = delim DOTDOT
 let p_expr_y1 toks =
   match toks with
   | TARGET :: IDENT name :: rest -> Some (ETarget name, rest)
+  | TARGET :: PATH s :: rest -> Some (ETarget s, rest)
+  | TARGET :: STRING s :: rest -> Some (ETarget s, rest)
   | STRING s :: rest -> Some (EString s, rest)
   | PATH s :: rest -> Some (EString s, rest)
   | EVAL s :: rest ->
@@ -739,7 +741,7 @@ let p_target_command_y1 toks =
 
 let p_dir_command_y1_inner name args _kwargs =
   match name, args with
-  | "add_subdirectory", [ dir ] -> Some (yc_add_subdirectory dir)
+  | "add_subdirectory", dir :: _ -> Some (yc_add_subdirectory dir)
   | "include_directories", dirs -> Some (yc_include_directories dirs)
   | "add_compile_definitions", defs -> Some (yc_add_compile_definitions defs)
   | "add_compile_options", opts -> Some (yc_add_compile_options opts)
@@ -855,8 +857,10 @@ let p_find_command_y1_inner name args kwargs =
     | _ -> ""
   in
   match name, args with
-  | "find_package", [ pkg ] ->
-    Some (yc_find_package (str_name pkg))
+  | "find_package", pkg :: rest ->
+    let required = List.exists rest ~f:(function
+      | EVar "REQUIRED" | EString "REQUIRED" -> true | _ -> false) in
+    Some (yc_find_package ~required (str_name pkg))
   | "find_library", [ cvar ] ->
     let names = kwarg_list ~key:"name" @ kwarg_list ~key:"names" in
     let paths = kwarg_list ~key:"path" @ kwarg_list ~key:"paths" in
@@ -985,15 +989,31 @@ let p_cmake_op_command_y1_inner name args kwargs =
     | Some (EBool b) -> b | _ -> false
   in
   match name, args with
-  | "cmake_minimum_required", [ v ] ->
-    let s = match v with EString s | EVar s -> s | _ -> "3.20" in
-    Some (ECmakeMinimumRequired s)
+  | "cmake_minimum_required", args ->
+    let version =
+      let vs = List.filter_map args ~f:(fun e ->
+        match e with EString s | EVar s -> Some s | _ -> None) in
+      match vs with
+      | v :: _ when String.is_prefix v ~prefix:"3." -> v  (* direct version *)
+      | [_; v] when String.is_prefix v ~prefix:"3." -> v   (* VERSION 3.x *)
+      | [v] when String.is_prefix v ~prefix:"3." -> v
+      | _ -> "3.20"
+    in
+    Some (ECmakeMinimumRequired version)
   | "project", [ name_e ] ->
     let s = match name_e with
       | EString s | EVar s -> s
       | _ -> "Project"
     in
     Some (ECmakeProject { name = s; languages = []; version = None })
+  | "project", name_e :: langs ->
+    let s = match name_e with
+      | EString s | EVar s -> s
+      | _ -> "Project"
+    in
+    let languages = List.map langs ~f:(fun e ->
+      match e with EString s | EVar s -> s | _ -> "") in
+    Some (ECmakeProject { name = s; languages; version = None })
   | "message", _ ->
     (* Legacy: texts list, each STRING/PATH → s, else "" *)
     let texts =
@@ -1243,6 +1263,7 @@ let rec p_stmt_inner_y1 toks =
   match p_cmake_op_command_y1 toks with Some r -> Some r | None ->
   match p_var_stmt_y1 toks with Some r -> Some r | None ->
   match p_apply_y1 toks with Some r -> Some r | None ->
+  match p_generic_command_y1 toks with Some r -> Some r | None ->
   p_block_y1 toks
 
 (* `let var [: type] = expr in stmt` — yelu_cmake ELet is expression-shaped,
@@ -1442,6 +1463,15 @@ and p_foreach_y1 toks =
               | None -> None)
            | _ -> None)
     | _ -> None
+
+(* Generic command: any IDENT-headed call not matched by a family parser.
+   Wraps in ECmakeApply so unknown cmake commands round-trip through the IR. *)
+and p_generic_command_y1 toks =
+  match toks with
+  | IDENT name :: rest ->
+    let args, _kwargs, rest = collect_command_args [] [] rest in
+    Some (ECmakeApply { name = EString name; args }, rest)
+  | _ -> None
 
 (* Bare flow keywords: break / continue / return. *)
 and p_flow_y1 toks =

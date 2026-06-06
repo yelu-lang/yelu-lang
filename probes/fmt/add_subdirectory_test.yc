@@ -1,0 +1,16 @@
+( cmake_minimum_required VERSION "3.8...3.25";
+  project "fmt-test" "CXX";
+  add_subdirectory "../.." "fmt";
+
+  add_exe Target library-test "main.cc";
+  include_dirs Target library-test :PUBLIC "." ~system;
+  compile_opts Target library-test :PRIVATE ${PEDANTIC_COMPILE_FLAGS};
+  link_lib Target library-test :PUBLIC "fmt::fmt";
+
+  if target Target "fmt::fmt-header-only" then (
+    add_exe Target header-only-test "main.cc";
+    include_dirs Target header-only-test :PUBLIC "." ~system;
+    compile_opts Target header-only-test :PRIVATE ${PEDANTIC_COMPILE_FLAGS};
+    link_lib Target header-only-test :PUBLIC "fmt::fmt-header-only"
+  )
+)

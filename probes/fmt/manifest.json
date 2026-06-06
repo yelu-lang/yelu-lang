@@ -39,12 +39,12 @@
       "whole_file": true
     },
     {
-      "source": "probes/fmt/add_subdirectory_test.ml",
+      "source": "probes/fmt/add_subdirectory_test.yc",
       "target_file": "test/add-subdirectory-test/CMakeLists.txt",
       "whole_file": true
     },
     {
-      "source": "probes/fmt/find_package_test.ml",
+      "source": "probes/fmt/find_package_test.yc",
       "target_file": "test/find-package-test/CMakeLists.txt",
       "whole_file": true
     },
