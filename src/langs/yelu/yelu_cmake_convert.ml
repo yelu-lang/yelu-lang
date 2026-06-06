@@ -1,4 +1,14 @@
-(* Translation between yelu_cmake (CMake-command-faithful form) and
+(* [tool-interface]
+   node:     yc ↔ ycn
+   op:       convert (normalize / lift)
+   strategy: code
+   exports:  to_normal   : Yelu_cmake.expr → Yelu_cmake_normal.expr
+             from_normal : Yelu_cmake_normal.expr → Yelu_cmake.expr
+   imports:  Yelu_cmake (source), Yelu_cmake_normal (target),
+             per-fragment conversion cases
+   ─────────
+
+   Translation between yelu_cmake (CMake-command-faithful form) and
    yelu_cmake_normal (normalized form). Pure syntactic rewrites —
    no env, no eval — they walk the IR replacing each form with its
    counterpart in the other language.

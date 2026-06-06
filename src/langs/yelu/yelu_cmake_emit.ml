@@ -1,12 +1,20 @@
-(* Production emit: lower yelu_cmake.expr to Lang_cmake.exp (the
+(* [tool-interface]
+   node:     yc
+   op:       compile → cmake AST
+   strategy: code
+   exports:  emit_ast : Yelu_cmake.expr → Lang_cmake.exp
+   imports:  Lang_cmake (target AST), Yelu_cmake (source types),
+             Yelu_cmake_store (env/target store), per-fragment cases
+   ─────────
+
+   Production emit: lower yelu_cmake.expr to Lang_cmake.exp (the
    cmake syntax AST), then let the existing [lang_cmake_pp] render
    to text. This is the production path for every step binary and
    every test that needs cmake text output.
 
    This module exists alongside [yelu_cmake_emit_debug.ml] (the
    direct-text emit, retained as a diagnostic / diff aid; not on
-   the production path). See [doc/yelu_cmake/retirement_plan.md]
-   for the full retirement story. *)
+   the production path). *)
 
 open Base
 open Yelu_cmake

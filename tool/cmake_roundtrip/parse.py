@@ -1,4 +1,11 @@
 #!/usr/bin/env python3
+# [tool-interface]
+# node:     cmake text → JSON CST
+# op:       parse (lex + tree-sitter parse; not full semantic parse)
+# strategy: tool:tree-sitter-cmake
+# exports:  JSON CST on stdout
+# imports:  tree-sitter, tree-sitter-cmake (libcmake lexer)
+# ─────────
 """tree-sitter-cmake CST -> JSON for the OCaml round-trip prototype.
 
 Reads cmake source from a file (argv[1]) or stdin and writes a JSON

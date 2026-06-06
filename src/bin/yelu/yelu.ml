@@ -1,4 +1,16 @@
-(* yelu — driver for project-level yelu-cmake adaptation.
+(* [tool-interface]
+   node:     driver (orchestrates yc / cmake text / cmake binary)
+   op:       compile: .ye|.ml → cmake text
+             hybrid:  manifest → splice → cmake configure → diff
+   strategy: code + tool:dune (.ml compile), tool:cmake (configure, hybrid)
+   exports:  CLI: yelu compile FILE, yelu hybrid PROBE_DIR
+   imports:  Yelu_parse (parse .ye in-process),
+             Yelu_cmake_emit (emit cmake text),
+             dune exec (compile .ml as subprocess),
+             cmake binary (configure, diff)
+   ─────────
+
+   yelu — driver for project-level yelu-cmake adaptation.
 
    Subcommands:
      compile FILE [-o OUT]            Single-file source → cmake text.

@@ -272,6 +272,8 @@ Pipelines exist but aren't fully populated:
 
 ## 8. Related
 
+- [`tool_interface.md`](tool_interface.md) — per-node matrix of
+  parse/print/eval/compile/check with code-vs-tool annotation.
 - [`structure.md`](structure.md) — file-level code map (which
   module lives where).
 - [`cmake_vs_normal.md`](cmake_vs_normal.md) — yc vs ycn

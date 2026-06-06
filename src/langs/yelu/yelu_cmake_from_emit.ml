@@ -1,4 +1,13 @@
-(* Reverse pass: Lang_cmake.exp -> yelu_cmake.expr.
+(* [tool-interface]
+   node:     yc
+   op:       parse ← cmake AST
+   strategy: code
+   exports:  from_emit_top : Lang_cmake.exp → Yelu_cmake.expr
+   imports:  Lang_cmake (typed cmd AST), Yelu_cmake,
+             Cmake_text_parse (per-command parsers)
+   ─────────
+
+   Reverse pass: Lang_cmake.exp -> yelu_cmake.expr.
 
    This is the inverse of yelu_cmake_emit.ml. yelu_cmake_emit
    goes yc -> Lang_cmake.exp (the cmake-syntax AST); from_emit

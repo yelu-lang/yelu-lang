@@ -1,4 +1,12 @@
 #!/bin/bash
+# [tool-interface]
+# node:     cmake text → cmake text (roundtrip oracle)
+# op:       check (parse-print equivalence)
+# strategy: tool:parse.py, tool:print2.exe, tool:gersemi
+# exports:  per-file verdict: OK | FORMAT | STRUCT | PARSE
+# imports:  parse.py (tree-sitter lexer), print2.exe (cmake AST printer),
+#           gersemi (canonical formatter), project_index.exe (name index)
+# ─────────
 # Per-file test harness for cmake_roundtrip across an arbitrary corpus.
 # Usage: ./test_corpus.sh <corpus_root>
 #

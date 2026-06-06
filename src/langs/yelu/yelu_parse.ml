@@ -1,4 +1,13 @@
-(* Concrete-syntax parser for yelu_cmake. Produces
+(* [tool-interface]
+   node:     .ye text → yc
+   op:       parse
+   strategy: code
+   exports:  parse_program_y1 : string → (Yelu_cmake.expr, error) result
+   imports:  Yelu_lang_lexer (token stream), Yelu_cmake (IR types),
+             per-theory fragment ctors
+   ─────────
+
+   Concrete-syntax parser for yelu_cmake. Produces
    [Yelu_cmake.expr] directly from token streams. The only
    production parser since E1 retired the legacy
    [Lang_yelu_parse] path.

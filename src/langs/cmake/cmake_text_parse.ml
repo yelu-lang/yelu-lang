@@ -1,4 +1,12 @@
-(* Cmake text → Lang_cmake.exp via Stage-1 untyped AST.
+(* [tool-interface]
+   node:     cmake text → cmake AST (via JSON CST intermediary)
+   op:       parse
+   strategy: code (walks JSON CST; the lexer is tool:tree-sitter)
+   exports:  file_of_json : Yojson.Safe.t → Lang_cmake.exp
+   imports:  Lang_cmake (target AST), per-command parsers (~50)
+   ─────────
+
+   Cmake text → Lang_cmake.exp via Stage-1 untyped AST.
 
    This module is the canonical "cmake text parser" for yelu. It
    was extracted from tool/cmake_roundtrip/print2.ml — the

@@ -1,3 +1,11 @@
+(* [tool-interface]
+   node:     cmake AST → cmake text
+   op:       print
+   strategy: code
+   exports:  pp : Format.formatter → Lang_cmake.exp → unit
+             pp_cmd : Format.formatter → Lang_cmake.cmd → unit
+   imports:  Lang_cmake (AST types), Fmt (formatting combinators)
+   ───────── *)
 open Base
 open Lang_cmake
 

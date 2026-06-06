@@ -1,4 +1,13 @@
-(* yelu_cmake evaluator: interpret an IR built from cmake-shaped *surface*
+(* [tool-interface]
+   node:     yc
+   op:       eval → env × value
+   strategy: code
+   exports:  eval : env → Yelu_cmake.expr → env × yelu_value
+   imports:  per-fragment eval_case modules, Yelu_cmake_store,
+             Yelu_cmake (shared core: ELet, EIf, EBlock)
+   ─────────
+
+   yelu_cmake evaluator: interpret an IR built from cmake-shaped *surface*
    constructors (the [ECmake*] family, plus the shared core nodes from
    [yelu_cmake.ml]). Used to demonstrate that the cmake-faithful surface
    is executable and to compare result envs against the production
