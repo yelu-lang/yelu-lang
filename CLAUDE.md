@@ -54,8 +54,7 @@ make step1 .. step12     # generate → cmake configure → build → run
 | --------------------------------------------- | -------------------------------------------- |
 | `src/langs/drivers/yc_driver.ml`              | yc ops: parse×4, print/compile×3, eval, convert, check |
 | `src/langs/drivers/ycn_driver.ml`             | ycn ops: parse, print/compile, eval, check |
-| `src/langs/drivers/cmake_ast_driver.ml`       | cmake AST ops: parse JSON CST, print, from/to yc |
-| `src/langs/drivers/cmake_text_driver.ml`      | cmake text ops: parse (tool:cmake_to_json.py), print (tool:gersemi), eval (tool:cmake) |
+| `src/langs/drivers/cmake_driver.ml`            | cmake (IR+text): parse (tool+code), print (code), print_canon (tool:gersemi), eval (tool:cmake), check, to/from yc |
 | `src/langs/drivers/yc_to_cmake.ml`            | Pipeline: .ye → yc → cmake AST → cmake text |
 | `src/langs/drivers/cmake_to_yc.ml`            | Pipeline: cmake text → JSON CST → cmake AST → yc |
 | `src/langs/drivers/yc_ycn.ml`                 | Pipeline: yc ↔ ycn |

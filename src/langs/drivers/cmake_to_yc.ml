@@ -1,19 +1,18 @@
-(* ─── Pipeline: cmake text → yc ─────────────────
-   cmake text → Cmake_text_driver.parse_to_json_cst → JSON string
+(* ─── Pipeline: cmake → yc ──────────────────────
+   cmake text → Cmake_driver.parse_text_to_json → JSON string
    JSON string → (caller parses with Yojson)
-   JSON CST → Cmake_ast_driver.parse_json_cst → cmake AST stmt list
-   cmake AST → Yc_driver.parse_cmake → yc
+   JSON CST → Cmake_driver.parse_json_to_stmts → cmake AST stmt list
+   cmake AST → Cmake_driver.compile_to_yc → yc
 
    Note: Yojson is not a dependency of yelu_langs.
-   Callers (e.g., yelu.ml, tests) parse the JSON string
-   before passing it to parse_json_to_stmts.
+   Callers (e.g., yelu.ml, tests) parse the JSON string.
    ─────────────────────────────────────────────── *)
 
-(* cmake text file → JSON string (via parse.py) *)
-let file_to_json = Cmake_text_driver.parse_to_json_cst
+(* cmake text file → JSON string (via cmake_to_json.py) *)
+let file_to_json = Cmake_driver.parse_text_to_json
 
-(* JSON CST (already parsed) → cmake AST stmt list *)
-let json_to_stmts = Cmake_ast_driver.parse_json_cst
+(* JSON CST → cmake AST stmt list *)
+let json_to_stmts = Cmake_driver.parse_json_to_stmts
 
-(* cmake AST exp → yc expr *)
-let ast_to_yc = Cmake_ast_driver.to_yc
+(* cmake AST → yc *)
+let ast_to_yc = Cmake_driver.compile_to_yc
