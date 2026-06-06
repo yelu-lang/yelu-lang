@@ -40,9 +40,9 @@ open Yelu_runner
    the tool/snapshot locations relative to project root. *)
 
 let fmt_dir       = "vendor/fmt"
-let _parse_py      = "tool/cmake_roundtrip/parse.py"  (* now in Cmake_bridge *)
-let reserved_path = "tool/cmake_roundtrip/cmake_reserved.tsv"
-let cache_vars_exe = "_build/default/tool/cmake_roundtrip/cache_vars.exe"
+let _parse_py      = "tool/cmake_text/parse.py"  (* now in Cmake_bridge *)
+let reserved_path = "tool/cmake_text/cmake_reserved.tsv"
+let cache_vars_exe = "_build/default/tool/cmake_text/cache_vars.exe"
 
 let cmd_line = [ "FMT_FUZZ", "ON"; "FMT_TEST", "OFF" ]
 

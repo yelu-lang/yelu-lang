@@ -26,7 +26,7 @@ let run_capture cmd =
 
 (* cmake text → JSON CST via tree-sitter (tool:parse.py) *)
 let parse_to_json_cst file =
-  let py = "tool/cmake_roundtrip/parse.py" in
+  let py = "tool/cmake_text/parse.py" in
   let out, code = run_capture (Printf.sprintf "python3 %s %s 2>/dev/null"
     (Stdlib.Filename.quote py) (Stdlib.Filename.quote file))
   in

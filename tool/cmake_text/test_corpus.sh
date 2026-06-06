@@ -29,7 +29,7 @@ fi
 corpus="$1"
 parse_py="${2:-$(dirname "$0")/parse.py}"
 yelu_root="${YELU_ROOT:-$(cd "$(dirname "$0")/../.." && pwd)}"
-print2="${3:-$yelu_root/_build/default/tool/cmake_roundtrip/print2.exe}"
+print2="${3:-$yelu_root/_build/default/tool/cmake_text/print2.exe}"
 gersemi="${GERSEMI:-/home/red/.venvs/default/bin/gersemi}"
 strip_comments="${STRIP_COMMENTS:-$(dirname "$0")/strip_comments.py}"
 # Pre-strip comments via tree-sitter on both sides before gersemi.
@@ -63,7 +63,7 @@ fi
 # Pre-flight: print2.exe must be built.
 if ! [ -x "$print2" ]; then
   echo "FATAL: print2.exe not found at: $print2" >&2
-  echo "  Run: dune build tool/cmake_roundtrip/print2.exe" >&2
+  echo "  Run: dune build tool/cmake_text/print2.exe" >&2
   exit 2
 fi
 
@@ -96,7 +96,7 @@ modeled_total=0; stdlib_total=0; resolved_total=0; generic_total=0; other_total=
 #   REBUILD_CORPUS_INDEX=1 — force rebuild corpus index
 #   REBUILD_CMAKE_STDLIB=1 — force rebuild stdlib index
 #   CMAKE_STDLIB_ROOT=...  — override Modules dir detection
-project_index_exe="${yelu_root}/_build/default/tool/cmake_roundtrip/project_index.exe"
+project_index_exe="${yelu_root}/_build/default/tool/cmake_text/project_index.exe"
 
 # Prepare the cmake-stdlib name index. Probes cmake for its
 # CMAKE_ROOT (so we pick up whatever version is currently active —

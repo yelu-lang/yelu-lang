@@ -284,7 +284,7 @@ let () =
   in
   let parse_py =
     if Stdlib.Sys.file_exists parse_py then parse_py
-    else "tool/cmake_roundtrip/parse.py"
+    else "tool/cmake_text/parse.py"
   in
   let files = walk_dir project [] in
   List.iter files ~f:(fun file ->

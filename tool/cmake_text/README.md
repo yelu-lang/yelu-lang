@@ -1,4 +1,4 @@
-# cmake_roundtrip
+# cmake_text
 
 Syntactic round-trip oracle for real-world cmake. Parses cmake source
 via tree-sitter-cmake, reprints it through `Lang_cmake.exp` +
@@ -56,18 +56,18 @@ cmake functions (`z3_add_component`, `tablegen`, `add_llvm_*`,
 
 ```sh
 # Build
-dune build tool/cmake_roundtrip/print2.exe
+dune build tool/cmake_text/print2.exe
 
 # Round-trip one file
-python3 tool/cmake_roundtrip/parse.py path/to/CMakeLists.txt \
-  | _build/default/tool/cmake_roundtrip/print2.exe
+python3 tool/cmake_text/parse.py path/to/CMakeLists.txt \
+  | _build/default/tool/cmake_text/print2.exe
 
 # Run the full oracle on a corpus
-bash tool/cmake_roundtrip/test_corpus.sh path/to/cmake_corpus
+bash tool/cmake_text/test_corpus.sh path/to/cmake_corpus
 
 # Coverage tally only (stderr line per file)
-python3 tool/cmake_roundtrip/parse.py path/to/CMakeLists.txt \
-  | STAGE2_COVERAGE=1 _build/default/tool/cmake_roundtrip/print2.exe \
+python3 tool/cmake_text/parse.py path/to/CMakeLists.txt \
+  | STAGE2_COVERAGE=1 _build/default/tool/cmake_text/print2.exe \
     >/dev/null
 ```
 

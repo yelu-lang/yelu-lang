@@ -44,9 +44,9 @@ module If_frag = Yelu_langs.Yelu_cmake_if
 open Yelu_runner
 
 let fmt_dir       = "vendor/fmt"
-let _parse_py     = "tool/cmake_roundtrip/parse.py"  (* now in Cmake_bridge *)
-let reserved_path = "tool/cmake_roundtrip/cmake_reserved.tsv"
-let cache_vars_exe = "_build/default/tool/cmake_roundtrip/cache_vars.exe"
+let _parse_py     = "tool/cmake_text/parse.py"  (* now in Cmake_bridge *)
+let reserved_path = "tool/cmake_text/cmake_reserved.tsv"
+let cache_vars_exe = "_build/default/tool/cmake_text/cache_vars.exe"
 let matrix_root   = "_out/fmt/matrix"
 
 (* ============================================================

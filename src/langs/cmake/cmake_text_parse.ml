@@ -9,7 +9,7 @@
    Cmake text → Lang_cmake.exp via Stage-1 untyped AST.
 
    This module is the canonical "cmake text parser" for yelu. It
-   was extracted from tool/cmake_roundtrip/print2.ml — the
+   was extracted from tool/cmake_text/print2.ml — the
    Bar #3-lite oracle's typed-dispatch core — into a library so
    that other consumers (the from_emit bridge for yc-eval, future
    analysis passes, more tools) can ingest cmake without copying
@@ -37,7 +37,7 @@
    parsers matching cmake source faithfully. Changes that affect
    parse_cmd's output for any modeled command MUST be validated
    against the round-trip oracle:
-     bash tool/cmake_roundtrip/test_corpus.sh \\
+     bash tool/cmake_text/test_corpus.sh \\
        /home/red/code/contrib/z3-all/z3
    should still show 108/108 OK. *)
 

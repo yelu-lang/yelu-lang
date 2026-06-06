@@ -191,9 +191,9 @@ let placeholder_expansion_tier =
    to running from either the project root (dune test) or a
    nested _build directory. *)
 let snapshot_paths =
-  [ "tool/cmake_roundtrip/cmake_reserved.tsv";
-    "../../tool/cmake_roundtrip/cmake_reserved.tsv";
-    "../../../tool/cmake_roundtrip/cmake_reserved.tsv";
+  [ "tool/cmake_text/cmake_reserved.tsv";
+    "../../tool/cmake_text/cmake_reserved.tsv";
+    "../../../tool/cmake_text/cmake_reserved.tsv";
   ]
 
 let find_snapshot () =
