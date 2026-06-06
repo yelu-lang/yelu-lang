@@ -116,7 +116,26 @@ dependency graph explicit and the pipeline logic testable.
 | `yc_ycn` | yc ↔ ycn via convert | `to_ycn`, `from_ycn` | lift-lower oracle |
 | `cmake_roundtrip` | cmake text → JSON CST → cmake AST → cmake text | `roundtrip_file` | parse-print oracle |
 
-## 4. External tool dependencies
+## 4. Tool directory: `tool/cmake_text/`
+
+Executable tools that operate on cmake text files. These are `tool:*`
+implementations — they shell out to or wrap external programs (tree-sitter,
+gersemi, cmake binary).
+
+| File | Role | Strategy |
+|---|---|---|
+| `cmake_to_json.py` | cmake text → JSON CST | tool:tree-sitter-cmake |
+| `cmake_reprint.ml` | JSON CST → typed IR → reprinted cmake text | code (in-tree exe) |
+| `cmake_cache_scan.ml` | Walk project to enumerate `option()` / `set(...CACHE...)` decls | tool:cmake_to_json.py |
+| `cmake_name_index.ml` | Walk corpus to index function/macro name→def-site | tool:cmake_to_json.py |
+| `cmake_strip_comments.py` | Tree-sitter–based comment stripper for FORMAT oracle | tool:tree-sitter-cmake |
+| `cmake_roundtrip_oracle.sh` | Per-file STRUCT+FORMAT+summary oracle over a corpus | tool:cmake_to_json.py + cmake_reprint.exe + gersemi |
+| `cmake_reserved_vars.tsv` | Snapshot of 1597 reserved cmake variable names (4.3.1) | data |
+
+Build: `dune build tool/cmake_text/cmake_reprint.exe` (also builds
+`cmake_cache_scan.exe`, `cmake_name_index.exe`).
+
+## 5. External tool dependencies
 
 | Tool | Used by | Role |
 |---|---|---|
@@ -125,7 +144,7 @@ dependency graph explicit and the pipeline logic testable.
 | `cmake_to_json.py` (tree-sitter) | `Cmake_text_driver.parse_to_json_cst`, oracles | cmake text → JSON CST |
 | `dune` | `yelu compile` (.ml path) | Build OCaml DSL programs |
 
-## 5. What the matrix reveals
+## 6. What the matrix reveals
 
 **Two missing printers.** yc→.ye and ycn→.ycn. Both would close the round-trip
 for their respective syntax surfaces.
@@ -139,7 +158,7 @@ CMakeCache.txt without running cmake.
 new surface (e.g., an LSP or a syntax highlighter) means adding an operation to
 the relevant driver, visible in one place.
 
-## 6. Related
+## 7. Related
 
 - [`structure.md`](structure.md) — file-level code map
 - [`cmake_vs_normal.md`](cmake_vs_normal.md) — yc vs ycn feature comparison

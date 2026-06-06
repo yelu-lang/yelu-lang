@@ -48,6 +48,19 @@ make step1 .. step12     # generate → cmake configure → build → run
 
 ## Key Source Files
 
+### Tool bridge (cmake-text ↔ IR)
+
+| Directory / File                              | Purpose                                      |
+| --------------------------------------------- | -------------------------------------------- |
+| `src/langs/drivers/yc_driver.ml`              | yc ops: parse×4, print/compile×3, eval, convert, check |
+| `src/langs/drivers/ycn_driver.ml`             | ycn ops: parse, print/compile, eval, check |
+| `src/langs/drivers/cmake_ast_driver.ml`       | cmake AST ops: parse JSON CST, print, from/to yc |
+| `src/langs/drivers/cmake_text_driver.ml`      | cmake text ops: parse (tool:cmake_to_json.py), print (tool:gersemi), eval (tool:cmake) |
+| `src/langs/drivers/yc_to_cmake.ml`            | Pipeline: .ye → yc → cmake AST → cmake text |
+| `src/langs/drivers/cmake_to_yc.ml`            | Pipeline: cmake text → JSON CST → cmake AST → yc |
+| `src/langs/drivers/yc_ycn.ml`                 | Pipeline: yc ↔ ycn |
+| `tool/cmake_text/`                            | External tools: cmake_to_json.py, cmake_reprint.ml, cmake_cache_scan.ml, cmake_name_index.ml, cmake_strip_comments.py, cmake_roundtrip_oracle.sh, cmake_reserved_vars.tsv |
+
 ### cmake layer (stringly-typed AST)
 
 | File                                  | Purpose                                      |
