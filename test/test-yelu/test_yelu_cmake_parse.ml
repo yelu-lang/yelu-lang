@@ -453,13 +453,13 @@ let tier8_misc_cmake_op_y1 = ("t8-misc-cmake_op-y1", [
 (* Phase 2a pair-wise oracle for find / install / property families. *)
 let tier6_find_install_y1 = ("t6-find-install-y1", [
   assert_parse_y1_emits "y1: find_library" "( find_library VAR ~names:\"m\" ~paths:\"/usr/lib\" )"
-    "find_library(VAR)";
+    "find_library(VAR NAMES m PATHS /usr/lib)";
   assert_parse_y1_emits "y1: find_path"    "( find_path VAR ~names:\"foo.h\" )"
-    "find_path(VAR)";
+    "find_path(VAR NAMES foo.h)";
   assert_parse_y1_emits "y1: find_program" "( find_program VAR ~names:\"git\" )"
-    "find_program(VAR)";
+    "find_program(VAR NAMES git)";
   assert_parse_y1_emits "y1: find_file"    "( find_file VAR ~names:\"config\" )"
-    "find_file(VAR)";
+    "find_file(VAR NAMES config)";
   assert_parse_y1_emits "y1: install_targets" "( install_targets \"lib\" )"
     (* Tier 4 IR widening: the double space here is the empty-targets
        edge case (Fmt's `list_sp` emits nothing on []; the literal

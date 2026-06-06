@@ -825,7 +825,11 @@ let p_property_command_y1 toks =
    Legacy parser defaults names/paths/hints lists to empty.
    ============================================================ *)
 
-let p_find_command_y1_inner name args _kwargs =
+let p_find_command_y1_inner name args kwargs =
+  let kwarg_list ~key =
+    List.filter_map kwargs ~f:(fun (k, v) ->
+      if String.equal k key then Some v else None)
+  in
   let cvar_name = function
     | EVar n -> n
     | EString n -> n
@@ -840,13 +844,21 @@ let p_find_command_y1_inner name args _kwargs =
   | "find_package", [ pkg ] ->
     Some (yc_find_package (str_name pkg))
   | "find_library", [ cvar ] ->
-    Some (yc_find_library (cvar_name cvar))
+    let names = kwarg_list ~key:"name" @ kwarg_list ~key:"names" in
+    let paths = kwarg_list ~key:"path" @ kwarg_list ~key:"paths" in
+    Some (yc_find_library ~names ~paths (cvar_name cvar))
   | "find_path", [ cvar ] ->
-    Some (yc_find_path (cvar_name cvar))
+    let names = kwarg_list ~key:"name" @ kwarg_list ~key:"names" in
+    let paths = kwarg_list ~key:"path" @ kwarg_list ~key:"paths" in
+    Some (yc_find_path ~names ~paths (cvar_name cvar))
   | "find_program", [ cvar ] ->
-    Some (yc_find_program (cvar_name cvar))
+    let names = kwarg_list ~key:"name" @ kwarg_list ~key:"names" in
+    let paths = kwarg_list ~key:"path" @ kwarg_list ~key:"paths" in
+    Some (yc_find_program ~names ~paths (cvar_name cvar))
   | "find_file", [ cvar ] ->
-    Some (yc_find_file (cvar_name cvar))
+    let names = kwarg_list ~key:"name" @ kwarg_list ~key:"names" in
+    let paths = kwarg_list ~key:"path" @ kwarg_list ~key:"paths" in
+    Some (yc_find_file ~names ~paths (cvar_name cvar))
   | _ -> None
 
 let p_find_command_y1 toks =
@@ -949,6 +961,15 @@ let str_of e =
 
 let p_cmake_op_command_y1_inner name args kwargs =
   let out = out_var_y1 kwargs in
+  let kwarg_opt ~key = List.Assoc.find kwargs ~equal:String.equal key in
+  let kwarg_string_opt ~key =
+    Option.bind (kwarg_opt ~key) ~f:(function
+      | EString s | EVar s -> Some s | _ -> None)
+  in
+  let kwarg_bool ~key =
+    match kwarg_opt ~key with
+    | Some (EBool b) -> b | _ -> false
+  in
   match name, args with
   | "cmake_minimum_required", [ v ] ->
     let s = match v with EString s | EVar s -> s | _ -> "3.20" in
@@ -981,13 +1002,22 @@ let p_cmake_op_command_y1_inner name args kwargs =
   | "enable_language", _ ->
     Some (yc_enable_language ~optional:false [])
   | "execute_process", _ ->
+    let commands = match args with [] -> [] | _ -> [args] in
+    let working_directory = kwarg_opt ~key:"working_directory" in
+    let timeout = Option.map (kwarg_opt ~key:"timeout") ~f:(fun e ->
+      match e with EString s -> Float.of_string s | _ -> 0.0) in
+    let result_variable = kwarg_string_opt ~key:"result" in
+    let output_variable = kwarg_string_opt ~key:"output" in
+    let error_variable  = kwarg_string_opt ~key:"error" in
+    let output_quiet = kwarg_bool ~key:"output_quiet" in
+    let error_quiet  = kwarg_bool ~key:"error_quiet" in
     Some (ECmakeExecuteProcess
-            { commands = [];
-              working_directory = None; timeout = None;
-              result_variable = None;
-              output_variable = None; error_variable = None;
+            { commands;
+              working_directory; timeout;
+              result_variable;
+              output_variable; error_variable;
               input_file = None; output_file = None; error_file = None;
-              output_quiet = false; error_quiet = false;
+              output_quiet; error_quiet;
               output_strip_trailing_whitespace = false;
               error_strip_trailing_whitespace = false;
               command_error_is_fatal = None })

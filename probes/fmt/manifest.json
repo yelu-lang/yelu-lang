@@ -34,7 +34,7 @@
       "whole_file": true
     },
     {
-      "source": "probes/fmt/find_setenv.ml",
+      "source": "probes/fmt/find_setenv.yc",
       "target_file": "support/cmake/FindSetEnv.cmake",
       "whole_file": true
     },
