@@ -10,13 +10,13 @@
 
 **All 11 vendor/fmt cmake sources are migrated.** Every
 `CMakeLists.txt` (or `.cmake` module) under `vendor/fmt/` is now
-generated from OCaml or `.ye` sources under `probes/fmt/`. The
+generated from OCaml or `.yc` sources under `probes/fmt/`. The
 matrix oracle (24 cells: 12 fmt options × {ON, OFF}) shows
 byte-identical `CMakeCache.txt` between the vendor source and the
 hybrid-generated source.
 
 ```
-vendor/fmt/  →  probes/fmt/main.ml + 10 sibling .ml/.ye
+vendor/fmt/  →  probes/fmt/main.ml + 10 sibling .ml/.yc
             →  yelu_cmake IR + raw_cmake escapes
             →  Lang_cmake AST
             →  cmake text (in _out/fmt/hybrid/source/)
@@ -34,7 +34,7 @@ vendor/fmt/  →  probes/fmt/main.ml + 10 sibling .ml/.ye
 | `test/cuda-test/CMakeLists.txt` | 77 | [`cuda_test.ml`](cuda_test.ml) |
 | `test/fuzzing/CMakeLists.txt` | 32 | [`fuzzing.ml`](fuzzing.ml) |
 | `test/static-export-test/CMakeLists.txt` | 30 | [`static_export_test.ml`](static_export_test.ml) |
-| `support/cmake/JoinPaths.cmake` | 28 | [`join_paths.ye`](join_paths.ye) |
+| `support/cmake/JoinPaths.cmake` | 28 | [`join_paths.yc`](join_paths.yc) |
 | `test/gtest/CMakeLists.txt` | 26 | [`gtest.ml`](gtest.ml) |
 | `test/find-package-test/CMakeLists.txt` | 17 | [`find_package_test.ml`](find_package_test.ml) |
 | `test/add-subdirectory-test/CMakeLists.txt` | 17 | [`add_subdirectory_test.ml`](add_subdirectory_test.ml) |
@@ -220,13 +220,13 @@ are genuinely unmodeled (no IR constructor exists yet):
 | phase | status | finish | summary |
 |---|---|---|---|
 | 0 (pilot: join + set_verbose) | ✓ | 2026-06-04 | First helper pair; 24/24 cells. |
-| 0+ (mixed-format demo) | ✓ | 2026-06-04 | First `.ye` source alongside `.ml`; commit `12da517`. |
-| 1 (8 remaining helpers) | ✓ | 2026-06-04 | `join_paths` (`.ye`, surfaced + fixed two parser gaps: `foreach IN LISTS` and `set ... PARENT_SCOPE`); 7 others as `.ml` (dynamic target names and `cmake_parse_arguments` handled via `yc_apply`). |
-| 2 (support/) | ✓ | 2026-06-04 | `JoinPaths.cmake` (`.ye`, whole-file) and `FindSetEnv.cmake` (`.ml`, whole-file). Added `whole_file: true` mode to the splice manifest. |
+| 0+ (mixed-format demo) | ✓ | 2026-06-04 | First `.yc` source alongside `.ml`; commit `12da517`. |
+| 1 (8 remaining helpers) | ✓ | 2026-06-04 | `join_paths` (`.yc`, surfaced + fixed two parser gaps: `foreach IN LISTS` and `set ... PARENT_SCOPE`); 7 others as `.ml` (dynamic target names and `cmake_parse_arguments` handled via `yc_apply`). |
+| 2 (support/) | ✓ | 2026-06-04 | `JoinPaths.cmake` (`.yc`, whole-file) and `FindSetEnv.cmake` (`.ml`, whole-file). Added `whole_file: true` mode to the splice manifest. |
 | 3 (small test subdirs) | ✓ | 2026-06-04 | 5 subdir files migrated as whole-file `.ml`. New surface exercised: `find_package(Threads)`, `set_property(TARGET ...)`, `CheckIPOSupported`, `option()`, `set CACHE STRING`, VERSION_LESS/GREATER. Decision-point passed: surface holds, continue. |
 | 4 (large test subdirs) | ✓ | 2026-06-04 | `test/CMakeLists.txt` and `test/compile-error-test/CMakeLists.txt` as whole-file `.ml`. New: `string(REGEX REPLACE)` backrefs, `try_compile OUTPUT_VARIABLE`, `ECmakeVarDefined`, `check_cxx_compiler_flag`, `enable_language(C)`, ctest `--build-and-test`. Added `Yelu_emit_main.escape` helper. |
 | 5 (cuda) | ✓ | 2026-06-04 | `test/cuda-test/CMakeLists.txt` whole-file `.ml`. CMake-version split (`< 3.15` legacy FindCUDA / `cuda_add_executable` vs modern `enable_language(CUDA)` + `add_executable` + `CUDA_SEPARABLE_COMPILATION`). Matrix never enters this file; codegen-only verification. |
-| 6 (main CMakeLists) | ✓ | 2026-06-04 | `vendor/fmt/CMakeLists.txt` (593 lines) as `main.ml`. Superseded 4 splice files + `use_cmake_modules_false.ye`. Emit fix: `target_feature_of_expr` was dropping visibility; threaded through. New: `ECmakeIncludeGuard`, `ECmakeMath`, `ECmakeFileRead`, `ECmakeFileStrings`, `ECmakeFileExists`, `ECmakeStringReplace`, `ECmakeInList`, `write_basic_package_version_file`, `configure_package_config_file`, `configure_file`. |
+| 6 (main CMakeLists) | ✓ | 2026-06-04 | `vendor/fmt/CMakeLists.txt` (593 lines) as `main.ml`. Superseded 4 splice files + `use_cmake_modules_false.yc`. Emit fix: `target_feature_of_expr` was dropping visibility; threaded through. New: `ECmakeIncludeGuard`, `ECmakeMath`, `ECmakeFileRead`, `ECmakeFileStrings`, `ECmakeFileExists`, `ECmakeStringReplace`, `ECmakeInList`, `write_basic_package_version_file`, `configure_package_config_file`, `configure_file`. |
 | 7 (Shape C lockup) | ✓ | 2026-06-04 | Added first-class `ECmakeRaw` escape (new fragment `yelu_cmake_raw.ml`) + `Yelu_emit_main.raw_cmake` helper. Used in `main.ml` for the WINSDK / netfxpath / `run-msbuild.bat` block. Footprint audit in [`README.md` § Shape C lockup](README.md). |
 
 ## What didn't get done (or got de-scoped)

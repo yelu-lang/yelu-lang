@@ -1,14 +1,14 @@
 open Base
 (* ─── Pipeline: yc → cmake text ─────────────────
-   .ye → Yc_driver.parse_ye → yc
+   .yc → Yc_driver.parse_yc → yc
    yc → Yc_driver.compile_to_cmake_ast → cmake AST
    cmake AST → Cmake_driver.print → cmake text
    ─────────────────────────────────────────────── *)
 
-(* Full pipeline from .ye source to cmake text *)
-let compile_ye src =
+(* Full pipeline from .yc source to cmake text *)
+let compile_yc_src src =
   let open Result in
-  Yc_driver.parse_ye src >>| fun yc ->
+  Yc_driver.parse_yc src >>| fun yc ->
   let cmake_ast = Yc_driver.compile_to_cmake_ast yc in
   Cmake_driver.print cmake_ast
 

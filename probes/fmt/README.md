@@ -129,7 +129,7 @@ hand-written helpers within whitespace normalization.
 ### Step 1.b — build oracle (✓ completed)
 
 `yelu hybrid` reads [`manifest.json`](manifest.json), compiles each
-helper (`.ml` via subprocess; `.ye` via in-process parse), splices
+helper (`.ml` via subprocess; `.yc` via in-process parse), splices
 the generated cmake into fmt's CMakeLists at the manifest's
 anchors, then runs real cmake on both vendor and the hybrid
 source and diffs CMakeCache.txt.
@@ -167,9 +167,9 @@ Generalizing: each next helper migrated follows the same pattern
 (write `probes/fmt/<helper>.{ml,ye}`, add to manifest.json, run
 all cells). No new oracle infrastructure needed.
 
-### Mixed-format demo (`.ml` + `.ye`)
+### Mixed-format demo (`.ml` + `.yc`)
 
-[`use_cmake_modules_false.ye`](use_cmake_modules_false.ye) is a
+[`use_cmake_modules_false.yc`](use_cmake_modules_false.yc) is a
 one-liner concrete-syntax demo:
 
 ```
@@ -177,15 +177,15 @@ one-liner concrete-syntax demo:
 ```
 
 The manifest has both helpers: `set_verbose.ml` (the original
-pilot) AND `use_cmake_modules_false.ye` (the demo). One run of
+pilot) AND `use_cmake_modules_false.yc` (the demo). One run of
 `yelu hybrid probes/fmt` compiles both via their respective
-paths (subprocess for `.ml`, in-process parse for `.ye`),
+paths (subprocess for `.ml`, in-process parse for `.yc`),
 splices both into the hybrid CMakeLists, and still produces
 24/24 cache matches.
 
 The demo proves the driver is **input-format-agnostic** — same
 manifest, two source formats, same oracle. Future helpers can
-choose `.ml` (OCaml-as-host, full IR ergonomics) or `.ye`
+choose `.ml` (OCaml-as-host, full IR ergonomics) or `.yc`
 (concrete syntax, when the parser covers the construct) per
 helper.
 
@@ -255,7 +255,7 @@ emits — 11 source files, ~870 cmake lines total, replaced by
 | Target file | Migrator |
 |---|---|
 | `CMakeLists.txt` | [`main.ml`](main.ml) — 593 → 690 lines |
-| `support/cmake/JoinPaths.cmake` | [`join_paths.ye`](join_paths.ye) |
+| `support/cmake/JoinPaths.cmake` | [`join_paths.yc`](join_paths.yc) |
 | `support/cmake/FindSetEnv.cmake` | [`find_setenv.ml`](find_setenv.ml) |
 | `test/CMakeLists.txt` | [`test_main.ml`](test_main.ml) |
 | `test/compile-error-test/CMakeLists.txt` | [`compile_error_test.ml`](compile_error_test.ml) |

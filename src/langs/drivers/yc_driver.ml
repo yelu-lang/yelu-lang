@@ -8,7 +8,7 @@ open Yelu_cmake
 
 (* ══  parse  ═══════════════════════════════════ *)
 
-let parse_ye src : (expr, string) result =
+let parse_yc src : (expr, string) result =
   Yelu_parse.parse_program_y1 src
 
 let parse_cmake (stmts : Lang_cmake.exp list) : expr =
@@ -25,9 +25,9 @@ let compile_to_cmake_ast (e : expr) : Lang_cmake.exp =
 let print_cmake_debug (e : expr) : string =
   Yelu_cmake_emit_debug.emit_script e
 
-(* → .ye text: not implemented *)
-let print_ye _e =
-  failwith "yc_driver.print_ye: not implemented"
+(* → .yc text: not implemented *)
+let print_yc _e =
+  failwith "yc_driver.print_yc: not implemented"
 
 (* ══  eval  ════════════════════════════════════ *)
 

@@ -1,5 +1,5 @@
 (* [tool-interface]
-   node:     .ye text → yc
+   node:     .yc text → yc
    op:       parse
    strategy: code
    exports:  parse_program_y1 : string → (Yelu_cmake.expr, error) result

@@ -213,7 +213,7 @@ in [`yelu_cmake/status.md`](yelu_cmake/status.md).
 | `yelu_cmake/cmake_vs_normal.md`            | yc ↔ ycn ecosystem comparison: per-theory fragment coverage.       |
 | `yelu_cmake/io_architecture.md`            | I/O library/runner split + callback-via-env pattern (include_loader, subdir_loader). |
 | `yelu_cmake/cache_plan.md`                 | Active plan: cache namespace + `-D` cmd-line input (shipped 2026-06-01). |
-| `yelu_cmake/hybrid_strategy.md`            | Y16 reframed: cmake-as-assembly; gradual hybrid adoption (.ye + .cmake side-by-side, or whole-file w/ raw_cmake escape). |
+| `yelu_cmake/hybrid_strategy.md`            | Y16 reframed: cmake-as-assembly; gradual hybrid adoption (.yc + .cmake side-by-side, or whole-file w/ raw_cmake escape). |
 | `yelu_cmake/status.md`                     | Living tracker for current open work (IR cleanup, Y17, E2, etc.).  |
 | `../probes/README.md`                         | Probe cluster intro: real-world cmake projects as predictor testbeds. |
 | `../probes/candidates.md`                     | Shortlist of next projects to probe.                               |

@@ -10,7 +10,7 @@
 There is **no concrete-syntax parser for `yelu_cmake_normal`**.
 
 - `yelu_cmake` (yc) has [`yelu_parse.ml`](../../src/langs/yelu/yelu_parse.ml)
-  + the `parse_program_y1` entry point, consumed for `.ye` files
+  + the `parse_program_y1` entry point, consumed for `.yc` files
   in [`probes/fmt/`](../../probes/fmt) and elsewhere.
 - `yelu_cmake_normal` (ycn) has no parser. Every ycn program in
   the repo is hand-built in OCaml using fragment constructors.
@@ -88,7 +88,7 @@ operation, not via a `list(SUBCMD …)` dispatch shape.
 
 Each example shows the existing ycn OCaml AST and a strawman
 concrete syntax. Strawman A leans Rust/OCaml-ish; strawman B
-keeps the parenthesized-block flavor of `.ye` for consistency.
+keeps the parenthesized-block flavor of `.yc` for consistency.
 
 ### 2.1 Concat literals (lift_lower:35)
 
@@ -245,7 +245,7 @@ Listed without resolution — each is worth a separate discussion.
 
 ### 3.a Curly braces vs parens
 
-`.ye` chose parens (`p_block_y1` matches `LPAREN ... RPAREN`).
+`.yc` chose parens (`p_block_y1` matches `LPAREN ... RPAREN`).
 ycn could go either way. Strawman A's `{ ... }` reads more
 familiar to Rust/C/JS users; strawman B's `( ... )` keeps the
 ecosystem self-consistent — one parser convention across both
@@ -263,7 +263,7 @@ language they're reading.
 
 `X = expr` reads as imperative assignment. `X := expr` makes the
 mutation more visible. `let X = expr in body` makes scope
-explicit but is more verbose. yc's `.ye` chose `:=` for set and
+explicit but is more verbose. yc's `.yc` chose `:=` for set and
 `let ... in` for lexical binding (in pilot examples, anyway —
 this is also a question for yc maturity).
 

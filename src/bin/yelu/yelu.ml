@@ -1,10 +1,10 @@
 (* [tool-interface]
    node:     driver (orchestrates yc / cmake text / cmake binary)
-   op:       compile: .ye|.ml → cmake text
+   op:       compile: .yc|.ml → cmake text
              hybrid:  manifest → splice → cmake configure → diff
    strategy: code + tool:dune (.ml compile), tool:cmake (configure, hybrid)
    exports:  CLI: yelu compile FILE, yelu hybrid PROBE_DIR
-   imports:  Yelu_parse (parse .ye in-process),
+   imports:  Yelu_parse (parse .yc in-process),
              Yelu_cmake_emit (emit cmake text),
              dune exec (compile .ml as subprocess),
              cmake binary (configure, diff)
@@ -33,7 +33,7 @@ yelu — driver for yelu-cmake probes
 
 USAGE:
   yelu compile FILE [-o OUTPUT]
-    Compile a .ml or .ye source to cmake text. Stdout unless -o.
+    Compile a .ml or .yc source to cmake text. Stdout unless -o.
 
   yelu hybrid PROBE_DIR --project SRC_DIR [-D K=V ...]
     Splice PROBE_DIR/manifest.json helpers into SRC_DIR. Run cmake
@@ -88,7 +88,7 @@ let run_capture cmd =
    compile: dispatch on extension.
 
    .ml → subprocess `dune exec <file_without_ml>.exe`
-   .ye → in-process Yelu_parse + Yelu_cmake_emit.emit_script *)
+   .yc → in-process Yelu_parse + Yelu_cmake_emit.emit_script *)
 
 let compile_ml file =
   let exe = String.chop_suffix_exn file ~suffix:".ml" ^ ".exe" in
@@ -100,7 +100,7 @@ let compile_ml file =
   end;
   out
 
-let compile_ye file =
+let compile_yc file =
   let src = read_all file in
   match Yelu_langs.Yelu_parse.parse_program_y1 src with
   | Error e ->
@@ -111,7 +111,7 @@ let compile_ye file =
 
 let compile file =
   if String.is_suffix file ~suffix:".ml" then compile_ml file
-  else if String.is_suffix file ~suffix:".ye" then compile_ye file
+  else if String.is_suffix file ~suffix:".yc" then compile_yc file
   else begin
     Stdlib.Printf.eprintf "yelu compile: unknown extension: %s\n" file;
     Stdlib.exit 1

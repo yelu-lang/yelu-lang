@@ -34,13 +34,13 @@ sides. cmake is the target, not the host.
 project/
 ├── CMakeLists.txt         hand-written cmake (unchanged)
 │      include(helpers.cmake)
-├── helpers.ye             ← yelu source for the helpers
-└── helpers.cmake          ← generated from helpers.ye (codegen)
+├── helpers.yc             ← yelu source for the helpers
+└── helpers.cmake          ← generated from helpers.yc (codegen)
 ```
 
 The cmake side stays as-is; one or more helper files migrate from
-`.cmake` to `.ye`. The `.cmake` artifacts are regenerated when the
-`.ye` source changes (Make/dune/ninja rule). Both files can be
+`.cmake` to `.yc`. The `.cmake` artifacts are regenerated when the
+`.yc` source changes (Make/dune/ninja rule). Both files can be
 checked in so consumers without yelu still build — the generated
 `.cmake` is the authoritative input to cmake.
 
@@ -52,16 +52,16 @@ build) and consumed by code that doesn't know protoc exists.
 
 ```
 project/
-├── project.ye             ← yelu source, declares the whole project
-└── CMakeLists.txt         ← generated from project.ye
+├── project.yc             ← yelu source, declares the whole project
+└── CMakeLists.txt         ← generated from project.yc
 ```
 
-`project.ye` describes the entire build using yelu constructs.
+`project.yc` describes the entire build using yelu constructs.
 Bits not worth rewriting (or that yelu doesn't model yet) live in
 `raw_cmake("…")` escape forms:
 
 ```ocaml
-(* inside project.ye *)
+(* inside project.yc *)
 yelu_cmake_project "fmt" ~version:"11.0.2" ~languages:[ "CXX" ];
 raw_cmake {|
   # Things we haven't ported yet; verbatim cmake stays here.
@@ -106,8 +106,8 @@ The cmake AST (`Lang_cmake.exp`) is the lingua franca:
                                      |
                                      v
 +------------+              +-----------------+              +-----------+
-| helpers.ye |  Yelu_parse  | yelu_cmake.expr | Yelu_cmake_  |  Lang_    |
-| project.ye | ───────────► |  / yelu_cmake_  | emit (+ con- | cmake.exp |
+| helpers.yc |  Yelu_parse  | yelu_cmake.expr | Yelu_cmake_  |  Lang_    |
+| project.yc | ───────────► |  / yelu_cmake_  | emit (+ con- | cmake.exp |
 |            |              |  normal.expr    | vert)        | (AST)     |
 +------------+              +-----------------+              +-----+-----+
                                                                    |
@@ -154,8 +154,8 @@ per-rewrite verification chain:
 
 | step | what's tested | scale |
 |---|---|---|
-| 1 | One fmt helper as `.ye`. Generated `.cmake` is byte-identical (or matrix-cache-identical) to the original. | hours |
-| 2 | All fmt helpers as `.ye`. fmt's `CMakeLists.txt` includes them; matrix oracle (real-vs-real-with-generated-helpers) shows zero divergence. | days |
+| 1 | One fmt helper as `.yc`. Generated `.cmake` is byte-identical (or matrix-cache-identical) to the original. | hours |
+| 2 | All fmt helpers as `.yc`. fmt's `CMakeLists.txt` includes them; matrix oracle (real-vs-real-with-generated-helpers) shows zero divergence. | days |
 | 3 | Some fmt subdir (test/, support/cmake/) as Shape C. raw_cmake escape covers what we don't model. Matrix passes. | weeks |
 | 4 | All of fmt in Shape C. raw_cmake usage is minimized; whatever we couldn't avoid is documented in [`status.md`](status.md). | weeks to months |
 | 5 | z3 / llvm / torch at step 4. The original Y16 claim, now reachable via composition. | months |
@@ -170,19 +170,19 @@ else." No new oracle infrastructure needed.
 Everything except the build-system integration is already in
 place:
 
-- **`.ye` parser** — `src/langs/yelu/yelu_parse.ml` (Angstrom +
+- **`.yc` parser** — `src/langs/yelu/yelu_parse.ml` (Angstrom +
   pure OCaml, 12 cmake command families covered, ~170 unit
   tests). Partial coverage; expand as the pilot exposes gaps.
 - **`yelu_cmake.expr` → cmake text** — `Yelu_cmake_emit` +
   `Lang_cmake_pp`. Production path. 100% bar #3-lite passing on
   z3 / llvm / fmt.
 - **CLI** — a 30-line wrapper around the above:
-  `ycn compile helpers.ye > helpers.cmake`. Trivial.
+  `ycn compile helpers.yc > helpers.cmake`. Trivial.
 - **Build integration** — a Makefile/dune rule that regenerates
-  `.cmake` if `.ye` is newer. Project-specific; not yelu's
+  `.cmake` if `.yc` is newer. Project-specific; not yelu's
   responsibility.
 - **Matrix oracle for hybrid sources** — already works. Point
-  `vendor/fmt-hybrid/` at a fmt clone with the `.ye`-generated
+  `vendor/fmt-hybrid/` at a fmt clone with the `.yc`-generated
   `helpers.cmake` checked in. Run the matrix smoke. Diff against
   pure-cmake fmt baseline.
 
@@ -192,7 +192,7 @@ What's **not** needed for the pilot:
 - ycn → ninja or ycn → make emit modules (cmake stays the
   backend for now; the AST is portable so this is a parallel
   effort)
-- `project.ye` full-project lowering (Shape C is later; Shape B
+- `project.yc` full-project lowering (Shape C is later; Shape B
   is the pilot)
 - Whole-project hand rewrites (the manifesto Y16 claim follows
   from step-by-step composition, not from a heroic upfront
@@ -201,17 +201,17 @@ What's **not** needed for the pilot:
 ## Tradeoffs and risks
 
 - **Two-file maintenance burden — manageable.** Shape B has both
-  `.ye` and a generated `.cmake`. Our policy:
+  `.yc` and a generated `.cmake`. Our policy:
   - **Local experiments**: generated `.cmake` is regenerated each
     run, lives under `_out/<proj>/`, never committed. Source of
-    truth is the `.ye`.
+    truth is the `.yc`.
   - **Future / shipping**: regenerated-at-build (bazel-style), with
     a CI check that the generated output matches a fresh
     `ycn compile`. The protobuf "commit both" convention is
-    explicitly NOT what we want — we don't ship `.ye` to upstream
+    explicitly NOT what we want — we don't ship `.yc` to upstream
     projects.
-- **Not pushing `.ye` to real-world upstream projects.** Out of
-  scope. Our adoption story is internal: `.ye` lives in our tree,
+- **Not pushing `.yc` to real-world upstream projects.** Out of
+  scope. Our adoption story is internal: `.yc` lives in our tree,
   generated `.cmake` plugs into the project's build. Means we have
   no maintainer buy-in problem and no "two source-of-truth files
   in someone else's repo" problem.
@@ -228,7 +228,7 @@ What's **not** needed for the pilot:
 
 - [`io_architecture.md`](io_architecture.md) — the I/O-free
   library / impure runner split that makes the hybrid strategy
-  composable. Generators are pure functions of `.ye` input; the
+  composable. Generators are pure functions of `.yc` input; the
   build system handles the I/O.
 - [`cache_plan.md`](cache_plan.md) — the `-D` cmd-line input
   pathway that hybrid projects need to handle the same way pure
@@ -252,16 +252,16 @@ resolved:
    full subdirs, then whole projects.
 
 2. **Generated `.cmake` is regenerated, not committed.** Local
-   experiments leave nothing in git — the `.ye` is the source of
+   experiments leave nothing in git — the `.yc` is the source of
    truth, the `.cmake` lands in `_out/<proj>/` and is rebuilt
    each run. When/if shipping comes up, the regenerated-at-build
    pattern stays (with a CI check that the generated output
    matches `ycn compile`).
 
-3. **`.ye` files live in `probes/<proj>/`.** Per-project folder
+3. **`.yc` files live in `probes/<proj>/`.** Per-project folder
    under the existing `probes/` cluster — keeps each project as
    one thing in the tree. Build outputs already external (under
-   `_out/`), so adding `.ye` source here doesn't conflict. The
+   `_out/`), so adding `.yc` source here doesn't conflict. The
    `ycn` CLI accepts a `--source-dir` (or similar) flag so it can
    serve any probe directory.
 
@@ -269,7 +269,7 @@ resolved:
 probes/fmt/
 ├── README.md            (existing — probe status + project spec)
 ├── migration_status.md  (existing — full-project hybrid status report)
-└── set_verbose.ye       ← pilot's first .ye file
+└── set_verbose.yc       ← pilot's first .yc file
 
 _out/fmt/
 ├── matrix/<cell>/real/  (existing matrix oracle output)
@@ -286,9 +286,9 @@ pick it up cleanly.
 **Step 1.a — text-level pilot.** Smallest possible test of the
 codegen path.
 
-- Write `probes/fmt/set_verbose.ye` reproducing fmt's
+- Write `probes/fmt/set_verbose.yc` reproducing fmt's
   `set_verbose` helper (~5 lines of cmake).
-- Build the `ycn compile` CLI: takes `.ye` input, emits `.cmake`
+- Build the `ycn compile` CLI: takes `.yc` input, emits `.cmake`
   text via the existing `Yelu_parse` → `yelu_cmake.expr` →
   `Yelu_cmake_emit` → `Lang_cmake_pp` chain. ~30 LOC wrapper.
 - Assert byte-equivalence to fmt's original `set_verbose` block

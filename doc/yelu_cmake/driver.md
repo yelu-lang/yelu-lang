@@ -25,7 +25,7 @@ an external tool (`tool:<name>`), a composition through another driver
                to_yc     ▼        │  from_yc
                       ╭──────────╮         ╭──────────╮
   ╭──────────╮       │    yc    │◄───────→│   ycn   │
-  │ .ye text │──parse→│          │ to/from │         │
+  │ .yc text │──parse→│          │ to/from │         │
   ╰──────────╯       ╰────┬─────╯         ╰──────────╯
                           │
                 yc.eval   │  ycn.eval
@@ -39,15 +39,16 @@ an external tool (`tool:<name>`), a composition through another driver
 
 Three languages, each in two forms:
 - **cmake** — `Lang_cmake.exp` (IR) + cmake text (concrete syntax)
-- **yc** — `Yelu_cmake.expr` (IR, cmake-faithful) + `.ye` text
+- **yc** — `Yelu_cmake.expr` (IR, cmake-faithful) + `.yc` text
 - **ycn** — `Yelu_cmake.expr` (IR, normal form) + `.ycn` text
+- `.ye` is reserved for future non-cmake yelu packs (json, nix, …)
 
 Key observations:
-- **yc is the hub.** Inbound from .ye, cmake, ycn, .ml; outbound to cmake, ycn,
+- **yc is the hub.** Inbound from .yc, cmake, ycn, .ml; outbound to cmake, ycn,
   debug text. Every path between cmake and ycn passes through yc.
 - **cmake→yc and yc→cmake** are mirror paths: `emit_ast` / `from_emit_top`.
 - **ycn has only one neighbour** (yc). The `.ycn` parser would add a second inbound.
-- **.ye is asymmetric:** parseable but not printable. The canonical output form
+- **.yc is asymmetric:** parseable but not printable. The canonical output form
   is cmake text via yc→cmake emit.
 
 ## 2. Language drivers
@@ -71,18 +72,18 @@ Parse and eval on the text side are tool:*; print on the IR side is code.
 
 ### yc (`Yc_driver`)
 
-Two forms: IR (`Yelu_cmake.expr`, cmake-faithful) and text (`.ye`).
-Parse is code; print→.ye is a stub.
+Two forms: IR (`Yelu_cmake.expr`, cmake-faithful) and text (`.yc`).
+Parse is code; print→.yc is a stub.
 
 | Op | Function | Strategy | Notes |
 |---|---|---|---|
-| parse ← .ye | `parse_ye` | code | `Yelu_parse.parse_program_y1` |
+| parse ← .yc | `parse_ye` | code | `Yelu_parse.parse_program_y1` |
 | parse ← cmake | `parse_cmake` | code | `Cmake_driver.compile_to_yc` path |
 | parse ← ycn | `parse_ycn` | code | `Yelu_cmake_convert.from_normal` |
 | compile → cmake | `compile_to_cmake_ast` | code | `Yelu_cmake_emit.emit_ast` |
 | compile → ycn | `to_ycn` | code | `Yelu_cmake_convert.to_normal` |
 | print → cmake text (debug) | `print_cmake_debug` | code | `Yelu_cmake_emit_debug.emit_script` |
-| print → .ye | `print_ye` | **stub** | `failwith "not implemented"` |
+| print → .yc | `print_ye` | **stub** | `failwith "not implemented"` |
 | eval | `eval` | code | `Yelu_cmake_eval.eval_expr` |
 | check (type) | `typecheck` | **stub** | Per-theory functors |
 | check (wellform) | `wellform` | **stub** | Retired |
@@ -105,7 +106,7 @@ Parser and printer are both stubs; only the IR form is operational.
 
 | Module | Pipeline | Entry point | Used by |
 |---|---|---|---|
-| `yc_to_cmake` | .ye → yc → cmake → cmake text | `compile_ye` | `yelu compile` |
+| `yc_to_cmake` | .yc → yc → cmake → cmake text | `compile_yc` | `yelu compile` |
 | `cmake_to_yc` | cmake text → JSON CST → cmake AST → yc | `file_to_json` | matrix oracle |
 | `yc_ycn` | yc ↔ ycn via convert | `to_ycn`, `from_ycn` | lift-lower oracle |
 
@@ -136,7 +137,7 @@ gersemi, cmake binary).
 
 ## 6. What the matrix reveals
 
-**Two missing printers.** yc→.ye and ycn→.ycn. Both would close the round-trip
+**Two missing printers.** yc→.yc and ycn→.ycn. Both would close the round-trip
 for their respective syntax surfaces.
 
 **One missing parser.** .ycn text → ycn. Design notes exist; no code.

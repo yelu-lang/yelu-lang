@@ -9,7 +9,7 @@
       "whole_file": true
     },
     {
-      "source": "probes/fmt/join_paths.ye",
+      "source": "probes/fmt/join_paths.yc",
       "target_file": "support/cmake/JoinPaths.cmake",
       "whole_file": true
     },
