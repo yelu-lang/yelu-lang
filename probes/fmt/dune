@@ -1,3 +1,3 @@
 (executables
- (names add_subdirectory_test find_package_test gtest static_export_test fuzzing compile_error_test test_main cuda_test main)
+ (names add_subdirectory_test find_package_test static_export_test fuzzing compile_error_test test_main cuda_test main)
  (libraries yelu_langs))

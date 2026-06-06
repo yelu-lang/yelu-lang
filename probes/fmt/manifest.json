@@ -49,7 +49,7 @@
       "whole_file": true
     },
     {
-      "source": "probes/fmt/gtest.ml",
+      "source": "probes/fmt/gtest.yc",
       "target_file": "test/gtest/CMakeLists.txt",
       "whole_file": true
     },

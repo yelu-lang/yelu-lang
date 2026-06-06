@@ -648,23 +648,33 @@ let target_groups_to_y1 (ctor : visibility:string -> expr list -> expr) items =
   | [ s ] -> s
   | ss -> ESeq ss
 
-let p_target_command_y1_inner name args _kwargs =
+let p_target_command_y1_inner name args kwargs =
+  let kw_str_opt key =
+    List.Assoc.find kwargs ~equal:String.equal key
+    |> Option.bind ~f:(function EString s | EVar s -> Some s | _ -> None)
+  in
+  let kw_bool key =
+    List.Assoc.mem kwargs ~equal:String.equal key
+  in
   match name, args with
   | "add_exe", name_arg :: sources ->
     Some (ECmakeAddExecutable { name = name_arg; sources })
   | "add_lib", name_arg :: sources ->
+    let type_ = kw_str_opt "type" in
     Some (ECmakeAddLibrary
-            { name = name_arg; type_ = None; sources })
+            { name = name_arg; type_; sources })
   | "link_lib", target :: items ->
     Some (target_groups_to_y1
             (fun ~visibility items ->
               ECmakeTargetLinkLibraries { target; visibility; items })
             items)
   | "include_dirs", target :: items ->
+    let system = kw_bool "system" in
+    let before = kw_bool "before" in
     Some (target_groups_to_y1
             (fun ~visibility items ->
               ECmakeTargetIncludeDirectories
-                { target; visibility; before = false; system = false;
+                { target; visibility; before; system;
                   dirs = items })
             items)
   | "compile_defs", target :: items ->
@@ -674,33 +684,37 @@ let p_target_command_y1_inner name args _kwargs =
                 { target; visibility; definitions = items })
             items)
   | "compile_opts", target :: items ->
+    let before = kw_bool "before" in
     Some (target_groups_to_y1
             (fun ~visibility items ->
               ECmakeTargetCompileOptions
-                { target; visibility; before = false; options_ = items })
+                { target; visibility; before; options_ = items })
             items)
   | "link_opts", target :: items ->
+    let before = kw_bool "before" in
     Some (target_groups_to_y1
             (fun ~visibility items ->
               ECmakeTargetLinkOptions
-                { target; visibility; before = false; options_ = items })
+                { target; visibility; before; options_ = items })
             items)
   | "link_dirs", target :: items ->
+    let before = kw_bool "before" in
     Some (target_groups_to_y1
             (fun ~visibility items ->
               ECmakeTargetLinkDirectories
-                { target; visibility; before = false; dirs = items })
+                { target; visibility; before; dirs = items })
             items)
   | "target_sources", target :: items ->
     Some (target_groups_to_y1
             (fun ~visibility items ->
               ECmakeTargetSources { target; visibility; sources = items })
             items)
-  | "compile_feats", [ target ] ->
-    (* Legacy parses with empty features list, which the bridge wraps in
-       a single Plain-visibility group. *)
-    Some (ECmakeTargetCompileFeatures
-            { target; visibility = "PRIVATE"; features = [] })
+  | "compile_feats", target :: features ->
+    Some (target_groups_to_y1
+            (fun ~visibility items ->
+              ECmakeTargetCompileFeatures
+                { target; visibility; features = items })
+            features)
   | _ -> None
 
 let p_target_command_y1 toks =
