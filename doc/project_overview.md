@@ -82,7 +82,7 @@ tracked in [`yelu_cmake/status.md`](yelu_cmake/status.md) "Open work".
 | `src/langs/yelu/fragments/`                            | 30 per-theory fragments (14 cmake-faithful + 16 normalized). |
 | `src/langs/yelu_legacy/`                               | Retired reference; excluded from the `yelu_langs` library via `dune` negative-module list. E2 will `git rm` it after Y17. |
 | `src/bin/cmake/v1/`, `src/bin/cmake/v2/`, `src/bin/yelu/v1/`, `src/bin/yelu/v2/`, `src/bin/yelu/` | Tutorial step files + CMakeOnly generators. |
-| `tool/cmake_roundtrip/`                                | Bar #3-lite syntactic round-trip oracle (Python + OCaml). |
+| `tool/cmake_text/`                                | Tools that operate on cmake text: parse, reprint, scan, index, oracle. |
 
 ### Test infrastructure
 
@@ -95,7 +95,7 @@ tracked in [`yelu_cmake/status.md`](yelu_cmake/status.md) "Open work".
 | `make cmake-check-v2`              | 11 / 11  | Tutorial v2 structural-equivalence via gersemi.               |
 | `make file-api-test`               | 12 / 12  | codemodel-v2 JSON diff on tutorial steps.                     |
 | End-to-end (`make step1`–`step12`) | 12       | Generate → configure → build → run.                           |
-| Bar #3-lite parse-print round-trip | 740 / 740 (canonical) + 3004 / 3035 (full llvm-project) | tutorial 25/25 + fmt 11/11 + z3 108/108 + llvm/llvm 596/596 = canonical 740. Full llvm-project (3035 files) adds 3004 OK + 1 FORMAT + 30 STRUCT pre-existing. See [`../probes/parse_print_oracle.md`](../probes/parse_print_oracle.md). |
+| Bar #3-lite parse-print round-trip | 740 / 740 (canonical) + 3004 / 3035 (full llvm-project) | tutorial 25/25 + fmt 11/11 + z3 108/108 + llvm/llvm 596/596 = canonical 740. Full llvm-project (3035 files) adds 3004 OK + 1 FORMAT + 30 STRUCT pre-existing. See [`worklog_2026_06.md`](../doc/worklog/worklog_2026_06.md). |
 | fmt cache matrix smoke             | 24 / 24 cells | Predicted vs real cmake cache per (option × ON/OFF); median matched=20, mismatched=0, real-only=0, pred-only=0. See [`../probes/cache_matrix.md`](../probes/cache_matrix.md). |
 
 `make cmake-commands` has pre-existing cmake build issues (not blocking).
@@ -110,7 +110,7 @@ unrelated to recent work.
 - **Bar #3-lite — parse-print cmake round-trip on z3 + llvm.** ✅ Shipped
   2026-05-15..20. STRUCT=0 / FORMAT=0 across 729 files in tutorial + z3 +
   llvm canonical. Surfaced and fixed 5 production-IR bugs. Audit-ready
-  writeup at [`../probes/parse_print_oracle.md`](../probes/parse_print_oracle.md).
+  writeup at [`worklog_2026_06.md`](../doc/worklog/worklog_2026_06.md).
   Extended 2026-06-03 to include fmt (11/11 OK) and the full llvm-project
   corpus (3004/3035 OK + 1 FORMAT + 30 STRUCT pre-existing).
 - **Cache namespace + `-D` cmd-line input.** ✅ Shipped 2026-06-01.
@@ -217,7 +217,7 @@ in [`yelu_cmake/status.md`](yelu_cmake/status.md).
 | `yelu_cmake/status.md`                     | Living tracker for current open work (IR cleanup, Y17, E2, etc.).  |
 | `../probes/README.md`                         | Probe cluster intro: real-world cmake projects as predictor testbeds. |
 | `../probes/candidates.md`                     | Shortlist of next projects to probe.                               |
-| `probes/parse_print_oracle.md` | Parse-print round-trip oracle audit (was bar3_lite.md).            |
+| `doc/worklog/worklog_2026_06.md` | Parse-print oracle close (2026-05-31) + fmT migration + driver architecture. |
 | `probes/cache_matrix.md`       | fmt matrix smoke coverage pipeline walkthrough.                    |
 | `../probes/fmt/README.md`            | fmt probe status — 24/24 cells perfect; project spec; adaptation footprint; hybrid pilot result. |
 | `../probes/fmt/migration_status.md`  | fmt full-project migration status — all 7 phases closed; configure-time oracle + raw_cmake + unverified Windows/CUDA limits documented. |

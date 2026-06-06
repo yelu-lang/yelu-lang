@@ -9,7 +9,7 @@ A probe is a real cmake project (fmt, z3, llvm, …) pointed at the
 predictor to surface gaps the unit tests can't. Each probe runs two
 oracles:
 
-- **Parse-print oracle** ([parse_print_oracle.md](parse_print_oracle.md))
+-- **Parse-print oracle** (completed 2026-05-31, see [worklog](../doc/worklog/worklog_2026_06.md))
   — `cmake_source → parse.py → Lang_cmake.exp → pp → text`. Does the
   AST round-trip byte-equivalently? Catches printer bugs and parser
   drops.
@@ -28,7 +28,7 @@ probes/
   README.md                # this file
   candidates.md            # shortlist of next projects to probe
   cache_matrix.md          # how the matrix probe works (methodology)
-  parse_print_oracle.md    # how the parse-print round-trip works
+  (parse-print oracle completed; see doc/worklog/worklog_2026_06.md)
   <project>/               # one folder per project
     README.md              # current status — landing page
     migration_status.md    # full-project hybrid migration status report

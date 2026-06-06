@@ -27,7 +27,7 @@ bash tool/cmake_roundtrip/test_corpus.sh vendor/fmt
 ```
 
 Last result: `OK=11 FORMAT=0 STRUCT=0 PARSE=0`. See
-[parse_print_oracle.md](../parse_print_oracle.md).
+[worklog_2026_06.md](../../doc/worklog/worklog_2026_06.md).
 
 ### Cache matrix
 

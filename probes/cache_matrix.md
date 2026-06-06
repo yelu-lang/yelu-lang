@@ -491,7 +491,7 @@ necessary:
   the library/runner split this whole thing depends on
 - [../doc/yelu_cmake/status.md](../doc/yelu_cmake/status.md) — what's
   still deferred and what's loader-stub-only
-- [parse_print_oracle.md](parse_print_oracle.md) — the sibling
+- [worklog_2026_06.md](../doc/worklog/worklog_2026_06.md) — parse-print oracle close
   oracle (parse → print → tree-sitter-diff round-trip)
 - [../doc/cmake/cache_semantics.md](../doc/cmake/cache_semantics.md) —
   cmake's cache vs normal variable namespace (drives why we

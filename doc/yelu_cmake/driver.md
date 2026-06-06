@@ -154,4 +154,4 @@ the relevant driver, visible in one place.
 - [`cmake_vs_normal.md`](cmake_vs_normal.md) — yc vs ycn feature comparison
 - [`ycn_concrete_syntax.md`](ycn_concrete_syntax.md) — proposal for the missing `.ycn` parser
 - [`../../probes/cache_matrix.md`](../../probes/cache_matrix.md) — matrix oracle methodology
-- [`../../probes/parse_print_oracle.md`](../../probes/parse_print_oracle.md) — parse-print oracle methodology
+- [`../worklog/worklog_2026_06.md`](../worklog/worklog_2026_06.md) — parse-print oracle close (2026-05-31)

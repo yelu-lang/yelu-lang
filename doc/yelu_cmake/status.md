@@ -14,7 +14,7 @@ trail) in `../worklog/worklog_2026_05.md`.
   FORMAT=0 across tutorial (25/25), z3 (108/108), llvm (596/596).
   Two-tier Class A name accounting (project + cmake-stdlib `Modules/`)
   shipped 2026-05-31. Full report archived at
-  [`parse_print_oracle.md`](../probes/parse_print_oracle.md); milestone arc in
+  [`worklog_2026_06.md`](../../doc/worklog/worklog_2026_06.md); milestone arc in
   [`../worklog/worklog_2026_05.md`](../worklog/worklog_2026_05.md)
   ("Bar #3-lite" section).
 - **Tier 1–4 IR-printer cleanup — shipped.** 16 commits, 358 generic
@@ -36,7 +36,7 @@ Verification baseline:
 
 ## Open work — forward
 
-Static round-trip is at a natural stop ([`parse_print_oracle.md`](../probes/parse_print_oracle.md) § 10).
+Static round-trip is at a natural stop ([`worklog_2026_06.md`](../../doc/worklog/worklog_2026_06.md) § 10).
 Forward work falls into four buckets, in priority order:
 (a) **cache + cmd-line input** — foundational for everything below
 (see [`cache_plan.md`](cache_plan.md));
@@ -172,7 +172,7 @@ ignores the unmodeled option). Pinned by
 
 The Bar #3-lite round-trip surfaced a parallel list of
 printer-side lossy fields (see "Open work — IR-printer cleanup"
-above; per-parser detail in `probes/parse_print_oracle.md` § 8). The two sets
+above; per-parser detail in `doc/worklog/worklog_2026_06.md` § 8). The two sets
 overlap and would be closed by the same cleanup pass.
 
 - **String-comparison conds beyond equality** — `STRLESS` /
