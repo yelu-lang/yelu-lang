@@ -19,7 +19,6 @@ open Yelu_cmake
 open Yelu_cmake_if
 open Yelu_cmake_store
 open Yelu_cmake_cmake_op
-open Yelu_cmake_raw
 
 (* ── Error type ────────────────────────────────── *)
 

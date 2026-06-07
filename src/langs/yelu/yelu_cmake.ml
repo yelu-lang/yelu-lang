@@ -845,6 +845,7 @@ type expr +=
   | EVar of string
   | EString of string
   | EBool of bool
+  | ECmakeRaw of string  (* verbatim cmake text — codegen-only escape *)
   | EInt of int
   | EUnit
   | ESetVar of string * expr

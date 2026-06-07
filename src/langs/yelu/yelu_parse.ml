@@ -64,7 +64,6 @@ open Yelu_cmake_file
 open Yelu_cmake_normal_target
 open Yelu_cmake_target
 open Yelu_cmake_cmake_op
-open Yelu_cmake_raw
 open Yelu_cmake_utils
 
 (* ============================================================
