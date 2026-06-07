@@ -282,6 +282,37 @@ let rec collect_command_args args kwargs toks =
      | Some (e, r) -> collect_command_args (e :: args) kwargs r
      | None -> (List.rev args, List.rev kwargs, toks))
 
+(* ── Section splitter ───────────────────────────
+
+   Many cmake commands use positional keywords to separate argument
+   groups (add_custom_command, execute_process, set_property, ...).
+   [collect_command_args] flattens everything; [split_sections] groups
+   by keyword markers.
+
+   [split_by_keywords ~keywords args] splits [args] at each keyword,
+   returning a list of (keyword, items) groups.  The first element
+   (before any keyword) has key "_head".  Keywords themselves are
+   consumed as markers, not included in the group items. *)
+
+let split_by_keywords ~(keywords : string list) (args : expr list)
+    : (string * expr list) list =
+  let is_kw = Set.mem (Set.of_list (module String) keywords) in
+  let rec loop acc current_kw current_group = function
+    | [] ->
+      List.rev ((current_kw, List.rev current_group) :: acc)
+    | e :: rest ->
+      let kw = match e with
+        | EVar s | EString s when is_kw s -> Some s
+        | _ -> None
+      in
+      match kw with
+      | Some kw ->
+        loop ((current_kw, List.rev current_group) :: acc) kw [] rest
+      | None ->
+        loop acc current_kw (e :: current_group) rest
+  in
+  loop [] "_head" [] args
+
 (* Match legacy [Lang_yelu_parse.out_var] sentinel: "?" when ~out
    missing. Some parser tests omit ~out and rely on this fallback;
    the pair-wise oracle requires byte-identical text. *)
@@ -721,6 +752,41 @@ let p_target_command_y1_inner name args kwargs =
     let all = kw_bool "all" in
     let name = match name_arg with EString s | EVar s -> s | _ -> "?" in
     Some (yc_add_custom_target ~all name)
+  | "add_custom_command", args ->
+    let sections = split_by_keywords
+      ~keywords:["OUTPUT"; "COMMAND"; "DEPENDS"; "COMMENT"; "VERBATIM";
+                 "COMMAND_EXPAND_LISTS"; "IMPLICIT_DEPENDS"; "WORKING_DIRECTORY"]
+      args
+    in
+    let outputs = match List.Assoc.find sections ~equal:String.equal "_head" with
+      | Some (_ :: _ as items) -> items
+      | _ -> (match List.Assoc.find sections ~equal:String.equal "OUTPUT" with
+              | Some items -> items | None -> [])
+    in
+    let verbatim = List.Assoc.find sections ~equal:String.equal "VERBATIM"
+                   |> Option.is_some in
+    let comment = match List.Assoc.find sections ~equal:String.equal "COMMENT" with
+      | Some [ EString s | EVar s ] -> Some s
+      | _ -> None
+    in
+    let depends = match List.Assoc.find sections ~equal:String.equal "DEPENDS" with
+      | Some items -> items
+      | None -> []
+    in
+    (* Collect all COMMAND sections as separate command lines *)
+    let commands = sections
+      |> List.filter_map ~f:(fun (k, items) ->
+        if String.equal k "COMMAND" then Some items else None) in
+    let build_commands = List.map commands ~f:(fun cmd_args ->
+      match cmd_args with
+      | [] -> { command = ""; args = [] }
+      | cmd :: arg_args ->
+        { command = (match cmd with EString s | EVar s -> s | _ -> "");
+          args = List.map arg_args ~f:(fun e ->
+            match e with EString s | EVar s -> s | _ -> "") })
+    in
+    Some (ECmakeAddCustomCommand
+            { outputs; commands = build_commands; depends; comment; verbatim })
   | _ -> None
 
 let p_target_command_y1 toks =
@@ -730,7 +796,7 @@ let p_target_command_y1 toks =
             | "add_exe" | "add_lib" | "link_lib" | "include_dirs"
             | "compile_defs" | "compile_opts" | "compile_feats"
             | "link_opts" | "link_dirs" | "target_sources"
-            | "add_custom_target" -> true
+            | "add_custom_target" | "add_custom_command" -> true
             | _ -> false) ->
       let args, kwargs, rest = collect_command_args [] [] rest in
       (match p_target_command_y1_inner name args kwargs with
