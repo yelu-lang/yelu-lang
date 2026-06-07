@@ -347,12 +347,10 @@ let setup_target_fn =
                           [EVar "target"; EVar "kind"; ystr "FMT_UNICODE=0"]);
         });
     };
-    yc_apply (ystr "set_target_properties") [
-      EVar "target"; ystr "PROPERTIES";
-      ystr "VERSION"; EVar "FMT_VERSION";
-      ystr "SOVERSION"; EVar "CPACK_PACKAGE_VERSION_MAJOR";
-      ystr "DEBUG_POSTFIX"; ystr "${FMT_DEBUG_POSTFIX}";
-    ];
+    yc_set_target_properties (EVar "target")
+      [("VERSION", EVar "FMT_VERSION");
+       ("SOVERSION", EVar "CPACK_PACKAGE_VERSION_MAJOR");
+       ("DEBUG_POSTFIX", EString "${FMT_DEBUG_POSTFIX}")];
   ]
 
 let fmt_headers_block = ESeq [
@@ -377,8 +375,8 @@ let fmt_lib_block = ESeq [
                ystr "README.md"; ystr "ChangeLog.md"];
   };
   yc_apply (ystr "setup_target") [ystr "fmt"; ystr "PUBLIC"];
-  yc_apply (ystr "set_target_properties")
-    [ystr "fmt"; ystr "PROPERTIES"; ystr "PUBLIC_HEADER"; ystr "${FMT_HEADERS}"];
+  yc_set_target_properties (ystr "fmt")
+    [("PUBLIC_HEADER", EString "${FMT_HEADERS}")];
 
   Yelu_langs.Yelu_cmake_if.ECmakeIfStmt {
     cond = EVar "FMT_OS";
@@ -443,8 +441,8 @@ let add_module_library_fn =
       [ystr "AML"; ystr ""; ystr "USE_CMAKE_MODULES"; ystr ""; EVar "ARGN"];
     yc_set (ycvar "sources") [EVar "AML_UNPARSED_ARGUMENTS"];
     yc_apply (ystr "add_library") [EVar "name"];
-    yc_apply (ystr "set_target_properties")
-      [EVar "name"; ystr "PROPERTIES"; ystr "LINKER_LANGUAGE"; ystr "CXX"];
+    yc_set_target_properties (EVar "name")
+      [("LINKER_LANGUAGE", EString "CXX")];
     ECmakeTargetCompileFeatures {
       target = EVar "name"; visibility = "PUBLIC";
       features = [ystr "cxx_std_20"];
@@ -462,9 +460,8 @@ let add_module_library_fn =
             ystr "/interface"; ystr "/ifcOutput"; EVar "BMI";
             ystr "INTERFACE"; ystr "/reference"; ystr "fmt=${BMI}";
           ];
-          yc_apply (ystr "set_target_properties")
-            [EVar "name"; ystr "PROPERTIES";
-             ystr "ADDITIONAL_CLEAN_FILES"; EVar "BMI"];
+          yc_set_target_properties (EVar "name")
+            [("ADDITIONAL_CLEAN_FILES", EVar "BMI")];
           yc_apply (ystr "set_source_files_properties")
             [EVar "BMI"; ystr "PROPERTIES"; ystr "GENERATED"; ystr "ON"];
         ]));
@@ -486,8 +483,7 @@ let add_module_library_fn =
       (ESeq [
         yc_set (ycvar "pcms") [];
         yc_foreach ~items:[EVar "sources"] (ycvar "src") (ESeq [
-          yc_apply (ystr "get_filename_component")
-            [ystr "pcm"; EVar "src"; ystr "NAME_WE"];
+          yc_get_filename_component ~mode:"NAME_WE" "pcm" (EVar "src");
           yc_set (ycvar "pcm") [ystr "${pcm}.pcm"];
           yc_apply (ystr "target_compile_options")
             [EVar "name"; ystr "PUBLIC";
@@ -508,8 +504,7 @@ let add_module_library_fn =
         ]);
         yc_set (ycvar "sources") [];
         yc_foreach ~items:[EVar "pcms"] (ycvar "pcm") (ESeq [
-          yc_apply (ystr "get_filename_component")
-            [ystr "pcm_we"; EVar "pcm"; ystr "NAME_WE"];
+          yc_get_filename_component ~mode:"NAME_WE" "pcm_we" (EVar "pcm");
           yc_set (ycvar "obj") [ystr "${pcm_we}.o"];
           yc_set (ycvar "sources")
             [EVar "sources"; EVar "pcm"; ystr "${CMAKE_CURRENT_BINARY_DIR}/${obj}"];
@@ -572,9 +567,8 @@ let modules_and_variants = ESeq [
     items = [ystr "fmt::fmt"];
   };
   ECmakeAddLibraryAlias { name = "fmt::fmt-c"; target = "fmt-c" };
-  yc_apply (ystr "set_target_properties")
-    [ystr "fmt-c"; ystr "PROPERTIES";
-     ystr "PUBLIC_HEADER"; ystr "include/fmt/fmt-c.h"];
+  yc_set_target_properties (ystr "fmt-c")
+    [("PUBLIC_HEADER", EString "include/fmt/fmt-c.h")];
 ]
 
 (* ============================================================
