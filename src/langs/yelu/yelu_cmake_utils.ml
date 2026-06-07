@@ -243,6 +243,7 @@ let yc_enable_language ?(optional = false) langs =
 
 let yc_at_var key = ECmakeAtVar key
 let yc_quote_cmd s = ECmakeQuoteCmd s
+let yc_raw text = ECmakeRaw text
 
 (* [~output_format] is accepted for legacy parity but discarded — the IR
    does not yet carry the format. The bridge does the same
