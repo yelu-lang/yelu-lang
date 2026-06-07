@@ -189,9 +189,8 @@ let version_block = ESeq [
     (yc_set (ycvar "CMAKE_RUNTIME_OUTPUT_DIRECTORY")
        [ystr "${CMAKE_CURRENT_BINARY_DIR}/bin"]);
 
-  yc_apply (ystr "list")
-    [ystr "APPEND"; ystr "CMAKE_MODULE_PATH";
-     ystr "${CMAKE_CURRENT_SOURCE_DIR}/support/cmake"];
+  yc_list_append "CMAKE_MODULE_PATH"
+    [EString "${CMAKE_CURRENT_SOURCE_DIR}/support/cmake"];
 
   yc_include (ystr "CheckCXXCompilerFlag");
   yc_include (ystr "JoinPaths");
@@ -640,8 +639,7 @@ let install_block =
     yc_set (ycvar "INSTALL_TARGETS")
       [ystr "fmt"; ystr "fmt-header-only"; ystr "fmt-c"];
     yifthen (EVar "FMT_MODULE") (ESeq [
-      yc_apply (ystr "list")
-        [ystr "APPEND"; ystr "INSTALL_TARGETS"; ystr "fmt-module"];
+      yc_list_append "INSTALL_TARGETS" [EString "fmt-module"];
       yifthen (EVar "FMT_USE_CMAKE_MODULES")
         (yc_set (ycvar "INSTALL_FILE_SET")
            [ystr "FILE_SET"; ystr "fmt";
@@ -753,8 +751,7 @@ let trailing_gates = ESeq [
         path = EVar "gitignore"; out = "lines";
         regex = None; encoding = None; limit_count = None;
       };
-      yc_apply (ystr "list")
-        [ystr "REMOVE_ITEM"; ystr "lines"; ystr "/doc/html"];
+      yc_list_remove_item "lines" [EString "/doc/html"];
       yc_foreach ~items:[EVar "lines"] (ycvar "line") (ESeq [
         Yelu_langs.Yelu_cmake_string.ECmakeStringReplace {
           match_ = ystr "."; replace = ystr "[.]";

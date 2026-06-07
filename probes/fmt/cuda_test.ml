@@ -7,13 +7,12 @@ open Yelu_langs.Yelu_cmake_utils
 open Yelu_langs.Yelu_cmake_target
 
 let pre_3_15_branch = ESeq [
-  yc_apply (ystr "list")
-    [ystr "APPEND"; ystr "CUDA_NVCC_FLAGS"; ystr "-std=c++14"];
+  yc_list_append "CUDA_NVCC_FLAGS" [EString "-std=c++14"];
   yifthen (EVar "MSVC") (ESeq [
-    yc_apply (ystr "list")
-      [ystr "APPEND"; ystr "CUDA_NVCC_FLAGS"; ystr "-Xcompiler"; ystr "/std:c++14"];
-    yc_apply (ystr "list")
-      [ystr "APPEND"; ystr "CUDA_NVCC_FLAGS"; ystr "-Xcompiler"; ystr "/Zc:__cplusplus"];
+    yc_list_append "CUDA_NVCC_FLAGS"
+      [EString "-Xcompiler"; EString "/std:c++14"];
+    yc_list_append "CUDA_NVCC_FLAGS"
+      [EString "-Xcompiler"; EString "/Zc:__cplusplus"];
   ]);
   yc_apply (ystr "cuda_add_executable")
     [ystr "fmt-in-cuda-test"; ystr "cuda-cpp14.cu"; ystr "cpp14.cc"];
@@ -34,9 +33,8 @@ let post_3_15_branch = ESeq [
     name = ystr "fmt-in-cuda-test";
     sources = [ystr "cuda-cpp14.cu"; ystr "cpp14.cc"];
   };
-  yc_apply (ystr "set_target_properties")
-    [ystr "fmt-in-cuda-test";
-     ystr "PROPERTIES"; ystr "CUDA_SEPARABLE_COMPILATION"; ystr "ON"];
+  yc_set_target_properties (ystr "fmt-in-cuda-test")
+    [("CUDA_SEPARABLE_COMPILATION", EString "ON")];
   ECmakeTargetCompileFeatures {
     target = ystr "fmt-in-cuda-test"; visibility = "PRIVATE";
     features = [ystr "cxx_std_14"];
@@ -72,8 +70,10 @@ let helpers = ESeq [
   yc_get_target_property "IN_USE_CUDA_STANDARD_REQUIRED" "fmt-in-cuda-test"
     "CUDA_STANDARD_REQUIRED";
   yc_message ["cuda_standard_required: ${IN_USE_CUDA_STANDARD_REQUIRED}"];
-  yc_apply (ystr "target_link_libraries")
-    [ystr "fmt-in-cuda-test"; ystr "fmt::fmt"];
+  ECmakeTargetLinkLibraries {
+    target = ystr "fmt-in-cuda-test"; visibility = "PRIVATE";
+    items = [ystr "fmt::fmt"];
+  };
 ]
 
 let () = Yelu_langs.Yelu_emit_main.print helpers

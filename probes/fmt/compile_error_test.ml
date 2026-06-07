@@ -19,8 +19,7 @@ let expect_compile_fn =
   yc_function (ystr "expect_compile") ["name"; "code_fragment"] [
     yc_apply (ystr "cmake_parse_arguments")
       [ystr "EXPECT_COMPILE"; ystr "ERROR"; ystr ""; ystr ""; EVar "ARGN"];
-    yc_apply (ystr "string")
-      [ystr "MAKE_C_IDENTIFIER"; ystr "${name}"; ystr "test_name"];
+    yc_string_make_c_identifier (EString "${name}") "test_name";
     Yelu_langs.Yelu_cmake_if.ECmakeIfStmt {
       cond = EVar "EXPECT_COMPILE_ERROR";
       then_ = ESeq [
