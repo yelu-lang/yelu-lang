@@ -255,8 +255,6 @@ let rec emit_exp ~env (e : expr) : C.exp =
   | ESeq exprs ->
     C.Exp_list (List.map exprs ~f:(emit_exp ~env))
   | Yelu_cmake_raw.ECmakeRaw text -> C.Quote text
-  | EYcMeta e ->
-    C.Quote (Fmt.str "%a" Lang_cmake_pp.pp_arg (arg ~env e))
   | ELet { var; value; body } ->
     let env = Map.set env ~key:var ~data:value in
     emit_exp ~env body

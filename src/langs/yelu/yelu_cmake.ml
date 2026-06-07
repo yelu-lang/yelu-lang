@@ -845,10 +845,6 @@ type expr +=
   | EVar of string
   | EString of string
   | EBool of bool
-  (* [EYcMeta e] — staged expression, deferred to meta-eval.
-     Emits [e] directly as cmake text for now; future meta-eval
-     will evaluate [e], re-parse the result, and splice it in. *)
-  | EYcMeta of expr
   | EInt of int
   | EUnit
   | ESetVar of string * expr

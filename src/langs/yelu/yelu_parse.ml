@@ -64,6 +64,7 @@ open Yelu_cmake_file
 open Yelu_cmake_normal_target
 open Yelu_cmake_target
 open Yelu_cmake_cmake_op
+open Yelu_cmake_raw
 open Yelu_cmake_utils
 
 (* ============================================================
@@ -1232,7 +1233,8 @@ let p_cmake_op_command_y1_inner name args kwargs =
   | "cmake_get_log_level", [] ->
     Some (ECmakeLanguageGetLogLevel { out })
   | "yc_meta", [ e ] ->
-    Some (EYcMeta e)
+    let s = match e with EString s | EVar s -> s | _ -> "?" in
+    Some (ECmakeRaw s)
   | _ -> None
 
 let p_cmake_op_command_y1 toks =
