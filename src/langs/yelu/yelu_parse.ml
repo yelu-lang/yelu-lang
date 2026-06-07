@@ -872,53 +872,48 @@ let p_property_command_y1_inner name args kwargs =
   | "get_target_property", [ tgt ] ->
     Some (yc_get_property ~target:tgt "PROP" out)
   | "set_target_properties", target :: rest ->
-    let rec loop props pending_prop = function
-      | [] ->
-        let props = match pending_prop with
-          | Some (p, v) -> (p, v) :: props
-          | None -> props
-        in
-        Some (yc_set_target_properties target (List.rev props))
-      | (EVar "PROPERTY" | EString "PROPERTY") :: rest' ->
-        let props = match pending_prop with
-          | Some (p, v) -> (p, v) :: props
-          | None -> props
-        in
-        (match rest' with
-         | (EVar s | EString s) :: rest'' ->
-           loop props (Some (s, EString "")) rest''
-         | _ -> loop props None rest')
-      | v :: rest' ->
-        (match pending_prop with
-         | Some (p, _) -> loop ((p, v) :: props) None rest'
-         | None -> loop props None rest')
+    let sections = split_by_keywords ~keywords:["PROPERTY"] (target :: rest) in
+    let targets = match List.Assoc.find sections ~equal:String.equal "_head" with
+      | Some items -> items | None -> []
     in
-    loop [] None rest
+    let properties = sections
+      |> List.filter_map ~f:(fun (k, items) ->
+        if String.equal k "PROPERTY" then
+          match items with
+          | prop_name :: values ->
+            let name = match prop_name with EVar s | EString s -> s | _ -> "?" in
+            let value = match values with
+              | [ v ] -> v
+              | _ -> EString (String.concat ~sep:";" (List.map values ~f:(fun e ->
+                  match e with EVar s | EString s -> s | _ -> "")))
+            in
+            Some (name, value)
+          | _ -> None
+        else None)
+    in
+    let target = match targets with
+      | [ t ] -> t | t :: _ -> t | _ -> EString "?"
+    in
+    Some (yc_set_target_properties target properties)
   | "set_property", args ->
-    (* Split positional args by PROPERTY marker:
-       TARGET t1 t2 [APPEND] PROPERTY name val1 val2 *)
-    let rec loop targets append = function
-      | [] ->
-        Some (yc_set_property ~append ~targets:(List.rev targets) [])
-      | (EVar "APPEND" | EString "APPEND") :: rest ->
-        loop targets true rest
-      | (EVar "PROPERTY" | EString "PROPERTY") :: rest ->
-        let prop_name, values = match rest with
-          | (EVar s | EString s) :: vals -> (s, vals)
-          | _ -> ("?", [])
-        in
+    let sections = split_by_keywords ~keywords:["APPEND"; "PROPERTY"] args in
+    let targets = match List.Assoc.find sections ~equal:String.equal "_head" with
+      | Some items -> items | None -> []
+    in
+    let append = List.Assoc.find sections ~equal:String.equal "APPEND"
+                 |> Option.is_some in
+    let properties = match List.Assoc.find sections ~equal:String.equal "PROPERTY" with
+      | Some (prop_name :: values) ->
+        let name = match prop_name with EVar s | EString s -> s | _ -> "?" in
         let value = match values with
           | [ v ] -> v
-          | _ -> EString (String.concat ~sep:";"
-                    (List.map values ~f:(fun e ->
-                      match e with EVar s | EString s -> s | _ -> "")))
+          | _ -> EString (String.concat ~sep:";" (List.map values ~f:(fun e ->
+              match e with EVar s | EString s -> s | _ -> "")))
         in
-        Some (yc_set_property ~append ~targets:(List.rev targets)
-                [(prop_name, value)])
-      | x :: rest ->
-        loop (x :: targets) append rest
+        [(name, value)]
+      | _ -> []
     in
-    loop [] false args
+    Some (yc_set_property ~append ~targets properties)
   | "get_directory_property", [] ->
     Some (yc_get_directory_property "PROP" out)
   | "set_directory_property", [] ->
@@ -1110,15 +1105,6 @@ let str_of e =
 
 let p_cmake_op_command_y1_inner name args kwargs =
   let out = out_var_y1 kwargs in
-  let kwarg_opt ~key = List.Assoc.find kwargs ~equal:String.equal key in
-  let kwarg_string_opt ~key =
-    Option.bind (kwarg_opt ~key) ~f:(function
-      | EString s | EVar s -> Some s | _ -> None)
-  in
-  let kwarg_bool ~key =
-    match kwarg_opt ~key with
-    | Some (EBool b) -> b | _ -> false
-  in
   match name, args with
   | "cmake_minimum_required", args ->
     let version =
@@ -1167,25 +1153,50 @@ let p_cmake_op_command_y1_inner name args kwargs =
   | "enable_language", _ ->
     Some (yc_enable_language ~optional:false [])
   | "execute_process", _ ->
-    let commands = match args with [] -> [] | _ -> [args] in
-    let working_directory = kwarg_opt ~key:"working_directory" in
-    let timeout = Option.map (kwarg_opt ~key:"timeout") ~f:(fun e ->
+    let sections = split_by_keywords
+      ~keywords:["COMMAND"; "WORKING_DIRECTORY"; "TIMEOUT";
+                 "RESULT_VARIABLE"; "OUTPUT_VARIABLE"; "ERROR_VARIABLE";
+                 "INPUT_FILE"; "OUTPUT_FILE"; "ERROR_FILE";
+                 "OUTPUT_QUIET"; "ERROR_QUIET";
+                 "OUTPUT_STRIP_TRAILING_WHITESPACE";
+                 "ERROR_STRIP_TRAILING_WHITESPACE";
+                 "COMMAND_ERROR_IS_FATAL"]
+      args
+    in
+    let commands = sections
+      |> List.filter_map ~f:(fun (k, items) ->
+        if String.equal k "COMMAND" then Some items else None)
+    in
+    let str_opt key = match List.Assoc.find sections ~equal:String.equal key with
+      | Some [ EString s | EVar s ] -> Some s
+      | _ -> None
+    in
+    let expr_opt key = match List.Assoc.find sections ~equal:String.equal key with
+      | Some [ e ] -> Some e
+      | _ -> None
+    in
+    let has_flag key = List.Assoc.find sections ~equal:String.equal key
+                       |> Option.is_some in
+    let timeout = Option.map (expr_opt "TIMEOUT") ~f:(fun e ->
       match e with EString s -> Float.of_string s | _ -> 0.0) in
-    let result_variable = kwarg_string_opt ~key:"result" in
-    let output_variable = kwarg_string_opt ~key:"output" in
-    let error_variable  = kwarg_string_opt ~key:"error" in
-    let output_quiet = kwarg_bool ~key:"output_quiet" in
-    let error_quiet  = kwarg_bool ~key:"error_quiet" in
     Some (ECmakeExecuteProcess
             { commands;
-              working_directory; timeout;
-              result_variable;
-              output_variable; error_variable;
-              input_file = None; output_file = None; error_file = None;
-              output_quiet; error_quiet;
-              output_strip_trailing_whitespace = false;
-              error_strip_trailing_whitespace = false;
-              command_error_is_fatal = None })
+              working_directory = expr_opt "WORKING_DIRECTORY";
+              timeout;
+              result_variable = str_opt "RESULT_VARIABLE";
+              output_variable = str_opt "OUTPUT_VARIABLE";
+              error_variable  = str_opt "ERROR_VARIABLE";
+              input_file = expr_opt "INPUT_FILE";
+              output_file = expr_opt "OUTPUT_FILE";
+              error_file  = expr_opt "ERROR_FILE";
+              output_quiet = has_flag "OUTPUT_QUIET";
+              error_quiet  = has_flag "ERROR_QUIET";
+              output_strip_trailing_whitespace =
+                has_flag "OUTPUT_STRIP_TRAILING_WHITESPACE";
+              error_strip_trailing_whitespace =
+                has_flag "ERROR_STRIP_TRAILING_WHITESPACE";
+              command_error_is_fatal =
+                str_opt "COMMAND_ERROR_IS_FATAL" })
   | "separate_arguments", [ cvar ] ->
     Some (ECmakeSeparateArguments
             { var = str_of cvar; mode = "PLAIN"; input = None })
