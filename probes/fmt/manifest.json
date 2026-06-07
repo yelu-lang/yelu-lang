@@ -54,7 +54,7 @@
       "whole_file": true
     },
     {
-      "source": "probes/fmt/static_export_test.ml",
+      "source": "probes/fmt/static_export_test.yc",
       "target_file": "test/static-export-test/CMakeLists.txt",
       "whole_file": true
     }

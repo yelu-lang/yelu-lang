@@ -803,8 +803,31 @@ let p_property_command_y1_inner name args kwargs =
   | "set_target_properties", [ _tgt ] ->
     (* Legacy parser produces empty properties; emits ESeq []. *)
     Some (ESeq [])
-  | "set_property", targets ->
-    Some (yc_set_property ~targets [])
+  | "set_property", args ->
+    (* Split positional args by PROPERTY marker:
+       TARGET t1 t2 [APPEND] PROPERTY name val1 val2 *)
+    let rec loop targets append = function
+      | [] ->
+        Some (yc_set_property ~append ~targets:(List.rev targets) [])
+      | (EVar "APPEND" | EString "APPEND") :: rest ->
+        loop targets true rest
+      | (EVar "PROPERTY" | EString "PROPERTY") :: rest ->
+        let prop_name, values = match rest with
+          | (EVar s | EString s) :: vals -> (s, vals)
+          | _ -> ("?", [])
+        in
+        let value = match values with
+          | [ v ] -> v
+          | _ -> EString (String.concat ~sep:";"
+                    (List.map values ~f:(fun e ->
+                      match e with EVar s | EString s -> s | _ -> "")))
+        in
+        Some (yc_set_property ~append ~targets:(List.rev targets)
+                [(prop_name, value)])
+      | x :: rest ->
+        loop (x :: targets) append rest
+    in
+    loop [] false args
   | "get_directory_property", [] ->
     Some (yc_get_directory_property "PROP" out)
   | "set_directory_property", [] ->
