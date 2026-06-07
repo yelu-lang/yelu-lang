@@ -314,6 +314,22 @@ let split_by_keywords ~(keywords : string list) (args : expr list)
   in
   loop [] "_head" [] args
 
+(* ── args → cmake text (for yc_raw fallback) ─── *)
+
+let expr_to_cmake_text = function
+  | EVar n -> "${" ^ n ^ "}"
+  | EString s -> s
+  | EBool true -> "ON"
+  | EBool false -> "OFF"
+  | ETarget n -> n
+  | ECmakeGenex s -> s
+  | EInt n -> Int.to_string n
+  | _ -> "?"
+
+let args_to_cmake_text name args =
+  let body = String.concat ~sep:" " (List.map args ~f:expr_to_cmake_text) in
+  name ^ "(" ^ body ^ ")"
+
 (* Match legacy [Lang_yelu_parse.out_var] sentinel: "?" when ~out
    missing. Some parser tests omit ~out and rely on this fallback;
    the pair-wise oracle requires byte-identical text. *)
@@ -788,7 +804,10 @@ let p_target_command_y1_inner name args kwargs =
     in
     Some (ECmakeAddCustomCommand
             { outputs; commands = build_commands; depends; comment; verbatim })
-  | _ -> None
+  | _ ->
+    (* Known command but args don't match typed patterns
+       (e.g. dynamic visibility ${kind}). Fall back to yc_raw. *)
+    Some (ECmakeRaw (args_to_cmake_text name args))
 
 let p_target_command_y1 toks =
   match toks with
