@@ -952,10 +952,10 @@ let p_install_command_y1_inner name args kwargs =
   let kwarg_opt ~key = List.Assoc.find kwargs ~equal:String.equal key in
   let kwarg_bool ~key = List.Assoc.mem kwargs ~equal:String.equal key in
   match name, args with
-  | "install_targets", [ destination ] ->
-    Some (yc_install_targets [] destination)
-  | "install_files", [ destination ] ->
-    Some (yc_install_files [] destination)
+  | "install_targets", destination :: targets ->
+    Some (yc_install_targets targets destination)
+  | "install_files", destination :: files ->
+    Some (yc_install_files files destination)
   | "install_export", [ export; destination ] ->
     Some (yc_install_export export destination)
   | "export", [ name_arg ] ->
