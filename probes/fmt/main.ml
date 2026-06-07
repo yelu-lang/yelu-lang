@@ -141,7 +141,7 @@ let options_block = ESeq [
   yifthen (EVar "FMT_SYSTEM_HEADERS")
     (yc_set (ycvar "FMT_SYSTEM_HEADERS_ATTRIBUTE") [ystr "SYSTEM"]);
 
-  yc_apply (ystr "include") [ystr "GNUInstallDirs"];
+  yc_include (ystr "GNUInstallDirs");
 
   yc_apply (ystr "set_verbose") [
     ystr "FMT_INC_DIR"; EVar "CMAKE_INSTALL_INCLUDEDIR";
@@ -195,8 +195,8 @@ let version_block = ESeq [
     [ystr "APPEND"; ystr "CMAKE_MODULE_PATH";
      ystr "${CMAKE_CURRENT_SOURCE_DIR}/support/cmake"];
 
-  yc_apply (ystr "include") [ystr "CheckCXXCompilerFlag"];
-  yc_apply (ystr "include") [ystr "JoinPaths"];
+  yc_include (ystr "CheckCXXCompilerFlag");
+  yc_include (ystr "JoinPaths");
 ]
 
 (* ============================================================
@@ -587,7 +587,7 @@ let modules_and_variants = ESeq [
 
 let install_block =
   yifthen (EVar "FMT_INSTALL") (ESeq [
-    yc_apply (ystr "include") [ystr "CMakePackageConfigHelpers"];
+    yc_include (ystr "CMakePackageConfigHelpers");
     yc_apply (ystr "set_verbose") [
       ystr "FMT_CMAKE_DIR"; ystr "${CMAKE_INSTALL_LIBDIR}/cmake/fmt";
       ystr "CACHE"; ystr "STRING";
@@ -781,7 +781,7 @@ let trailing_gates = ESeq [
       yc_set (ycvar "CPACK_SOURCE_PACKAGE_FILE_NAME") [ystr "fmt-${FMT_VERSION}"];
       yc_set (ycvar "CPACK_PACKAGE_NAME") [ystr "fmt"];
       yc_set (ycvar "CPACK_RESOURCE_FILE_README") [ystr "${PROJECT_SOURCE_DIR}/README.md"];
-      yc_apply (ystr "include") [ystr "CPack"];
+      yc_include (ystr "CPack");
     ]);
 ]
 

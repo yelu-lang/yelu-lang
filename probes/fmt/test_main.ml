@@ -312,7 +312,7 @@ let cuda_block =
                (EVar "CMAKE_VERSION", ystr "3.15");
       then_ = yc_apply (ystr "find_package") [ystr "CUDA"; ystr "9.0"];
       else_ = Some (ESeq [
-        yc_apply (ystr "include") [ystr "CheckLanguage"];
+        yc_include (ystr "CheckLanguage");
         yc_apply (ystr "check_language") [ystr "CUDA"];
         yifthen (EVar "CMAKE_CUDA_COMPILER") (ESeq [
           yc_apply (ystr "enable_language") [ystr "CUDA"; ystr "OPTIONAL"];
