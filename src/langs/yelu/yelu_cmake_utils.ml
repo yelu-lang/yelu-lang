@@ -201,10 +201,27 @@ let yc_project ?version ?(languages = []) name =
 (* Legacy [Ycmake_message] carries [texts : string list]; step files
    pass bare string literals. Wrap each as [EString] for the IR ctor
    (which carries [expr list]). *)
+let message_mode_of_string = function
+  | "STATUS" -> Lang_cmake.Mm_status
+  | "WARNING" -> Lang_cmake.Mm_warning
+  | "AUTHOR_WARNING" -> Lang_cmake.Mm_author_warning
+  | "FATAL_ERROR" -> Lang_cmake.Mm_fatal_error
+  | "SEND_ERROR" -> Lang_cmake.Mm_fatal_error
+  | "NOTICE" -> Lang_cmake.Mm_notice
+  | "VERBOSE" -> Lang_cmake.Mm_verbose
+  | "DEBUG" -> Lang_cmake.Mm_debug
+  | "TRACE" -> Lang_cmake.Mm_trace
+  | "CHECK_START" -> Lang_cmake.Mm_check_start
+  | "" -> Lang_cmake.Mm_none
+  | s -> failwith (Printf.sprintf "unknown message mode: %s" s)
+
 let yc_message ?(mode = Lang_cmake.Mm_status) texts =
   ECmakeMessage
     { mode = Lang_cmake_strings.of_message_mode mode;
       texts = List.map texts ~f:(fun s -> EString s) }
+
+let yc_message_mode mode_string texts =
+  yc_message ~mode:(message_mode_of_string mode_string) texts
 
 let yc_include ?(optional = false) file =
   ECmakeInclude { file; optional }

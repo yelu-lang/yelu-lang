@@ -68,13 +68,10 @@ let helpers = ESeq [
     else_ = Some post_3_15_branch;
   };
   yc_get_target_property "IN_USE_CUDA_STANDARD" "fmt-in-cuda-test" "CUDA_STANDARD";
-  yc_apply (ystr "message")
-    [ystr "STATUS"; ystr "cuda_standard:          ${IN_USE_CUDA_STANDARD}"];
+  yc_message ["cuda_standard:          ${IN_USE_CUDA_STANDARD}"];
   yc_get_target_property "IN_USE_CUDA_STANDARD_REQUIRED" "fmt-in-cuda-test"
     "CUDA_STANDARD_REQUIRED";
-  yc_apply (ystr "message")
-    [ystr "STATUS";
-     ystr "cuda_standard_required: ${IN_USE_CUDA_STANDARD_REQUIRED}"];
+  yc_message ["cuda_standard_required: ${IN_USE_CUDA_STANDARD_REQUIRED}"];
   yc_apply (ystr "target_link_libraries")
     [ystr "fmt-in-cuda-test"; ystr "fmt::fmt"];
 ]

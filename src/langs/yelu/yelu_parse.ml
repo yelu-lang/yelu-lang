@@ -923,7 +923,8 @@ let p_find_command_y1 toks =
    that's empty.
    ============================================================ *)
 
-let p_install_command_y1_inner name args _kwargs =
+let p_install_command_y1_inner name args kwargs =
+  let kwarg_opt ~key = List.Assoc.find kwargs ~equal:String.equal key in
   match name, args with
   | "install_targets", [ destination ] ->
     Some (yc_install_targets [] destination)
@@ -932,7 +933,8 @@ let p_install_command_y1_inner name args _kwargs =
   | "install_export", [ export; destination ] ->
     Some (yc_install_export export destination)
   | "export", [ name_arg ] ->
-    Some (yc_export_export name_arg)
+    let file = kwarg_opt ~key:"file" in
+    Some (yc_export_export ?file name_arg)
   | "configure_package_config_file", [ dest; input; output ] ->
     Some (yc_configure_package_config_file dest input output)
   | "write_basic_package_version_file", [ file ] ->
