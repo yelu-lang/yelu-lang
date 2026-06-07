@@ -184,7 +184,7 @@ let msvc_runtime_block = ESeq [
     aft "os-test";
   ]);
 
-  yc_apply (ystr "message") [ystr "STATUS"; ystr "FMT_PEDANTIC: ${FMT_PEDANTIC}"];
+  yc_message ["FMT_PEDANTIC: ${FMT_PEDANTIC}"];
 ]
 
 (* ---------- FMT_PEDANTIC noexception + nolocale blocks ---------- *)

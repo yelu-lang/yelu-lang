@@ -184,8 +184,8 @@ let version_block = ESeq [
     ystr "${CPACK_PACKAGE_VERSION_MAJOR}.${CPACK_PACKAGE_VERSION_MINOR}.";
     ystr "${CPACK_PACKAGE_VERSION_PATCH}";
   ];
-  yc_apply (ystr "message") [ystr "STATUS"; ystr "{fmt} version: ${FMT_VERSION}"];
-  yc_apply (ystr "message") [ystr "STATUS"; ystr "Build type: ${CMAKE_BUILD_TYPE}"];
+  yc_message ["{fmt} version: ${FMT_VERSION}"];
+  yc_message ["Build type: ${CMAKE_BUILD_TYPE}"];
 
   yifthen (ynot (EVar "CMAKE_RUNTIME_OUTPUT_DIRECTORY"))
     (yc_set (ycvar "CMAKE_RUNTIME_OUTPUT_DIRECTORY")
