@@ -46,7 +46,6 @@ let to_ycn (e : expr) : expr =
 let typecheck _prog =
   failwith "yc_driver.typecheck: distributed across per-theory functors"
 
-(* Wellform: name-binding pass retired to yelu_legacy.
-   Re-implemented against Yelu_cmake would live here. *)
-let wellform _prog =
-  failwith "yc_driver.wellform: retired (yelu_legacy), not re-implemented"
+(* Wellform: reserved-name + apply-shadowing + raw-tainted checks.
+   See [Yc_wellform] for the three independent check functions. *)
+let wellform = Yc_wellform.check_all
