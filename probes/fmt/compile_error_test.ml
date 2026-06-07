@@ -81,8 +81,8 @@ let run_tests_fn =
     yifthen
       (ynot (Yelu_langs.Yelu_cmake_normal_int.EIntEqual
                (EVar "result_var", ystr "0")))
-      (yc_apply (ystr "message")
-         [ystr "FATAL_ERROR"; ystr "Unable to configure:\n${output_var}"]);
+      (yc_message_mode "FATAL_ERROR"
+         ["Unable to configure:\n${output_var}"]);
     yc_foreach_in
       ~lists:["error_test_names"]
       (ycvar "test_name")
@@ -99,9 +99,8 @@ let run_tests_fn =
         yifthen
           (Yelu_langs.Yelu_cmake_normal_int.EIntEqual
              (EVar "result_var", ystr "0"))
-          (yc_apply (ystr "message")
-             [ystr "SEND_ERROR";
-              ystr "No compile error for \"${test_name}\":\n${output_var}"]);
+          (yc_message_mode "SEND_ERROR"
+             ["No compile error for \"${test_name}\":\n${output_var}"]);
       ]);
     yc_apply (ystr "execute_process") [
       ystr "COMMAND"; ystr "${CMAKE_COMMAND}";
@@ -115,9 +114,8 @@ let run_tests_fn =
     yifthen
       (ynot (Yelu_langs.Yelu_cmake_normal_int.EIntEqual
                (EVar "result_var", ystr "0")))
-      (yc_apply (ystr "message")
-         [ystr "SEND_ERROR";
-          ystr "Compile error for combined non-error test:\n${output_var}"]);
+      (yc_message_mode "SEND_ERROR"
+         ["Compile error for combined non-error test:\n${output_var}"]);
   ]
 
 let basic_callsites = [

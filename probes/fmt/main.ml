@@ -30,8 +30,7 @@ let preamble = ESeq [
         (ynot (Yelu_langs.Yelu_cmake_store.ECmakeVarDefined "PROJECT_NAME"))
         (ESeq [
           yc_set (ycvar "FMT_MASTER_PROJECT") [ystr "ON"];
-          yc_apply (ystr "message")
-            [ystr "STATUS"; ystr "CMake version: ${CMAKE_VERSION}"];
+          yc_message ["CMake version: ${CMAKE_VERSION}"];
         ]);
     ]);
 
@@ -168,8 +167,7 @@ let version_block = ESeq [
     (ynot (Yelu_langs.Yelu_cmake_string.ECmakeMatches
              { expr_ = EVar "base_h";
                regex = "FMT_VERSION ([0-9]+)([0-9][0-9])([0-9][0-9])" }))
-    (yc_apply (ystr "message")
-       [ystr "FATAL_ERROR"; ystr "Cannot get FMT_VERSION from base.h."]);
+    (yc_message_mode "FATAL_ERROR" ["Cannot get FMT_VERSION from base.h."]);
   Yelu_langs.Yelu_cmake_cmake_op.ECmakeMath {
     exp = "${CMAKE_MATCH_1}"; out = "CPACK_PACKAGE_VERSION_MAJOR";
   };
@@ -413,9 +411,8 @@ let fmt_lib_block = ESeq [
       target = ystr "fmt"; visibility = "PUBLIC";
       features = [ystr "cxx_std_11"];
     };
-    else_ = Some (yc_apply (ystr "message")
-                    [ystr "WARNING";
-                     ystr "Feature cxx_std_11 is unknown for the CXX compiler"]);
+    else_ = Some (yc_message_mode "WARNING"
+                    ["Feature cxx_std_11 is unknown for the CXX compiler"]);
   };
 
   yc_set (ycvar "FMT_LIB_NAME") [ystr "fmt"];
@@ -692,19 +689,18 @@ let install_block =
 
 let add_doc_target_fn =
   yc_function (ystr "add_doc_target") [] [
-    yc_apply (ystr "find_program")
-      [ystr "DOXYGEN"; ystr "doxygen"; ystr "PATHS";
-       ystr "$ENV{ProgramFiles}/doxygen/bin";
-       ystr "$ENV{ProgramFiles\\(x86\\)}/doxygen/bin"];
+    yc_find_program
+      ~names:[EString "doxygen"]
+      ~paths:[EString "$ENV{ProgramFiles}/doxygen/bin";
+              EString "$ENV{ProgramFiles\\(x86\\)}/doxygen/bin"]
+      "DOXYGEN";
     yifthen (ynot (EVar "DOXYGEN")) (ESeq [
-      yc_apply (ystr "message")
-        [ystr "STATUS"; ystr "Target 'doc' disabled because doxygen not found"];
+      yc_message ["Target 'doc' disabled because doxygen not found"];
       Yelu_langs.Yelu_cmake_cmake_op.ECmakeReturn { propagate_vars = [] };
     ]);
-    yc_apply (ystr "find_program") [ystr "MKDOCS"; ystr "mkdocs"];
+    yc_find_program ~names:[EString "mkdocs"] "MKDOCS";
     yifthen (ynot (EVar "MKDOCS")) (ESeq [
-      yc_apply (ystr "message")
-        [ystr "STATUS"; ystr "Target 'doc' disabled because mkdocs not found"];
+      yc_message ["Target 'doc' disabled because mkdocs not found"];
       Yelu_langs.Yelu_cmake_cmake_op.ECmakeReturn { propagate_vars = [] };
     ]);
     yc_set (ycvar "sources") [];
