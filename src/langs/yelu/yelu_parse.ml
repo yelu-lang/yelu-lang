@@ -120,6 +120,7 @@ let p_expr_y1 toks =
   | TARGET :: IDENT name :: rest -> Some (ETarget name, rest)
   | TARGET :: PATH s :: rest -> Some (ETarget s, rest)
   | TARGET :: STRING s :: rest -> Some (ETarget s, rest)
+  | TARGET :: EVAL s :: rest -> Some (ETarget s, rest)
   | STRING s :: rest -> Some (EString s, rest)
   | PATH s :: rest -> Some (EString s, rest)
   | EVAL s :: rest ->
@@ -1614,6 +1615,7 @@ and p_foreach_y1 toks =
            | LBRACK :: r ->
              let rec items_loop acc = function
                | RBRACK :: r' -> (List.rev acc, r')
+               | SEMI :: r' -> items_loop acc r'
                | toks' ->
                  (match p_expr_y1 toks' with
                   | Some (e, r') -> items_loop (e :: acc) r'

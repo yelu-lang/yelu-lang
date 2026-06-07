@@ -14,7 +14,7 @@
       "whole_file": true
     },
     {
-      "source": "probes/fmt/fuzzing.ml",
+      "source": "probes/fmt/fuzzing.yc",
       "target_file": "test/fuzzing/CMakeLists.txt",
       "whole_file": true
     },
