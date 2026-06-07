@@ -17,7 +17,7 @@ let command_names : Set.M(String).t =
     "include"; "include_guard"; "policy_set";
     "enable_language"; "execute_process"; "separate_arguments";
     "cmake_call"; "cmake_eval"; "cmake_get_log_level"; "math";
-    "yc_meta";
+    "yc_raw";
     (* string *)
     "string_toupper"; "string_tolower"; "string_length"; "string_strip";
     "string_concat"; "string_replace"; "string_regex_match";
