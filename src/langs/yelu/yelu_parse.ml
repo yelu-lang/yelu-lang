@@ -1231,6 +1231,8 @@ let p_cmake_op_command_y1_inner name args kwargs =
     Some (ECmakeLanguageEval { code = str_of code })
   | "cmake_get_log_level", [] ->
     Some (ECmakeLanguageGetLogLevel { out })
+  | "yc_meta", [ e ] ->
+    Some (EYcMeta e)
   | _ -> None
 
 let p_cmake_op_command_y1 toks =
@@ -1241,7 +1243,8 @@ let p_cmake_op_command_y1 toks =
             | "math" | "include" | "include_guard" | "policy_set"
             | "enable_language" | "execute_process"
             | "separate_arguments"
-            | "cmake_call" | "cmake_eval" | "cmake_get_log_level" -> true
+            | "cmake_call" | "cmake_eval" | "cmake_get_log_level"
+            | "yc_meta" -> true
             | _ -> false) ->
       let args, kwargs, rest = collect_command_args [] [] rest in
       (match p_cmake_op_command_y1_inner name args kwargs with
