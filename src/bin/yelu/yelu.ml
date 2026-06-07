@@ -100,13 +100,22 @@ let compile_ml file =
   end;
   out
 
-let compile_yc file =
+let compile_yc ?(wellform = true) file =
   let src = read_all file in
   match Yelu_langs.Yelu_parse.parse_program_y1 src with
   | Error e ->
     Stdlib.Printf.eprintf "yelu compile: parse error in %s: %s\n" file e;
     Stdlib.exit 1
   | Ok expr ->
+    if wellform then begin
+      match Yelu_langs.Yc_wellform.check_all expr with
+      | [] -> ()
+      | errors ->
+        Stdlib.Printf.eprintf "yelu compile: wellform warnings in %s:\n" file;
+        List.iter errors ~f:(fun e ->
+          Stdlib.Printf.eprintf "  %s\n"
+            (Sexp.to_string_hum (Yelu_langs.Yc_wellform.sexp_of_error e)))
+    end;
     Yelu_langs.Yelu_cmake_emit.emit_script expr
 
 let compile file =

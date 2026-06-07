@@ -1572,14 +1572,5 @@ let parse_tokens_y1 toks =
 
 let parse_program_y1 input =
   match Angstrom.parse_string ~consume:All token_list input with
-  | Ok toks ->
-    (match parse_tokens_y1 toks with
-     | Ok expr ->
-       let wellform_errors = Yc_wellform.check_all expr in
-       if List.is_empty wellform_errors then Ok expr
-       else
-         let msgs = List.map wellform_errors ~f:(fun e ->
-           Sexp.to_string ([%sexp_of: Yc_wellform.error] e)) in
-         Error ("wellform: " ^ String.concat ~sep:"; " msgs)
-     | Error e -> Error e)
+  | Ok toks -> parse_tokens_y1 toks
   | Error e -> Error ("lex error: " ^ e)
