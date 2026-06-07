@@ -60,6 +60,7 @@ let command_names : Set.M(String).t =
     "get_target_property"; "set_target_properties"; "set_property";
     "get_directory_property"; "set_directory_property";
     "set_test_properties"; "set_source_property";
+    "set_source_files_properties";
     "set_global_property"; "get_global_property";
     (* find *)
     "find_package"; "find_library"; "find_path";

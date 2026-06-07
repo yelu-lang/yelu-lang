@@ -39,6 +39,10 @@ type expr +=
   | ECmakeSetSourceProperty of {
       file : expr; property : string; values : expr list
     }
+  | ECmakeSetSourceFilesProperties of {
+      files : expr list;
+      properties : (string * expr) list;
+    }
   | ECmakeGetGlobalProperty of { var : string; property : string }
   | ECmakeDefineProperty of {
       mode : string; property_name : string; inherited : bool;

@@ -719,6 +719,7 @@ and project_cmd =
       files : file list;
       directories : directory list;
       target_directories : target list;
+      properties : property list;
     }
   | Get_target_property of { var : var; target : target; property : property }
   | Set_target_properties of { targets : target list; properties : property list }

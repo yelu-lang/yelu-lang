@@ -613,6 +613,12 @@ let rec emit_exp ~env (e : expr) : C.exp =
     C.Set_source_property
       { file = target_arg ~env file; property;
         values = List.map values ~f:(arg ~env) }
+  | Yelu_cmake_property.ECmakeSetSourceFilesProperties { files; properties } ->
+    let files = List.map files ~f:(target_arg ~env) in
+    let props = List.map properties ~f:(fun (p, v) ->
+      { C.prop = p; value = arg ~env v }) in
+    C.Project_cmd (C.Set_source_files_properties
+      { files; directories = []; target_directories = []; properties = props })
 
   (* cmake_op tail *)
   | ECmakeEnableLanguage { langs; optional } ->

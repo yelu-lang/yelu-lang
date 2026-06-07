@@ -575,6 +575,9 @@ let yc_set_directory_property ?(append = false) property values =
 let yc_set_source_property ?(property = "COMPILE_OPTIONS") file values =
   ECmakeSetSourceProperty { file; property; values }
 
+let yc_set_source_files_properties files properties =
+  ECmakeSetSourceFilesProperties { files; properties }
+
 let yc_get_global_property ~property var =
   ECmakeGetGlobalProperty { var; property }
 

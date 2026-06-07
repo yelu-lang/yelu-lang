@@ -895,6 +895,28 @@ let p_property_command_y1_inner name args kwargs =
       | [ t ] -> t | t :: _ -> t | _ -> EString "?"
     in
     Some (yc_set_target_properties target properties)
+  | "set_source_files_properties", args ->
+    let sections = split_by_keywords ~keywords:["PROPERTIES"; "DIRECTORY";
+      "TARGET_DIRECTORY"] args in
+    let files = match List.Assoc.find sections ~equal:String.equal "_head" with
+      | Some items -> items | None -> []
+    in
+    let properties = sections
+      |> List.filter_map ~f:(fun (k, items) ->
+        if String.equal k "PROPERTIES" then
+          match items with
+          | prop_name :: values ->
+            let name = match prop_name with EVar s | EString s -> s | _ -> "?" in
+            let value = match values with
+              | [ v ] -> v
+              | _ -> EString (String.concat ~sep:";" (List.map values ~f:(fun e ->
+                  match e with EVar s | EString s -> s | _ -> "")))
+            in
+            Some (name, value)
+          | _ -> None
+        else None)
+    in
+    Some (yc_set_source_files_properties files properties)
   | "set_property", args ->
     let sections = split_by_keywords ~keywords:["APPEND"; "PROPERTY"] args in
     let targets = match List.Assoc.find sections ~equal:String.equal "_head" with
@@ -936,7 +958,7 @@ let p_property_command_y1 toks =
             | "set_property"
             | "get_directory_property" | "set_directory_property"
             | "set_test_properties"
-            | "set_source_property"
+            | "set_source_property" | "set_source_files_properties"
             | "set_global_property" | "get_global_property" -> true
             | _ -> false) ->
       let args, kwargs, rest = collect_command_args [] [] rest in
