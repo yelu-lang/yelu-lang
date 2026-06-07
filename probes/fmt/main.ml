@@ -420,10 +420,15 @@ let fmt_lib_block = ESeq [
        [ystr "${FMT_LIB_NAME}${FMT_DEBUG_POSTFIX}"]);
 
   yifthen (EVar "BUILD_SHARED_LIBS")
-    (yc_apply (ystr "target_compile_definitions") [
-      ystr "fmt";
-      ystr "PRIVATE"; ystr "FMT_LIB_EXPORT";
-      ystr "INTERFACE"; ystr "FMT_SHARED";
+    (ESeq [
+      ECmakeTargetCompileDefinitions {
+        target = ystr "fmt"; visibility = "PRIVATE";
+        definitions = [ystr "FMT_LIB_EXPORT"];
+      };
+      ECmakeTargetCompileDefinitions {
+        target = ystr "fmt"; visibility = "INTERFACE";
+        definitions = [ystr "FMT_SHARED"];
+      };
     ]);
   yifthen (EVar "FMT_SAFE_DURATION_CAST")
     (ECmakeTargetCompileDefinitions {
@@ -473,8 +478,9 @@ let add_module_library_fn =
       Yelu_langs.Yelu_cmake_cmake_op.ECmakeReturn { propagate_vars = [] };
     ]);
     yifthen (EVar "CMAKE_COMPILER_IS_GNUCXX")
-      (yc_apply (ystr "target_compile_options")
-         [EVar "name"; ystr "PUBLIC"; ystr "-fmodules-ts"]);
+      (ECmakeTargetCompileOptions
+         { target = EVar "name"; visibility = "PUBLIC";
+           before = false; options_ = [EString "-fmodules-ts"] });
     yc_apply (ystr "get_target_property")
       [ystr "std"; EVar "name"; ystr "CXX_STANDARD"];
     yifthen
@@ -485,9 +491,10 @@ let add_module_library_fn =
         yc_foreach ~items:[EVar "sources"] (ycvar "src") (ESeq [
           yc_get_filename_component ~mode:"NAME_WE" "pcm" (EVar "src");
           yc_set (ycvar "pcm") [ystr "${pcm}.pcm"];
-          yc_apply (ystr "target_compile_options")
-            [EVar "name"; ystr "PUBLIC";
-             ystr "-fmodule-file=${CMAKE_CURRENT_BINARY_DIR}/${pcm}"];
+          ECmakeTargetCompileOptions
+            { target = EVar "name"; visibility = "PUBLIC";
+              before = false;
+              options_ = [EString "-fmodule-file=${CMAKE_CURRENT_BINARY_DIR}/${pcm}"] };
           yc_set (ycvar "pcms")
             [EVar "pcms"; ystr "${CMAKE_CURRENT_BINARY_DIR}/${pcm}"];
           yc_apply (ystr "add_custom_command") [
