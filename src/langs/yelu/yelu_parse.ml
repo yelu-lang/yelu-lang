@@ -717,6 +717,10 @@ let p_target_command_y1_inner name args kwargs =
               ECmakeTargetCompileFeatures
                 { target; visibility; features = items })
             features)
+  | "add_custom_target", [ name_arg ] ->
+    let all = kw_bool "all" in
+    let name = match name_arg with EString s | EVar s -> s | _ -> "?" in
+    Some (yc_add_custom_target ~all name)
   | _ -> None
 
 let p_target_command_y1 toks =
@@ -725,7 +729,8 @@ let p_target_command_y1 toks =
       when (match name with
             | "add_exe" | "add_lib" | "link_lib" | "include_dirs"
             | "compile_defs" | "compile_opts" | "compile_feats"
-            | "link_opts" | "link_dirs" | "target_sources" -> true
+            | "link_opts" | "link_dirs" | "target_sources"
+            | "add_custom_target" -> true
             | _ -> false) ->
       let args, kwargs, rest = collect_command_args [] [] rest in
       (match p_target_command_y1_inner name args kwargs with
