@@ -925,6 +925,7 @@ let p_find_command_y1 toks =
 
 let p_install_command_y1_inner name args kwargs =
   let kwarg_opt ~key = List.Assoc.find kwargs ~equal:String.equal key in
+  let kwarg_bool ~key = List.Assoc.mem kwargs ~equal:String.equal key in
   match name, args with
   | "install_targets", [ destination ] ->
     Some (yc_install_targets [] destination)
@@ -936,10 +937,24 @@ let p_install_command_y1_inner name args kwargs =
     let file = kwarg_opt ~key:"file" in
     Some (yc_export_export ?file name_arg)
   | "configure_package_config_file", [ dest; input; output ] ->
-    Some (yc_configure_package_config_file dest input output)
+    let no_set_and_check_macro = kwarg_bool ~key:"no_set_and_check_macro" in
+    let no_check_required_components_macro =
+      kwarg_bool ~key:"no_check_required_components_macro" in
+    Some (yc_configure_package_config_file
+            ~no_set_and_check_macro ~no_check_required_components_macro
+            dest input output)
   | "write_basic_package_version_file", [ file ] ->
+    let version = kwarg_opt ~key:"version" in
+    let compatibility = match kwarg_opt ~key:"compatibility" with
+      | Some (EString "SameMajorVersion" | EVar "SameMajorVersion") ->
+        Lang_cmake.Same_major_version
+      | Some (EString "SameMinorVersion" | EVar "SameMinorVersion") ->
+        Lang_cmake.Same_minor_version
+      | Some (EString "ExactVersion" | EVar "ExactVersion") ->
+        Lang_cmake.Exact_version
+      | _ -> Lang_cmake.Any_newer_version in
     Some (yc_write_basic_package_version_file
-            ~compatibility:Lang_cmake.Any_newer_version file)
+            ~compatibility ?version file)
   | _ -> None
 
 let p_install_command_y1 toks =
