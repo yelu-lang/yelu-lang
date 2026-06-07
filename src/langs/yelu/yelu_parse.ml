@@ -697,12 +697,12 @@ let p_target_command_y1_inner name args kwargs =
     let type_ = kw_str_opt "type" in
     Some (ECmakeAddLibrary
             { name = name_arg; type_; sources })
-  | "link_lib", target :: items ->
+  | ("link_lib" | "target_link_libraries"), target :: items ->
     Some (target_groups_to_y1
             (fun ~visibility items ->
               ECmakeTargetLinkLibraries { target; visibility; items })
             items)
-  | "include_dirs", target :: items ->
+  | ("include_dirs" | "target_include_directories"), target :: items ->
     let system = kw_bool "system" in
     let before = kw_bool "before" in
     Some (target_groups_to_y1
@@ -711,13 +711,13 @@ let p_target_command_y1_inner name args kwargs =
                 { target; visibility; before; system;
                   dirs = items })
             items)
-  | "compile_defs", target :: items ->
+  | ("compile_defs" | "target_compile_definitions"), target :: items ->
     Some (target_groups_to_y1
             (fun ~visibility items ->
               ECmakeTargetCompileDefinitions
                 { target; visibility; definitions = items })
             items)
-  | "compile_opts", target :: items ->
+  | ("compile_opts" | "target_compile_options"), target :: items ->
     let before = kw_bool "before" in
     Some (target_groups_to_y1
             (fun ~visibility items ->
@@ -795,7 +795,9 @@ let p_target_command_y1 toks =
   | IDENT name :: rest
       when (match name with
             | "add_exe" | "add_lib" | "link_lib" | "include_dirs"
+            | "target_link_libraries" | "target_include_directories"
             | "compile_defs" | "compile_opts" | "compile_feats"
+            | "target_compile_definitions" | "target_compile_options"
             | "link_opts" | "link_dirs" | "target_sources"
             | "add_custom_target" | "add_custom_command" -> true
             | _ -> false) ->

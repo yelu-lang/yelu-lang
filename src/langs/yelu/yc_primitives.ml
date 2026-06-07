@@ -49,6 +49,8 @@ let command_names : Set.M(String).t =
     "add_exe_alias"; "add_custom_target"; "add_dependencies";
     "link_lib"; "include_dirs"; "compile_defs"; "compile_opts";
     "compile_feats"; "link_opts"; "link_dirs"; "target_sources";
+    "target_link_libraries"; "target_include_directories";
+    "target_compile_definitions"; "target_compile_options";
     "precompile_headers";
     (* dir *)
     "add_subdirectory"; "include_directories";
