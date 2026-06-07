@@ -800,9 +800,29 @@ let p_property_command_y1_inner name args kwargs =
   match name, args with
   | "get_target_property", [ tgt ] ->
     Some (yc_get_property ~target:tgt "PROP" out)
-  | "set_target_properties", [ _tgt ] ->
-    (* Legacy parser produces empty properties; emits ESeq []. *)
-    Some (ESeq [])
+  | "set_target_properties", target :: rest ->
+    let rec loop props pending_prop = function
+      | [] ->
+        let props = match pending_prop with
+          | Some (p, v) -> (p, v) :: props
+          | None -> props
+        in
+        Some (yc_set_target_properties target (List.rev props))
+      | (EVar "PROPERTY" | EString "PROPERTY") :: rest' ->
+        let props = match pending_prop with
+          | Some (p, v) -> (p, v) :: props
+          | None -> props
+        in
+        (match rest' with
+         | (EVar s | EString s) :: rest'' ->
+           loop props (Some (s, EString "")) rest''
+         | _ -> loop props None rest')
+      | v :: rest' ->
+        (match pending_prop with
+         | Some (p, _) -> loop ((p, v) :: props) None rest'
+         | None -> loop props None rest')
+    in
+    loop [] None rest
   | "set_property", args ->
     (* Split positional args by PROPERTY marker:
        TARGET t1 t2 [APPEND] PROPERTY name val1 val2 *)
