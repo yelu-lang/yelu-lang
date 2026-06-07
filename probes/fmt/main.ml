@@ -729,12 +729,12 @@ let trailing_gates = ESeq [
   yifthen (EVar "FMT_DOC") (yc_apply (ystr "add_doc_target") []);
 
   yifthen (EVar "FMT_TEST") (ESeq [
-    yc_apply (ystr "enable_testing") [];
-    yc_apply (ystr "add_subdirectory") [ystr "test"];
+    yc_enable_testing;
+    yc_add_subdirectory (ystr "test");
   ]);
 
   yifthen (EVar "FMT_FUZZ") (ESeq [
-    yc_apply (ystr "add_subdirectory") [ystr "test/fuzzing"];
+    yc_add_subdirectory (ystr "test/fuzzing");
     ECmakeTargetCompileDefinitions {
       target = ystr "fmt"; visibility = "PUBLIC";
       definitions = [ystr "FMT_FUZZ"];
