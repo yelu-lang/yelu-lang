@@ -6,14 +6,14 @@ type expr +=
   | EExecutable of { name : expr; sources : expr list }
   | ELibrary of { name : expr; type_ : string option; sources : expr list }
   | ETargetExists of expr
-  | ETargetAddSources of { target : expr; visibility : string; sources : expr list }
-  | ETargetLinkLibraries of { target : expr; visibility : string; items : expr list }
-  | ETargetIncludeDirectories of { target : expr; visibility : string; dirs : expr list }
-  | ETargetCompileDefinitions of { target : expr; visibility : string; definitions : expr list }
-  | ETargetCompileOptions of { target : expr; visibility : string; options_ : expr list }
-  | ETargetCompileFeatures of { target : expr; visibility : string; features : expr list }
-  | ETargetLinkOptions of { target : expr; visibility : string; options_ : expr list }
-  | ETargetLinkDirectories of { target : expr; visibility : string; dirs : expr list }
+  | ETargetAddSources of { target : expr; visibility : visibility; sources : expr list }
+  | ETargetLinkLibraries of { target : expr; visibility : visibility; items : expr list }
+  | ETargetIncludeDirectories of { target : expr; visibility : visibility; dirs : expr list }
+  | ETargetCompileDefinitions of { target : expr; visibility : visibility; definitions : expr list }
+  | ETargetCompileOptions of { target : expr; visibility : visibility; options_ : expr list }
+  | ETargetCompileFeatures of { target : expr; visibility : visibility; features : expr list }
+  | ETargetLinkOptions of { target : expr; visibility : visibility; options_ : expr list }
+  | ETargetLinkDirectories of { target : expr; visibility : visibility; dirs : expr list }
   | ECustomTarget of {
       name : expr;
       all : bool;
@@ -43,7 +43,7 @@ type expr +=
     }
   | ETargetPrecompileHeaders of {
       target : expr;
-      visibility : string;
+      visibility : visibility;
       headers : expr list;
     }
 
@@ -187,7 +187,7 @@ let eval_target_visibility_items ~eval env target ~visibility items ~add =
   let env, target = eval env target in
   let target = expect_target target in
   let env, items = eval_string_list ~eval env items in
-  add env target ~visibility items, target
+  add env target ~visibility:(string_of_visibility visibility) items, target
 
 let eval_case ~eval env = function
   | ETarget name -> Some (env, VTarget name)

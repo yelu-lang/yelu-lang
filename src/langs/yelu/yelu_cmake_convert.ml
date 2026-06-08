@@ -573,7 +573,6 @@ let rec to_normal = function
         EUnit;
       ]
   | ECmakeTargetSources { target; visibility; sources } ->
-    let visibility = string_of_visibility visibility in
     ESeq
       [
         ETargetAddSources
@@ -583,7 +582,6 @@ let rec to_normal = function
         EUnit;
       ]
   | ECmakeTargetLinkLibraries { target; visibility; items } ->
-    let visibility = string_of_visibility visibility in
     ESeq
       [
         ETargetLinkLibraries
@@ -594,7 +592,6 @@ let rec to_normal = function
       ]
   | ECmakeTargetIncludeDirectories
       { target; visibility; before = _; system = _; dirs } ->
-    let visibility = string_of_visibility visibility in
     (* yelu_cmake_normal theory drops cmake-specific BEFORE / SYSTEM flags; the
        round-trip preserves them only via the yelu_cmake surface, which is
        where they belong. Lower fills with [false] (the legacy default). *)
@@ -607,7 +604,6 @@ let rec to_normal = function
         EUnit;
       ]
   | ECmakeTargetCompileDefinitions { target; visibility; definitions } ->
-    let visibility = string_of_visibility visibility in
     ESeq
       [
         ETargetCompileDefinitions
@@ -619,7 +615,6 @@ let rec to_normal = function
         EUnit;
       ]
   | ECmakeTargetCompileOptions { target; visibility; before = _; options_ } ->
-    let visibility = string_of_visibility visibility in
     ESeq
       [
         ETargetCompileOptions
@@ -631,7 +626,6 @@ let rec to_normal = function
         EUnit;
       ]
   | ECmakeTargetCompileFeatures { target; visibility; features } ->
-    let visibility = string_of_visibility visibility in
     ESeq
       [
         ETargetCompileFeatures
@@ -643,7 +637,6 @@ let rec to_normal = function
         EUnit;
       ]
   | ECmakeTargetLinkOptions { target; visibility; before = _; options_ } ->
-    let visibility = string_of_visibility visibility in
     ESeq
       [
         ETargetLinkOptions
@@ -655,7 +648,6 @@ let rec to_normal = function
         EUnit;
       ]
   | ECmakeTargetLinkDirectories { target; visibility; before = _; dirs } ->
-    let visibility = string_of_visibility visibility in
     ESeq
       [
         ETargetLinkDirectories
@@ -702,8 +694,6 @@ let rec to_normal = function
   | ECmakeTargetSourcesFs { target; items } ->
     let lift_item = function
       | Tsi_plain { visibility; items } ->
-    let visibility = visibility_of_string visibility in
-    let visibility = string_of_visibility visibility in
         Tsi_plain
           { visibility; items = List.map items ~f:to_normal }
       | Tsi_file_set { kind; type_; base_dirs; files } ->
@@ -716,7 +706,6 @@ let rec to_normal = function
       { target = to_normal target;
         items = List.map items ~f:lift_item }
   | ECmakeTargetPrecompileHeaders { target; visibility; headers } ->
-    let visibility = string_of_visibility visibility in
     ETargetPrecompileHeaders
       { target = to_normal target;
         visibility;
@@ -1104,7 +1093,6 @@ let rec from_normal = function
   | ETargetExists target ->
     ECmakeTargetExists (from_normal target)
   | ETargetAddSources { target = ETarget name; visibility; sources } ->
-    let visibility = visibility_of_string visibility in
     ESeq
       [
         ECmakeTargetSources
@@ -1114,7 +1102,6 @@ let rec from_normal = function
         ETarget name;
       ]
   | ETargetAddSources { target; visibility; sources } ->
-    let visibility = visibility_of_string visibility in
     ECmakeTargetSources
       {
         target = from_normal target;
@@ -1122,7 +1109,6 @@ let rec from_normal = function
         sources = List.map sources ~f:from_normal;
       }
   | ETargetLinkLibraries { target = ETarget name; visibility; items } ->
-    let visibility = visibility_of_string visibility in
     ESeq
       [
         ECmakeTargetLinkLibraries
@@ -1132,7 +1118,6 @@ let rec from_normal = function
         ETarget name;
       ]
   | ETargetLinkLibraries { target; visibility; items } ->
-    let visibility = visibility_of_string visibility in
     ECmakeTargetLinkLibraries
       {
         target = from_normal target;
@@ -1140,7 +1125,6 @@ let rec from_normal = function
         items = List.map items ~f:from_normal;
       }
   | ETargetIncludeDirectories { target = ETarget name; visibility; dirs } ->
-    let visibility = visibility_of_string visibility in
     ESeq
       [
         ECmakeTargetIncludeDirectories
@@ -1151,7 +1135,6 @@ let rec from_normal = function
         ETarget name;
       ]
   | ETargetIncludeDirectories { target; visibility; dirs } ->
-    let visibility = visibility_of_string visibility in
     ECmakeTargetIncludeDirectories
       {
         target = from_normal target;
@@ -1160,7 +1143,6 @@ let rec from_normal = function
         dirs = List.map dirs ~f:from_normal;
       }
   | ETargetCompileDefinitions { target = ETarget name; visibility; definitions } ->
-    let visibility = visibility_of_string visibility in
     ESeq
       [
         ECmakeTargetCompileDefinitions
@@ -1172,7 +1154,6 @@ let rec from_normal = function
         ETarget name;
       ]
   | ETargetCompileDefinitions { target; visibility; definitions } ->
-    let visibility = visibility_of_string visibility in
     ECmakeTargetCompileDefinitions
       {
         target = from_normal target;
@@ -1180,7 +1161,6 @@ let rec from_normal = function
         definitions = List.map definitions ~f:from_normal;
       }
   | ETargetCompileOptions { target = ETarget name; visibility; options_ } ->
-    let visibility = visibility_of_string visibility in
     ESeq
       [
         ECmakeTargetCompileOptions
@@ -1193,7 +1173,6 @@ let rec from_normal = function
         ETarget name;
       ]
   | ETargetCompileOptions { target; visibility; options_ } ->
-    let visibility = visibility_of_string visibility in
     ECmakeTargetCompileOptions
       {
         target = from_normal target;
@@ -1202,7 +1181,6 @@ let rec from_normal = function
         options_ = List.map options_ ~f:from_normal;
       }
   | ETargetCompileFeatures { target = ETarget name; visibility; features } ->
-    let visibility = visibility_of_string visibility in
     ESeq
       [
         ECmakeTargetCompileFeatures
@@ -1214,7 +1192,6 @@ let rec from_normal = function
         ETarget name;
       ]
   | ETargetCompileFeatures { target; visibility; features } ->
-    let visibility = visibility_of_string visibility in
     ECmakeTargetCompileFeatures
       {
         target = from_normal target;
@@ -1222,7 +1199,6 @@ let rec from_normal = function
         features = List.map features ~f:from_normal;
       }
   | ETargetLinkOptions { target = ETarget name; visibility; options_ } ->
-    let visibility = visibility_of_string visibility in
     ESeq
       [
         ECmakeTargetLinkOptions
@@ -1235,7 +1211,6 @@ let rec from_normal = function
         ETarget name;
       ]
   | ETargetLinkOptions { target; visibility; options_ } ->
-    let visibility = visibility_of_string visibility in
     ECmakeTargetLinkOptions
       {
         target = from_normal target;
@@ -1244,7 +1219,6 @@ let rec from_normal = function
         options_ = List.map options_ ~f:from_normal;
       }
   | ETargetLinkDirectories { target = ETarget name; visibility; dirs } ->
-    let visibility = visibility_of_string visibility in
     ESeq
       [
         ECmakeTargetLinkDirectories
@@ -1257,7 +1231,6 @@ let rec from_normal = function
         ETarget name;
       ]
   | ETargetLinkDirectories { target; visibility; dirs } ->
-    let visibility = visibility_of_string visibility in
     ECmakeTargetLinkDirectories
       {
         target = from_normal target;
@@ -1293,8 +1266,6 @@ let rec from_normal = function
   | ETargetSourcesFs { target; items } ->
     let lower_item = function
       | Tsi_plain { visibility; items } ->
-    let visibility = visibility_of_string visibility in
-    let visibility = string_of_visibility visibility in
         Tsi_plain
           { visibility; items = List.map items ~f:from_normal }
       | Tsi_file_set { kind; type_; base_dirs; files } ->
@@ -1309,7 +1280,7 @@ let rec from_normal = function
   | ETargetPrecompileHeaders { target; visibility; headers } ->
     ECmakeTargetPrecompileHeaders
       { target = from_normal target;
-        visibility = visibility_of_string visibility;
+        visibility;
         headers = List.map headers ~f:from_normal }
   | EInstallTargets { targets; destination; export } ->
     ECmakeInstallTargets
