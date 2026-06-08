@@ -593,6 +593,17 @@ let rec emit_exp ~env (e : expr) : C.exp =
     (match properties with
      | [ p ] -> one p
      | ps -> C.Exp_list (List.map ps ~f:one))
+  | Yelu_cmake_property.ECmakeSetPropertySource { files; append; properties } ->
+    let scope = C.Sps_source
+        { sources = List.map files ~f:(target_arg ~env);
+          directories = []; target_directories = [] } in
+    let one (prop, value) =
+      C.Set_property { scope; append; append_string = false;
+                       property = prop; values = [ arg ~env value ] }
+    in
+    (match properties with
+     | [ p ] -> one p
+     | ps -> C.Exp_list (List.map ps ~f:one))
   | Yelu_cmake_property.ECmakeSetGlobalProperty { properties } ->
     let scope = C.Sps_global in
     let one (prop, value) =

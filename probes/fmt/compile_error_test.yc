@@ -1,0 +1,215 @@
+( fun expect_compile(name code_fragment) (
+    cmake_parse_arguments EXPECT_COMPILE "ERROR" "" "" ${ARGN};
+    string_make_c_identifier "${name}" ~out:test_name;
+    if ${EXPECT_COMPILE_ERROR} then (
+      file_write "${CMAKE_CURRENT_BINARY_DIR}/test/${test_name}.cc"
+        '
+      ${fmt_headers}
+      void ${test_name}() {
+        ${code_fragment}
+      }
+      ';
+      error_test_names_copy := "${error_test_names}";
+      list_append error_test_names_copy "${test_name}";
+      error_test_names := "${error_test_names_copy}" PARENT_SCOPE
+    ) else (
+      non_error_test_content := '
+        ${non_error_test_content}
+        void ${test_name}() {
+          ${code_fragment}
+        }' PARENT_SCOPE
+    )
+  );
+
+  fun run_tests() (
+    cmake_targets := "";
+    foreach test_name in LISTS error_test_names (
+      cmake_targets := '
+        ${cmake_targets}
+        add_library(test-${test_name} ${test_name}.cc)
+        target_link_libraries(test-${test_name} PRIVATE fmt::fmt)
+        '
+    );
+    file_write "${CMAKE_CURRENT_BINARY_DIR}/test/non_error_test.cc"
+      '
+    ${fmt_headers}
+    ${non_error_test_content}
+    ';
+    cmake_targets := '
+      ${cmake_targets}
+      add_library(non-error-test non_error_test.cc)
+      target_link_libraries(non-error-test PRIVATE fmt::fmt)
+      ';
+    file_write "${CMAKE_CURRENT_BINARY_DIR}/test/CMakeLists.txt"
+      '
+    cmake_minimum_required(VERSION 3.8...3.25)
+    project(tests CXX)
+    add_subdirectory(${FMT_DIR} fmt)
+    ${cmake_targets}
+    ';
+    build_directory := "${CMAKE_CURRENT_BINARY_DIR}/test/build";
+    file_make_directory "${build_directory}";
+    execute_process
+      COMMAND ${CMAKE_COMMAND}
+        "-DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}"
+        "-DCMAKE_CXX_FLAGS=${CMAKE_CXX_FLAGS}"
+        "-DCMAKE_CXX_STANDARD=${CMAKE_CXX_STANDARD}"
+        "-DCMAKE_GENERATOR=${CMAKE_GENERATOR}"
+        "-DCMAKE_MAKE_PROGRAM=${CMAKE_MAKE_PROGRAM}"
+        "-DFMT_DIR=${FMT_DIR}"
+        "${CMAKE_CURRENT_BINARY_DIR}/test"
+      WORKING_DIRECTORY "${build_directory}"
+      RESULT_VARIABLE result_var
+      OUTPUT_VARIABLE output_var
+      ERROR_VARIABLE output_var;
+    if not (eq ${result_var} 0) then (
+      message FATAL_ERROR "Unable to configure:\n${output_var}"
+    );
+    foreach test_name in LISTS error_test_names (
+      execute_process
+        COMMAND ${CMAKE_COMMAND}
+          "--build" "${build_directory}"
+          "--target" "test-${test_name}"
+        WORKING_DIRECTORY "${build_directory}"
+        RESULT_VARIABLE result_var
+        OUTPUT_VARIABLE output_var
+        ERROR_QUIET;
+      if eq ${result_var} 0 then (
+        message SEND_ERROR "No compile error for \"${test_name}\":\n${output_var}"
+      )
+    );
+    execute_process
+      COMMAND ${CMAKE_COMMAND}
+        "--build" "${build_directory}"
+        "--target" "non-error-test"
+      WORKING_DIRECTORY "${build_directory}"
+      RESULT_VARIABLE result_var
+      OUTPUT_VARIABLE output_var
+      ERROR_VARIABLE output_var;
+    if not (eq ${result_var} 0) then (
+      message SEND_ERROR "Compile error for combined non-error test:\n${output_var}"
+    )
+  );
+
+  cmake_minimum_required VERSION "3.8...3.25";
+  project compile-error-test CXX;
+  fmt_headers := '
+  #include <fmt/format.h>
+  #include <fmt/xchar.h>
+  #include <fmt/ostream.h>
+  #include <iostream>
+';
+  error_test_names := "";
+  non_error_test_content := "";
+
+  expect_compile "check" "";
+  expect_compile "check-error" "compilation_error" "ERROR";
+  expect_compile "wide-character-narrow-format-string" "fmt::format(L\"{}\", L'a');";
+  expect_compile "wide-character-narrow-format-string-error" "fmt::format(\"{}\", L'a');" "ERROR";
+  expect_compile "wide-string-narrow-format-string" "fmt::format(L\"{}\", L\"foo\");";
+  expect_compile "wide-string-narrow-format-string-error" "fmt::format(\"{}\", L\"foo\");" "ERROR";
+  expect_compile "narrow-string-wide-format-string" "fmt::format(L\"{}\", L\"foo\");";
+  expect_compile "narrow-string-wide-format-string-error" "fmt::format(L\"{}\", \"foo\");" "ERROR";
+  expect_compile "cast-to-string"
+    "
+  struct S {
+    operator std::string() const { return std::string(); }
+  };
+  fmt::format(\"{}\", std::string(S()));
+  ";
+  expect_compile "cast-to-string-error"
+    "
+  struct S {
+    operator std::string() const { return std::string(); }
+  };
+  fmt::format(\"{}\", S());
+  "
+    "ERROR";
+  expect_compile "format-function"
+    "
+  void (*f)();
+  fmt::format(\"{}\", fmt::ptr(f));
+  ";
+  expect_compile "format-function-error"
+    "
+  void (*f)();
+  fmt::format(\"{}\", f);
+  "
+    "ERROR";
+  expect_compile "format-lots-of-arguments-with-unformattable"
+    "
+  struct E {};
+  fmt::format(\"\", 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, E());
+  "
+    "ERROR";
+  expect_compile "format-lots-of-arguments-with-function"
+    "
+  void (*f)();
+  fmt::format(\"\", 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, f);
+  "
+    "ERROR";
+
+  if ver_ge ${CMAKE_CXX_STANDARD} "20" then (
+    expect_compile "format-string-number-spec"
+      "
+    #ifdef FMT_HAS_CONSTEVAL
+      fmt::format(\"{:d}\", 42);
+    #endif
+    ";
+    expect_compile "format-string-number-spec-error"
+      "
+    #ifdef FMT_HAS_CONSTEVAL
+      fmt::format(\"{:d}\", \"I am not a number\");
+    #else
+      #error
+    #endif
+    "
+      "ERROR";
+    expect_compile "print-string-number-spec-error"
+      "
+    #ifdef FMT_HAS_CONSTEVAL
+      fmt::print(\"{:d}\", \"I am not a number\");
+    #else
+      #error
+    #endif
+    "
+      "ERROR";
+    expect_compile "print-stream-string-number-spec-error"
+      "
+  #ifdef FMT_HAS_CONSTEVAL
+    fmt::print(std::cout, \"{:d}\", \"I am not a number\");
+  #else
+    #error
+  #endif
+    "
+      "ERROR";
+    expect_compile "format-string-embedded-nul-error"
+      "
+    #if FMT_USE_CONSTEVAL
+      fmt::format(\"a\\0{}\");
+    #else
+      #error
+    #endif
+    "
+      "ERROR";
+    expect_compile "format-string-name"
+      "
+    #if defined(FMT_HAS_CONSTEVAL) && FMT_USE_NONTYPE_TEMPLATE_ARGS
+      using namespace fmt::literals;
+      fmt::print(\"{foo}\", \"foo\"_a=42);
+    #endif
+    ";
+    expect_compile "format-string-name-error"
+      "
+    #if defined(FMT_HAS_CONSTEVAL) && FMT_USE_NONTYPE_TEMPLATE_ARGS
+      using namespace fmt::literals;
+      fmt::print(\"{foo}\", \"bar\"_a=42);
+    #else
+      #error
+    #endif
+    "
+      "ERROR"
+  );
+
+  run_tests
+)

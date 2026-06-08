@@ -23,6 +23,14 @@ type expr +=
       append : bool;
       properties : (string * expr) list;
     }
+  (* [set_property(SOURCE files [APPEND] PROPERTY name value)].
+     Emit-level mirror of yc_set_property_source; eval is a stub
+     (no source-property env at this slice). *)
+  | ECmakeSetPropertySource of {
+      files : expr list;
+      append : bool;
+      properties : (string * expr) list;
+    }
   (* [set_property(GLOBAL PROPERTY name value)]. Eval stub at this slice
      (no global-property env). *)
   | ECmakeSetGlobalProperty of {
@@ -73,7 +81,7 @@ let eval_case ~eval env = function
           set_target_property env ~target ~property ~value))
     in
     Some (env, VUnit)
-  | ECmakeSetGlobalProperty _ -> Some (env, VUnit)
+  | ECmakeSetPropertySource _ | ECmakeSetGlobalProperty _ -> Some (env, VUnit)
   | ECmakeGetProperty { var; _ }
   | ECmakeGetDirectoryProperty { var; _ }
   | ECmakeGetGlobalProperty { var; _ } ->

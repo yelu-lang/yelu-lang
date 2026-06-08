@@ -112,12 +112,26 @@ let int_lit =
   token (
     take_while1 Char.is_digit >>| fun s -> INT (Int.of_string s))
 
-(* Path string: "double-quoted" *)
+(* Path string: double-quoted.  Supports backslash-escape for embedded
+   double-quote characters; other backslash sequences stay literal. *)
 let path_lit =
-  let not_quote c = not (Char.equal c '"') in
+  let buf = Buffer.create 256 in
   token (
-    char '"' *> take_while not_quote <* char '"'
-    >>| fun s -> PATH s)
+    char '"' *> return () >>= fun () ->
+    Buffer.clear buf;
+    let rec loop () =
+      peek_char >>= function
+      | None -> fail "unterminated path string"
+      | Some '"' -> advance 1 *> return (PATH (Buffer.contents buf))
+      | Some '\\' ->
+        advance 1 *>
+        peek_char >>= (function
+          | Some '"' -> advance 1 *> (Buffer.add_char buf '"'; loop ())
+          | Some c -> advance 1 *> (Buffer.add_char buf '\\'; Buffer.add_char buf c; loop ())
+          | None -> fail "unterminated escape in path string")
+      | Some c -> advance 1 *> (Buffer.add_char buf c; loop ())
+    in
+    loop ())
 
 (* Plain string: 'single-quoted' *)
 let string_lit =

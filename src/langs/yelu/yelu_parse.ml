@@ -115,7 +115,7 @@ let dotdot = delim DOTDOT
    byte oracle depends on them.
    ============================================================ *)
 
-let p_expr_y1 toks =
+let rec p_expr_y1 toks =
   match toks with
   | TARGET :: IDENT name :: rest -> Some (ETarget name, rest)
   | TARGET :: PATH s :: rest -> Some (ETarget s, rest)
@@ -134,6 +134,11 @@ let p_expr_y1 toks =
   | BOOL b :: rest -> Some (EBool b, rest)
   | INT n :: rest -> Some (EString (Int.to_string n), rest)
   | IDENT name :: rest -> Some (EVar name, rest)
+  | LPAREN :: rest ->
+    (* Parenthesized expression: ( expr ). *)
+    (match p_expr_y1 rest with
+     | Some (e, RPAREN :: rest') -> Some (e, rest')
+     | _ -> None)
   | _ -> None
 
 (* ============================================================
@@ -153,33 +158,76 @@ let p_assign_y1 toks =
   let is_cache, toks =
     match toks with
     | CACHE :: rest -> (true, rest)
-    | IDENT _ :: WALRUS :: _ -> (false, toks)
+    | (IDENT _ | STRING _ | EVAL _) :: WALRUS :: _ -> (false, toks)
     | _ -> (false, toks)
   in
   match toks with
-  | IDENT name :: WALRUS :: rest ->
-    let rec collect_vals acc toks =
-      match p_expr_y1 toks with
-      | Some (v, COMMA :: rest) -> collect_vals (v :: acc) rest
-      | Some (v, rest) -> Some (List.rev (v :: acc), rest)
-      | None -> if List.is_empty acc then None else Some (List.rev acc, toks)
+  | (IDENT s | STRING s | EVAL s) :: WALRUS :: rest ->
+    let rec collect_vals ?(only_one = false) acc toks =
+      match toks with
+      | TILDE :: _ | (RPAREN :: _) | (SEMI :: _) | []
+        when List.is_empty acc -> None
+      | TILDE :: _ when not (List.is_empty acc) ->
+        Some (List.rev acc, toks)
+      | (RPAREN :: _) | (SEMI :: _) | [] ->
+        Some (List.rev acc, toks)
+      | IDENT "PARENT_SCOPE" :: _ when not (List.is_empty acc) ->
+        Some (List.rev acc, toks)
+      | _ ->
+        (match p_expr_y1 toks with
+         | Some (v, COMMA :: rest) ->
+           collect_vals ~only_one (v :: acc) rest
+         | Some (v, rest) ->
+           if only_one then Some (List.rev (v :: acc), rest)
+           else collect_vals ~only_one (v :: acc) rest
+         | None ->
+           if List.is_empty acc then None else Some (List.rev acc, toks))
     in
-    (match collect_vals [] rest with
+    (match collect_vals ~only_one:is_cache [] rest with
      | None -> None
      | Some (values, rest) ->
        if is_cache then
          (* `cache VAR := v ; 'msg'` — extract docstring; default ""
-            and cache_type "STRING" matches legacy parse defaults. *)
+            and cache_type "STRING" matches legacy parse defaults.
+            Kwargs ~type:TYPE and ~force after the docstring. *)
          let msg, rest =
            match rest with
            | SEMI :: STRING s :: rest' -> (s, rest')
            | SEMI :: PATH s :: rest' -> (s, rest')
            | STRING s :: SEMI :: rest' -> (s, rest')
+           | STRING s :: rest' -> (s, rest')
+           | PATH s :: rest' -> (s, rest')
            | _ -> ("", rest)
          in
-         Some (yc_set_cache ~docstring:msg name values, rest)
+         let rec collect_cache_kwargs cache_type force = function
+           (* ~type:VALUE or ~type=VALUE *)
+           | TILDE :: IDENT "type" :: (COLON | EQ) :: rest ->
+             (match p_expr_y1 rest with
+              | Some (v, r) ->
+                let t = match v with EString s | EVar s -> s | _ -> "STRING" in
+                collect_cache_kwargs t force r
+              | None -> collect_cache_kwargs cache_type force rest)
+           | TILDE :: IDENT "type" :: _ :: rest ->
+             collect_cache_kwargs cache_type force rest
+           | TILDE :: IDENT "type" :: [] ->
+             (cache_type, force, [])
+           (* :TYPE keyword form: ~type:STRING was lexed as TILDE; KEYWORD "STRING" *)
+           | TILDE :: KEYWORD kw :: rest
+             when String.equal kw "STRING" || String.equal kw "BOOL"
+               || String.equal kw "FILEPATH" || String.equal kw "PATH" ->
+             collect_cache_kwargs kw force rest
+           | TILDE :: IDENT "force" :: rest ->
+             collect_cache_kwargs cache_type true rest
+           | TILDE :: _ :: rest ->
+             collect_cache_kwargs cache_type force rest
+           | toks -> (cache_type, force, toks)
+         in
+         let cache_type_s, force, rest = collect_cache_kwargs "STRING" false rest in
+         Some (Yelu_cmake_store.ECmakeSetCache
+                 { name = s; values; cache_type = cache_type_s;
+                   docstring = msg; force }, rest)
        else
-         Some (yc_set name values, rest))
+         Some (yc_set s values, rest))
   | _ -> None
 
 (* `set NAME value...` plain set form (outer `(`/`)` handled by block). *)
@@ -219,8 +267,15 @@ let p_option_command_y1 toks =
     | (STRING name | IDENT name) :: rest ->
       (match p_expr_y1 rest with
        | None -> None
-       | Some (value, rest) ->
-         Some (yc_option ~value ~msg:"" name, rest))
+       | Some (help, rest) ->
+         (match p_expr_y1 rest with
+          | Some (value, rest) ->
+            let msg = match help with EString s | EVar s -> s | _ -> "" in
+            Some (yc_option ~value ~msg name, rest)
+          | None ->
+            (* No default value — help was actually the default *)
+            let value = help in
+            Some (yc_option ~value ~msg:"" name, rest)))
     | _ -> None
 
 (* `unset_cache NAME` *)
@@ -773,6 +828,17 @@ let p_target_command_y1_inner name args kwargs =
       (fun ~visibility items ->
         ECmakeTargetCompileFeatures
           { target; visibility; features = items })
+  | "add_lib_alias", args ->
+    let name_arg = match args with
+      | [ e ] -> e
+      | [ ETarget s | EString s | EVar s; _ ] -> EVar s
+      | ETarget s :: _ | EString s :: _ | EVar s :: _ -> EVar s
+      | _ -> EVar "?"
+    in
+    let alias_of = kw_str_opt "alias_of" in
+    let name = match name_arg with ETarget s | EVar s | EString s -> s | _ -> "?" in
+    let alias_of = match alias_of with Some s -> s | None -> name in
+    Some (add_lib_alias ~alias_of name)
   | "add_custom_target", [ name_arg ] ->
     let all = kw_bool "all" in
     let name = match name_arg with EString s | EVar s -> s | _ -> "?" in
@@ -826,11 +892,11 @@ let p_target_command_y1 toks =
             | "compile_defs" | "compile_opts" | "compile_feats"
             | "target_compile_definitions" | "target_compile_options"
             | "link_opts" | "link_dirs" | "target_sources"
-            | "add_custom_target" | "add_custom_command" -> true
+            | "add_lib_alias" | "add_custom_target" | "add_custom_command" -> true
             | _ -> false) ->
       let args, kwargs, rest = collect_command_args [] [] rest in
       (match p_target_command_y1_inner name args kwargs with
-       | None -> None
+       | None -> Some (ECmakeRaw (args_to_cmake_text name args), rest)
        | Some e -> Some (e, rest))
     | _ -> None
 
@@ -871,9 +937,31 @@ let p_dir_command_y1 toks =
    ============================================================ *)
 
 let p_test_command_y1_inner name args _kwargs =
+  let is_name_kw = function
+    | EVar "NAME" | EString "NAME" -> true
+    | _ -> false
+  in
   match name, args with
   | "enable_testing", [] -> Some yc_enable_testing
+  | "add_test", e :: _ when is_name_kw e ->
+    (* Keyword form: add_test NAME <name> COMMAND <command> [args...].
+       CONFIGURATIONS / WORKING_DIRECTORY are accepted but not yet
+       plumbed to the typed IR; split_by_keywords isolates them so
+       the NAME/COMMAND sections parse correctly. *)
+    let sections = split_by_keywords
+        ~keywords:["NAME"; "COMMAND"; "CONFIGURATIONS"; "WORKING_DIRECTORY"]
+        args in
+    let name = match List.Assoc.find sections ~equal:String.equal "NAME" with
+      | Some (n :: _) -> n | _ -> EString "?"
+    in
+    let command, call_args =
+      match List.Assoc.find sections ~equal:String.equal "COMMAND" with
+      | Some (cmd :: rest) -> (cmd, rest)
+      | _ -> (EString "?", [])
+    in
+    Some (yc_add_test name command call_args)
   | "add_test", name_arg :: command :: rest ->
+    (* Positional form: add_test <name> <command> [args...] *)
     Some (yc_add_test name_arg command rest)
   | _ -> None
 
@@ -948,10 +1036,10 @@ let p_property_command_y1_inner name args kwargs =
     in
     Some (yc_set_source_files_properties files properties)
   | "set_property", args ->
-    (* SOURCE, GLOBAL, DIRECTORY, TEST, INSTALL, CACHE scopes are not
-       handled by the typed API — fall back to yc_raw. *)
+    (* GLOBAL, DIRECTORY, TEST, INSTALL, CACHE scopes are not
+       handled by the typed API — fall back to yc_raw.
+       SOURCE is handled as typed IR (ECmakeSetPropertySource). *)
     let is_other_scope = function
-      | EVar "SOURCE" | EString "SOURCE"
       | EVar "GLOBAL" | EString "GLOBAL"
       | EVar "DIRECTORY" | EString "DIRECTORY"
       | EVar "TEST" | EString "TEST"
@@ -959,8 +1047,31 @@ let p_property_command_y1_inner name args kwargs =
       | EVar "CACHE" | EString "CACHE" -> true
       | _ -> false
     in
+    let is_source = function
+      | EVar "SOURCE" | EString "SOURCE" -> true
+      | _ -> false
+    in
     (match args with
      | e :: _ when is_other_scope e -> None
+     | e :: rest when is_source e ->
+       let sections = split_by_keywords ~keywords:["APPEND"; "PROPERTY"] rest in
+       let files = match List.Assoc.find sections ~equal:String.equal "_head" with
+         | Some items -> items | None -> []
+       in
+       let append = List.Assoc.find sections ~equal:String.equal "APPEND"
+                    |> Option.is_some in
+       let properties = match List.Assoc.find sections ~equal:String.equal "PROPERTY" with
+         | Some (prop_name :: values) ->
+           let name = match prop_name with EVar s | EString s -> s | _ -> "?" in
+           let value = match values with
+             | [ v ] -> v
+             | _ -> EString (String.concat ~sep:";" (List.map values ~f:(fun e ->
+                 match e with EVar s | EString s -> s | _ -> "")))
+           in
+           [(name, value)]
+         | _ -> []
+       in
+       Some (yc_set_property_source ~append ~files properties)
      | _ ->
     let sections = split_by_keywords ~keywords:["APPEND"; "PROPERTY"] args in
     let targets = match List.Assoc.find sections ~equal:String.equal "_head" with
@@ -1197,13 +1308,22 @@ let p_cmake_op_command_y1_inner name args kwargs =
     let languages = List.map langs ~f:(fun e ->
       match e with EString s | EVar s -> s | _ -> "") in
     Some (ECmakeProject { name = s; languages; version = None })
-  | "message", _ ->
-    (* Legacy: texts list, each STRING/PATH → s, else "" *)
+  | "message", args ->
+    let mode, texts = match args with
+      | EVar m :: rest | EString m :: rest ->
+        (match m with
+         | "STATUS" | "FATAL_ERROR" | "SEND_ERROR"
+         | "WARNING" | "AUTHOR_WARNING" | "DEPRECATION"
+         | "NOTICE" | "VERBOSE" | "DEBUG" | "TRACE" ->
+           (message_mode_of_string m, rest)
+         | _ -> (Lang_cmake.Mm_status, args))
+      | _ -> (Lang_cmake.Mm_status, args)
+    in
     let texts =
-      List.map args ~f:(fun e ->
+      List.map texts ~f:(fun e ->
         match e with EString s -> s | _ -> "")
     in
-    Some (yc_message ~mode:Lang_cmake.Mm_status texts)
+    Some (yc_message ~mode texts)
   | "math", [ exp ] ->
     let s = match exp with EString s -> s | _ -> "" in
     Some (yc_math s out)
@@ -1212,9 +1332,10 @@ let p_cmake_op_command_y1_inner name args kwargs =
       List.Assoc.mem kwargs ~equal:String.equal "optional"
     in
     Some (yc_include ~optional file)
-  | "include_guard", [] ->
+  | "include_guard", []
+  | "include_guard", [ EVar "GLOBAL" | EString "GLOBAL" ] ->
     Some (yc_include_guard Lang_cmake.Ig_global)
-  | "policy_set", [ id ] ->
+  | "policy_set", id :: _ ->
     Some (yc_policy_set ~new_:true (str_of id))
   | "enable_language", _ ->
     Some (yc_enable_language ~optional:false [])
@@ -1390,6 +1511,20 @@ let rec p_cond_atom_y1 toks =
         | Some (b, rest) -> Some (ECmakeVersionEqual (a, b), rest)
         | None -> None)
      | None -> None)
+  | IDENT "ver_ge" :: rest ->
+    (match p_expr_y1 rest with
+     | Some (a, rest) ->
+       (match p_expr_y1 rest with
+        | Some (b, rest) -> Some (ECmakeVersionGreaterEqual (a, b), rest)
+        | None -> None)
+     | None -> None)
+  | IDENT "ver_le" :: rest ->
+    (match p_expr_y1 rest with
+     | Some (a, rest) ->
+       (match p_expr_y1 rest with
+        | Some (b, rest) -> Some (ECmakeVersionLessEqual (a, b), rest)
+        | None -> None)
+     | None -> None)
   | IDENT "match" :: rest ->
     (match p_expr_y1 rest with
      | Some (e, rest) ->
@@ -1422,12 +1557,19 @@ let rec p_cond_atom_y1 toks =
     (match rest with
      | IDENT id :: rest' -> Some (ECmakePolicyCheck id, rest')
      | _ -> None)
+	| LPAREN :: rest ->
+	  (* Parenthesized condition: (cond and cond or ...).
+	     p_expr_y1 also handles LPAREN for simple (expr), but cannot
+	     handle and/or; this arm catches compound conditions. *)
+	  (match p_cond_y1 rest with
+	   | Some (c, RPAREN :: rest') -> Some (c, rest')
+	   | _ -> None)
   | _ ->
     (* Bare expression = truthy *)
     p_expr_y1 toks
 
 (* Top-level cond: left-associative AND / OR over cond_atoms. *)
-let p_cond_y1 toks =
+and p_cond_y1 toks =
   match p_cond_atom_y1 toks with
   | None -> None
   | Some (c1, rest) ->

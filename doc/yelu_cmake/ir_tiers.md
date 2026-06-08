@@ -129,10 +129,10 @@ source.yc
 Several IR fields currently use `string` where a finite-domain variant
 would be more precise:
 
-| Field | Domain | Plan |
+| Field | Domain | Status |
 |---|---|---|
-| `visibility` | PUBLIC \| PRIVATE \| INTERFACE | Define `type visibility = Public \| Private \| Interface` |
-| `mode` | STATUS \| WARNING \| FATAL_ERROR \| … | Use `message_mode` (already in cmake AST) |
+| `visibility` | PUBLIC \| PRIVATE \| INTERFACE | ✅ `type visibility = Vis_public \| Vis_private \| Vis_interface` (`yelu_cmake.ml`) |
+| `mode` | STATUS \| WARNING \| FATAL_ERROR \| … | ✅ `message_mode` variant + `message_mode_of_string` (`yelu_cmake_utils.ml`) |
 | `compatibility` | AnyNewerVersion \| SameMajorVersion \| … | Use `compatibility` (already in cmake AST) |
 | `cache_type` | STRING \| BOOL \| PATH \| FILEPATH | Define variant or use cmake AST type |
 

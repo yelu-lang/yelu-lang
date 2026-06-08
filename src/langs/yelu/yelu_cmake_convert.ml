@@ -917,6 +917,10 @@ let rec to_normal = function
     ECmakeSetSourceProperty
       { file = to_normal file; property;
         values = List.map values ~f:to_normal }
+  | ECmakeSetPropertySource { files; append; properties } ->
+    ECmakeSetPropertySource
+      { files = List.map files ~f:to_normal; append;
+        properties = List.map properties ~f:(fun (p, v) -> p, to_normal v) }
 
   (* CMake find surface -> Yelu find theory. The cmake-specific
      attributes (version / exact / quiet / config_mode / components /
@@ -1723,6 +1727,10 @@ let rec from_normal = function
     ECmakeSetSourceProperty
       { file = from_normal file; property;
         values = List.map values ~f:from_normal }
+  | ECmakeSetPropertySource { files; append; properties } ->
+    ECmakeSetPropertySource
+      { files = List.map files ~f:from_normal; append;
+        properties = List.map properties ~f:(fun (p, v) -> p, from_normal v) }
 
   (* Yelu find theory -> CMake find surface. *)
   | EFindPackage { package_name; required } ->

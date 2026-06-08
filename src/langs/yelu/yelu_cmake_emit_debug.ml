@@ -878,6 +878,12 @@ let rec emit_expr_impl ~env e =
     List.map properties ~f:(fun (property, value) ->
       Fmt.str "set_property(TARGET %s%s PROPERTY %s %s)"
         ts ap property (arg value))
+  | ECmakeSetPropertySource { files; append; properties } ->
+    let fs = String.concat ~sep:" " (List.map files ~f:target_arg) in
+    let ap = if append then " APPEND" else "" in
+    List.map properties ~f:(fun (property, value) ->
+      Fmt.str "set_property(SOURCE %s%s PROPERTY %s %s)"
+        fs ap property (arg value))
   | ECmakeSetGlobalProperty { properties } ->
     List.map properties ~f:(fun (property, value) ->
       Fmt.str "set_property(GLOBAL PROPERTY %s %s)" property (arg value))
