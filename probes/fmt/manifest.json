@@ -24,7 +24,7 @@
       "whole_file": true
     },
     {
-      "source": "probes/fmt/cuda_test.ml",
+      "source": "probes/fmt/cuda_test.yc",
       "target_file": "test/cuda-test/CMakeLists.txt",
       "whole_file": true
     },
