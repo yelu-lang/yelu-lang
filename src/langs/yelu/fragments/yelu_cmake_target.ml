@@ -108,46 +108,46 @@ let eval_case ~eval env = function
        file-set introspection sees the full target shape. Discovered
        2026-06-01 via the fmt-yc-eval-probe workflow (gap #1 in
        doc/yelu_cmake/fmt_probe_report.md § 4). *)
-    let env = add_target_sources env name ~visibility:"PRIVATE" sources in
+    let env = add_target_sources env name ~visibility:Vis_private sources in
     Some (env, VUnit)
   | ECmakeAddLibrary { name; type_; sources } ->
     let env, name = eval_string ~eval env name in
     let env, sources = eval_string_list ~eval env sources in
     let env = declare_target ~kind:(TargetLibrary type_) env name in
-    let env = add_target_sources env name ~visibility:"PRIVATE" sources in
+    let env = add_target_sources env name ~visibility:Vis_private sources in
     Some (env, VUnit)
   | ECmakeTargetSources { target; visibility; sources } ->
     let env, target = eval_string ~eval env target in
     let env, sources = eval_string_list ~eval env sources in
-    Some (add_target_sources env target ~visibility:(string_of_visibility visibility) sources, VUnit)
+    Some (add_target_sources env target ~visibility sources, VUnit)
   | ECmakeTargetLinkLibraries { target; visibility; items } ->
     let env, target = eval_string ~eval env target in
     let env, items = eval_string_list ~eval env items in
-    Some (add_target_links env target ~visibility:(string_of_visibility visibility) items, VUnit)
+    Some (add_target_links env target ~visibility items, VUnit)
   | ECmakeTargetIncludeDirectories { target; visibility; dirs; _ } ->
     let env, target = eval_string ~eval env target in
     let env, dirs = eval_string_list ~eval env dirs in
-    Some (add_target_include_dirs env target ~visibility:(string_of_visibility visibility) dirs, VUnit)
+    Some (add_target_include_dirs env target ~visibility dirs, VUnit)
   | ECmakeTargetCompileDefinitions { target; visibility; definitions } ->
     let env, target = eval_string ~eval env target in
     let env, definitions = eval_string_list ~eval env definitions in
-    Some (add_target_compile_definitions env target ~visibility:(string_of_visibility visibility) definitions, VUnit)
+    Some (add_target_compile_definitions env target ~visibility definitions, VUnit)
   | ECmakeTargetCompileOptions { target; visibility; options_; _ } ->
     let env, target = eval_string ~eval env target in
     let env, options_ = eval_string_list ~eval env options_ in
-    Some (add_target_compile_options env target ~visibility:(string_of_visibility visibility) options_, VUnit)
+    Some (add_target_compile_options env target ~visibility options_, VUnit)
   | ECmakeTargetCompileFeatures { target; visibility; features } ->
     let env, target = eval_string ~eval env target in
     let env, features = eval_string_list ~eval env features in
-    Some (add_target_compile_features env target ~visibility:(string_of_visibility visibility) features, VUnit)
+    Some (add_target_compile_features env target ~visibility features, VUnit)
   | ECmakeTargetLinkOptions { target; visibility; options_; _ } ->
     let env, target = eval_string ~eval env target in
     let env, options_ = eval_string_list ~eval env options_ in
-    Some (add_target_link_options env target ~visibility:(string_of_visibility visibility) options_, VUnit)
+    Some (add_target_link_options env target ~visibility options_, VUnit)
   | ECmakeTargetLinkDirectories { target; visibility; dirs; _ } ->
     let env, target = eval_string ~eval env target in
     let env, dirs = eval_string_list ~eval env dirs in
-    Some (add_target_link_directories env target ~visibility:(string_of_visibility visibility) dirs, VUnit)
+    Some (add_target_link_directories env target ~visibility dirs, VUnit)
   | ECmakeAddCustomTarget { name; all; commands; depends; comment } ->
     let env, name = eval_string ~eval env name in
     let env, depends = eval_string_list ~eval env depends in
@@ -195,5 +195,5 @@ let eval_case ~eval env = function
   | ECmakeTargetPrecompileHeaders { target; visibility; headers } ->
     let env, target = eval_string ~eval env target in
     let env, _headers = eval_string_list ~eval env headers in
-    Some (add_target_sources env target ~visibility:(string_of_visibility visibility) [], VUnit)
+    Some (add_target_sources env target ~visibility [], VUnit)
   | _ -> None

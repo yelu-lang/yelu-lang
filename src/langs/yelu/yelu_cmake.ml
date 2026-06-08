@@ -21,49 +21,49 @@ let visibility_of_string = function
 type expr = ..
 
 type target_source = {
-  visibility : string;
+  visibility : visibility;
   source : string;
 }
 [@@deriving equal, sexp_of]
 
 type target_link = {
-  visibility : string;
+  visibility : visibility;
   item : string;
 }
 [@@deriving equal, sexp_of]
 
 type target_include_dir = {
-  visibility : string;
+  visibility : visibility;
   dir : string;
 }
 [@@deriving equal, sexp_of]
 
 type target_compile_definition = {
-  visibility : string;
+  visibility : visibility;
   definition : string;
 }
 [@@deriving equal, sexp_of]
 
 type target_compile_option = {
-  visibility : string;
+  visibility : visibility;
   option_ : string;
 }
 [@@deriving equal, sexp_of]
 
 type target_compile_feature = {
-  visibility : string;
+  visibility : visibility;
   feature : string;
 }
 [@@deriving equal, sexp_of]
 
 type target_link_option = {
-  visibility : string;
+  visibility : visibility;
   link_option : string;
 }
 [@@deriving equal, sexp_of]
 
 type target_link_directory = {
-  visibility : string;
+  visibility : visibility;
   link_directory : string;
 }
 [@@deriving equal, sexp_of]
@@ -124,7 +124,7 @@ type tiny_file_set = {
 }
 
 and tiny_target_sources_item =
-  | Tsi_plain of { visibility : string; items : expr list }
+  | Tsi_plain of { visibility : visibility; items : expr list }
   | Tsi_file_set of tiny_file_set
 
 type install_rule =

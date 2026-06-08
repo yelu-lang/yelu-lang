@@ -187,7 +187,7 @@ let eval_target_visibility_items ~eval env target ~visibility items ~add =
   let env, target = eval env target in
   let target = expect_target target in
   let env, items = eval_string_list ~eval env items in
-  add env target ~visibility:(string_of_visibility visibility) items, target
+  add env target ~visibility items, target
 
 let eval_case ~eval env = function
   | ETarget name -> Some (env, VTarget name)
@@ -204,7 +204,7 @@ let eval_case ~eval env = function
        add_executable/add_library are PRIVATE in cmake's effective
        semantics. Keep this in sync so yelu_cmake ↔ yelu_cmake_normal
        evaluators agree on target shape. *)
-    let env = add_target_sources env name ~visibility:"PRIVATE" sources in
+    let env = add_target_sources env name ~visibility:Vis_private sources in
     Some (env, VTarget name)
   | ELibrary { name; type_; sources } ->
     let env, name = eval_string ~eval env name in
@@ -215,7 +215,7 @@ let eval_case ~eval env = function
     in
     let sources = List.rev sources in
     let env = declare_target ~kind:(TargetLibrary type_) env name in
-    let env = add_target_sources env name ~visibility:"PRIVATE" sources in
+    let env = add_target_sources env name ~visibility:Vis_private sources in
     Some (env, VTarget name)
   | ETargetExists target ->
     let env, target = eval env target in

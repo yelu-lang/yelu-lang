@@ -491,8 +491,8 @@ let rec emit_expr_impl ~env e =
     [ Fmt.str "target_sources(%s %s %s)" (target_arg target) visibility (String.concat ~sep:" " (List.map sources ~f:arg)) ]
   | ECmakeTargetSourcesFs { target; items } ->
     let render_item = function
-      | Tsi_plain { visibility; items } ->
-        Fmt.str "%s %s" visibility
+      | Tsi_plain { visibility = vis; items } ->
+        Fmt.str "%s %s" (string_of_visibility vis)
           (String.concat ~sep:" " (List.map items ~f:arg))
       | Tsi_file_set { kind; type_; base_dirs; files } ->
         let opt_kw kw xs =

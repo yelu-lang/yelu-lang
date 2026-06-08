@@ -503,7 +503,7 @@ let cw_post_build = Lang_cmake.Cw_post_build
 
 (* target_sources(FILE_SET) — items are [ytsi_plain] / [ytsi_file_set_headers]. *)
 let ytsi_plain kind items : tiny_target_sources_item =
-  Tsi_plain { visibility = visibility_of_kind kind; items }
+  Tsi_plain { visibility = vis_of_kind kind; items }
 let ytsi_file_set_headers ?(base_dirs = []) ?(files = []) kind
     : tiny_target_sources_item =
   Tsi_file_set
