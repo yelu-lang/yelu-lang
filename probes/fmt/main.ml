@@ -445,7 +445,8 @@ let add_module_library_fn =
     yc_apply (ystr "cmake_parse_arguments")
       [ystr "AML"; ystr ""; ystr "USE_CMAKE_MODULES"; ystr ""; EVar "ARGN"];
     yc_set (ycvar "sources") [EVar "AML_UNPARSED_ARGUMENTS"];
-    yc_apply (ystr "add_library") [EVar "name"];
+    ECmakeAddLibrary { name = EVar "name"; type_ = None;
+                       sources = [EVar "sources"] };
     yc_set_target_properties (EVar "name")
       [("LINKER_LANGUAGE", EString "CXX")];
     ECmakeTargetCompileFeatures {
