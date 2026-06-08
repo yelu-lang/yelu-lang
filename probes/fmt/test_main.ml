@@ -38,26 +38,34 @@ let add_fmt_test_fn =
         else_ = Some (yc_set (ycvar "libs") [ystr "test-main"; ystr "fmt"]);
       });
     };
-    yc_apply (ystr "add_executable") [EVar "name"; EVar "sources"];
-    yc_apply (ystr "target_link_libraries") [EVar "name"; EVar "libs"];
+    ECmakeAddExecutable { name = EVar "name"; sources = [EVar "sources"] };
+    ECmakeTargetLinkLibraries {
+      target = EVar "name"; visibility = "PUBLIC"; items = [EVar "libs"];
+    };
     yifthen
       (Yelu_langs.Yelu_cmake_normal_bool.EAnd
          (EVar "ADD_FMT_TEST_HEADER_ONLY", ynot (EVar "FMT_UNICODE")))
-      (yc_apply (ystr "target_compile_definitions")
-         [EVar "name"; ystr "PUBLIC"; ystr "FMT_UNICODE=0"]);
+      (ECmakeTargetCompileDefinitions {
+        target = EVar "name"; visibility = "PUBLIC";
+        definitions = [EString "FMT_UNICODE=0"];
+      });
     yifthen (EVar "FMT_PEDANTIC")
-      (yc_apply (ystr "target_compile_options")
-         [EVar "name"; ystr "PRIVATE"; EVar "PEDANTIC_COMPILE_FLAGS"]);
+      (ECmakeTargetCompileOptions {
+        target = EVar "name"; visibility = "PRIVATE"; before = false;
+        options_ = [EVar "PEDANTIC_COMPILE_FLAGS"];
+      });
     yifthen (EVar "FMT_WERROR")
-      (yc_apply (ystr "target_compile_options")
-         [EVar "name"; ystr "PRIVATE"; EVar "WERROR_FLAG"]);
+      (ECmakeTargetCompileOptions {
+        target = EVar "name"; visibility = "PRIVATE"; before = false;
+        options_ = [EVar "WERROR_FLAG"];
+      });
     yc_add_test (EVar "name") (EVar "name") [];
   ]
 
 (* ---------- preamble ---------- *)
 
 let preamble = ESeq [
-  yc_apply (ystr "add_subdirectory") [ystr "gtest"];
+  yc_add_subdirectory (ystr "gtest");
   yc_set (ycvar "TEST_MAIN_SRC")
     [ystr "test-main.cc"; ystr "gtest-extra.cc";
      ystr "gtest-extra.h"; ystr "util.cc"];
@@ -319,7 +327,7 @@ let cuda_block =
       ]);
     };
     yifthen (EVar "CUDA_FOUND") (ESeq [
-      yc_apply (ystr "add_subdirectory") [ystr "cuda-test"];
+      yc_add_subdirectory (ystr "cuda-test");
       yc_add_test (ystr "cuda-test") (ystr "fmt-in-cuda-test") [];
     ]);
   ])
