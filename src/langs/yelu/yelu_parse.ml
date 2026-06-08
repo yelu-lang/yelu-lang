@@ -877,12 +877,15 @@ let p_target_command_y1_inner name args kwargs =
       let depends = match List.Assoc.find sections ~equal:String.equal "DEPENDS" with
         | Some items -> items | None -> []
       in
+      let sources = match List.Assoc.find sections ~equal:String.equal "SOURCES" with
+        | Some items -> items | None -> []
+      in
       let comment = match List.Assoc.find sections ~equal:String.equal "COMMENT" with
         | Some [ EString s | EVar s ] -> Some s
         | _ -> None
       in
       Some (yc_add_custom_target ~all ~commands:cc_list
-              ~depends ~comment name)
+              ~depends ~comment ~sources name)
     else
       let all = kw_bool "all" in
       let name = match name_arg with EString s | EVar s -> s | _ -> "?" in
@@ -1240,16 +1243,69 @@ let p_install_command_y1_inner name args kwargs =
     Some (yc_install_files files destination)
   | "install_export", [ export; destination ] ->
     Some (yc_install_export export destination)
-  | "export", [ name_arg ] ->
-    let file = kwarg_opt ~key:"file" in
-    Some (yc_export_export ?file name_arg)
-  | "configure_package_config_file", [ dest; input; output ] ->
-    let no_set_and_check_macro = kwarg_bool ~key:"no_set_and_check_macro" in
-    let no_check_required_components_macro =
-      kwarg_bool ~key:"no_check_required_components_macro" in
-    Some (yc_configure_package_config_file
-            ~no_set_and_check_macro ~no_check_required_components_macro
-            dest input output)
+  | "export", args ->
+    (* Check for keyword form: export TARGETS ... NAMESPACE ... FILE ... *)
+    let has_targets = List.exists args ~f:(function
+      | EVar "TARGETS" | EString "TARGETS" -> true | _ -> false)
+    in
+    if has_targets then
+      let sections = split_by_keywords ~keywords:["TARGETS"; "NAMESPACE"; "FILE"] args in
+      let targets = match List.Assoc.find sections ~equal:String.equal "TARGETS" with
+        | Some items -> items | None -> []
+      in
+      let namespace = match List.Assoc.find sections ~equal:String.equal "NAMESPACE" with
+        | Some [ EString s | EVar s ] -> Some s
+        | _ -> None
+      in
+      let file = match List.Assoc.find sections ~equal:String.equal "FILE" with
+        | Some (e :: _) -> Some e
+        | _ -> None
+      in
+      Some (yc_export_targets ?namespace ?file targets)
+    else begin match args with
+      | [ name_arg ] ->
+        let file = kwarg_opt ~key:"file" in
+        Some (yc_export_export ?file name_arg)
+      | _ -> None
+    end
+  | "configure_package_config_file", args ->
+    let has_install_dest = List.exists args ~f:(function
+      | EVar "INSTALL_DESTINATION" | EString "INSTALL_DESTINATION" -> true
+      | _ -> false)
+    in
+    if has_install_dest then
+      let sections = split_by_keywords ~keywords:["INSTALL_DESTINATION"] args in
+      let positional = match List.Assoc.find sections ~equal:String.equal "_head" with
+        | Some items -> items | None -> []
+      in
+      let input, output = match positional with
+        | [ a; b ] -> (a, b)
+        | [ a ] -> (a, EVar "?")
+        | _ -> (EVar "?", EVar "?")
+      in
+      let install_dest = match List.Assoc.find sections ~equal:String.equal
+                               "INSTALL_DESTINATION" with
+        | Some (e :: _) -> e
+        | _ -> EVar "?"
+      in
+      let no_set_and_check_macro = kwarg_bool ~key:"no_set_and_check_macro" in
+      let no_check_required_components_macro =
+        kwarg_bool ~key:"no_check_required_components_macro" in
+      Some (yc_configure_package_config_file
+              ~no_set_and_check_macro ~no_check_required_components_macro
+              install_dest input output)
+    else
+      let install_dest, input, output = match args with
+        | [ dest; input; output ] -> (dest, input, output)
+        | [ dest; input ] -> (dest, input, EVar "?")
+        | _ -> (EVar "?", EVar "?", EVar "?")
+      in
+      let no_set_and_check_macro = kwarg_bool ~key:"no_set_and_check_macro" in
+      let no_check_required_components_macro =
+        kwarg_bool ~key:"no_check_required_components_macro" in
+      Some (yc_configure_package_config_file
+              ~no_set_and_check_macro ~no_check_required_components_macro
+              install_dest input output)
   | "write_basic_package_version_file", [ file ] ->
     let version = kwarg_opt ~key:"version" in
     let compatibility = match kwarg_opt ~key:"compatibility" with

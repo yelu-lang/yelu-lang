@@ -793,6 +793,7 @@ let target_statement : Old.yelu_target_stmt -> Yelu_cmake.expr = function
         commands = List.map commands ~f:build_command;
         depends = List.map depends ~f:expr;
         comment;
+        sources = [];
       }
   | Ytgt_add_custom_command { outputs; commands; depends; verbatim; comment } ->
     ECmakeAddCustomCommand

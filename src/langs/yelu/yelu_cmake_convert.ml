@@ -244,9 +244,10 @@ let rec to_normal = function
         visibility;
         dirs = List.map dirs ~f:to_normal;
       }
-  | ECustomTarget { name; all; commands; depends; comment } ->
+  | ECustomTarget { name; all; commands; depends; comment; sources } ->
     ECustomTarget
-      { name; all; commands; depends = List.map depends ~f:to_normal; comment }
+      { name; all; commands; depends = List.map depends ~f:to_normal; comment;
+        sources = List.map sources ~f:to_normal }
   | ECustomCommand { outputs; commands; depends; comment; verbatim } ->
     ECustomCommand
       {
@@ -658,7 +659,7 @@ let rec to_normal = function
           };
         EUnit;
       ]
-  | ECmakeAddCustomTarget { name; all; commands; depends; comment } ->
+  | ECmakeAddCustomTarget { name; all; commands; depends; comment; sources } ->
     ESeq
       [
         ECustomTarget
@@ -666,7 +667,8 @@ let rec to_normal = function
             all;
             commands;
             depends = List.map depends ~f:to_normal;
-            comment };
+            comment;
+            sources = List.map sources ~f:to_normal };
         EUnit;
       ]
   | ECmakeAddCustomCommand { outputs; commands; depends; comment; verbatim } ->
@@ -1242,13 +1244,14 @@ let rec from_normal = function
         before = false;
         dirs = List.map dirs ~f:from_normal;
       }
-  | ECustomTarget { name; all; commands; depends; comment } ->
+  | ECustomTarget { name; all; commands; depends; comment; sources } ->
     ECmakeAddCustomTarget
       { name = from_normal name;
         all;
         commands;
         depends = List.map depends ~f:from_normal;
-        comment }
+        comment;
+        sources = List.map sources ~f:from_normal }
   | ECustomCommand { outputs; commands; depends; comment; verbatim } ->
     ECmakeAddCustomCommand
       {

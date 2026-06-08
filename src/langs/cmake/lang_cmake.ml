@@ -907,7 +907,7 @@ and project_cmd =
       function_ : string;
     }
   | Enable_language of { langs : string list; optional : bool }
-  | Export_targets of { targets : target list }
+  | Export_targets of { targets : target list; namespace : string option; file : arg option }
   | Export_export of { name : string; file : arg option }
   | Export_package of { name : string }
   | Export_setup of { name : string }

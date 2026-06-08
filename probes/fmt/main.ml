@@ -636,11 +636,10 @@ let install_block =
     yc_configure_file ~only:true
       ~input:(ystr "${PROJECT_SOURCE_DIR}/support/cmake/fmt.pc.in")
       (ystr "${pkgconfig}");
-    yc_apply (ystr "configure_package_config_file") [
-      ystr "${PROJECT_SOURCE_DIR}/support/cmake/fmt-config.cmake.in";
-      EVar "project_config";
-      ystr "INSTALL_DESTINATION"; EVar "FMT_CMAKE_DIR";
-    ];
+    yc_configure_package_config_file
+      (EVar "FMT_CMAKE_DIR")
+      (ystr "${PROJECT_SOURCE_DIR}/support/cmake/fmt-config.cmake.in")
+      (EVar "project_config");
 
     yc_set (ycvar "INSTALL_TARGETS")
       [ystr "fmt"; ystr "fmt-header-only"; ystr "fmt-c"];
@@ -663,11 +662,10 @@ let install_block =
       EVar "INSTALL_FILE_SET";
     ];
 
-    yc_apply (ystr "export") [
-      ystr "TARGETS"; EVar "INSTALL_TARGETS";
-      ystr "NAMESPACE"; ystr "fmt::";
-      ystr "FILE"; ystr "${PROJECT_BINARY_DIR}/${targets_export_name}.cmake";
-    ];
+    yc_export_targets
+      ~namespace:"fmt::"
+      ~file:(ystr "${PROJECT_BINARY_DIR}/${targets_export_name}.cmake")
+      [EVar "INSTALL_TARGETS"];
 
     yc_apply (ystr "install") [
       ystr "FILES"; EVar "project_config"; EVar "version_config";
@@ -713,16 +711,15 @@ let add_doc_target_fn =
               ystr "get-started.md"; ystr "fmt.css"; ystr "fmt.js"]
       (ycvar "source")
       (yc_set (ycvar "sources") [EVar "sources"; ystr "doc/${source}"]);
-    yc_apply (ystr "add_custom_target") [
-      ystr "doc"; ystr "COMMAND";
-      EVar "CMAKE_COMMAND"; ystr "-E"; ystr "env";
-      ystr "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/support/python";
-      EVar "MKDOCS"; ystr "build"; ystr "-f";
-      ystr "${CMAKE_CURRENT_SOURCE_DIR}/support/mkdocs.yml";
-      ystr "--site-dir"; ystr "${CMAKE_CURRENT_BINARY_DIR}/doc-html";
-      ystr "--no-directory-urls";
-      ystr "SOURCES"; EVar "sources";
-    ];
+    yc_add_custom_target "doc"
+      ~commands:[{ Yelu_langs.Lang_cmake.command = "${CMAKE_COMMAND}";
+                   args = ["-E"; "env";
+                           "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/support/python";
+                           "${MKDOCS}"; "build"; "-f";
+                           "${CMAKE_CURRENT_SOURCE_DIR}/support/mkdocs.yml";
+                           "--site-dir"; "${CMAKE_CURRENT_BINARY_DIR}/doc-html";
+                           "--no-directory-urls"] }]
+      ~sources:[EVar "sources"];
     yc_apply (ystr "install") [
       ystr "DIRECTORY"; ystr "${CMAKE_CURRENT_BINARY_DIR}/doc-html/";
       ystr "DESTINATION"; ystr "${CMAKE_INSTALL_DATAROOTDIR}/doc/fmt";

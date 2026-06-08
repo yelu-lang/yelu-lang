@@ -116,7 +116,7 @@ let include_guard scope = Include_guard { scope }
 let separate_arguments ?(input) ~mode var = Separete_arguments { var; mode; input }
 
 let option_ ?(value = bool_ false) ~msg var = Cmake_option { var; msg; value }
-let export_targets targets = Project_cmd (Export_targets { targets })
+let export_targets targets = Project_cmd (Export_targets { targets; namespace = None; file = None })
 let export_export ?file name = Project_cmd (Export_export { file; name })
 let export_package name = Project_cmd (Export_package { name })
 let export_setup name = Project_cmd (Export_setup { name })

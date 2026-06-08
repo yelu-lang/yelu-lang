@@ -482,11 +482,11 @@ let yc_add_custom_command
 
 let yc_add_custom_target
     ?(all = false) ?(commands = []) ?(depends = [])
-    ?(comment : string option = None) name =
+    ?(comment : string option = None) ?(sources = []) name =
   ECmakeAddCustomTarget
     { name = EString name; all;
       commands = List.map commands ~f:to_build_command;
-      depends; comment }
+      depends; comment; sources }
 
 (* TARGET-form add_custom_command. The legacy bridge raised on this and
    the IR has no dedicated TARGET-form ctor. Emitting empty-outputs
@@ -670,6 +670,9 @@ let yc_install_export ?file ?namespace export destination =
 
 let yc_export_export ?file name =
   ECmakeExportExport { name; file }
+
+let yc_export_targets ?namespace ?file targets =
+  ECmakeExportTargets { targets; namespace; file }
 
 let yc_configure_package_config_file
     ?(no_set_and_check_macro = false)

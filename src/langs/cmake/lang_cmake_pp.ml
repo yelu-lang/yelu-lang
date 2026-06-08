@@ -1299,8 +1299,11 @@ and pp_project_cmd ff cmd =
   | Link_libraries { groups } ->
       Fmt.(pf ff "link_libraries(%a)" (list_sp pp_link_library_group) groups)
   (* export *)
-  | Export_targets { targets } ->
-      Fmt.(pf ff "export(TARGETS %a)" (list_sp pp_target) targets)
+  | Export_targets { targets; namespace; file } ->
+      Fmt.(pf ff "export(TARGETS %a%a%a)"
+            (list_sp pp_target) targets
+            (pp_with_key "NAMESPACE" string) namespace
+            (pp_with_key "FILE" pp_arg) file)
   | Export_export { name; file } ->
       Fmt.(
         pf ff "export(EXPORT %a@;%a)" string name

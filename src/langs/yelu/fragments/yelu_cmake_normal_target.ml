@@ -20,6 +20,7 @@ type expr +=
       commands : build_command list;
       depends : expr list;
       comment : string option;
+      sources : expr list;
     }
   | ECustomCommand of {
       outputs : expr list;
@@ -268,12 +269,13 @@ let eval_case ~eval env = function
         ~add:add_target_link_directories
     in
     Some (env, VTarget name)
-  | ECustomTarget { name; all; commands; depends; comment } ->
+  | ECustomTarget { name; all; commands; depends; comment; sources } ->
     let env, name = eval_string ~eval env name in
     let env, depends = eval_string_list ~eval env depends in
+    let env, sources = eval_string_list ~eval env sources in
     Some
       ( set_custom_target env
-          { name; all; commands; depends; comment },
+          { name; all; commands; depends; comment; sources },
         VUnit )
   | ECustomCommand { outputs; commands; depends; comment; verbatim } ->
     let env, outputs = eval_string_list ~eval env outputs in

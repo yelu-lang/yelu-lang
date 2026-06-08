@@ -33,6 +33,11 @@ type expr +=
       name : expr;
       file : expr option;
     }
+  | ECmakeExportTargets of {
+      targets : expr list;
+      namespace : string option;
+      file : expr option;
+    }
   | ECmakeConfigurePackageConfigFile of {
       install_dest : expr;
       input : expr;
@@ -81,6 +86,7 @@ let eval_case ~eval env = function
     let env, name = eval_string ~eval env name in
     let env, file = eval_optional_string ~eval env file in
     Some (add_install_rule env (ExportExport { name; file }), VUnit)
+  | ECmakeExportTargets _ -> Some (env, VUnit)
   | ECmakeConfigurePackageConfigFile
       { install_dest; input; output;
         no_set_and_check_macro; no_check_required_components_macro } ->

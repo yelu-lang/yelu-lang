@@ -561,6 +561,12 @@ let rec emit_exp ~env (e : expr) : C.exp =
       (C.Export_export
          { name = target_arg ~env name;
            file = Option.map file ~f:(arg ~env) })
+  | Yelu_cmake_install.ECmakeExportTargets { targets; namespace; file } ->
+    C.Project_cmd
+      (C.Export_targets
+         { targets = List.map targets ~f:(target_arg ~env);
+           namespace;
+           file = Option.map file ~f:(arg ~env) })
   | Yelu_cmake_install.ECmakeConfigurePackageConfigFile
       { install_dest; input; output;
         no_set_and_check_macro; no_check_required_components_macro } ->
@@ -1062,7 +1068,7 @@ let rec emit_exp ~env (e : expr) : C.exp =
            job_server_aware = false; verbatim; append = false;
            uses_terminal = false; codegen = false;
            command_expand_list = []; depends_explicit_only = false })
-  | ECmakeAddCustomTarget { name; all; commands; depends; comment } ->
+  | ECmakeAddCustomTarget { name; all; commands; depends; comment; sources } ->
     let cc_list =
       List.map commands ~f:(fun (bc : build_command) ->
         ({ command = bc.command; args = bc.args } : C.custom_command))
@@ -1081,7 +1087,7 @@ let rec emit_exp ~env (e : expr) : C.exp =
            verbatim = false;
            uses_terminal = false;
            command_expand_list = [];
-           sources = [] })
+           sources = List.map sources ~f:(target_arg ~env) })
 
   (* Add dependencies *)
   | ECmakeAddDependencies { target; deps } ->

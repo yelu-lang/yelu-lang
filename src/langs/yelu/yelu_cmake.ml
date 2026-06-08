@@ -100,6 +100,7 @@ type custom_target = {
   commands : build_command list;
   depends : string list;
   comment : string option;
+  sources : string list;
 }
 [@@deriving equal, sexp_of]
 

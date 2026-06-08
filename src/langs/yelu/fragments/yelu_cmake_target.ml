@@ -58,6 +58,7 @@ type expr +=
       commands : build_command list;
       depends : expr list;
       comment : string option;
+      sources : expr list;
     }
   | ECmakeAddCustomCommand of {
       outputs : expr list;
@@ -148,12 +149,13 @@ let eval_case ~eval env = function
     let env, target = eval_string ~eval env target in
     let env, dirs = eval_string_list ~eval env dirs in
     Some (add_target_link_directories env target ~visibility dirs, VUnit)
-  | ECmakeAddCustomTarget { name; all; commands; depends; comment } ->
+  | ECmakeAddCustomTarget { name; all; commands; depends; comment; sources } ->
     let env, name = eval_string ~eval env name in
     let env, depends = eval_string_list ~eval env depends in
+    let env, sources = eval_string_list ~eval env sources in
     Some
       ( set_custom_target env
-          { name; all; commands; depends; comment },
+          { name; all; commands; depends; comment; sources },
         VUnit )
   | ECmakeAddCustomCommand { outputs; commands; depends; comment; verbatim } ->
     let env, outputs = eval_string_list ~eval env outputs in

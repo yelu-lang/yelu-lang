@@ -545,7 +545,7 @@ let rec emit_expr_impl ~env e =
     [ Fmt.str "target_link_directories(%s %s%s %s)"
         (target_arg target) b visibility
         (String.concat ~sep:" " (List.map dirs ~f:arg)) ]
-  | ECmakeAddCustomTarget { name; all; commands; depends; comment } ->
+  | ECmakeAddCustomTarget { name; all; commands; depends; comment; sources } ->
     let all = if all then " ALL" else "" in
     let command_lines =
       List.map commands ~f:(fun command ->
@@ -557,6 +557,12 @@ let rec emit_expr_impl ~env e =
       | depends ->
         [ Fmt.str "  DEPENDS %s" (String.concat ~sep:" " (List.map depends ~f:arg)) ]
     in
+    let sources =
+      match sources with
+      | [] -> []
+      | sources ->
+        [ Fmt.str "  SOURCES %s" (String.concat ~sep:" " (List.map sources ~f:arg)) ]
+    in
     let comment =
       match comment with
       | None -> []
@@ -565,6 +571,7 @@ let rec emit_expr_impl ~env e =
     [ Fmt.str "add_custom_target(%s%s" (target_arg name) all ]
     @ command_lines
     @ depends
+    @ sources
     @ comment
     @ [ "  VERBATIM"; ")" ]
   | ECmakeAddCustomCommand { outputs; commands; depends; comment; verbatim } ->
