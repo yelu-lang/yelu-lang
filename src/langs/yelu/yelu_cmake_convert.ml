@@ -398,9 +398,9 @@ let rec to_normal = function
     ESetVar (out, EFileRead (to_normal path))
   | ECmakeFileExists path ->
     EFileExists (to_normal path)
-  | ECmakeConfigureFile { input; output } ->
+  | ECmakeConfigureFile { input; output; only } ->
     EConfigureFile
-      { input = to_normal input; output = to_normal output }
+      { input = to_normal input; output = to_normal output; only }
   | ECmakeFileRelativePath { var; base; file } ->
     ECmakeFileRelativePath
       { var;
@@ -1385,9 +1385,9 @@ let rec from_normal = function
     ECmakeFileRead { path = from_normal path; out = name }
   | EFileExists path ->
     ECmakeFileExists (from_normal path)
-  | EConfigureFile { input; output } ->
+  | EConfigureFile { input; output; only } ->
     ECmakeConfigureFile
-      { input = from_normal input; output = from_normal output }
+      { input = from_normal input; output = from_normal output; only }
   | ECmakeFileRelativePath { var; base; file } ->
     ECmakeFileRelativePath
       { var;

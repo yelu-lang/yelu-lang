@@ -17,7 +17,7 @@ type expr +=
       hex : bool;
     }
   | ECmakeFileExists of expr
-  | ECmakeConfigureFile of { input : expr; output : expr }
+  | ECmakeConfigureFile of { input : expr; output : expr; only : bool }
   (* [file(RELATIVE_PATH <var> <base> <file>)]. Eval stub: binds var to
      [file] string (no path-relative computation in tiny). *)
   | ECmakeFileRelativePath of { var : string; base : expr; file : expr }
@@ -82,7 +82,7 @@ let eval_case ~eval env = function
   | ECmakeFileExists path ->
     let env, path = eval_string ~eval env path in
     Some (env, VBool (file_exists env path))
-  | ECmakeConfigureFile { input; output } ->
+  | ECmakeConfigureFile { input; output; only = _ } ->
     let env, input = eval_string ~eval env input in
     let env, output = eval_string ~eval env output in
     let content =

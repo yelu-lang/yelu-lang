@@ -454,8 +454,9 @@ let rec emit_expr_impl ~env e =
         ~f:(fun f -> Fmt.str " %S" f) in
     let u = if utc then " UTC" else "" in
     [ Fmt.str "file(TIMESTAMP %s %s%s%s)" (arg path) out fmt u ]
-  | ECmakeConfigureFile { input; output } ->
-    [ Fmt.str "configure_file(%s %s)" (arg input) (arg output) ]
+  | ECmakeConfigureFile { input; output; only } ->
+    let only_flag = if only then " @ONLY" else "" in
+    [ Fmt.str "configure_file(%s %s%s)" (arg input) (arg output) only_flag ]
   | ECmakeFileRelativePath { var; base; file } ->
     [ Fmt.str "file(RELATIVE_PATH %s %s %s)" var (arg base) (arg file) ]
   | ECmakeFileGlob { out; recurse; relative; configure_depends; patterns } ->

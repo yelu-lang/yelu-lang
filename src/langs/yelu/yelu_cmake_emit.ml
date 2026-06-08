@@ -789,7 +789,7 @@ let rec emit_exp ~env (e : expr) : C.exp =
     C.File_read
       { var = out; file = arg ~env path;
         offset = None; limit = None; hex = false }
-  | ECmakeConfigureFile { input; output } ->
+  | ECmakeConfigureFile { input; output; only } ->
     C.Cmake_cmd
       (C.Configure_file
          { input = target_arg ~env input;
@@ -798,7 +798,7 @@ let rec emit_exp ~env (e : expr) : C.exp =
            permissions = [];
            copy_only = None;
            escape_quotes = None;
-           only = None;
+           only = (if only then Some true else None);
            newline_style = None })
   | ECmakeFileRelativePath { var; base; file } ->
     C.File_relative_path

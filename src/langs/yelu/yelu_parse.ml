@@ -675,6 +675,9 @@ let p_file_command_y1_inner name args kwargs =
   match name, args with
   | "configure_file", [ input; output ] ->
     Some (yc_configure_file ~input output)
+  | "configure_file", [ input; output; EString "@ONLY" ]
+  | "configure_file", [ input; output; EVar "@ONLY" ] ->
+    Some (yc_configure_file ~only:true ~input output)
   | "file_read", [ file ] -> Some (yc_file_read out file)
   | "file_write", file :: content -> Some (yc_file_write file content)
   | "file_glob", patterns -> Some (yc_file_glob out patterns)
@@ -839,10 +842,51 @@ let p_target_command_y1_inner name args kwargs =
     let name = match name_arg with ETarget s | EVar s | EString s -> s | _ -> "?" in
     let alias_of = match alias_of with Some s -> s | None -> name in
     Some (add_lib_alias ~alias_of name)
-  | "add_custom_target", [ name_arg ] ->
-    let all = kw_bool "all" in
-    let name = match name_arg with EString s | EVar s -> s | _ -> "?" in
-    Some (yc_add_custom_target ~all name)
+  | "add_custom_target", name_arg :: rest ->
+    (* Check for keyword form: if rest contains COMMAND/SOURCES/DEPENDS,
+       parse via split_by_keywords. Otherwise use the simple form. *)
+    let has_kw = List.exists rest ~f:(function
+      | EVar "COMMAND" | EString "COMMAND"
+      | EVar "SOURCES" | EString "SOURCES"
+      | EVar "DEPENDS" | EString "DEPENDS" -> true
+      | _ -> false)
+    in
+    if has_kw then
+      let sections = split_by_keywords
+        ~keywords:["COMMAND"; "SOURCES"; "DEPENDS"; "COMMENT"]
+        (name_arg :: rest)
+      in
+      let name = match List.Assoc.find sections ~equal:String.equal "_head" with
+        | Some (n :: _) -> (match n with EString s | EVar s -> s | _ -> "?")
+        | _ -> "?"
+      in
+      let all = kw_bool "all" in
+      let commands = sections
+        |> List.filter_map ~f:(fun (k, items) ->
+          if String.equal k "COMMAND" then Some items else None)
+      in
+      let cc_list =
+        List.map commands ~f:(fun cmd_args ->
+          match cmd_args with
+          | [] -> { Lang_cmake.command = ""; args = [] }
+          | cmd :: arg_args ->
+            { Lang_cmake.command = (match cmd with EString s | EVar s -> s | _ -> "");
+              args = List.map arg_args ~f:(fun e ->
+                match e with EString s | EVar s -> s | _ -> "") })
+      in
+      let depends = match List.Assoc.find sections ~equal:String.equal "DEPENDS" with
+        | Some items -> items | None -> []
+      in
+      let comment = match List.Assoc.find sections ~equal:String.equal "COMMENT" with
+        | Some [ EString s | EVar s ] -> Some s
+        | _ -> None
+      in
+      Some (yc_add_custom_target ~all ~commands:cc_list
+              ~depends ~comment name)
+    else
+      let all = kw_bool "all" in
+      let name = match name_arg with EString s | EVar s -> s | _ -> "?" in
+      Some (yc_add_custom_target ~all name)
   | "add_custom_command", args ->
     let sections = split_by_keywords
       ~keywords:["OUTPUT"; "COMMAND"; "DEPENDS"; "COMMENT"; "VERBATIM";

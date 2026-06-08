@@ -597,8 +597,8 @@ let yc_get_global_property ~property var =
 
 open Yelu_cmake_file
 
-let yc_configure_file ~input output =
-  ECmakeConfigureFile { input; output }
+let yc_configure_file ?(only = false) ~input output =
+  ECmakeConfigureFile { input; output; only }
 let gen_file = yc_configure_file
 
 let yc_file_glob

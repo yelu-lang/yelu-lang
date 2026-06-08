@@ -8,7 +8,7 @@ type expr +=
   | EFileWrite of { path : expr; content : expr }
   | EFileRead of expr
   | EFileExists of expr
-  | EConfigureFile of { input : expr; output : expr }
+  | EConfigureFile of { input : expr; output : expr; only : bool }
 
 let eval_string ~eval env expr =
   let env, value = eval env expr in
@@ -27,7 +27,7 @@ let eval_case ~eval env = function
   | EFileExists path ->
     let env, path = eval_string ~eval env path in
     Some (env, VBool (file_exists env path))
-  | EConfigureFile { input; output } ->
+  | EConfigureFile { input; output; only = _ } ->
     let env, input = eval_string ~eval env input in
     let env, output = eval_string ~eval env output in
     (* Tiny semantics: copy input content to output if available; otherwise

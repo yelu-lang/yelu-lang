@@ -489,8 +489,7 @@ let add_module_library_fn =
       (ECmakeTargetCompileOptions
          { target = EVar "name"; visibility = Vis_public;
            before = false; options_ = [EString "-fmodules-ts"] });
-    yc_apply (ystr "get_target_property")
-      [ystr "std"; EVar "name"; ystr "CXX_STANDARD"];
+    yc_get_target_property "std" "name" "CXX_STANDARD";
     yifthen
       (Yelu_langs.Yelu_cmake_string.ECmakeMatches
          { expr_ = EVar "CMAKE_CXX_COMPILER_ID"; regex = "Clang" })
@@ -634,10 +633,9 @@ let install_block =
        ystr (Yelu_langs.Yelu_emit_main.escape "\\${prefix}");
        ystr "${FMT_INC_DIR}"];
 
-    yc_apply (ystr "configure_file") [
-      ystr "${PROJECT_SOURCE_DIR}/support/cmake/fmt.pc.in";
-      ystr "${pkgconfig}"; ystr "@ONLY";
-    ];
+    yc_configure_file ~only:true
+      ~input:(ystr "${PROJECT_SOURCE_DIR}/support/cmake/fmt.pc.in")
+      (ystr "${pkgconfig}");
     yc_apply (ystr "configure_package_config_file") [
       ystr "${PROJECT_SOURCE_DIR}/support/cmake/fmt-config.cmake.in";
       EVar "project_config";
