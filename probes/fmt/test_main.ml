@@ -338,12 +338,13 @@ let cuda_block =
     Yelu_langs.Yelu_cmake_if.ECmakeIfStmt {
       cond = Yelu_langs.Yelu_cmake_string.ECmakeVersionLess
                (EVar "CMAKE_VERSION", ystr "3.15");
-      then_ = yc_apply (ystr "find_package") [ystr "CUDA"; ystr "9.0"];
+      then_ = yc_find_package ~version:(Some "9.0") "CUDA";
       else_ = Some (ESeq [
         yc_include (ystr "CheckLanguage");
         yc_apply (ystr "check_language") [ystr "CUDA"];
         yifthen (EVar "CMAKE_CUDA_COMPILER") (ESeq [
-          yc_apply (ystr "enable_language") [ystr "CUDA"; ystr "OPTIONAL"];
+          yc_enable_language ~optional:true
+            [Yelu_langs.Lang_cmake.Lang_cuda];
           yc_set (ycvar "CUDA_FOUND") [ystr "TRUE"];
         ]);
       ]);
@@ -355,7 +356,7 @@ let cuda_block =
   ])
 
 let c_block = ESeq [
-  yc_apply (ystr "enable_language") [ystr "C"];
+  yc_enable_language [Yelu_langs.Lang_cmake.Lang_c];
   ECmakeAddExecutable { name = ystr "c-test"; sources = [ystr "c-test.c"] };
   ECmakeTargetLinkLibraries {
     target = ystr "c-test"; visibility = "PRIVATE";
