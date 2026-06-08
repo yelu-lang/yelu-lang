@@ -319,6 +319,7 @@ let yelu1_to_yelu2 =
              commands = [ { command = "cmake"; args = [ "-E"; "echo"; "HELLO" ] } ];
              depends = [ EString "input.txt" ];
              comment = Some "hello target";
+             sources = [];
            })
         ~expected_value:VUnit
         ~expected_env:
@@ -331,6 +332,7 @@ let yelu1_to_yelu2 =
                    commands = [ { command = "cmake"; args = [ "-E"; "echo"; "HELLO" ] } ];
                    depends = [ "input.txt" ];
                    comment = Some "hello target";
+                   sources = [];
                  };
                ]
              []);
@@ -826,6 +828,7 @@ let yelu2_to_yelu1 =
              commands = [ { command = "cmake"; args = [ "-E"; "echo"; "HELLO" ] } ];
              depends = [ EString "input.txt" ];
              comment = None;
+             sources = [];
            })
         ~expected_value:VUnit
         ~expected_env:
@@ -838,6 +841,7 @@ let yelu2_to_yelu1 =
                    commands = [ { command = "cmake"; args = [ "-E"; "echo"; "HELLO" ] } ];
                    depends = [ "input.txt" ];
                    comment = None;
+                   sources = [];
                  };
                ]
              []);

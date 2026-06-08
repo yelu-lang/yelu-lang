@@ -1053,6 +1053,7 @@ target_link_directories(app PRIVATE "/opt/lib")
                ];
              depends = [];
              comment = Some "tiny custom target";
+             sources = [];
            })
         ~target:"yelu_hello"
         ~pattern:"YELU_CUSTOM_TARGET_OK";
@@ -1083,6 +1084,7 @@ target_link_directories(app PRIVATE "/opt/lib")
               commands = [];
               depends = [ EString "yelu_generated.txt" ];
               comment = None;
+              sources = [];
             };
         ])
         ~target:"yelu_consume"

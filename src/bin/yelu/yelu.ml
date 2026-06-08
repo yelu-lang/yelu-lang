@@ -158,11 +158,48 @@ type manifest = {
   helpers : helper list;
 }
 
-let load_manifest path : manifest =
-  let json = Yojson.Safe.from_file path in
+(* Auto-discover .yc files in probe_dir. Mapping convention:
+   - CMakeLists.yc → CMakeLists.txt   (.yc → .txt)
+   - <Name>.yc     → <Name>.cmake     (.yc → .cmake)
+   All discovered helpers are whole_file: true. *)
+let discover_helpers probe_dir =
+  let yc_files = ref [] in
+  let rec walk dir =
+    if Stdlib.Sys.file_exists dir && Stdlib.Sys.is_directory dir then begin
+      let entries = Stdlib.Sys.readdir dir in
+      Array.iter entries ~f:(fun name ->
+        if String.equal name "." || String.equal name ".." then ()
+        else
+          let path = Stdlib.Filename.concat dir name in
+          match Unix.lstat path with
+          | exception _ -> ()
+          | stat ->
+            if Poly.(stat.Unix.st_kind = Unix.S_DIR) then walk path
+            else if String.is_suffix name ~suffix:".yc"
+                 && Poly.(stat.Unix.st_kind = Unix.S_REG) then
+              let rel_from_probe =
+                String.chop_prefix_exn path ~prefix:(probe_dir ^ "/") in
+              let target_file =
+                if String.equal (Stdlib.Filename.basename rel_from_probe) "CMakeLists.yc"
+                then Stdlib.Filename.(concat (dirname rel_from_probe) "CMakeLists.txt")
+                else String.chop_suffix_exn rel_from_probe ~suffix:".yc" ^ ".cmake"
+              in
+              yc_files := { source = path; target_file; whole_file = true;
+                            anchor_start = ""; anchor_end = "";
+                            anchor_end_occurrence = 1 }
+                          :: !yc_files)
+    end
+  in
+  walk probe_dir;
+  List.rev !yc_files
+
+let load_manifest manifest_path : manifest =
+  let json = Yojson.Safe.from_file manifest_path in
   let open Yojson.Safe.Util in
-  let helpers =
-    json |> member "helpers" |> to_list |> List.map ~f:(fun h ->
+  let explicit_helpers =
+    match json |> member "helpers" with
+    | `Null -> []
+    | j -> j |> to_list |> List.map ~f:(fun h ->
       let whole_file =
         h |> member "whole_file" |> to_bool_option
         |> Option.value ~default:false
@@ -180,6 +217,17 @@ let load_manifest path : manifest =
         anchor_end_occurrence =
           h |> member "anchor_end_occurrence" |> to_int_option
           |> Option.value ~default:1 })
+  in
+  let probe_dir =
+    match Yojson.Safe.Util.(json |> member "probe_dir" |> to_string_option) with
+    | Some d -> d
+    | None -> Stdlib.Filename.dirname manifest_path
+  in
+  let discovered = discover_helpers probe_dir in
+  let helpers = explicit_helpers @ discovered in
+  let helpers = match helpers with
+    | [] -> failwith "manifest: no helpers (explicit or auto-discovered .yc)"
+    | hs -> hs
   in
   { project    = json |> member "project"    |> to_string;
     source_dir = json |> member "source_dir" |> to_string;
