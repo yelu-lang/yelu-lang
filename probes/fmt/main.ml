@@ -468,8 +468,8 @@ let add_module_library_fn =
           ];
           yc_set_target_properties (EVar "name")
             [("ADDITIONAL_CLEAN_FILES", EVar "BMI")];
-          yc_apply (ystr "set_source_files_properties")
-            [EVar "BMI"; ystr "PROPERTIES"; ystr "GENERATED"; ystr "ON"];
+          yc_set_source_files_properties [EVar "BMI"]
+            [("GENERATED", EString "ON")];
         ]));
     yifthen (EVar "AML_USE_CMAKE_MODULES") (ESeq [
       yc_apply (ystr "target_sources") [
@@ -613,11 +613,10 @@ let install_block =
       ystr "absolute path.";
     ];
 
-    yc_apply (ystr "write_basic_package_version_file") [
-      EVar "version_config";
-      ystr "VERSION"; EVar "FMT_VERSION";
-      ystr "COMPATIBILITY"; ystr "AnyNewerVersion";
-    ];
+    yc_write_basic_package_version_file
+      ~compatibility:Yelu_langs.Lang_cmake.Any_newer_version
+      ~version:(EVar "FMT_VERSION")
+      (EVar "version_config");
 
     yc_apply (ystr "join_paths")
       [ystr "libdir_for_pc_file";
