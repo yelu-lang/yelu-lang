@@ -31,7 +31,7 @@ type error =
   | Apply_shadows_primitive of {
       name : string;
     }
-  | Raw_cmake_escape
+  | Raw_cmake_escape of { text : string }
 [@@deriving sexp_of]
 
 (* ── Recursion helper ──────────────────────────── *)
@@ -107,7 +107,7 @@ let check_apply_shadowing e =
 let check_raw_tainted e =
   let rec walk acc e =
     let acc = match e with
-      | ECmakeRaw _ -> Raw_cmake_escape :: acc
+      | ECmakeRaw text -> Raw_cmake_escape { text } :: acc
       | _ -> acc
     in
     walk_children walk acc e
