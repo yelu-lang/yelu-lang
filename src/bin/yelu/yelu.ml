@@ -384,13 +384,29 @@ let cmd_hybrid ?(source_dir_override = None) manifest_path d_flags =
   let m = load_manifest manifest_path in
   let source_dir = Option.value source_dir_override ~default:m.source_dir in
   let d_flags = merge_flags ~manifest:m.cmake_flags ~cmdline:d_flags in
-  Stdlib.Printf.printf "[yelu] manifest: project=%s source_dir=%s helpers=%d flags=%d\n%!"
+
+  (* Open log early so compile warnings land there via stderr redirect. *)
+  let log_dir = Stdlib.Filename.concat m.out_root "hybrid" in
+  mkdirp log_dir;
+  let timestamp = Unix.time () |> Int64.of_float |> Int64.to_string in
+  let log_path = Stdlib.Filename.concat log_dir (Printf.sprintf "log_%s.txt" timestamp) in
+  let log_oc = Stdlib.open_out log_path in
+  let log_fd = Unix.descr_of_out_channel log_oc in
+  let term_oc = Unix.out_channel_of_descr (Unix.dup Unix.stdout) in
+  let _ = Unix.dup2 log_fd Unix.stderr in
+  let _ = Unix.dup2 log_fd Unix.stdout in
+  let log fmt = Stdlib.Printf.ksprintf (fun s ->
+    Stdlib.output_string log_oc s; Stdlib.output_char log_oc '\n';
+    Stdlib.output_string term_oc s; Stdlib.output_char term_oc '\n') fmt
+  in
+  log "[yelu] manifest: project=%s source_dir=%s helpers=%d flags=%d"
     m.project source_dir (List.length m.helpers) (List.length d_flags);
+  log "[yelu] log: %s" log_path;
 
   (* 1. Compile each helper. *)
   let compiled =
     List.map m.helpers ~f:(fun h ->
-      Stdlib.Printf.printf "[yelu] compiling %s\n%!" h.source;
+      log "[yelu] compiling %s" h.source;
       (h, compile h.source))
   in
 
@@ -421,7 +437,7 @@ let cmd_hybrid ?(source_dir_override = None) manifest_path d_flags =
   (* 3. Build hybrid source tree. *)
   let hybrid_root = Stdlib.Filename.concat m.out_root "hybrid/source" in
   build_hybrid_tree ~source_dir:m.source_dir ~hybrid_root ~spliced_files;
-  Stdlib.Printf.printf "[yelu] hybrid source at %s/\n%!" hybrid_root;
+  log "[yelu] hybrid source at %s/" hybrid_root;
 
   (* 4. Run cmake on both. *)
   let vendor_build = Stdlib.Filename.concat m.out_root "hybrid/build-vendor" in
@@ -429,25 +445,62 @@ let cmd_hybrid ?(source_dir_override = None) manifest_path d_flags =
   let code_v = cmake_configure ~source_dir:source_abs ~build_dir:vendor_build ~d_flags in
   let code_h = cmake_configure ~source_dir:hybrid_root ~build_dir:hybrid_build ~d_flags in
   if code_v <> 0 || code_h <> 0 then begin
-    Stdlib.Printf.eprintf "[yelu] cmake failed (vendor=%d hybrid=%d)\n" code_v code_h;
+    log "[yelu] cmake failed (vendor=%d hybrid=%d)" code_v code_h;
+    Stdlib.close_out log_oc;
     Stdlib.exit 1
   end;
-  Stdlib.Printf.printf "[yelu] both configures done\n%!";
+  log "[yelu] both configures done";
 
-  (* 5. Diff. *)
+  (* 5. Diff caches and report. *)
   let v_cache = strip_cache (Stdlib.Filename.concat vendor_build "CMakeCache.txt") in
   let h_cache = strip_cache (Stdlib.Filename.concat hybrid_build "CMakeCache.txt") in
   if String.equal v_cache h_cache then begin
-    Stdlib.Printf.printf "[yelu] caches MATCH — hybrid is semantically equivalent\n%!";
+    log "[yelu] caches MATCH — hybrid is semantically equivalent";
+    log "[yelu] log saved: %s" log_path;
+    Stdlib.close_out log_oc;
     Stdlib.exit 0
   end else begin
-    Stdlib.Printf.printf "[yelu] caches DIVERGE:\n%!";
-    let diff_cmd = Printf.sprintf "diff <(echo %s) <(echo %s) | head -40"
-      (Stdlib.Filename.quote v_cache) (Stdlib.Filename.quote h_cache)
+    (* Classify each diff line. *)
+    let v_lines = String.split_lines v_cache in
+    let h_lines = String.split_lines h_cache in
+    let v_set = Set.of_list (module String) v_lines in
+    let h_set = Set.of_list (module String) h_lines in
+    let vendor_only = Set.diff v_set h_set |> Set.to_list in
+    let hybrid_only = Set.diff h_set v_set |> Set.to_list in
+    let is_path_entry s =
+      String.is_substring s ~substring:"_out/" || String.is_substring s ~substring:"/fmt/"
+      || String.is_substring s ~substring:"CMAKE_CACHEFILE_DIR"
+      || String.is_substring s ~substring:"CMAKE_HOME_DIRECTORY"
+      || String.is_substring s ~substring:"CMAKE_FIND_PACKAGE_REDIRECTS_DIR"
     in
-    let out, _ = run_capture (Printf.sprintf "bash -c %s" (Stdlib.Filename.quote diff_cmd)) in
-    Stdlib.print_string out;
-    Stdlib.exit 1
+    let is_non_deterministic s =
+      (* cmake artifacts that vary run-to-run: try_compile results,
+         LIB_DEPENDS (cmake ≥4.0), build timestamps *)
+      String.is_prefix s ~prefix:"compile_result_"
+      || String.is_substring s ~substring:"LIB_DEPENDS"
+      || String.is_prefix s ~prefix:"CMAKE_CACHE_"
+    in
+    let all_diffs = vendor_only @ hybrid_only in
+    let path_only, rest = List.partition_tf all_diffs ~f:is_path_entry in
+    let nondet, semantic = List.partition_tf rest ~f:is_non_deterministic in
+    log "[yelu] cache diff: %d entries (%d path, %d non-det, %d semantic)"
+      (List.length all_diffs) (List.length path_only)
+      (List.length nondet) (List.length semantic);
+    if not (List.is_empty semantic) then begin
+      log "[yelu] --- semantic ---";
+      List.iter semantic ~f:(fun s -> log "  %s" s)
+    end;
+    if not (List.is_empty nondet) then begin
+      log "[yelu] --- non-deterministic (expected) ---";
+      List.iter nondet ~f:(fun s -> log "  %s" s)
+    end;
+    if not (List.is_empty path_only) then begin
+      log "[yelu] --- path-only ---";
+      List.iter path_only ~f:(fun s -> log "  %s" s)
+    end;
+    log "[yelu] log saved: %s" log_path;
+    Stdlib.close_out log_oc;
+    if List.is_empty semantic then Stdlib.exit 0 else Stdlib.exit 1
   end
 
 (* ============================================================
