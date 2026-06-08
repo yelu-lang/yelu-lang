@@ -1669,7 +1669,10 @@ and p_generic_command_y1 toks =
   match toks with
   | IDENT name :: rest ->
     let args, _kwargs, rest = collect_command_args [] [] rest in
-    Some (ECmakeApply { name = EString name; args }, rest)
+    if Yc_primitives.is_known_command name then
+      Some (ECmakeRaw (args_to_cmake_text name args), rest)
+    else
+      Some (ECmakeApply { name = EString name; args }, rest)
   | _ -> None
 
 (* Bare flow keywords: break / continue / return. *)
