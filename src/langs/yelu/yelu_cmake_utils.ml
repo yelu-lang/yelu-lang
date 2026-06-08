@@ -342,6 +342,12 @@ let visibility_of_kind = function
   | Lang_cmake.Interface -> "INTERFACE"
   | Lang_cmake.Plain -> "PRIVATE"
 
+let vis_of_kind k : visibility = match k with
+  | Lang_cmake.Public -> Vis_public
+  | Lang_cmake.Private -> Vis_private
+  | Lang_cmake.Interface -> Vis_interface
+  | Lang_cmake.Plain -> Vis_private
+
 let library_type_name = function
   | Lang_cmake.Lib_static -> "STATIC"
   | Lang_cmake.Lib_shared -> "SHARED"
@@ -399,7 +405,7 @@ let link_lib targets items =
     items
     |> List.map ~f:(fun ({ kind; items } : items_with_kind) ->
       ECmakeTargetLinkLibraries
-        { target; visibility = visibility_of_kind kind; items })
+        { target; visibility = vis_of_kind kind; items })
     |> (fun xs -> ESeq xs)
   | _ ->
     failwith "link_lib: multi-target not yet plumbed in IR utils"
@@ -408,7 +414,7 @@ let include_dirs ?(before = false) ?(system = false) target items =
   items
   |> List.map ~f:(fun ({ kind; items } : items_with_kind) ->
     ECmakeTargetIncludeDirectories
-      { target; visibility = visibility_of_kind kind;
+      { target; visibility = vis_of_kind kind;
         before; system; dirs = items })
   |> (fun xs -> ESeq xs)
 
@@ -416,21 +422,21 @@ let compile_defs target items =
   items
   |> List.map ~f:(fun ({ kind; items } : items_with_kind) ->
     ECmakeTargetCompileDefinitions
-      { target; visibility = visibility_of_kind kind; definitions = items })
+      { target; visibility = vis_of_kind kind; definitions = items })
   |> (fun xs -> ESeq xs)
 
 let compile_opts ?(before = false) target items =
   items
   |> List.map ~f:(fun ({ kind; items } : items_with_kind) ->
     ECmakeTargetCompileOptions
-      { target; visibility = visibility_of_kind kind; before; options_ = items })
+      { target; visibility = vis_of_kind kind; before; options_ = items })
   |> (fun xs -> ESeq xs)
 
 let compile_feats target features =
   features
   |> List.map ~f:(fun ({ kind; feature } : target_feature) ->
     ECmakeTargetCompileFeatures
-      { target; visibility = visibility_of_kind kind;
+      { target; visibility = vis_of_kind kind;
         features = [ EString feature ] })
   |> (fun xs -> ESeq xs)
 
@@ -438,21 +444,21 @@ let yc_target_link_options ?(before = false) target items =
   items
   |> List.map ~f:(fun ({ kind; items } : items_with_kind) ->
     ECmakeTargetLinkOptions
-      { target; visibility = visibility_of_kind kind; before; options_ = items })
+      { target; visibility = vis_of_kind kind; before; options_ = items })
   |> (fun xs -> ESeq xs)
 
 let yc_target_link_directories ?(before = false) target items =
   items
   |> List.map ~f:(fun ({ kind; items } : items_with_kind) ->
     ECmakeTargetLinkDirectories
-      { target; visibility = visibility_of_kind kind; before; dirs = items })
+      { target; visibility = vis_of_kind kind; before; dirs = items })
   |> (fun xs -> ESeq xs)
 
 let yc_target_sources target items =
   items
   |> List.map ~f:(fun ({ kind; items } : items_with_kind) ->
     ECmakeTargetSources
-      { target; visibility = visibility_of_kind kind; sources = items })
+      { target; visibility = vis_of_kind kind; sources = items })
   |> (fun xs -> ESeq xs)
 
 let yc_add_dependencies target deps =
@@ -1146,5 +1152,5 @@ let yc_target_precompile_headers target items =
   items
   |> List.map ~f:(fun ({ kind; items } : items_with_kind) ->
     ECmakeTargetPrecompileHeaders
-      { target; visibility = visibility_of_kind kind; headers = items })
+      { target; visibility = vis_of_kind kind; headers = items })
   |> (fun xs -> ESeq xs)

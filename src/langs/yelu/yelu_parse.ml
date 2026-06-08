@@ -661,16 +661,14 @@ let p_file_command_y1 toks =
 (* Detect a visibility-keyword expr; matches both bare-IDENT forms
    (EVar "PUBLIC") and string-quoted forms (EString "PUBLIC"). *)
 let visibility_of_expr_y1 = function
-  | EVar "PUBLIC" | EString "PUBLIC" -> Some "PUBLIC"
-  | EVar "PRIVATE" | EString "PRIVATE" -> Some "PRIVATE"
-  | EVar "INTERFACE" | EString "INTERFACE" -> Some "INTERFACE"
+  | EVar "PUBLIC" | EString "PUBLIC" -> Some Vis_public
+  | EVar "PRIVATE" | EString "PRIVATE" -> Some Vis_private
+  | EVar "INTERFACE" | EString "INTERFACE" -> Some Vis_interface
   | _ -> None
 
 (* Group a flat positional-arg list into [(visibility, items)] runs.
-   Default visibility is "PRIVATE" (matches the bridge's
-   [visibility_of_kind] mapping for `Plain` — see
-   yelu_cmake_to_yelu1.ml's `visibility_of_kind` helper). *)
-let group_by_visibility_y1 items : (string * expr list) list =
+   Default visibility is PRIVATE. *)
+let group_by_visibility_y1 items : (visibility * expr list) list =
   let rec loop current_kind current_items groups = function
     | [] ->
       List.rev ((current_kind, List.rev current_items) :: groups)
@@ -686,13 +684,13 @@ let group_by_visibility_y1 items : (string * expr list) list =
       | None ->
         loop current_kind (item :: current_items) groups rest
   in
-  loop "PRIVATE" [] [] items
+  loop Vis_private [] [] items
 
 (* Wrap multi-group target commands in ESeq when there's more than
    one visibility group; single-group case returns the single ctor.
    Empty-group input still produces a single PLAIN group with empty
    items (matches the bridge's invariant). *)
-let target_groups_to_y1 (ctor : visibility:string -> expr list -> expr) items =
+let target_groups_to_y1 (ctor : visibility:visibility -> expr list -> expr) items =
   let groups = group_by_visibility_y1 items in
   match List.map groups ~f:(fun (vis, its) -> ctor ~visibility:vis its) with
   | [ s ] -> s

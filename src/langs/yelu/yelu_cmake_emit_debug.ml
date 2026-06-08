@@ -487,6 +487,7 @@ let rec emit_expr_impl ~env e =
     let g = if global then " GLOBAL" else "" in
     [ Fmt.str "add_library(%s %s IMPORTED%s)" (target_arg name) lt g ]
   | ECmakeTargetSources { target; visibility; sources } ->
+    let visibility = string_of_visibility visibility in
     [ Fmt.str "target_sources(%s %s %s)" (target_arg target) visibility (String.concat ~sep:" " (List.map sources ~f:arg)) ]
   | ECmakeTargetSourcesFs { target; items } ->
     let render_item = function
@@ -505,32 +506,40 @@ let rec emit_expr_impl ~env e =
     [ Fmt.str "target_sources(%s %s)" (target_arg target)
         (String.concat ~sep:" " (List.map items ~f:render_item)) ]
   | ECmakeTargetPrecompileHeaders { target; visibility; headers } ->
+    let visibility = string_of_visibility visibility in
     [ Fmt.str "target_precompile_headers(%s %s %s)"
         (target_arg target) visibility
         (String.concat ~sep:" " (List.map headers ~f:arg)) ]
   | ECmakeTargetLinkLibraries { target; visibility; items } ->
+    let visibility = string_of_visibility visibility in
     [ Fmt.str "target_link_libraries(%s %s %s)" (target_arg target) visibility (String.concat ~sep:" " (List.map items ~f:arg)) ]
   | ECmakeTargetIncludeDirectories { target; visibility; before; system; dirs } ->
+    let visibility = string_of_visibility visibility in
     let b = if before then "BEFORE " else "" in
     let s = if system then "SYSTEM " else "" in
     [ Fmt.str "target_include_directories(%s %s%s%s %s)"
         (target_arg target) b s visibility
         (String.concat ~sep:" " (List.map dirs ~f:arg)) ]
   | ECmakeTargetCompileDefinitions { target; visibility; definitions } ->
+    let visibility = string_of_visibility visibility in
     [ Fmt.str "target_compile_definitions(%s %s %s)" (target_arg target) visibility (String.concat ~sep:" " (List.map definitions ~f:arg)) ]
   | ECmakeTargetCompileOptions { target; visibility; before; options_ } ->
+    let visibility = string_of_visibility visibility in
     let b = if before then "BEFORE " else "" in
     [ Fmt.str "target_compile_options(%s %s%s %s)"
         (target_arg target) b visibility
         (String.concat ~sep:" " (List.map options_ ~f:arg)) ]
   | ECmakeTargetCompileFeatures { target; visibility; features } ->
+    let visibility = string_of_visibility visibility in
     [ Fmt.str "target_compile_features(%s %s %s)" (target_arg target) visibility (String.concat ~sep:" " (List.map features ~f:target_arg)) ]
   | ECmakeTargetLinkOptions { target; visibility; before; options_ } ->
+    let visibility = string_of_visibility visibility in
     let b = if before then "BEFORE " else "" in
     [ Fmt.str "target_link_options(%s %s%s %s)"
         (target_arg target) b visibility
         (String.concat ~sep:" " (List.map options_ ~f:arg)) ]
   | ECmakeTargetLinkDirectories { target; visibility; before; dirs } ->
+    let visibility = string_of_visibility visibility in
     let b = if before then "BEFORE " else "" in
     [ Fmt.str "target_link_directories(%s %s%s %s)"
         (target_arg target) b visibility

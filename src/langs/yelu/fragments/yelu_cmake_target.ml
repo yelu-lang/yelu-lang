@@ -37,21 +37,21 @@ let provides =
 type expr +=
   | ECmakeAddExecutable of { name : expr; sources : expr list }
   | ECmakeAddLibrary of { name : expr; type_ : string option; sources : expr list }
-  | ECmakeTargetSources of { target : expr; visibility : string; sources : expr list }
-  | ECmakeTargetLinkLibraries of { target : expr; visibility : string; items : expr list }
+  | ECmakeTargetSources of { target : expr; visibility : visibility; sources : expr list }
+  | ECmakeTargetLinkLibraries of { target : expr; visibility : visibility; items : expr list }
   | ECmakeTargetIncludeDirectories of
-      { target : expr; visibility : string;
+      { target : expr; visibility : visibility;
         before : bool; system : bool; dirs : expr list }
   | ECmakeTargetCompileDefinitions of
-      { target : expr; visibility : string; definitions : expr list }
+      { target : expr; visibility : visibility; definitions : expr list }
   | ECmakeTargetCompileOptions of
-      { target : expr; visibility : string; before : bool; options_ : expr list }
+      { target : expr; visibility : visibility; before : bool; options_ : expr list }
   | ECmakeTargetCompileFeatures of
-      { target : expr; visibility : string; features : expr list }
+      { target : expr; visibility : visibility; features : expr list }
   | ECmakeTargetLinkOptions of
-      { target : expr; visibility : string; before : bool; options_ : expr list }
+      { target : expr; visibility : visibility; before : bool; options_ : expr list }
   | ECmakeTargetLinkDirectories of
-      { target : expr; visibility : string; before : bool; dirs : expr list }
+      { target : expr; visibility : visibility; before : bool; dirs : expr list }
   | ECmakeAddCustomTarget of {
       name : expr;
       all : bool;
@@ -92,7 +92,7 @@ type expr +=
      shape as ECmakeTargetSources. *)
   | ECmakeTargetPrecompileHeaders of {
       target : expr;
-      visibility : string;
+      visibility : visibility;
       headers : expr list;
     }
 
@@ -119,35 +119,35 @@ let eval_case ~eval env = function
   | ECmakeTargetSources { target; visibility; sources } ->
     let env, target = eval_string ~eval env target in
     let env, sources = eval_string_list ~eval env sources in
-    Some (add_target_sources env target ~visibility sources, VUnit)
+    Some (add_target_sources env target ~visibility:(string_of_visibility visibility) sources, VUnit)
   | ECmakeTargetLinkLibraries { target; visibility; items } ->
     let env, target = eval_string ~eval env target in
     let env, items = eval_string_list ~eval env items in
-    Some (add_target_links env target ~visibility items, VUnit)
+    Some (add_target_links env target ~visibility:(string_of_visibility visibility) items, VUnit)
   | ECmakeTargetIncludeDirectories { target; visibility; dirs; _ } ->
     let env, target = eval_string ~eval env target in
     let env, dirs = eval_string_list ~eval env dirs in
-    Some (add_target_include_dirs env target ~visibility dirs, VUnit)
+    Some (add_target_include_dirs env target ~visibility:(string_of_visibility visibility) dirs, VUnit)
   | ECmakeTargetCompileDefinitions { target; visibility; definitions } ->
     let env, target = eval_string ~eval env target in
     let env, definitions = eval_string_list ~eval env definitions in
-    Some (add_target_compile_definitions env target ~visibility definitions, VUnit)
+    Some (add_target_compile_definitions env target ~visibility:(string_of_visibility visibility) definitions, VUnit)
   | ECmakeTargetCompileOptions { target; visibility; options_; _ } ->
     let env, target = eval_string ~eval env target in
     let env, options_ = eval_string_list ~eval env options_ in
-    Some (add_target_compile_options env target ~visibility options_, VUnit)
+    Some (add_target_compile_options env target ~visibility:(string_of_visibility visibility) options_, VUnit)
   | ECmakeTargetCompileFeatures { target; visibility; features } ->
     let env, target = eval_string ~eval env target in
     let env, features = eval_string_list ~eval env features in
-    Some (add_target_compile_features env target ~visibility features, VUnit)
+    Some (add_target_compile_features env target ~visibility:(string_of_visibility visibility) features, VUnit)
   | ECmakeTargetLinkOptions { target; visibility; options_; _ } ->
     let env, target = eval_string ~eval env target in
     let env, options_ = eval_string_list ~eval env options_ in
-    Some (add_target_link_options env target ~visibility options_, VUnit)
+    Some (add_target_link_options env target ~visibility:(string_of_visibility visibility) options_, VUnit)
   | ECmakeTargetLinkDirectories { target; visibility; dirs; _ } ->
     let env, target = eval_string ~eval env target in
     let env, dirs = eval_string_list ~eval env dirs in
-    Some (add_target_link_directories env target ~visibility dirs, VUnit)
+    Some (add_target_link_directories env target ~visibility:(string_of_visibility visibility) dirs, VUnit)
   | ECmakeAddCustomTarget { name; all; commands; depends; comment } ->
     let env, name = eval_string ~eval env name in
     let env, depends = eval_string_list ~eval env depends in
@@ -195,5 +195,5 @@ let eval_case ~eval env = function
   | ECmakeTargetPrecompileHeaders { target; visibility; headers } ->
     let env, target = eval_string ~eval env target in
     let env, _headers = eval_string_list ~eval env headers in
-    Some (add_target_sources env target ~visibility [], VUnit)
+    Some (add_target_sources env target ~visibility:(string_of_visibility visibility) [], VUnit)
   | _ -> None

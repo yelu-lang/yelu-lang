@@ -1,5 +1,23 @@
 open Base
 
+(* Visibility keyword for target commands. *)
+type visibility =
+  | Vis_public
+  | Vis_private
+  | Vis_interface
+[@@deriving equal, sexp_of]
+
+let string_of_visibility = function
+  | Vis_public -> "PUBLIC"
+  | Vis_private -> "PRIVATE"
+  | Vis_interface -> "INTERFACE"
+
+let visibility_of_string = function
+  | "PUBLIC" -> Vis_public
+  | "PRIVATE" -> Vis_private
+  | "INTERFACE" -> Vis_interface
+  | _ -> Vis_private
+
 type expr = ..
 
 type target_source = {

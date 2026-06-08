@@ -208,11 +208,12 @@ let version_of_string s : C.version =
    [items_with_kind list] shape. cmake's PUBLIC/PRIVATE/INTERFACE keyword
    separates groups; the bridge always collapses to a single group. *)
 let items_with_kind ~env ~visibility (items : expr list) : C.items_with_kind list =
-  [ { kind = visibility; items = List.map items ~f:(arg ~env) } ]
+  [ { kind = string_of_visibility visibility;
+      items = List.map items ~f:(arg ~env) } ]
 
-let target_feature_of_expr ~env ?(kind = "PRIVATE") (feature : expr)
+let target_feature_of_expr ~env ?(kind = Vis_private) (feature : expr)
   : C.target_feature =
-  { kind; feature = target_arg ~env feature }
+  { kind = string_of_visibility kind; feature = target_arg ~env feature }
 
 (* Inverse of bridge's [Lang_cmake_strings.of_cmake_path_get_field]. Tiny stores
    the field as a keyword string ("ROOT_NAME", "EXTENSION LAST_ONLY", …);
