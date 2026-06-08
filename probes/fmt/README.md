@@ -7,16 +7,20 @@
 > function definitions). Good first probe — broad coverage in <600
 > lines of cmake.
 
-## Headline numbers (2026-06-03)
+## Headline numbers (2026-06-08)
 
 | oracle | result | notes |
 |---|---|---|
-| parse-print | **11/11 OK** | all fmt cmake files round-trip byte-equivalently after the smart docstring printer (commit `4bdf646` + `5ec0030`) |
-| cache matrix | **24/24 cells perfect** | median matched per cell = 20; real-only = 0, mismatched = 0, pred-only = 0 |
+| parse-print | **11/11 OK** | all fmt cmake files round-trip byte-equivalently |
+| cache matrix | **24/24 cells perfect** | cache diff shows path-only differences; zero semantic mismatches |
+| .yc compilation | **11/11 OK** | all `.yc` concrete-syntax files compile and produce valid cmake |
+| yc_apply in main.ml | **35** (down from ~100) | remaining are ergonomic or genuinely unmodeled |
 
 The fmt probe is **complete within the current architecture** —
 every cache entry real cmake writes is predicted with the right
-value across all 24 (option × ON/OFF) configurations.
+value across all 24 (option × ON/OFF) configurations. All 11 files
+have both `.ml` (OCaml DSL, reference) and `.yc` (concrete syntax,
+matrix-tested) versions.
 
 ## Oracles in detail
 
@@ -246,28 +250,29 @@ mismatches on a system where the underlying tools/libs differ —
 which is the next adaptation problem (per-host vs per-project
 stubs), not a fmt-specific one.
 
-## Shape C lockup (Phase 7, 2026-06-04)
+## Shape C lockup (Phase 7, 2026-06-04) + .yc conversion (Phase 8, 2026-06-08)
 
-All vendor/fmt cmake sources are migrated to `whole_file` `.ml`
-emits — 11 source files, ~870 cmake lines total, replaced by
-~1.7k lines of OCaml in `probes/fmt/*.ml`:
+All vendor/fmt cmake sources are migrated to `whole_file` emits —
+11 source files, ~870 cmake lines total. Every file has a `.yc`
+concrete-syntax version that compiles and passes the matrix oracle.
+The `.ml` OCaml DSL versions are retained as reference.
 
-| Target file | Migrator |
-|---|---|
-| `CMakeLists.txt` | [`main.ml`](main.ml) — 593 → 690 lines |
-| `support/cmake/JoinPaths.cmake` | [`join_paths.yc`](join_paths.yc) |
-| `support/cmake/FindSetEnv.cmake` | [`find_setenv.ml`](find_setenv.ml) |
-| `test/CMakeLists.txt` | [`test_main.ml`](test_main.ml) |
-| `test/compile-error-test/CMakeLists.txt` | [`compile_error_test.ml`](compile_error_test.ml) |
-| `test/cuda-test/CMakeLists.txt` | [`cuda_test.ml`](cuda_test.ml) |
-| `test/add-subdirectory-test/CMakeLists.txt` | [`add_subdirectory_test.ml`](add_subdirectory_test.ml) |
-| `test/find-package-test/CMakeLists.txt` | [`find_package_test.ml`](find_package_test.ml) |
-| `test/gtest/CMakeLists.txt` | [`gtest.ml`](gtest.ml) |
-| `test/static-export-test/CMakeLists.txt` | [`static_export_test.ml`](static_export_test.ml) |
-| `test/fuzzing/CMakeLists.txt` | [`fuzzing.ml`](fuzzing.ml) |
+| Target file | `.ml` | `.yc` |
+|---|---|---|
+| `CMakeLists.txt` | [`main.ml`](main.ml) | [`main.yc`](main.yc) |
+| `test/compile-error-test/CMakeLists.txt` | [`compile_error_test.ml`](compile_error_test.ml) | [`compile_error_test.yc`](compile_error_test.yc) |
+| `test/CMakeLists.txt` | [`test_main.ml`](test_main.ml) | [`test_main.yc`](test_main.yc) |
+| `test/cuda-test/CMakeLists.txt` | [`cuda_test.ml`](cuda_test.ml) | [`cuda_test.yc`](cuda_test.yc) |
+| `test/fuzzing/CMakeLists.txt` | [`fuzzing.ml`](fuzzing.ml) | [`fuzzing.yc`](fuzzing.yc) |
+| `test/static-export-test/CMakeLists.txt` | [`static_export_test.ml`](static_export_test.ml) | [`static_export_test.yc`](static_export_test.yc) |
+| `support/cmake/JoinPaths.cmake` | — | [`join_paths.yc`](join_paths.yc) |
+| `test/gtest/CMakeLists.txt` | [`gtest.ml`](gtest.ml) | [`gtest.yc`](gtest.yc) |
+| `test/find-package-test/CMakeLists.txt` | [`find_package_test.ml`](find_package_test.ml) | [`find_package_test.yc`](find_package_test.yc) |
+| `test/add-subdirectory-test/CMakeLists.txt` | [`add_subdirectory_test.ml`](add_subdirectory_test.ml) | [`add_subdirectory_test.yc`](add_subdirectory_test.yc) |
+| `support/cmake/FindSetEnv.cmake` | [`find_setenv.ml`](find_setenv.ml) | [`find_setenv.yc`](find_setenv.yc) |
 
-24/24 matrix cells still match after each phase. End-to-end:
-`vendor/fmt → hybrid tree of .ml-generated cmake → identical
+24/24 matrix cells still match. The manifest now runs 100% from `.yc` files.
+End-to-end: `vendor/fmt → hybrid tree of .yc-generated cmake → identical
 CMakeCache.txt`.
 
 ### Two escape hatches

@@ -26,19 +26,22 @@ vendor/fmt/  →  probes/fmt/main.ml + 10 sibling .ml/.yc
 
 ## Inventory (vendor/fmt, 1354 lines, 11 cmake files)
 
-| file | lines | migrator |
-|---|---:|---|
-| `CMakeLists.txt` | 593 | [`main.ml`](main.ml) |
-| `test/compile-error-test/CMakeLists.txt` | 276 | [`compile_error_test.ml`](compile_error_test.ml) |
-| `test/CMakeLists.txt` | 247 | [`test_main.ml`](test_main.ml) |
-| `test/cuda-test/CMakeLists.txt` | 77 | [`cuda_test.ml`](cuda_test.ml) |
-| `test/fuzzing/CMakeLists.txt` | 32 | [`fuzzing.ml`](fuzzing.ml) |
-| `test/static-export-test/CMakeLists.txt` | 30 | [`static_export_test.ml`](static_export_test.ml) |
-| `support/cmake/JoinPaths.cmake` | 28 | [`join_paths.yc`](join_paths.yc) |
-| `test/gtest/CMakeLists.txt` | 26 | [`gtest.ml`](gtest.ml) |
-| `test/find-package-test/CMakeLists.txt` | 17 | [`find_package_test.ml`](find_package_test.ml) |
-| `test/add-subdirectory-test/CMakeLists.txt` | 17 | [`add_subdirectory_test.ml`](add_subdirectory_test.ml) |
-| `support/cmake/FindSetEnv.cmake` | 11 | [`find_setenv.ml`](find_setenv.ml) |
+| file | lines | migrator (.ml) | migrator (.yc) |
+|---|---:|---|---|
+| `CMakeLists.txt` | 593 | [`main.ml`](main.ml) | [`main.yc`](main.yc) |
+| `test/compile-error-test/CMakeLists.txt` | 276 | [`compile_error_test.ml`](compile_error_test.ml) | [`compile_error_test.yc`](compile_error_test.yc) |
+| `test/CMakeLists.txt` | 247 | [`test_main.ml`](test_main.ml) | [`test_main.yc`](test_main.yc) |
+| `test/cuda-test/CMakeLists.txt` | 77 | [`cuda_test.ml`](cuda_test.ml) | [`cuda_test.yc`](cuda_test.yc) |
+| `test/fuzzing/CMakeLists.txt` | 32 | [`fuzzing.ml`](fuzzing.ml) | [`fuzzing.yc`](fuzzing.yc) |
+| `test/static-export-test/CMakeLists.txt` | 30 | [`static_export_test.ml`](static_export_test.ml) | [`static_export_test.yc`](static_export_test.yc) |
+| `support/cmake/JoinPaths.cmake` | 28 | — | [`join_paths.yc`](join_paths.yc) |
+| `test/gtest/CMakeLists.txt` | 26 | [`gtest.ml`](gtest.ml) | [`gtest.yc`](gtest.yc) |
+| `test/find-package-test/CMakeLists.txt` | 17 | [`find_package_test.ml`](find_package_test.ml) | [`find_package_test.yc`](find_package_test.yc) |
+| `test/add-subdirectory-test/CMakeLists.txt` | 17 | [`add_subdirectory_test.ml`](add_subdirectory_test.ml) | [`add_subdirectory_test.yc`](add_subdirectory_test.yc) |
+| `support/cmake/FindSetEnv.cmake` | 11 | [`find_setenv.ml`](find_setenv.ml) | [`find_setenv.yc`](find_setenv.yc) |
+
+All 11 files have `.yc` concrete-syntax versions. All compile via the parser and pass
+the matrix oracle. The `.ml` OCaml DSL versions are retained as reference/source-of-truth.
 
 10 user-defined cmake helper functions — all migrated:
 `join`, `set_verbose`, `setup_target`, `add_module_library`,
@@ -199,17 +202,19 @@ not a migration issue; it's an oracle-infrastructure issue.
 without going through a typed IR constructor. It still lives in
 the yelu_cmake AST (so the evaluator and emit walk it), but the
 command itself is opaque to any typed-IR analysis. The fmt
-migration uses `yc_apply` ~150 times across all 11 files; see
-[`README.md` § Shape C lockup](README.md) for the per-command
-breakdown.
+migration uses `yc_apply` 53 times across the 3 `.ml` files
+(35 in main.ml, 10 in test_main.ml, 8 in compile_error_test.ml).
 
-Most of these uses are *ergonomic* — the typed ctor exists but
-the call site is short enough that apply is cleaner. About 40%
-are genuinely unmodeled (no IR constructor exists yet):
-`include`, `add_subdirectory`, `project`, `cmake_minimum_required`,
-`execute_process`, `enable_language`, `cmake_policy`,
-`cmake_parse_arguments`, the `check_*` family,
-`set_property CACHE`, `set_property SOURCE`.
+After the `.yc` conversion (Phase 8), the `yc_apply` count in
+`main.ml` dropped from ~100 to 35 — the removed ~65 calls were
+replaced by typed IR constructors (`configure_file`, `export`,
+`add_custom_target`, `get_target_property`, `configure_package_config_file`,
+and others). The remaining 35 are almost all ergonomic (typed ctor
+exists but call site is cleaner with apply) or genuinely unmodeled
+(`set_property CACHE`, `cmake_parse_arguments`, `check_cxx_compiler_flag`,
+project-defined functions `set_verbose`/`join`/`setup_target`/
+`add_module_library`/`add_doc_target`/`join_paths`, and the
+`install`/`export` complex forms).
 
 `yc_apply` is less drastic than `raw_cmake` — it's still one
 *command* call with structured arguments. But it shares the
@@ -228,6 +233,7 @@ are genuinely unmodeled (no IR constructor exists yet):
 | 5 (cuda) | ✓ | 2026-06-04 | `test/cuda-test/CMakeLists.txt` whole-file `.ml`. CMake-version split (`< 3.15` legacy FindCUDA / `cuda_add_executable` vs modern `enable_language(CUDA)` + `add_executable` + `CUDA_SEPARABLE_COMPILATION`). Matrix never enters this file; codegen-only verification. |
 | 6 (main CMakeLists) | ✓ | 2026-06-04 | `vendor/fmt/CMakeLists.txt` (593 lines) as `main.ml`. Superseded 4 splice files + `use_cmake_modules_false.yc`. Emit fix: `target_feature_of_expr` was dropping visibility; threaded through. New: `ECmakeIncludeGuard`, `ECmakeMath`, `ECmakeFileRead`, `ECmakeFileStrings`, `ECmakeFileExists`, `ECmakeStringReplace`, `ECmakeInList`, `write_basic_package_version_file`, `configure_package_config_file`, `configure_file`. |
 | 7 (Shape C lockup) | ✓ | 2026-06-04 | Added first-class `ECmakeRaw` escape (new fragment `yelu_cmake_raw.ml`) + `Yelu_emit_main.raw_cmake` helper. Used in `main.ml` for the WINSDK / netfxpath / `run-msbuild.bat` block. Footprint audit in [`README.md` § Shape C lockup](README.md). |
+| 8 (.yc concrete-syntax conversion) | ✓ | 2026-06-08 | 8 of 11 `.ml` files converted to `.yc` concrete syntax. `main.yc`, `test_main.yc`, `compile_error_test.yc`, `cuda_test.yc`, `fuzzing.yc`, `static_export_test.yc`, `gtest.yc`, `find_package_test.yc`, `add_subdirectory_test.yc` all compile and produce valid cmake. 35 parser/lexer/emit fixes needed (see commit log). `yc_apply` count in `main.ml` dropped from ~100 to 35. Matrix test now runs 100% from `.yc` files via `manifest.json`. |
 
 ## What didn't get done (or got de-scoped)
 
