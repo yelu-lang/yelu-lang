@@ -78,8 +78,10 @@ let preamble = ESeq [
     before = false; system = false;
     dirs = [ystr "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>"];
   };
-  yc_apply (ystr "target_link_libraries")
-    [ystr "test-main"; ystr "gtest"; ystr "fmt"];
+  ECmakeTargetLinkLibraries {
+    target = ystr "test-main"; visibility = "PUBLIC";
+    items = [ystr "gtest"; ystr "fmt"];
+  };
 ]
 
 (* ---------- test callsites between the function and the std-test block ---------- *)
@@ -93,8 +95,10 @@ let basic_aft_block = ESeq [
   aft "gtest-extra-test";
   aft_args "format-test" ["mock-allocator.h"];
   yifthen (EVar "MSVC")
-    (yc_apply (ystr "target_compile_options")
-       [ystr "format-test"; ystr "PRIVATE"; ystr "/bigobj"]);
+    (ECmakeTargetCompileOptions {
+      target = ystr "format-test"; visibility = "PRIVATE"; before = false;
+      options_ = [EString "/bigobj"];
+    });
   yifthen
     (ynot (Yelu_langs.Yelu_cmake_normal_bool.EAnd
              (EVar "MSVC", EVar "BUILD_SHARED_LIBS")))
@@ -124,21 +128,29 @@ let basic_aft_block = ESeq [
      ystr (Yelu_langs.Yelu_emit_main.escape ".*libfound \"([^\"]*)\".*");
      ystr "\\\\1"; ystr "STDLIBFS"; ystr "${RAWOUTPUT}"];
   yifthen (EVar "STDLIBFS")
-    (yc_apply (ystr "target_link_libraries")
-       [ystr "std-test"; EVar "STDLIBFS"]);
+    (ECmakeTargetLinkLibraries {
+      target = ystr "std-test"; visibility = "PUBLIC";
+      items = [EVar "STDLIBFS"];
+    });
 
   aft_args "unicode-test" ["HEADER_ONLY"];
   yifthen (EVar "MSVC")
-    (yc_apply (ystr "target_compile_options")
-       [ystr "unicode-test"; ystr "PRIVATE"; ystr "/utf-8"]);
+    (ECmakeTargetCompileOptions {
+      target = ystr "unicode-test"; visibility = "PRIVATE"; before = false;
+      options_ = [EString "/utf-8"];
+    });
   aft "xchar-test";
   aft "enforce-checks-test";
-  yc_apply (ystr "target_compile_definitions")
-    [ystr "enforce-checks-test"; ystr "PRIVATE";
-     ystr "-DFMT_ENFORCE_COMPILE_STRING"];
+  ECmakeTargetCompileDefinitions {
+    target = ystr "enforce-checks-test"; visibility = "PRIVATE";
+    definitions = [EString "-DFMT_ENFORCE_COMPILE_STRING"];
+  };
 
   ECmakeAddExecutable { name = ystr "perf-sanity"; sources = [ystr "perf-sanity.cc"] };
-  yc_apply (ystr "target_link_libraries") [ystr "perf-sanity"; ystr "fmt::fmt"];
+  ECmakeTargetLinkLibraries {
+    target = ystr "perf-sanity"; visibility = "PUBLIC";
+    items = [ystr "fmt::fmt"];
+  };
 
   yifthen (EVar "FMT_MODULE")
     (aft_args "module-test" ["MODULE"]);
@@ -177,15 +189,20 @@ let msvc_runtime_block = ESeq [
       before = false; system = false;
       dirs = [ystr "${PROJECT_SOURCE_DIR}/include"];
     };
-    yc_apply (ystr "target_link_libraries")
-      [ystr "posix-mock-test"; ystr "gtest"];
+    ECmakeTargetLinkLibraries {
+      target = ystr "posix-mock-test"; visibility = "PUBLIC";
+      items = [ystr "gtest"];
+    };
     yifthen (EVar "FMT_PEDANTIC")
-      (yc_apply (ystr "target_compile_options")
-         [ystr "posix-mock-test"; ystr "PRIVATE";
-          EVar "PEDANTIC_COMPILE_FLAGS"]);
+      (ECmakeTargetCompileOptions {
+        target = ystr "posix-mock-test"; visibility = "PRIVATE";
+        before = false; options_ = [EVar "PEDANTIC_COMPILE_FLAGS"];
+      });
     yifthen (EVar "MSVC")
-      (yc_apply (ystr "target_compile_options")
-         [ystr "posix-mock-test"; ystr "PRIVATE"; ystr "/utf-8"]);
+      (ECmakeTargetCompileOptions {
+        target = ystr "posix-mock-test"; visibility = "PRIVATE";
+        before = false; options_ = [EString "/utf-8"];
+      });
     yc_add_test (ystr "posix-mock-test") (ystr "posix-mock-test") [];
     aft "os-test";
   ]);
@@ -212,10 +229,14 @@ let pedantic_block =
         before = false; system = false;
         dirs = [ystr "${PROJECT_SOURCE_DIR}/include"];
       };
-      yc_apply (ystr "target_compile_options")
-        [ystr "noexception-test"; ystr "PRIVATE"; ystr "-fno-exceptions"];
-      yc_apply (ystr "target_compile_options")
-        [ystr "noexception-test"; ystr "PRIVATE"; EVar "PEDANTIC_COMPILE_FLAGS"];
+      ECmakeTargetCompileOptions {
+        target = ystr "noexception-test"; visibility = "PRIVATE";
+        before = false; options_ = [EString "-fno-exceptions"];
+      };
+      ECmakeTargetCompileOptions {
+        target = ystr "noexception-test"; visibility = "PRIVATE";
+        before = false; options_ = [EVar "PEDANTIC_COMPILE_FLAGS"];
+      };
     ]);
     ECmakeAddLibrary {
       name = ystr "nolocale-test"; type_ = None;
@@ -226,9 +247,10 @@ let pedantic_block =
       before = false; system = false;
       dirs = [ystr "${PROJECT_SOURCE_DIR}/include"];
     };
-    yc_apply (ystr "target_compile_definitions")
-      [ystr "nolocale-test"; ystr "PRIVATE";
-       ystr "FMT_STATIC_THOUSANDS_SEPARATOR=1"];
+    ECmakeTargetCompileDefinitions {
+      target = ystr "nolocale-test"; visibility = "PRIVATE";
+      definitions = [EString "FMT_STATIC_THOUSANDS_SEPARATOR=1"];
+    };
   ])
 
 (* ---------- ctest --build-and-test drivers ---------- *)
