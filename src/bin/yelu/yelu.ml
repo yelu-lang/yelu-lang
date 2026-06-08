@@ -159,11 +159,16 @@ type manifest = {
 }
 
 (* Auto-discover .yc files in probe_dir. Mapping convention:
-   - CMakeLists.yc → CMakeLists.txt   (.yc → .txt)
-   - <Name>.yc     → <Name>.cmake     (.yc → .cmake)
+   - any.yc          → CMakeLists.txt   (default: .yc → .txt)
+   - CapitalCase.yc  → CapitalCase.cmake (exception: uppercase → .cmake module)
    All discovered helpers are whole_file: true. *)
 let discover_helpers probe_dir =
   let yc_files = ref [] in
+  let is_capitalized name =
+    match name.[0] with
+    | 'A' .. 'Z' -> true
+    | _ -> false
+  in
   let rec walk dir =
     if Stdlib.Sys.file_exists dir && Stdlib.Sys.is_directory dir then begin
       let entries = Stdlib.Sys.readdir dir in
@@ -180,9 +185,14 @@ let discover_helpers probe_dir =
               let rel_from_probe =
                 String.chop_prefix_exn path ~prefix:(probe_dir ^ "/") in
               let target_file =
-                if String.equal (Stdlib.Filename.basename rel_from_probe) "CMakeLists.yc"
-                then Stdlib.Filename.(concat (dirname rel_from_probe) "CMakeLists.txt")
-                else String.chop_suffix_exn rel_from_probe ~suffix:".yc" ^ ".cmake"
+                let base = Stdlib.Filename.basename rel_from_probe in
+                let dir = Stdlib.Filename.dirname rel_from_probe in
+                if String.is_prefix base ~prefix:"CMakeLists"
+                then Stdlib.Filename.concat dir "CMakeLists.txt"
+                else if is_capitalized base
+                then Stdlib.Filename.concat dir
+                       (String.chop_suffix_exn base ~suffix:".yc" ^ ".cmake")
+                else Stdlib.Filename.concat dir "CMakeLists.txt"
               in
               yc_files := { source = path; target_file; whole_file = true;
                             anchor_start = ""; anchor_end = "";
