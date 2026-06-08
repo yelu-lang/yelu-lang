@@ -190,6 +190,7 @@ Total unit: 655. Total cmake-backed: 40.
 | `doc/yelu_cmake/hybrid_strategy.md`   | Y16 reframed as gradual hybrid adoption (side-by-side .yc + .cmake, or whole-file with raw_cmake escape). cmake-as-assembly framing; no embedded-in-cmake shape. |
 | `doc/yelu_cmake/ycn_concrete_syntax.md` | Design notes for a future concrete-syntax parser for `yelu_cmake_normal`. No implementation; uses the lift_lower 65-test corpus as design substrate. |
 | `doc/yelu_cmake/driver.md`            | Merged pipelines graph + tool-interface matrix + per-language driver modules + cross-language pipeline utils |
+| `doc/yelu_cmake/ir_tiers.md`          | 4-tier IR fidelity: typed → cmake_lang → yc_raw → yc_apply. Parser fallback, string-as-enum plan. |
 | `doc/yelu_cmake/status.md`            | Living tracker: current open work for yelu_cmake    |
 
 ## Architecture

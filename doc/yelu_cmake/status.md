@@ -36,8 +36,10 @@ Verification baseline:
 
 Parser coverage: 277 tests (126 inline-golden + 151 smoke),
 ~90 commands across all 14 theories. Catch-all for unknowns →
-ECmakeApply. fmt probe: 5/11 helpers converted .ml → .yc; per-command
-coverage is on-demand (grep the parser, check probe parse-print oracle).
+ECmakeApply, yc_raw fallback for known commands with dynamic args.
+fmt probe: 7/11 helpers converted .ml → .yc. IR fidelity design:
+4 tiers (typed → cmake_lang → yc_raw → yc_apply)
+in [`ir_tiers.md`](ir_tiers.md).
 
 ## Open work — forward
 

@@ -397,6 +397,92 @@ them.
 
 ---
 
+## 9. Metaprogramming: Dynamic Values in Static Fields
+
+**The cmake problem.**
+cmake allows variable references (`${VAR}`) in positions that are
+conceptually static — visibility keywords, property names, output
+variable names, even command names. This is cmake-level metaprogramming:
+a project-defined function receives a parameter and uses it to construct
+a command call.
+
+```cmake
+function(setup_target target kind)
+  target_link_libraries(${target} ${kind} some_lib)
+endfunction()
+```
+
+At parse time, `${kind}` is an opaque string. It resolves to `PUBLIC`,
+`PRIVATE`, or `INTERFACE` only at cmake configure-time. A static checker
+cannot validate this — it doesn't know what `${kind}` will be.
+
+This pattern is not theoretical. The fmt probe uses it: `setup_target`
+receives a visibility parameter and calls `target_link_libraries`,
+`target_compile_options`, etc. with `${kind}` in the visibility position.
+
+**What yelu does.**
+Yelu's IR has four fidelity tiers for handling metaprogramming
+([`ir_tiers.md`](../yelu_cmake/ir_tiers.md)):
+
+| Tier | IR | Example | When |
+|---|---|---|---|
+| 1 | Typed (`ECmakeTargetLinkLibraries`) | `link_lib Target tgt :PUBLIC lib` | Static args only |
+| 2 | `ECmakeLanguageCall` | `cmake_call my_func arg` | cmake-level dynamic dispatch |
+| 3 | `ECmakeRaw` | `yc_raw …` — verbatim cmake text | Known primitive, dynamic args |
+| 4 | `ECmakeApply` | `my_func NAME TEST` | Project-defined functions |
+
+When a typed command has dynamic args (e.g., `${kind}` as visibility),
+the parser falls back to `yc_raw` (Tier 3), which preserves the raw cmake
+text. Wellform flags each `ECmakeRaw` as tainted — unverifiable by static
+checks. For project-defined functions, `yc_apply` (Tier 4) preserves the
+original call text and checks only that the function name doesn't shadow
+a builtin primitive.
+
+**Future**: A meta-eval loop will recursively evaluate dynamic expressions,
+re-parse the resolved result, and splice it into the typed IR. This
+enables static checking for the common case (visibility resolves to
+`PUBLIC`/`PRIVATE`/`INTERFACE`) while preserving the dynamic escape for
+the uncommon case.
+
+---
+
+## 10. String-as-Enum Fields in the IR
+
+**The cmake problem.**
+Several cmake command fields take values from a finite domain — visibility
+(`PUBLIC` / `PRIVATE` / `INTERFACE`), message mode (`STATUS` / `WARNING` /
+`FATAL_ERROR` / …), version compatibility (`SameMajorVersion` / …). The
+cmake AST (`Lang_cmake`) models these as proper variant types, but the
+yelu IR currently uses `string`.
+
+```ocaml
+(* Current yc IR — flat string, no domain constraint *)
+| ECmakeTargetLinkLibraries of { …, visibility : string, … }
+
+(* Desired — domain is explicit *)
+| ECmakeTargetLinkLibraries of { …, visibility : visibility_variant, … }
+```
+
+**What yelu does (planned).**
+Define proper variant types for each finite-domain field, convert at the
+emit boundary (variant → cmake string). Dynamic values (`${kind}`) in
+these positions fall back to `yc_raw` (Tier 3) instead of silently
+passing through as untyped strings.
+
+| Field | Current type | Planned variant |
+|---|---|---|
+| `visibility` | `string` | `Public \| Private \| Interface` |
+| `mode` | `string` | Use `Lang_cmake.message_mode` |
+| `compatibility` | `string` | Use `Lang_cmake.compatibility` |
+| `cache_type` | `string` | Define variant or use cmake AST type |
+| `scope` | `string` | `GLOBAL \| DIRECTORY` |
+
+The cmake AST already has typed enums for most of these; the yc IR
+should mirror them. See [`ir_tiers.md`](../yelu_cmake/ir_tiers.md) §
+"String-as-enum fields."
+
+---
+
 ## Summary
 
 | Pain point                      | cmake behavior                    | Yelu response                                                                       |
@@ -408,3 +494,6 @@ them.
 | `ERROR_VARIABLE` success value  | `NOTFOUND` not `""`               | future: result-type API over raw error_var                                          |
 | JSON SET value type             | must be JSON literal              | future: `yelu_json_value` type                                                      |
 | Unnamed named-entity namespaces | 9 namespaces, no syntactic marker | `yelu_cvar`/`yelu_target` typed; `Ycs_name` placeholder; namespace-tag design in §7 |
+| Computation and storage fused   | no return values, output vars only | `let` binding for compile-time names; expression compose is future               |
+| Metaprogramming / dynamic args  | `${VAR}` in visibility, property, etc. | 4-tier IR fidelity: typed → `cmake_lang` → `yc_raw` → `yc_apply` (§9)              |
+| String-as-enum in IR            | flat strings lose domain info      | planned: variant types for visibility, mode, compatibility, cache_type (§10)       |

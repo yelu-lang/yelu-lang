@@ -151,6 +151,7 @@ the relevant driver, visible in one place.
 
 ## 7. Related
 
+- [`ir_tiers.md`](ir_tiers.md) — 4-tier IR fidelity: typed → cmake_lang → yc_raw → yc_apply
 - [`structure.md`](structure.md) — file-level code map
 - [`cmake_vs_normal.md`](cmake_vs_normal.md) — yc vs ycn feature comparison
 - [`ycn_concrete_syntax.md`](ycn_concrete_syntax.md) — proposal for the missing `.ycn` parser
