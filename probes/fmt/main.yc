@@ -379,15 +379,14 @@ file(WRITE run-msbuild.bat "${MSBUILD_SETUP}
   );
 
   fun add_doc_target() (
-    find_program ~names:["doxygen"]
-      ~paths:["$ENV{ProgramFiles}/doxygen/bin"
-              "$ENV{ProgramFiles\(x86\)}/doxygen/bin"]
+    find_program ~name:"doxygen"
+      ~path:"$ENV{ProgramFiles}/doxygen/bin"
       DOXYGEN;
     if not ${DOXYGEN} then (
       message "Target 'doc' disabled because doxygen not found";
       return
     );
-    find_program ~names:["mkdocs"] MKDOCS;
+    find_program ~name:"mkdocs" MKDOCS;
     if not ${MKDOCS} then (
       message "Target 'doc' disabled because mkdocs not found";
       return
