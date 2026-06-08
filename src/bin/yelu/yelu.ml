@@ -100,7 +100,7 @@ let compile_ml file =
   end;
   out
 
-let compile_yc ?(wellform = true) file =
+let compile_yc ?(wellform = true) ?(warn = fun _ -> ()) file =
   let src = read_all file in
   match Yelu_langs.Yelu_parse.parse_program_y1 src with
   | Error e ->
@@ -111,20 +111,24 @@ let compile_yc ?(wellform = true) file =
       match Yelu_langs.Yc_wellform.check_all expr with
       | [] -> ()
       | errors ->
-        Stdlib.Printf.eprintf "yelu compile: wellform warnings in %s:\n" file;
+        warn (Printf.sprintf "wellform warnings in %s:" file);
         List.iter errors ~f:(fun e ->
-          Stdlib.Printf.eprintf "  %s\n"
-            (Sexp.to_string_hum (Yelu_langs.Yc_wellform.sexp_of_error e)))
+          warn (Printf.sprintf "  %s"
+                  (Sexp.to_string_hum (Yelu_langs.Yc_wellform.sexp_of_error e))))
     end;
     Yelu_langs.Yelu_cmake_emit.emit_script expr
 
-let compile file =
+let compile ?(warn = fun _ -> ()) file =
   if String.is_suffix file ~suffix:".ml" then compile_ml file
-  else if String.is_suffix file ~suffix:".yc" then compile_yc file
+  else if String.is_suffix file ~suffix:".yc" then compile_yc ~warn file
   else begin
     Stdlib.Printf.eprintf "yelu compile: unknown extension: %s\n" file;
     Stdlib.exit 1
   end
+
+(* compile dispatches to compile_ml or compile_yc based on extension.
+   The optional ~warn callback receives wellform warnings and re-emits
+   them through the caller's logging channel (for log-file capture). *)
 
 (* ============================================================
    Manifest reading. JSON shape (see probes/fmt/manifest.json):
@@ -391,13 +395,9 @@ let cmd_hybrid ?(source_dir_override = None) manifest_path d_flags =
   let timestamp = Unix.time () |> Int64.of_float |> Int64.to_string in
   let log_path = Stdlib.Filename.concat log_dir (Printf.sprintf "log_%s.txt" timestamp) in
   let log_oc = Stdlib.open_out log_path in
-  let log_fd = Unix.descr_of_out_channel log_oc in
-  let term_oc = Unix.out_channel_of_descr (Unix.dup Unix.stdout) in
-  let _ = Unix.dup2 log_fd Unix.stderr in
-  let _ = Unix.dup2 log_fd Unix.stdout in
   let log fmt = Stdlib.Printf.ksprintf (fun s ->
     Stdlib.output_string log_oc s; Stdlib.output_char log_oc '\n';
-    Stdlib.output_string term_oc s; Stdlib.output_char term_oc '\n') fmt
+    Stdlib.print_string s; Stdlib.print_char '\n') fmt
   in
   log "[yelu] manifest: project=%s source_dir=%s helpers=%d flags=%d"
     m.project source_dir (List.length m.helpers) (List.length d_flags);
@@ -407,7 +407,7 @@ let cmd_hybrid ?(source_dir_override = None) manifest_path d_flags =
   let compiled =
     List.map m.helpers ~f:(fun h ->
       log "[yelu] compiling %s" h.source;
-      (h, compile h.source))
+      (h, compile ~warn:(fun s -> log "%s" s) h.source))
   in
 
   (* 2. Group by target_file; apply splices left-to-right. *)
