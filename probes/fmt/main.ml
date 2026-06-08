@@ -76,10 +76,17 @@ let project_and_modules_detect = ESeq [
       cond = Yelu_langs.Yelu_cmake_string.ECmakeStringEqual
                (EVar "CMAKE_GENERATOR", ystr "Ninja");
       then_ = ESeq [
-        yc_apply (ystr "execute_process") [
-          ystr "COMMAND"; ystr "${CMAKE_MAKE_PROGRAM}"; ystr "--version";
-          ystr "OUTPUT_VARIABLE"; ystr "NINJA_VERSION";
-        ];
+        Yelu_langs.Yelu_cmake_cmake_op.ECmakeExecuteProcess {
+          commands = [[EString "${CMAKE_MAKE_PROGRAM}"; EString "--version"]];
+          working_directory = None; timeout = None;
+          result_variable = None;
+          output_variable = Some "NINJA_VERSION"; error_variable = None;
+          input_file = None; output_file = None; error_file = None;
+          output_quiet = false; error_quiet = false;
+          output_strip_trailing_whitespace = false;
+          error_strip_trailing_whitespace = false;
+          command_error_is_fatal = None;
+        };
         yifthen
           (Yelu_langs.Yelu_cmake_string.ECmakeVersionGreaterEqual
              (EVar "NINJA_VERSION", ystr "1.11"))
