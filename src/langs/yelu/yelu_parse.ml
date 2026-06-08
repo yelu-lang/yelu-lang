@@ -706,6 +706,25 @@ let p_target_command_y1_inner name args kwargs =
   let kw_bool key =
     List.Assoc.mem kwargs ~equal:String.equal key
   in
+  (* If the first positional arg after the target is a dynamic expression
+     (not a known visibility keyword), the visibility is unresolvable at
+     parse time. Fall back to yc_raw instead of misinterpreting ${kind}
+     as a library name. *)
+  let static_visibility_keywords = [ "PUBLIC"; "PRIVATE"; "INTERFACE" ] in
+  let is_dynamic_first_item = function
+    | EVar v :: _ ->
+      not (List.mem static_visibility_keywords v ~equal:String.equal)
+    | EString s :: _ ->
+      (not (List.mem static_visibility_keywords s ~equal:String.equal))
+      || String.is_prefix s ~prefix:"${"
+    | ECmakeGenex _ :: _ -> true
+    | _ -> false
+  in
+  let try_groups_or_raw items ctor =
+    if is_dynamic_first_item items
+    then Some (ECmakeRaw (args_to_cmake_text name args))
+    else Some (target_groups_to_y1 ctor items)
+  in
   match name, args with
   | "add_exe", name_arg :: sources ->
     Some (ECmakeAddExecutable { name = name_arg; sources })
@@ -714,57 +733,48 @@ let p_target_command_y1_inner name args kwargs =
     Some (ECmakeAddLibrary
             { name = name_arg; type_; sources })
   | ("link_lib" | "target_link_libraries"), target :: items ->
-    Some (target_groups_to_y1
-            (fun ~visibility items ->
-              ECmakeTargetLinkLibraries { target; visibility; items })
-            items)
+    try_groups_or_raw items
+      (fun ~visibility items ->
+        ECmakeTargetLinkLibraries { target; visibility; items })
   | ("include_dirs" | "target_include_directories"), target :: items ->
     let system = kw_bool "system" in
     let before = kw_bool "before" in
-    Some (target_groups_to_y1
-            (fun ~visibility items ->
-              ECmakeTargetIncludeDirectories
-                { target; visibility; before; system;
-                  dirs = items })
-            items)
+    try_groups_or_raw items
+      (fun ~visibility items ->
+        ECmakeTargetIncludeDirectories
+          { target; visibility; before; system; dirs = items })
   | ("compile_defs" | "target_compile_definitions"), target :: items ->
-    Some (target_groups_to_y1
-            (fun ~visibility items ->
-              ECmakeTargetCompileDefinitions
-                { target; visibility; definitions = items })
-            items)
+    try_groups_or_raw items
+      (fun ~visibility items ->
+        ECmakeTargetCompileDefinitions
+          { target; visibility; definitions = items })
   | ("compile_opts" | "target_compile_options"), target :: items ->
     let before = kw_bool "before" in
-    Some (target_groups_to_y1
-            (fun ~visibility items ->
-              ECmakeTargetCompileOptions
-                { target; visibility; before; options_ = items })
-            items)
+    try_groups_or_raw items
+      (fun ~visibility items ->
+        ECmakeTargetCompileOptions
+          { target; visibility; before; options_ = items })
   | "link_opts", target :: items ->
     let before = kw_bool "before" in
-    Some (target_groups_to_y1
-            (fun ~visibility items ->
-              ECmakeTargetLinkOptions
-                { target; visibility; before; options_ = items })
-            items)
+    try_groups_or_raw items
+      (fun ~visibility items ->
+        ECmakeTargetLinkOptions
+          { target; visibility; before; options_ = items })
   | "link_dirs", target :: items ->
     let before = kw_bool "before" in
-    Some (target_groups_to_y1
-            (fun ~visibility items ->
-              ECmakeTargetLinkDirectories
-                { target; visibility; before; dirs = items })
-            items)
+    try_groups_or_raw items
+      (fun ~visibility items ->
+        ECmakeTargetLinkDirectories
+          { target; visibility; before; dirs = items })
   | "target_sources", target :: items ->
-    Some (target_groups_to_y1
-            (fun ~visibility items ->
-              ECmakeTargetSources { target; visibility; sources = items })
-            items)
+    try_groups_or_raw items
+      (fun ~visibility items ->
+        ECmakeTargetSources { target; visibility; sources = items })
   | "compile_feats", target :: features ->
-    Some (target_groups_to_y1
-            (fun ~visibility items ->
-              ECmakeTargetCompileFeatures
-                { target; visibility; features = items })
-            features)
+    try_groups_or_raw features
+      (fun ~visibility items ->
+        ECmakeTargetCompileFeatures
+          { target; visibility; features = items })
   | "add_custom_target", [ name_arg ] ->
     let all = kw_bool "all" in
     let name = match name_arg with EString s | EVar s -> s | _ -> "?" in
