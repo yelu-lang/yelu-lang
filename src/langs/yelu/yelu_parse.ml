@@ -440,7 +440,7 @@ let p_string_command_y1 toks =
   | IDENT name :: rest when String.is_prefix name ~prefix:"string_" ->
       let args, kwargs, rest = collect_command_args [] [] rest in
       (match p_string_command_y1_inner name args kwargs with
-       | None -> None
+       | None -> Some (ECmakeRaw (args_to_cmake_text name args), rest)
        | Some e -> Some (e, rest))
     | _ -> None
 
@@ -517,7 +517,7 @@ let p_list_command_y1 toks =
   | IDENT name :: rest when String.is_prefix name ~prefix:"list_" ->
       let args, kwargs, rest = collect_command_args [] [] rest in
       (match p_list_command_y1_inner name args kwargs with
-       | None -> None
+       | None -> Some (ECmakeRaw (args_to_cmake_text name args), rest)
        | Some e -> Some (e, rest))
     | _ -> None
 
@@ -606,7 +606,7 @@ let p_path_command_y1 toks =
         || String.equal name "get_filename_component" ->
       let args, kwargs, rest = collect_command_args [] [] rest in
       (match p_path_command_y1_inner name args kwargs with
-       | None -> None
+       | None -> Some (ECmakeRaw (args_to_cmake_text name args), rest)
        | Some e -> Some (e, rest))
     | _ -> None
 
@@ -642,7 +642,7 @@ let p_file_command_y1 toks =
         || String.equal name "configure_file" ->
       let args, kwargs, rest = collect_command_args [] [] rest in
       (match p_file_command_y1_inner name args kwargs with
-       | None -> None
+       | None -> Some (ECmakeRaw (args_to_cmake_text name args), rest)
        | Some e -> Some (e, rest))
     | _ -> None
 
@@ -862,7 +862,7 @@ let p_dir_command_y1 toks =
             | _ -> false) ->
       let args, kwargs, rest = collect_command_args [] [] rest in
       (match p_dir_command_y1_inner name args kwargs with
-       | None -> None
+       | None -> Some (ECmakeRaw (args_to_cmake_text name args), rest)
        | Some e -> Some (e, rest))
     | _ -> None
 
@@ -884,7 +884,7 @@ let p_test_command_y1 toks =
         || String.equal name "add_test" ->
       let args, kwargs, rest = collect_command_args [] [] rest in
       (match p_test_command_y1_inner name args kwargs with
-       | None -> None
+       | None -> Some (ECmakeRaw (args_to_cmake_text name args), rest)
        | Some e -> Some (e, rest))
     | _ -> None
 
@@ -993,7 +993,7 @@ let p_property_command_y1 toks =
             | _ -> false) ->
       let args, kwargs, rest = collect_command_args [] [] rest in
       (match p_property_command_y1_inner name args kwargs with
-       | None -> None
+       | None -> Some (ECmakeRaw (args_to_cmake_text name args), rest)
        | Some e -> Some (e, rest))
     | _ -> None
 
@@ -1046,7 +1046,7 @@ let p_find_command_y1 toks =
       when String.is_prefix name ~prefix:"find_" ->
       let args, kwargs, rest = collect_command_args [] [] rest in
       (match p_find_command_y1_inner name args kwargs with
-       | None -> None
+       | None -> Some (ECmakeRaw (args_to_cmake_text name args), rest)
        | Some e -> Some (e, rest))
     | _ -> None
 
@@ -1105,7 +1105,7 @@ let p_install_command_y1 toks =
             | _ -> false) ->
       let args, kwargs, rest = collect_command_args [] [] rest in
       (match p_install_command_y1_inner name args kwargs with
-       | None -> None
+       | None -> Some (ECmakeRaw (args_to_cmake_text name args), rest)
        | Some e -> Some (e, rest))
     | _ -> None
 
@@ -1136,7 +1136,7 @@ let p_try_command_y1 toks =
             | _ -> false) ->
       let args, kwargs, rest = collect_command_args [] [] rest in
       (match p_try_command_y1_inner name args kwargs with
-       | None -> None
+       | None -> Some (ECmakeRaw (args_to_cmake_text name args), rest)
        | Some e -> Some (e, rest))
     | _ -> None
 
@@ -1276,7 +1276,7 @@ let p_cmake_op_command_y1 toks =
             | _ -> false) ->
       let args, kwargs, rest = collect_command_args [] [] rest in
       (match p_cmake_op_command_y1_inner name args kwargs with
-       | None -> None
+       | None -> Some (ECmakeRaw (args_to_cmake_text name args), rest)
        | Some e -> Some (e, rest))
     | _ -> None
 
