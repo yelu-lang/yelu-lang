@@ -4,7 +4,7 @@
   "out_root": "_out/fmt",
   "helpers": [
     {
-      "source": "probes/fmt/main.ml",
+      "source": "probes/fmt/main.yc",
       "target_file": "CMakeLists.txt",
       "whole_file": true
     },
@@ -19,23 +19,13 @@
       "whole_file": true
     },
     {
-      "source": "probes/fmt/test_main.ml",
+      "source": "probes/fmt/test_main.yc",
       "target_file": "test/CMakeLists.txt",
       "whole_file": true
     },
     {
       "source": "probes/fmt/cuda_test.yc",
       "target_file": "test/cuda-test/CMakeLists.txt",
-      "whole_file": true
-    },
-    {
-      "source": "probes/fmt/compile_error_test.ml",
-      "target_file": "test/compile-error-test/CMakeLists.txt",
-      "whole_file": true
-    },
-    {
-      "source": "probes/fmt/find_setenv.yc",
-      "target_file": "support/cmake/FindSetEnv.cmake",
       "whole_file": true
     },
     {
@@ -49,13 +39,23 @@
       "whole_file": true
     },
     {
+      "source": "probes/fmt/static_export_test.yc",
+      "target_file": "test/static-export-test/CMakeLists.txt",
+      "whole_file": true
+    },
+    {
       "source": "probes/fmt/gtest.yc",
       "target_file": "test/gtest/CMakeLists.txt",
       "whole_file": true
     },
     {
-      "source": "probes/fmt/static_export_test.yc",
-      "target_file": "test/static-export-test/CMakeLists.txt",
+      "source": "probes/fmt/compile_error_test.yc",
+      "target_file": "test/compile-error-test/CMakeLists.txt",
+      "whole_file": true
+    },
+    {
+      "source": "probes/fmt/find_setenv.yc",
+      "target_file": "support/cmake/FindSetEnv.cmake",
       "whole_file": true
     }
   ]

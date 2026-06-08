@@ -15,19 +15,19 @@
 
   fun join(result_var) (
     result := "";
-    foreach arg in [ ${ARGN} ] (
+    foreach arg in LISTS ARGN (
       result := "${result}${arg}"
     );
     ${result_var} := "${result}" PARENT_SCOPE
   );
 
   fun set_verbose(variable value _cache type) (
-    join doc ${ARGN};
+    join "doc" ${ARGN};
     cache ${variable} := ${value} "${doc}" ~type:${type}
   );
 
   if ${FMT_MASTER_PROJECT} and not ${CMAKE_BUILD_TYPE} then (
-    set_verbose CMAKE_BUILD_TYPE Release CACHE STRING
+    set_verbose "CMAKE_BUILD_TYPE" "Release" "CACHE" "STRING"
       "Choose the type of build, options are: None(CMAKE_CXX_FLAGS or "
       "CMAKE_C_FLAGS used) Debug Release RelWithDebInfo MinSizeRel."
   );
@@ -73,7 +73,7 @@
 
   include GNUInstallDirs;
 
-  set_verbose FMT_INC_DIR ${CMAKE_INSTALL_INCLUDEDIR} CACHE STRING
+  set_verbose "FMT_INC_DIR" ${CMAKE_INSTALL_INCLUDEDIR} "CACHE" "STRING"
     "Installation directory for include files, a relative path that "
     "will be joined with ${CMAKE_INSTALL_PREFIX} or an absolute path.";
 
@@ -86,7 +86,7 @@
   math "${CMAKE_MATCH_1}" ~out:CPACK_PACKAGE_VERSION_MAJOR;
   math "${CMAKE_MATCH_2}" ~out:CPACK_PACKAGE_VERSION_MINOR;
   math "${CMAKE_MATCH_3}" ~out:CPACK_PACKAGE_VERSION_PATCH;
-  join FMT_VERSION
+  join "FMT_VERSION"
     "${CPACK_PACKAGE_VERSION_MAJOR}.${CPACK_PACKAGE_VERSION_MINOR}."
     "${CPACK_PACKAGE_VERSION_PATCH}";
   message "{fmt} version: ${FMT_VERSION}";
@@ -102,14 +102,13 @@
   include JoinPaths;
 
   if ${FMT_MASTER_PROJECT} and not (defined CMAKE_CXX_VISIBILITY_PRESET) then (
-    set_verbose CMAKE_CXX_VISIBILITY_PRESET hidden CACHE STRING
+    set_verbose "CMAKE_CXX_VISIBILITY_PRESET" "hidden" "CACHE" "STRING"
       "Preset for the export of private symbols.";
-    set_property CACHE CMAKE_CXX_VISIBILITY_PRESET
-      PROPERTY STRINGS hidden default
+    yc_raw 'set_property(CACHE CMAKE_CXX_VISIBILITY_PRESET PROPERTY STRINGS hidden default)'
   );
 
   if ${FMT_MASTER_PROJECT} and not (defined CMAKE_VISIBILITY_INLINES_HIDDEN) then (
-    set_verbose CMAKE_VISIBILITY_INLINES_HIDDEN ON CACHE BOOL
+    set_verbose "CMAKE_VISIBILITY_INLINES_HIDDEN" "ON" "CACHE" "BOOL"
       "Whether to add a compile flag to hide symbols of inline "
       "functions."
   );
@@ -200,7 +199,7 @@ file(WRITE run-msbuild.bat "${MSBUILD_SETUP}
   );
 
   add_lib Target fmt "src/format.cc" ${FMT_HEADERS} "README.md" "ChangeLog.md";
-  setup_target fmt PUBLIC;
+  setup_target "fmt" "PUBLIC";
   set_target_properties fmt PROPERTY PUBLIC_HEADER "${FMT_HEADERS}";
 
   if ${FMT_OS} then (
@@ -262,7 +261,7 @@ file(WRITE run-msbuild.bat "${MSBUILD_SETUP}
     get_target_property std ${name} CXX_STANDARD;
     if match ${CMAKE_CXX_COMPILER_ID} "Clang" then (
       pcms := "";
-      foreach src in [ ${sources} ] (
+      foreach src in LISTS sources (
         get_filename_component pcm ~mode:NAME_WE ${src};
         pcm := "${pcm}.pcm";
         compile_opts Target ${name} :PUBLIC "-fmodule-file=${CMAKE_CURRENT_BINARY_DIR}/${pcm}";
@@ -277,7 +276,7 @@ file(WRITE run-msbuild.bat "${MSBUILD_SETUP}
           DEPENDS ${src}
       );
       sources := "";
-      foreach pcm in [ ${pcms} ] (
+      foreach pcm in LISTS pcms (
         get_filename_component pcm_we ~mode:NAME_WE ${pcm};
         obj := "${pcm_we}.o";
         sources := ${sources} ${pcm} "${CMAKE_CURRENT_BINARY_DIR}/${obj}";
@@ -293,14 +292,14 @@ file(WRITE run-msbuild.bat "${MSBUILD_SETUP}
   );
 
   if ${FMT_MODULE} then (
-    add_module_library fmt-module "src/fmt.cc" USE_CMAKE_MODULES ${FMT_USE_CMAKE_MODULES};
-    setup_target fmt-module PUBLIC
+    add_module_library "fmt-module" "src/fmt.cc" USE_CMAKE_MODULES ${FMT_USE_CMAKE_MODULES};
+    setup_target "fmt-module" "PUBLIC"
   );
 
   add_lib Target fmt-header-only ~type:INTERFACE;
   compile_defs Target fmt-header-only :INTERFACE 'FMT_HEADER_ONLY=1';
   compile_feats Target fmt-header-only :INTERFACE 'cxx_std_11';
-  setup_target fmt-header-only INTERFACE;
+  setup_target "fmt-header-only" "INTERFACE";
 
   add_lib Target fmt-c "src/fmt-c.cc" ~type:STATIC;
   compile_feats Target fmt-c :INTERFACE 'c_std_11';
@@ -313,7 +312,7 @@ file(WRITE run-msbuild.bat "${MSBUILD_SETUP}
 
   if ${FMT_INSTALL} then (
     include CMakePackageConfigHelpers;
-    set_verbose FMT_CMAKE_DIR "${CMAKE_INSTALL_LIBDIR}/cmake/fmt" CACHE STRING
+    set_verbose "FMT_CMAKE_DIR" "${CMAKE_INSTALL_LIBDIR}/cmake/fmt" "CACHE" "STRING"
       "Installation directory for cmake files, a relative path that "
       "will be joined with ${CMAKE_INSTALL_PREFIX} or an absolute "
       "path.";
@@ -322,11 +321,11 @@ file(WRITE run-msbuild.bat "${MSBUILD_SETUP}
     pkgconfig := "${PROJECT_BINARY_DIR}/fmt.pc";
     targets_export_name := "fmt-targets";
 
-    set_verbose FMT_LIB_DIR ${CMAKE_INSTALL_LIBDIR} CACHE STRING
+    set_verbose "FMT_LIB_DIR" ${CMAKE_INSTALL_LIBDIR} "CACHE" "STRING"
       "Installation directory for libraries, a relative path that "
       "will be joined to ${CMAKE_INSTALL_PREFIX} or an absolute path.";
 
-    set_verbose FMT_PKGCONFIG_DIR "${CMAKE_INSTALL_LIBDIR}/pkgconfig" CACHE STRING
+    set_verbose "FMT_PKGCONFIG_DIR" "${CMAKE_INSTALL_LIBDIR}/pkgconfig" "CACHE" "STRING"
       "Installation directory for pkgconfig (.pc) files, a relative "
       "path that will be joined with ${CMAKE_INSTALL_PREFIX} or an "
       "absolute path.";
@@ -334,14 +333,14 @@ file(WRITE run-msbuild.bat "${MSBUILD_SETUP}
     write_basic_package_version_file ${version_config}
       ~compatibility:AnyNewerVersion ~version:${FMT_VERSION};
 
-    join_paths libdir_for_pc_file "\\${exec_prefix}" "${FMT_LIB_DIR}";
-    join_paths includedir_for_pc_file "\\${prefix}" "${FMT_INC_DIR}";
+    join_paths "libdir_for_pc_file" "\\${exec_prefix}" "${FMT_LIB_DIR}";
+    join_paths "includedir_for_pc_file" "\\${prefix}" "${FMT_INC_DIR}";
 
     configure_file
       "${PROJECT_SOURCE_DIR}/support/cmake/fmt.pc.in"
       "${pkgconfig}" "@ONLY";
     configure_package_config_file
-      "${FMT_INSTALLDIR}"
+      ${FMT_CMAKE_DIR}
       "${PROJECT_SOURCE_DIR}/support/cmake/fmt-config.cmake.in"
       ${project_config};
 
@@ -428,7 +427,7 @@ file(WRITE run-msbuild.bat "${MSBUILD_SETUP}
   if ${FMT_MASTER_PROJECT} and exists ${gitignore} then (
     file_strings ${gitignore} ~out:lines;
     list_remove_item lines "/doc/html";
-    foreach line in [ ${lines} ] (
+    foreach line in LISTS lines (
       string_replace "." "[.]" "${line}" ~out:line;
       string_replace "*" ".*" "${line}" ~out:line;
       ignored_files := ${ignored_files} "${line}$" "${line}/"

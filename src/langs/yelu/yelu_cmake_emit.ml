@@ -197,6 +197,14 @@ let message_mode_of_string = function
   | other -> fail "emit_ast: unknown message mode %S" other
 
 let version_of_string s : C.version =
+  (* For ranges like "3.8...3.28", take the minimum version *)
+  let s =
+    if String.is_substring s ~substring:".." then
+      match String.split s ~on:'.' with
+      | maj :: min :: _ -> maj ^ "." ^ min
+      | _ -> s
+    else s
+  in
   match String.split s ~on:'.' with
   | [ maj; min ] ->
     { major = Int.of_string maj; minor = Int.of_string min; patch = "" }

@@ -227,7 +227,12 @@ let p_assign_y1 toks =
                  { name = s; values; cache_type = cache_type_s;
                    docstring = msg; force }, rest)
        else
-         Some (yc_set s values, rest))
+         let parent_scope, rest =
+           match rest with
+           | IDENT "PARENT_SCOPE" :: r -> true, r
+           | _ -> false, rest
+         in
+         Some (yc_set ~parent_scope s values, rest))
   | _ -> None
 
 (* `set NAME value...` plain set form (outer `(`/`)` handled by block). *)
@@ -381,9 +386,23 @@ let expr_to_cmake_text = function
   | EInt n -> Int.to_string n
   | _ -> "?"
 
+(* Yelu wrapper → cmake command name. The typed IR uses short yelu names
+   as aliases; raw-fallback emit must produce the real cmake name. *)
+let cmake_name_of_yelu = function
+  | "add_exe" -> "add_executable"
+  | "add_lib" -> "add_library"
+  | "link_lib" -> "target_link_libraries"
+  | "include_dirs" -> "target_include_directories"
+  | "compile_defs" -> "target_compile_definitions"
+  | "compile_opts" -> "target_compile_options"
+  | "compile_feats" -> "target_compile_features"
+  | "link_opts" -> "target_link_options"
+  | "link_dirs" -> "target_link_directories"
+  | n -> n
+
 let args_to_cmake_text name args =
   let body = String.concat ~sep:" " (List.map args ~f:expr_to_cmake_text) in
-  name ^ "(" ^ body ^ ")"
+  cmake_name_of_yelu name ^ "(" ^ body ^ ")"
 
 (* Match legacy [Lang_yelu_parse.out_var] sentinel: "?" when ~out
    missing. Some parser tests omit ~out and rely on this fallback;
@@ -1431,14 +1450,25 @@ let p_cmake_op_command_y1_inner name args kwargs =
     let optional =
       List.Assoc.mem kwargs ~equal:String.equal "optional"
     in
+    (* Bare ident → literal module name, not variable ref.
+       cmake include() takes a file/module name, never a var. *)
+    let file = match file with EVar s -> EString s | e -> e in
     Some (yc_include ~optional file)
   | "include_guard", []
   | "include_guard", [ EVar "GLOBAL" | EString "GLOBAL" ] ->
     Some (yc_include_guard Lang_cmake.Ig_global)
   | "policy_set", id :: _ ->
     Some (yc_policy_set ~new_:true (str_of id))
-  | "enable_language", _ ->
-    Some (yc_enable_language ~optional:false [])
+  | "enable_language", args ->
+    let optional = List.exists args ~f:(function
+      | EVar "OPTIONAL" | EString "OPTIONAL" -> true | _ -> false)
+    in
+    let langs = List.filter_map args ~f:(function
+      | EVar "OPTIONAL" | EString "OPTIONAL" -> None
+      | EVar s | EString s -> Some s
+      | _ -> None)
+    in
+    Some (ECmakeEnableLanguage { langs; optional })
   | "execute_process", _ ->
     let sections = split_by_keywords
       ~keywords:["COMMAND"; "WORKING_DIRECTORY"; "TIMEOUT";
