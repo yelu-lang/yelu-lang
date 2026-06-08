@@ -17,12 +17,12 @@ let pre_3_15_branch = ESeq [
   yc_apply (ystr "cuda_add_executable")
     [ystr "fmt-in-cuda-test"; ystr "cuda-cpp14.cu"; ystr "cpp14.cc"];
   ECmakeTargetCompileFeatures {
-    target = ystr "fmt-in-cuda-test"; visibility = "PRIVATE";
+    target = ystr "fmt-in-cuda-test"; visibility = Vis_private;
     features = [ystr "cxx_std_14"];
   };
   yifthen (EVar "MSVC")
     (ECmakeTargetCompileOptions {
-      target = ystr "fmt-in-cuda-test"; visibility = "PRIVATE";
+      target = ystr "fmt-in-cuda-test"; visibility = Vis_private;
       before = false;
       options_ = [ystr "/Zc:__cplusplus"; ystr "/permissive-"];
     });
@@ -36,7 +36,7 @@ let post_3_15_branch = ESeq [
   yc_set_target_properties (ystr "fmt-in-cuda-test")
     [("CUDA_SEPARABLE_COMPILATION", EString "ON")];
   ECmakeTargetCompileFeatures {
-    target = ystr "fmt-in-cuda-test"; visibility = "PRIVATE";
+    target = ystr "fmt-in-cuda-test"; visibility = Vis_private;
     features = [ystr "cxx_std_14"];
   };
   yifthen (EVar "MSVC") (ESeq [
@@ -71,7 +71,7 @@ let helpers = ESeq [
     "CUDA_STANDARD_REQUIRED";
   yc_message ["cuda_standard_required: ${IN_USE_CUDA_STANDARD_REQUIRED}"];
   ECmakeTargetLinkLibraries {
-    target = ystr "fmt-in-cuda-test"; visibility = "PRIVATE";
+    target = ystr "fmt-in-cuda-test"; visibility = Vis_private;
     items = [ystr "fmt::fmt"];
   };
 ]

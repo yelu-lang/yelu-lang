@@ -388,23 +388,23 @@ let fmt_lib_block = ESeq [
   Yelu_langs.Yelu_cmake_if.ECmakeIfStmt {
     cond = EVar "FMT_OS";
     then_ = ECmakeTargetSources {
-      target = ystr "fmt"; visibility = "PRIVATE";
+      target = ystr "fmt"; visibility = Vis_private;
       sources = [ystr "src/os.cc"];
     };
     else_ = Some (ECmakeTargetCompileDefinitions {
-      target = ystr "fmt"; visibility = "PRIVATE";
+      target = ystr "fmt"; visibility = Vis_private;
       definitions = [ystr "FMT_OS=0"];
     });
   };
 
   yifthen (EVar "FMT_WERROR")
     (ECmakeTargetCompileOptions {
-      target = ystr "fmt"; visibility = "PRIVATE";
+      target = ystr "fmt"; visibility = Vis_private;
       before = false; options_ = [EVar "WERROR_FLAG"];
     });
   yifthen (EVar "FMT_PEDANTIC")
     (ECmakeTargetCompileOptions {
-      target = ystr "fmt"; visibility = "PRIVATE";
+      target = ystr "fmt"; visibility = Vis_private;
       before = false; options_ = [EVar "PEDANTIC_COMPILE_FLAGS"];
     });
 
@@ -412,7 +412,7 @@ let fmt_lib_block = ESeq [
     cond = Yelu_langs.Yelu_cmake_string.ECmakeInList
              { item = ystr "cxx_std_11"; list_ = EVar "CMAKE_CXX_COMPILE_FEATURES" };
     then_ = ECmakeTargetCompileFeatures {
-      target = ystr "fmt"; visibility = "PUBLIC";
+      target = ystr "fmt"; visibility = Vis_public;
       features = [ystr "cxx_std_11"];
     };
     else_ = Some (yc_message_mode "WARNING"
@@ -429,17 +429,17 @@ let fmt_lib_block = ESeq [
   yifthen (EVar "BUILD_SHARED_LIBS")
     (ESeq [
       ECmakeTargetCompileDefinitions {
-        target = ystr "fmt"; visibility = "PRIVATE";
+        target = ystr "fmt"; visibility = Vis_private;
         definitions = [ystr "FMT_LIB_EXPORT"];
       };
       ECmakeTargetCompileDefinitions {
-        target = ystr "fmt"; visibility = "INTERFACE";
+        target = ystr "fmt"; visibility = Vis_interface;
         definitions = [ystr "FMT_SHARED"];
       };
     ]);
   yifthen (EVar "FMT_SAFE_DURATION_CAST")
     (ECmakeTargetCompileDefinitions {
-      target = ystr "fmt"; visibility = "PUBLIC";
+      target = ystr "fmt"; visibility = Vis_public;
       definitions = [ystr "FMT_SAFE_DURATION_CAST"];
     });
 ]
@@ -457,7 +457,7 @@ let add_module_library_fn =
     yc_set_target_properties (EVar "name")
       [("LINKER_LANGUAGE", EString "CXX")];
     ECmakeTargetCompileFeatures {
-      target = EVar "name"; visibility = "PUBLIC";
+      target = EVar "name"; visibility = Vis_public;
       features = [ystr "cxx_std_20"];
     };
     yifthen (EVar "MSVC") (
@@ -487,7 +487,7 @@ let add_module_library_fn =
     ]);
     yifthen (EVar "CMAKE_COMPILER_IS_GNUCXX")
       (ECmakeTargetCompileOptions
-         { target = EVar "name"; visibility = "PUBLIC";
+         { target = EVar "name"; visibility = Vis_public;
            before = false; options_ = [EString "-fmodules-ts"] });
     yc_apply (ystr "get_target_property")
       [ystr "std"; EVar "name"; ystr "CXX_STANDARD"];
@@ -500,7 +500,7 @@ let add_module_library_fn =
           yc_get_filename_component ~mode:"NAME_WE" "pcm" (EVar "src");
           yc_set (ycvar "pcm") [ystr "${pcm}.pcm"];
           ECmakeTargetCompileOptions
-            { target = EVar "name"; visibility = "PUBLIC";
+            { target = EVar "name"; visibility = Vis_public;
               before = false;
               options_ = [EString "-fmodule-file=${CMAKE_CURRENT_BINARY_DIR}/${pcm}"] };
           yc_set (ycvar "pcms")
@@ -534,7 +534,7 @@ let add_module_library_fn =
         ]);
       ]);
     ECmakeTargetSources {
-      target = EVar "name"; visibility = "PRIVATE";
+      target = EVar "name"; visibility = Vis_private;
       sources = [EVar "sources"];
     };
   ]
@@ -555,11 +555,11 @@ let modules_and_variants = ESeq [
     name = ystr "fmt-header-only"; type_ = Some "INTERFACE"; sources = [];
   };
   ECmakeTargetCompileDefinitions {
-    target = ystr "fmt-header-only"; visibility = "INTERFACE";
+    target = ystr "fmt-header-only"; visibility = Vis_interface;
     definitions = [ystr "FMT_HEADER_ONLY=1"];
   };
   ECmakeTargetCompileFeatures {
-    target = ystr "fmt-header-only"; visibility = "INTERFACE";
+    target = ystr "fmt-header-only"; visibility = Vis_interface;
     features = [ystr "cxx_std_11"];
   };
   yc_apply (ystr "setup_target") [ystr "fmt-header-only"; ystr "INTERFACE"];
@@ -569,16 +569,16 @@ let modules_and_variants = ESeq [
     sources = [ystr "src/fmt-c.cc"];
   };
   ECmakeTargetCompileFeatures {
-    target = ystr "fmt-c"; visibility = "INTERFACE";
+    target = ystr "fmt-c"; visibility = Vis_interface;
     features = [ystr "c_std_11"];
   };
   yifthen (EVar "MSVC")
     (ECmakeTargetCompileOptions {
-      target = ystr "fmt-c"; visibility = "PUBLIC";
+      target = ystr "fmt-c"; visibility = Vis_public;
       before = false; options_ = [ystr "/Zc:preprocessor"];
     });
   ECmakeTargetLinkLibraries {
-    target = ystr "fmt-c"; visibility = "PUBLIC";
+    target = ystr "fmt-c"; visibility = Vis_public;
     items = [ystr "fmt::fmt"];
   };
   ECmakeAddLibraryAlias { name = "fmt::fmt-c"; target = "fmt-c" };
@@ -744,7 +744,7 @@ let trailing_gates = ESeq [
   yifthen (EVar "FMT_FUZZ") (ESeq [
     yc_add_subdirectory (ystr "test/fuzzing");
     ECmakeTargetCompileDefinitions {
-      target = ystr "fmt"; visibility = "PUBLIC";
+      target = ystr "fmt"; visibility = Vis_public;
       definitions = [ystr "FMT_FUZZ"];
     };
   ]);

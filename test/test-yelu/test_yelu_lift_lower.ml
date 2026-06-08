@@ -151,7 +151,7 @@ let yelu1_to_yelu2 =
         ~expected_value:(VBool true)
         ~expected_env:
           (env_of_bindings
-             ~targets:[ target "app" ~sources:[ { visibility = "PRIVATE"; source = "main.c" } ] ]
+             ~targets:[ target "app" ~sources:[ { visibility = Vis_private; source = "main.c" } ] ]
              [ "OUT", VBool true ]);
       check_yelu1_to_yelu2 "library declaration"
         (ESeq [
@@ -162,12 +162,12 @@ let yelu1_to_yelu2 =
         ~expected_value:(VBool true)
         ~expected_env:
           (env_of_bindings
-             ~targets:[ target "core" ~kind:(TargetLibrary (Some "STATIC")) ~sources:[ { visibility = "PRIVATE"; source = "core.c" } ] ]
+             ~targets:[ target "core" ~kind:(TargetLibrary (Some "STATIC")) ~sources:[ { visibility = Vis_private; source = "core.c" } ] ]
              [ "OUT", VBool true ]);
       check_yelu1_to_yelu2 "target sources mutation"
         (ESeq [
           ECmakeAddExecutable { name = EString "app"; sources = [ EString "main.c" ] };
-          ECmakeTargetSources { target = EString "app"; visibility = "PUBLIC"; sources = [ EString "extra.c" ] };
+          ECmakeTargetSources { target = EString "app"; visibility = Vis_public; sources = [ EString "extra.c" ] };
           ETarget "app";
         ])
         ~expected_value:(VTarget "app")
@@ -176,13 +176,13 @@ let yelu1_to_yelu2 =
              ~targets:
                [
                  target "app"
-                   ~sources:[ { visibility = "PRIVATE"; source = "main.c" }; { visibility = "PUBLIC"; source = "extra.c" } ];
+                   ~sources:[ { visibility = Vis_private; source = "main.c" }; { visibility = Vis_public; source = "extra.c" } ];
                ]
              []);
       check_yelu1_to_yelu2 "target link libraries mutation"
         (ESeq [
           ECmakeAddExecutable { name = EString "app"; sources = [ EString "main.c" ] };
-          ECmakeTargetLinkLibraries { target = EString "app"; visibility = "PRIVATE"; items = [ EString "m" ] };
+          ECmakeTargetLinkLibraries { target = EString "app"; visibility = Vis_private; items = [ EString "m" ] };
           ETarget "app";
         ])
         ~expected_value:(VTarget "app")
@@ -191,15 +191,15 @@ let yelu1_to_yelu2 =
              ~targets:
                [
                  target "app"
-                   ~sources:[ { visibility = "PRIVATE"; source = "main.c" } ]
-                   ~link_libraries:[ { visibility = "PRIVATE"; item = "m" } ];
+                   ~sources:[ { visibility = Vis_private; source = "main.c" } ]
+                   ~link_libraries:[ { visibility = Vis_private; item = "m" } ];
                ]
              []);
       check_yelu1_to_yelu2 "target include directories mutation"
         (ESeq [
           ECmakeAddExecutable { name = EString "app"; sources = [ EString "main.c" ] };
           ECmakeTargetIncludeDirectories
-            { target = EString "app"; visibility = "PUBLIC";
+            { target = EString "app"; visibility = Vis_public;
               before = false; system = false;
               dirs = [ EString "include" ] };
           ETarget "app";
@@ -210,15 +210,15 @@ let yelu1_to_yelu2 =
              ~targets:
                [
                  target "app"
-                   ~sources:[ { visibility = "PRIVATE"; source = "main.c" } ]
-                   ~include_directories:[ { visibility = "PUBLIC"; dir = "include" } ];
+                   ~sources:[ { visibility = Vis_private; source = "main.c" } ]
+                   ~include_directories:[ { visibility = Vis_public; dir = "include" } ];
                ]
              []);
       check_yelu1_to_yelu2 "target compile definitions mutation"
         (ESeq [
           ECmakeAddExecutable { name = EString "app"; sources = [ EString "main.c" ] };
           ECmakeTargetCompileDefinitions
-            { target = EString "app"; visibility = "PRIVATE"; definitions = [ EString "USE_FEATURE" ] };
+            { target = EString "app"; visibility = Vis_private; definitions = [ EString "USE_FEATURE" ] };
           ETarget "app";
         ])
         ~expected_value:(VTarget "app")
@@ -227,16 +227,16 @@ let yelu1_to_yelu2 =
              ~targets:
                [
                  target "app"
-                   ~sources:[ { visibility = "PRIVATE"; source = "main.c" } ]
+                   ~sources:[ { visibility = Vis_private; source = "main.c" } ]
                    ~compile_definitions:
-                     [ { visibility = "PRIVATE"; definition = "USE_FEATURE" } ];
+                     [ { visibility = Vis_private; definition = "USE_FEATURE" } ];
                ]
              []);
       check_yelu1_to_yelu2 "target compile options mutation"
         (ESeq [
           ECmakeAddExecutable { name = EString "app"; sources = [ EString "main.c" ] };
           ECmakeTargetCompileOptions
-            { target = EString "app"; visibility = "PRIVATE";
+            { target = EString "app"; visibility = Vis_private;
               before = false;
               options_ = [ EString "-Wall" ] };
           ETarget "app";
@@ -247,9 +247,9 @@ let yelu1_to_yelu2 =
              ~targets:
                [
 	                 target "app"
-	                   ~sources:[ { visibility = "PRIVATE"; source = "main.c" } ]
+	                   ~sources:[ { visibility = Vis_private; source = "main.c" } ]
 	                   ~compile_options:
-	                     [ { visibility = "PRIVATE"; option_ = "-Wall" } ];
+	                     [ { visibility = Vis_private; option_ = "-Wall" } ];
 	               ]
 	             []);
       check_yelu1_to_yelu2 "target compile features mutation"
@@ -257,7 +257,7 @@ let yelu1_to_yelu2 =
           ECmakeAddLibrary
             { name = EString "flags"; type_ = Some "INTERFACE"; sources = [] };
           ECmakeTargetCompileFeatures
-            { target = EString "flags"; visibility = "INTERFACE"; features = [ EString "cxx_std_11" ] };
+            { target = EString "flags"; visibility = Vis_interface; features = [ EString "cxx_std_11" ] };
           ETarget "flags";
         ])
         ~expected_value:(VTarget "flags")
@@ -268,14 +268,14 @@ let yelu1_to_yelu2 =
                  target "flags"
                    ~kind:(TargetLibrary (Some "INTERFACE"))
                    ~compile_features:
-                     [ { visibility = "INTERFACE"; feature = "cxx_std_11" } ];
+                     [ { visibility = Vis_interface; feature = "cxx_std_11" } ];
                ]
              []);
       check_yelu1_to_yelu2 "target link options mutation"
         (ESeq [
           ECmakeAddExecutable { name = EString "app"; sources = [ EString "main.c" ] };
           ECmakeTargetLinkOptions
-            { target = EString "app"; visibility = "PRIVATE";
+            { target = EString "app"; visibility = Vis_private;
               before = false;
               options_ = [ EString "-Wl,--as-needed" ] };
           ETarget "app";
@@ -286,16 +286,16 @@ let yelu1_to_yelu2 =
              ~targets:
                [
                  target "app"
-                   ~sources:[ { visibility = "PRIVATE"; source = "main.c" } ]
+                   ~sources:[ { visibility = Vis_private; source = "main.c" } ]
                    ~link_options:
-                     [ { visibility = "PRIVATE"; link_option = "-Wl,--as-needed" } ];
+                     [ { visibility = Vis_private; link_option = "-Wl,--as-needed" } ];
                ]
              []);
       check_yelu1_to_yelu2 "target link directories mutation"
         (ESeq [
           ECmakeAddExecutable { name = EString "app"; sources = [ EString "main.c" ] };
           ECmakeTargetLinkDirectories
-            { target = EString "app"; visibility = "PUBLIC";
+            { target = EString "app"; visibility = Vis_public;
               before = false;
               dirs = [ EString "/opt/lib" ] };
           ETarget "app";
@@ -306,9 +306,9 @@ let yelu1_to_yelu2 =
              ~targets:
                [
                  target "app"
-                   ~sources:[ { visibility = "PRIVATE"; source = "main.c" } ]
+                   ~sources:[ { visibility = Vis_private; source = "main.c" } ]
                    ~link_directories:
-                     [ { visibility = "PUBLIC"; link_directory = "/opt/lib" } ];
+                     [ { visibility = Vis_public; link_directory = "/opt/lib" } ];
                ]
              []);
       check_yelu1_to_yelu2 "custom target declaration"
@@ -368,7 +368,7 @@ let yelu1_to_yelu2 =
         ~expected_value:VUnit
         ~expected_env:
           (env_of_bindings
-             ~targets:[ target "app" ~sources:[ { visibility = "PRIVATE"; source = "main.c" } ] ]
+             ~targets:[ target "app" ~sources:[ { visibility = Vis_private; source = "main.c" } ] ]
              ~install_rules:
                [
                  InstallTargets { targets = [ "app" ]; destination = "bin"; export = None };
@@ -423,7 +423,7 @@ let yelu1_to_yelu2 =
         ~expected_value:VUnit
         ~expected_env:
           (env_of_bindings
-             ~targets:[ target "app" ~sources:[ { visibility = "PRIVATE"; source = "main.c" } ] ]
+             ~targets:[ target "app" ~sources:[ { visibility = Vis_private; source = "main.c" } ] ]
              ~target_properties:[ "app", "OUTPUT_NAME", "myapp" ]
              [ "OUT", VString "myapp" ]);
       check_yelu1_to_yelu2 "ELet binds inside body and scopes out after"
@@ -643,7 +643,7 @@ let yelu2_to_yelu1 =
         ~expected_value:(VBool true)
         ~expected_env:
           (env_of_bindings
-             ~targets:[ target "app" ~sources:[ { visibility = "PRIVATE"; source = "main.c" } ] ]
+             ~targets:[ target "app" ~sources:[ { visibility = Vis_private; source = "main.c" } ] ]
              [
                "APP", VTarget "app";
                "OUT", VBool true;
@@ -660,7 +660,7 @@ let yelu2_to_yelu1 =
         ~expected_value:(VBool true)
         ~expected_env:
           (env_of_bindings
-             ~targets:[ target "core" ~kind:(TargetLibrary (Some "STATIC")) ~sources:[ { visibility = "PRIVATE"; source = "core.c" } ] ]
+             ~targets:[ target "core" ~kind:(TargetLibrary (Some "STATIC")) ~sources:[ { visibility = Vis_private; source = "core.c" } ] ]
              [
                "CORE", VTarget "core";
                "OUT", VBool true;
@@ -669,7 +669,7 @@ let yelu2_to_yelu1 =
         (ESeq [
           ESetVar
             ("APP", EExecutable { name = EString "app"; sources = [ EString "main.c" ] });
-          ETargetAddSources { target = ETarget "app"; visibility = "INTERFACE"; sources = [ EString "extra.c" ] };
+          ETargetAddSources { target = ETarget "app"; visibility = Vis_interface; sources = [ EString "extra.c" ] };
         ])
         ~expected_value:(VTarget "app")
         ~expected_env:
@@ -677,7 +677,7 @@ let yelu2_to_yelu1 =
              ~targets:
                [
                  target "app"
-                   ~sources:[ { visibility = "PRIVATE"; source = "main.c" }; { visibility = "INTERFACE"; source = "extra.c" } ];
+                   ~sources:[ { visibility = Vis_private; source = "main.c" }; { visibility = Vis_interface; source = "extra.c" } ];
                ]
              [
                "APP", VTarget "app";
@@ -686,7 +686,7 @@ let yelu2_to_yelu1 =
         (ESeq [
           ESetVar
             ("APP", EExecutable { name = EString "app"; sources = [ EString "main.c" ] });
-          ETargetLinkLibraries { target = ETarget "app"; visibility = "PRIVATE"; items = [ EString "m" ] };
+          ETargetLinkLibraries { target = ETarget "app"; visibility = Vis_private; items = [ EString "m" ] };
         ])
         ~expected_value:(VTarget "app")
         ~expected_env:
@@ -694,8 +694,8 @@ let yelu2_to_yelu1 =
              ~targets:
                [
                  target "app"
-                   ~sources:[ { visibility = "PRIVATE"; source = "main.c" } ]
-                   ~link_libraries:[ { visibility = "PRIVATE"; item = "m" } ];
+                   ~sources:[ { visibility = Vis_private; source = "main.c" } ]
+                   ~link_libraries:[ { visibility = Vis_private; item = "m" } ];
                ]
              [
                "APP", VTarget "app";
@@ -704,7 +704,7 @@ let yelu2_to_yelu1 =
         (ESeq [
           ESetVar
             ("APP", EExecutable { name = EString "app"; sources = [ EString "main.c" ] });
-          ETargetIncludeDirectories { target = ETarget "app"; visibility = "INTERFACE"; dirs = [ EString "iface" ] };
+          ETargetIncludeDirectories { target = ETarget "app"; visibility = Vis_interface; dirs = [ EString "iface" ] };
         ])
         ~expected_value:(VTarget "app")
         ~expected_env:
@@ -712,8 +712,8 @@ let yelu2_to_yelu1 =
              ~targets:
                [
                  target "app"
-                   ~sources:[ { visibility = "PRIVATE"; source = "main.c" } ]
-                   ~include_directories:[ { visibility = "INTERFACE"; dir = "iface" } ];
+                   ~sources:[ { visibility = Vis_private; source = "main.c" } ]
+                   ~include_directories:[ { visibility = Vis_interface; dir = "iface" } ];
                ]
              [
                "APP", VTarget "app";
@@ -723,7 +723,7 @@ let yelu2_to_yelu1 =
           ESetVar
             ("APP", EExecutable { name = EString "app"; sources = [ EString "main.c" ] });
           ETargetCompileDefinitions
-            { target = ETarget "app"; visibility = "PUBLIC"; definitions = [ EString "USE_FEATURE" ] };
+            { target = ETarget "app"; visibility = Vis_public; definitions = [ EString "USE_FEATURE" ] };
         ])
         ~expected_value:(VTarget "app")
         ~expected_env:
@@ -731,9 +731,9 @@ let yelu2_to_yelu1 =
              ~targets:
                [
                  target "app"
-                   ~sources:[ { visibility = "PRIVATE"; source = "main.c" } ]
+                   ~sources:[ { visibility = Vis_private; source = "main.c" } ]
                    ~compile_definitions:
-                     [ { visibility = "PUBLIC"; definition = "USE_FEATURE" } ];
+                     [ { visibility = Vis_public; definition = "USE_FEATURE" } ];
                ]
              [
                "APP", VTarget "app";
@@ -743,7 +743,7 @@ let yelu2_to_yelu1 =
           ESetVar
             ("APP", EExecutable { name = EString "app"; sources = [ EString "main.c" ] });
           ETargetCompileOptions
-            { target = ETarget "app"; visibility = "PUBLIC"; options_ = [ EString "-O2" ] };
+            { target = ETarget "app"; visibility = Vis_public; options_ = [ EString "-O2" ] };
         ])
         ~expected_value:(VTarget "app")
         ~expected_env:
@@ -751,9 +751,9 @@ let yelu2_to_yelu1 =
              ~targets:
                [
 	                 target "app"
-	                   ~sources:[ { visibility = "PRIVATE"; source = "main.c" } ]
+	                   ~sources:[ { visibility = Vis_private; source = "main.c" } ]
 	                   ~compile_options:
-	                     [ { visibility = "PUBLIC"; option_ = "-O2" } ];
+	                     [ { visibility = Vis_public; option_ = "-O2" } ];
 	               ]
 	             [
 	               "APP", VTarget "app";
@@ -763,7 +763,7 @@ let yelu2_to_yelu1 =
           ESetVar
             ("FLAGS", ELibrary { name = EString "flags"; type_ = Some "INTERFACE"; sources = [] });
           ETargetCompileFeatures
-            { target = ETarget "flags"; visibility = "INTERFACE"; features = [ EString "cxx_std_11" ] };
+            { target = ETarget "flags"; visibility = Vis_interface; features = [ EString "cxx_std_11" ] };
         ])
         ~expected_value:(VTarget "flags")
         ~expected_env:
@@ -773,7 +773,7 @@ let yelu2_to_yelu1 =
                  target "flags"
                    ~kind:(TargetLibrary (Some "INTERFACE"))
                    ~compile_features:
-                     [ { visibility = "INTERFACE"; feature = "cxx_std_11" } ];
+                     [ { visibility = Vis_interface; feature = "cxx_std_11" } ];
                ]
              [
                "FLAGS", VTarget "flags";
@@ -783,7 +783,7 @@ let yelu2_to_yelu1 =
           ESetVar
             ("APP", EExecutable { name = EString "app"; sources = [ EString "main.c" ] });
           ETargetLinkOptions
-            { target = ETarget "app"; visibility = "PRIVATE"; options_ = [ EString "-Wl,--gc-sections" ] };
+            { target = ETarget "app"; visibility = Vis_private; options_ = [ EString "-Wl,--gc-sections" ] };
         ])
         ~expected_value:(VTarget "app")
         ~expected_env:
@@ -791,9 +791,9 @@ let yelu2_to_yelu1 =
              ~targets:
                [
                  target "app"
-                   ~sources:[ { visibility = "PRIVATE"; source = "main.c" } ]
+                   ~sources:[ { visibility = Vis_private; source = "main.c" } ]
                    ~link_options:
-                     [ { visibility = "PRIVATE"; link_option = "-Wl,--gc-sections" } ];
+                     [ { visibility = Vis_private; link_option = "-Wl,--gc-sections" } ];
                ]
              [
                "APP", VTarget "app";
@@ -803,7 +803,7 @@ let yelu2_to_yelu1 =
           ESetVar
             ("APP", EExecutable { name = EString "app"; sources = [ EString "main.c" ] });
           ETargetLinkDirectories
-            { target = ETarget "app"; visibility = "INTERFACE"; dirs = [ EString "/usr/local/lib" ] };
+            { target = ETarget "app"; visibility = Vis_interface; dirs = [ EString "/usr/local/lib" ] };
         ])
         ~expected_value:(VTarget "app")
         ~expected_env:
@@ -811,9 +811,9 @@ let yelu2_to_yelu1 =
              ~targets:
                [
                  target "app"
-                   ~sources:[ { visibility = "PRIVATE"; source = "main.c" } ]
+                   ~sources:[ { visibility = Vis_private; source = "main.c" } ]
                    ~link_directories:
-                     [ { visibility = "INTERFACE"; link_directory = "/usr/local/lib" } ];
+                     [ { visibility = Vis_interface; link_directory = "/usr/local/lib" } ];
                ]
              [
                "APP", VTarget "app";
@@ -876,7 +876,7 @@ let yelu2_to_yelu1 =
         ~expected_value:VUnit
         ~expected_env:
           (env_of_bindings
-             ~targets:[ target "app" ~sources:[ { visibility = "PRIVATE"; source = "main.c" } ] ]
+             ~targets:[ target "app" ~sources:[ { visibility = Vis_private; source = "main.c" } ] ]
              ~install_rules:
                [
                  InstallTargets { targets = [ "app" ]; destination = "bin"; export = None };
@@ -961,7 +961,7 @@ let yelu2_to_yelu1 =
         ~expected_value:VUnit
         ~expected_env:
           (env_of_bindings
-             ~targets:[ target "app" ~sources:[ { visibility = "PRIVATE"; source = "main.c" } ] ]
+             ~targets:[ target "app" ~sources:[ { visibility = Vis_private; source = "main.c" } ] ]
              ~target_properties:[ "app", "OUTPUT_NAME", "myapp" ]
              [ "APP", VTarget "app"; "OUT", VString "myapp" ]);
     ] )

@@ -104,7 +104,7 @@ let parity =
                   sources = [ EString "tutorial.cxx" ] };
               Yelu_langs.Yelu_cmake_target.ECmakeTargetLinkLibraries
                 { target = ETarget "Tutorial";
-                  visibility = "PUBLIC";
+                  visibility = Vis_public;
                   items = [ ETarget "MathFunctions" ] };
             ]
           in

@@ -71,7 +71,7 @@ let assert_target_sources name input expected_groups =
     let groups =
       List.map (flatten_target_groups (parse input)) ~f:(function
         | ECmakeTargetSources { visibility; sources; _ } ->
-          visibility, List.map sources ~f:string_of_arg
+          string_of_visibility visibility, List.map sources ~f:string_of_arg
         | _ -> Alcotest.fail "expected ECmakeTargetSources group")
     in
     Alcotest.(check (list (pair string (list string)))) "source groups"
@@ -82,7 +82,7 @@ let assert_target_link_libraries name input expected_groups =
     let groups =
       List.map (flatten_target_groups (parse input)) ~f:(function
         | ECmakeTargetLinkLibraries { visibility; items; _ } ->
-          visibility, List.map items ~f:string_of_arg
+          string_of_visibility visibility, List.map items ~f:string_of_arg
         | _ -> Alcotest.fail "expected ECmakeTargetLinkLibraries group")
     in
     Alcotest.(check (list (pair string (list string)))) "library groups"
@@ -93,7 +93,7 @@ let assert_target_include_directories name input expected_groups =
     let groups =
       List.map (flatten_target_groups (parse input)) ~f:(function
         | ECmakeTargetIncludeDirectories { visibility; dirs; _ } ->
-          visibility, List.map dirs ~f:string_of_arg
+          string_of_visibility visibility, List.map dirs ~f:string_of_arg
         | _ -> Alcotest.fail "expected ECmakeTargetIncludeDirectories group")
     in
     Alcotest.(check (list (pair string (list string)))) "include dir groups"

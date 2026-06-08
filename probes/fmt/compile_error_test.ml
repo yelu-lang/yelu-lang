@@ -23,14 +23,12 @@ let expect_compile_fn =
     Yelu_langs.Yelu_cmake_if.ECmakeIfStmt {
       cond = EVar "EXPECT_COMPILE_ERROR";
       then_ = ESeq [
-        yc_apply (ystr "file") [
-          ystr "WRITE";
-          ystr "${CMAKE_CURRENT_BINARY_DIR}/test/${test_name}.cc";
-          ystr "\n      ${fmt_headers}\n      void ${test_name}() {\n        ${code_fragment}\n      }\n      ";
-        ];
+        Yelu_langs.Yelu_cmake_file.ECmakeFileWrite {
+          path = EString "${CMAKE_CURRENT_BINARY_DIR}/test/${test_name}.cc";
+          content = [EString "\n      ${fmt_headers}\n      void ${test_name}() {\n        ${code_fragment}\n      }\n      "];
+        };
         yc_set (ycvar "error_test_names_copy") [ystr "${error_test_names}"];
-        yc_apply (ystr "list")
-          [ystr "APPEND"; ystr "error_test_names_copy"; ystr "${test_name}"];
+        yc_list_append "error_test_names_copy" [EString "${test_name}"];
         yc_set ~parent_scope:true
           (ycvar "error_test_names") [ystr "${error_test_names_copy}"];
       ];
@@ -48,20 +46,18 @@ let run_tests_fn =
       (ycvar "test_name")
       (yc_set (ycvar "cmake_targets")
          [ystr "\n        ${cmake_targets}\n        add_library(test-${test_name} ${test_name}.cc)\n        target_link_libraries(test-${test_name} PRIVATE fmt::fmt)\n        "]);
-    yc_apply (ystr "file") [
-      ystr "WRITE";
-      ystr "${CMAKE_CURRENT_BINARY_DIR}/test/non_error_test.cc";
-      ystr "\n    ${fmt_headers}\n    ${non_error_test_content}\n    ";
-    ];
+    Yelu_langs.Yelu_cmake_file.ECmakeFileWrite {
+      path = EString "${CMAKE_CURRENT_BINARY_DIR}/test/non_error_test.cc";
+      content = [EString "\n    ${fmt_headers}\n    ${non_error_test_content}\n    "];
+    };
     yc_set (ycvar "cmake_targets")
       [ystr "\n      ${cmake_targets}\n      add_library(non-error-test non_error_test.cc)\n      target_link_libraries(non-error-test PRIVATE fmt::fmt)\n      "];
-    yc_apply (ystr "file") [
-      ystr "WRITE";
-      ystr "${CMAKE_CURRENT_BINARY_DIR}/test/CMakeLists.txt";
-      ystr "\n    cmake_minimum_required(VERSION 3.8...3.25)\n    project(tests CXX)\n    add_subdirectory(${FMT_DIR} fmt)\n    ${cmake_targets}\n    ";
-    ];
+    Yelu_langs.Yelu_cmake_file.ECmakeFileWrite {
+      path = EString "${CMAKE_CURRENT_BINARY_DIR}/test/CMakeLists.txt";
+      content = [EString "\n    cmake_minimum_required(VERSION 3.8...3.25)\n    project(tests CXX)\n    add_subdirectory(${FMT_DIR} fmt)\n    ${cmake_targets}\n    "];
+    };
     yc_set (ycvar "build_directory") [ystr "${CMAKE_CURRENT_BINARY_DIR}/test/build"];
-    yc_apply (ystr "file") [ystr "MAKE_DIRECTORY"; ystr "${build_directory}"];
+    yc_file_make_directory [EString "${build_directory}"];
     yc_apply (ystr "execute_process") [
       ystr "COMMAND";
       ystr "${CMAKE_COMMAND}";

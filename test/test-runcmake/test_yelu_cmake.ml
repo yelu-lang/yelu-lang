@@ -316,7 +316,7 @@ let yelu2_configure_lowering =
         (ESeq [
           ESetVar
             ("APP", EExecutable { name = EString "app"; sources = [ EString "main.c" ] });
-          ETargetAddSources { target = ETarget "app"; visibility = "PRIVATE"; sources = [ EString "extra.c" ] };
+          ETargetAddSources { target = ETarget "app"; visibility = Vis_private; sources = [ EString "extra.c" ] };
           ESetVar
             ( "OUT",
               EIfExpr
@@ -349,7 +349,7 @@ let yelu2_configure_lowering =
         (ESeq [
           ESetVar
             ("APP", EExecutable { name = EString "app"; sources = [ EString "main.c" ] });
-          ETargetLinkLibraries { target = ETarget "app"; visibility = "PRIVATE"; items = [ EString "m" ] };
+          ETargetLinkLibraries { target = ETarget "app"; visibility = Vis_private; items = [ EString "m" ] };
           ESetVar
             ( "OUT",
               EIfExpr
@@ -365,7 +365,7 @@ let yelu2_configure_lowering =
         (ESeq [
           ESetVar
             ("APP", EExecutable { name = EString "app"; sources = [ EString "main.c" ] });
-          ETargetIncludeDirectories { target = ETarget "app"; visibility = "PRIVATE"; dirs = [ EString "include" ] };
+          ETargetIncludeDirectories { target = ETarget "app"; visibility = Vis_private; dirs = [ EString "include" ] };
           ESetVar
             ( "OUT",
               EIfExpr
@@ -1026,18 +1026,18 @@ target_link_directories(app PRIVATE "/opt/lib")
                 { name = EString "core"; type_ = Some "STATIC"; sources = [ EString "core.c" ] } );
           ESetVar
             ("APP", EExecutable { name = EString "app"; sources = [ EString "main.c" ] });
-          ETargetAddSources { target = ETarget "app"; visibility = "PRIVATE"; sources = [ EString "extra.c" ] };
+          ETargetAddSources { target = ETarget "app"; visibility = Vis_private; sources = [ EString "extra.c" ] };
           ETargetLinkLibraries
-            { target = ETarget "app"; visibility = "PRIVATE"; items = [ EString "core"; EString "m" ] };
-          ETargetIncludeDirectories { target = ETarget "app"; visibility = "PRIVATE"; dirs = [ EString "include" ] };
+            { target = ETarget "app"; visibility = Vis_private; items = [ EString "core"; EString "m" ] };
+          ETargetIncludeDirectories { target = ETarget "app"; visibility = Vis_private; dirs = [ EString "include" ] };
           ETargetCompileDefinitions
-            { target = ETarget "app"; visibility = "PRIVATE"; definitions = [ EString "USE_FEATURE" ] };
+            { target = ETarget "app"; visibility = Vis_private; definitions = [ EString "USE_FEATURE" ] };
           ETargetCompileOptions
-            { target = ETarget "app"; visibility = "PRIVATE"; options_ = [ EString "-Wall" ] };
+            { target = ETarget "app"; visibility = Vis_private; options_ = [ EString "-Wall" ] };
           ETargetLinkOptions
-            { target = ETarget "app"; visibility = "PRIVATE"; options_ = [ EString "-Wl,--as-needed" ] };
+            { target = ETarget "app"; visibility = Vis_private; options_ = [ EString "-Wl,--as-needed" ] };
           ETargetLinkDirectories
-            { target = ETarget "app"; visibility = "PRIVATE"; dirs = [ EString "/opt/lib" ] };
+            { target = ETarget "app"; visibility = Vis_private; dirs = [ EString "/opt/lib" ] };
         ]);
       check_yelu2_custom_target_build "custom target command runs"
         (ECustomTarget

@@ -40,23 +40,23 @@ let add_fmt_test_fn =
     };
     ECmakeAddExecutable { name = EVar "name"; sources = [EVar "sources"] };
     ECmakeTargetLinkLibraries {
-      target = EVar "name"; visibility = "PUBLIC"; items = [EVar "libs"];
+      target = EVar "name"; visibility = Vis_public; items = [EVar "libs"];
     };
     yifthen
       (Yelu_langs.Yelu_cmake_normal_bool.EAnd
          (EVar "ADD_FMT_TEST_HEADER_ONLY", ynot (EVar "FMT_UNICODE")))
       (ECmakeTargetCompileDefinitions {
-        target = EVar "name"; visibility = "PUBLIC";
+        target = EVar "name"; visibility = Vis_public;
         definitions = [EString "FMT_UNICODE=0"];
       });
     yifthen (EVar "FMT_PEDANTIC")
       (ECmakeTargetCompileOptions {
-        target = EVar "name"; visibility = "PRIVATE"; before = false;
+        target = EVar "name"; visibility = Vis_private; before = false;
         options_ = [EVar "PEDANTIC_COMPILE_FLAGS"];
       });
     yifthen (EVar "FMT_WERROR")
       (ECmakeTargetCompileOptions {
-        target = EVar "name"; visibility = "PRIVATE"; before = false;
+        target = EVar "name"; visibility = Vis_private; before = false;
         options_ = [EVar "WERROR_FLAG"];
       });
     yc_add_test (EVar "name") (EVar "name") [];
@@ -74,12 +74,12 @@ let preamble = ESeq [
     sources = [EVar "TEST_MAIN_SRC"];
   };
   ECmakeTargetIncludeDirectories {
-    target = ystr "test-main"; visibility = "PUBLIC";
+    target = ystr "test-main"; visibility = Vis_public;
     before = false; system = false;
     dirs = [ystr "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>"];
   };
   ECmakeTargetLinkLibraries {
-    target = ystr "test-main"; visibility = "PUBLIC";
+    target = ystr "test-main"; visibility = Vis_public;
     items = [ystr "gtest"; ystr "fmt"];
   };
 ]
@@ -96,7 +96,7 @@ let basic_aft_block = ESeq [
   aft_args "format-test" ["mock-allocator.h"];
   yifthen (EVar "MSVC")
     (ECmakeTargetCompileOptions {
-      target = ystr "format-test"; visibility = "PRIVATE"; before = false;
+      target = ystr "format-test"; visibility = Vis_private; before = false;
       options_ = [EString "/bigobj"];
     });
   yifthen
@@ -129,26 +129,26 @@ let basic_aft_block = ESeq [
      ystr "\\\\1"; ystr "STDLIBFS"; ystr "${RAWOUTPUT}"];
   yifthen (EVar "STDLIBFS")
     (ECmakeTargetLinkLibraries {
-      target = ystr "std-test"; visibility = "PUBLIC";
+      target = ystr "std-test"; visibility = Vis_public;
       items = [EVar "STDLIBFS"];
     });
 
   aft_args "unicode-test" ["HEADER_ONLY"];
   yifthen (EVar "MSVC")
     (ECmakeTargetCompileOptions {
-      target = ystr "unicode-test"; visibility = "PRIVATE"; before = false;
+      target = ystr "unicode-test"; visibility = Vis_private; before = false;
       options_ = [EString "/utf-8"];
     });
   aft "xchar-test";
   aft "enforce-checks-test";
   ECmakeTargetCompileDefinitions {
-    target = ystr "enforce-checks-test"; visibility = "PRIVATE";
+    target = ystr "enforce-checks-test"; visibility = Vis_private;
     definitions = [EString "-DFMT_ENFORCE_COMPILE_STRING"];
   };
 
   ECmakeAddExecutable { name = ystr "perf-sanity"; sources = [ystr "perf-sanity.cc"] };
   ECmakeTargetLinkLibraries {
-    target = ystr "perf-sanity"; visibility = "PUBLIC";
+    target = ystr "perf-sanity"; visibility = Vis_public;
     items = [ystr "fmt::fmt"];
   };
 
@@ -185,22 +185,22 @@ let msvc_runtime_block = ESeq [
                  EVar "TEST_MAIN_SRC"];
     };
     ECmakeTargetIncludeDirectories {
-      target = ystr "posix-mock-test"; visibility = "PRIVATE";
+      target = ystr "posix-mock-test"; visibility = Vis_private;
       before = false; system = false;
       dirs = [ystr "${PROJECT_SOURCE_DIR}/include"];
     };
     ECmakeTargetLinkLibraries {
-      target = ystr "posix-mock-test"; visibility = "PUBLIC";
+      target = ystr "posix-mock-test"; visibility = Vis_public;
       items = [ystr "gtest"];
     };
     yifthen (EVar "FMT_PEDANTIC")
       (ECmakeTargetCompileOptions {
-        target = ystr "posix-mock-test"; visibility = "PRIVATE";
+        target = ystr "posix-mock-test"; visibility = Vis_private;
         before = false; options_ = [EVar "PEDANTIC_COMPILE_FLAGS"];
       });
     yifthen (EVar "MSVC")
       (ECmakeTargetCompileOptions {
-        target = ystr "posix-mock-test"; visibility = "PRIVATE";
+        target = ystr "posix-mock-test"; visibility = Vis_private;
         before = false; options_ = [EString "/utf-8"];
       });
     yc_add_test (ystr "posix-mock-test") (ystr "posix-mock-test") [];
@@ -225,16 +225,16 @@ let pedantic_block =
         sources = [ystr "../src/format.cc"; ystr "noexception-test.cc"];
       };
       ECmakeTargetIncludeDirectories {
-        target = ystr "noexception-test"; visibility = "PRIVATE";
+        target = ystr "noexception-test"; visibility = Vis_private;
         before = false; system = false;
         dirs = [ystr "${PROJECT_SOURCE_DIR}/include"];
       };
       ECmakeTargetCompileOptions {
-        target = ystr "noexception-test"; visibility = "PRIVATE";
+        target = ystr "noexception-test"; visibility = Vis_private;
         before = false; options_ = [EString "-fno-exceptions"];
       };
       ECmakeTargetCompileOptions {
-        target = ystr "noexception-test"; visibility = "PRIVATE";
+        target = ystr "noexception-test"; visibility = Vis_private;
         before = false; options_ = [EVar "PEDANTIC_COMPILE_FLAGS"];
       };
     ]);
@@ -243,12 +243,12 @@ let pedantic_block =
       sources = [ystr "../src/format.cc"];
     };
     ECmakeTargetIncludeDirectories {
-      target = ystr "nolocale-test"; visibility = "PRIVATE";
+      target = ystr "nolocale-test"; visibility = Vis_private;
       before = false; system = false;
       dirs = [ystr "${PROJECT_SOURCE_DIR}/include"];
     };
     ECmakeTargetCompileDefinitions {
-      target = ystr "nolocale-test"; visibility = "PRIVATE";
+      target = ystr "nolocale-test"; visibility = Vis_private;
       definitions = [EString "FMT_STATIC_THOUSANDS_SEPARATOR=1"];
     };
   ])
@@ -359,7 +359,7 @@ let c_block = ESeq [
   yc_enable_language [Yelu_langs.Lang_cmake.Lang_c];
   ECmakeAddExecutable { name = ystr "c-test"; sources = [ystr "c-test.c"] };
   ECmakeTargetLinkLibraries {
-    target = ystr "c-test"; visibility = "PRIVATE";
+    target = ystr "c-test"; visibility = Vis_private;
     items = [ystr "fmt::fmt-c"];
   };
   yc_apply (ystr "add_test")
