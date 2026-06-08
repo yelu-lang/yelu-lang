@@ -74,6 +74,77 @@ should be variants, not strings. Documented in `ir_tiers.md`.
 - `doc/yelu_cmake/ir_tiers.md` — new doc
 - `doc/cmake/painpoints.md` — §9 (metaprogramming) + §10 (string-as-enum)
 
+## Session state (2026-06-07)
+
+### Test baseline
+```
+dune test → 291 OK, 6 FAIL (3 pre-existing × 2)
+  - include optional (PP trailing space)
+  - snapshot loads with comments
+  - ylet chain (variable resolution)
+```
+
+### Extension scheme
+| Extension | Language | Status |
+|---|---|---|
+| `.yc` | yelu_cmake (cmake-faithful) | Production |
+| `.ycn` | yelu_cmake_normal | Research (parser/printer stubs) |
+| `.ye` | Reserved for future non-cmake packs | — |
+
+### Probes/fmt converted (.yc)
+```
+probes/fmt/join_paths.yc
+probes/fmt/find_setenv.yc
+probes/fmt/gtest.yc
+probes/fmt/add_subdirectory_test.yc
+probes/fmt/find_package_test.yc
+probes/fmt/static_export_test.yc
+probes/fmt/fuzzing.yc
+```
+
+### Probes/fmt remaining (.ml)
+```
+probes/fmt/main.ml           — 42 yc_apply (project funcs + restructuring)
+probes/fmt/test_main.ml       — 11 yc_apply (project funcs + add_test concat)
+probes/fmt/cuda_test.ml       —  3 yc_apply (set_property SOURCE)
+probes/fmt/compile_error_test.ml — 13 yc_apply (expect_compile/run_tests funcs)
+```
+
+### Original cmake reference
+```
+/home/red/code/contrib/fmt-all/fmt/
+  CMakeLists.txt              → main.ml
+  test/CMakeLists.txt         → test_main.ml
+  test/cuda-test/CMakeLists.txt → cuda_test.ml
+  test/compile-error-test/CMakeLists.txt → compile_error_test.ml
+  support/cmake/JoinPaths.cmake → join_paths.yc
+  support/cmake/FindSetEnv.cmake → find_setenv.yc
+```
+
+Original fmt defines cmake functions: `join`, `set_verbose`, `setup_target`,
+`add_module_library`, `add_doc_target` (root), `add_fmt_test` (test/),
+`expect_compile`, `run_tests` (compile-error-test/), `join_paths` (JoinPaths.cmake).
+
+### Fresh docs to review
+- [`doc/yelu_cmake/ir_tiers.md`](doc/yelu_cmake/ir_tiers.md) — 4-tier IR fidelity
+- [`doc/yelu_cmake/driver.md`](doc/yelu_cmake/driver.md) — pipelines + tool interface
+- [`doc/cmake/painpoints.md`](doc/cmake/painpoints.md) — updated §9-10
+- [`doc/yelu_cmake/status.md`](doc/yelu_cmake/status.md) — parser coverage summary
+
+### Fresh code to review
+- [`src/langs/yelu/yc_primitives.ml`](src/langs/yelu/yc_primitives.ml) — 90 commands
+- [`src/langs/yelu/yc_wellform.ml`](src/langs/yelu/yc_wellform.ml) — wellform checks
+- [`src/langs/yelu/yelu_parse.ml`](src/langs/yelu/yelu_parse.ml) — `split_by_keywords` (~L285), `args_to_cmake_text` (~L296), target family `_ ->` fallback (~L805), cmake-name aliases (~L732-738)
+- [`src/langs/drivers/yc_driver.ml`](src/langs/drivers/yc_driver.ml) — wellform wired in (~L49)
+- [`src/langs/yelu/yelu_cmake.ml`](src/langs/yelu/yelu_cmake.ml) — `ECmakeRaw` in core type (~L847)
+- [`probes/fmt/fuzzing.yc`](probes/fmt/fuzzing.yc) — example of a converted .yc with function definition
+
+### Tool directories
+```
+src/langs/drivers/           — per-language driver modules + cross-lang utils
+tool/cmake_text/              — cmake text tools (parse, reprint, scan, index, oracle)
+```
+
 ## Quick start
 
 ```sh
