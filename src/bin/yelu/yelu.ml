@@ -155,6 +155,7 @@ type manifest = {
   project : string;
   source_dir : string;
   out_root : string;
+  cmake_flags : string list;
   helpers : helper list;
 }
 
@@ -238,10 +239,15 @@ let load_manifest manifest_path : manifest =
     | [] -> failwith "manifest: no helpers (explicit or auto-discovered .yc)"
     | hs -> hs
   in
-  { project    = json |> member "project"    |> to_string;
-    source_dir = json |> member "source_dir" |> to_string;
-    out_root   = json |> member "out_root"   |> to_string;
-    helpers }
+  let cmake_flags =
+    match json |> member "cmake_flags" with
+    | `Null -> []
+    | j -> j |> to_list |> List.map ~f:to_string
+  in
+  let project    = json |> member "project"    |> to_string in
+  let source_dir = json |> member "source_dir" |> to_string in
+  let out_root   = json |> member "out_root"   |> to_string in
+  { project; source_dir; out_root; cmake_flags; helpers }
 
 (* ============================================================
    Splice: replace anchor_start-to-Nth-anchor_end (inclusive) in
@@ -365,10 +371,21 @@ let strip_cache path =
   in
   fst (run_capture cmd)
 
-let cmd_hybrid manifest_path d_flags =
+(* Merge manifest + cmdline flags. Cmdline wins on key conflict:
+   manifest ["FMT_FUZZ=ON"] + cmdline ["FMT_FUZZ=OFF"] → ["FMT_FUZZ=OFF"]. *)
+let merge_flags ~manifest ~cmdline =
+  let key_of = fun s -> match String.split s ~on:'=' with k :: _ -> k | [] -> s in
+  let manifest_keys = List.map manifest ~f:key_of |> Set.of_list (module String) in
+  let cmdline_only = List.filter cmdline ~f:(fun f ->
+    not (Set.mem manifest_keys (key_of f))) in
+  manifest @ cmdline_only
+
+let cmd_hybrid ?(source_dir_override = None) manifest_path d_flags =
   let m = load_manifest manifest_path in
-  Stdlib.Printf.printf "[yelu] manifest: project=%s source_dir=%s helpers=%d\n%!"
-    m.project m.source_dir (List.length m.helpers);
+  let source_dir = Option.value source_dir_override ~default:m.source_dir in
+  let d_flags = merge_flags ~manifest:m.cmake_flags ~cmdline:d_flags in
+  Stdlib.Printf.printf "[yelu] manifest: project=%s source_dir=%s helpers=%d flags=%d\n%!"
+    m.project source_dir (List.length m.helpers) (List.length d_flags);
 
   (* 1. Compile each helper. *)
   let compiled =
@@ -378,7 +395,7 @@ let cmd_hybrid manifest_path d_flags =
   in
 
   (* 2. Group by target_file; apply splices left-to-right. *)
-  let source_abs = run_capture (Printf.sprintf "realpath %s" (Stdlib.Filename.quote m.source_dir)) |> fst |> String.strip in
+  let source_abs = run_capture (Printf.sprintf "realpath %s" (Stdlib.Filename.quote source_dir)) |> fst |> String.strip in
   let by_target = Hashtbl.create (module String) in
   List.iter compiled ~f:(fun (h, generated) ->
     let target_path = Stdlib.Filename.concat source_abs h.target_file in
@@ -455,15 +472,16 @@ let () =
      | Some path -> write_all path cmake_text)
   | "hybrid" :: probe_dir :: rest ->
     let manifest_path = Stdlib.Filename.concat probe_dir "manifest.json" in
-    let d_flags =
-      let rec collect = function
-        | [] -> []
-        | "-D" :: f :: rest -> f :: collect rest
-        | _ :: rest -> collect rest
+    let source_dir_override, d_flags =
+      let rec collect src_acc flags = function
+        | [] -> (src_acc, List.rev flags)
+        | "--project" :: dir :: r -> collect (Some dir) flags r
+        | "-D" :: f :: r -> collect src_acc (f :: flags) r
+        | _ :: r -> collect src_acc flags r
       in
-      collect rest
+      collect None [] rest
     in
-    cmd_hybrid manifest_path d_flags
+    cmd_hybrid ~source_dir_override manifest_path d_flags
   | _ ->
     Stdlib.print_string usage;
     Stdlib.exit 1
