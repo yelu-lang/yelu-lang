@@ -159,15 +159,14 @@ type manifest = {
 }
 
 (* Auto-discover .yc files in probe_dir. Mapping convention:
-   - any.yc          → CMakeLists.txt   (default: .yc → .txt)
-   - CapitalCase.yc  → CapitalCase.cmake (exception: uppercase → .cmake module)
+   - CMakeLists*.yc          → CMakeLists.txt
+   - <snake_case>.yc         → <CamelCase>.cmake  (underscore → module)
+   - anything-else.yc        → CMakeLists.txt      (default)
    All discovered helpers are whole_file: true. *)
 let discover_helpers probe_dir =
   let yc_files = ref [] in
-  let is_capitalized name =
-    match name.[0] with
-    | 'A' .. 'Z' -> true
-    | _ -> false
+  let snake_to_camel s =
+    String.split s ~on:'_' |> List.map ~f:String.capitalize |> String.concat
   in
   let rec walk dir =
     if Stdlib.Sys.file_exists dir && Stdlib.Sys.is_directory dir then begin
@@ -187,11 +186,11 @@ let discover_helpers probe_dir =
               let target_file =
                 let base = Stdlib.Filename.basename rel_from_probe in
                 let dir = Stdlib.Filename.dirname rel_from_probe in
-                if String.is_prefix base ~prefix:"CMakeLists"
+                let stem = String.chop_suffix_exn base ~suffix:".yc" in
+                if String.is_prefix stem ~prefix:"CMakeLists"
                 then Stdlib.Filename.concat dir "CMakeLists.txt"
-                else if is_capitalized base
-                then Stdlib.Filename.concat dir
-                       (String.chop_suffix_exn base ~suffix:".yc" ^ ".cmake")
+                else if String.is_substring stem ~substring:"_"
+                then Stdlib.Filename.concat dir (snake_to_camel stem ^ ".cmake")
                 else Stdlib.Filename.concat dir "CMakeLists.txt"
               in
               yc_files := { source = path; target_file; whole_file = true;
