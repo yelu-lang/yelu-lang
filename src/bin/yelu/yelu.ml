@@ -111,10 +111,18 @@ let compile_yc ?(wellform = true) ?(warn = fun _ -> ()) file =
       match Yelu_langs.Yc_wellform.check_all expr with
       | [] -> ()
       | errors ->
-        warn (Printf.sprintf "wellform warnings in %s:" file);
-        List.iter errors ~f:(fun e ->
-          warn (Printf.sprintf "  %s"
-                  (Sexp.to_string_hum (Yelu_langs.Yc_wellform.sexp_of_error e))))
+        let raw_escapes, others =
+          List.partition_tf errors ~f:(function
+            | Yelu_langs.Yc_wellform.Raw_cmake_escape _ -> true
+            | _ -> false)
+        in
+        List.iter others ~f:(fun e ->
+          warn (Sexp.to_string_hum (Yelu_langs.Yc_wellform.sexp_of_error e)));
+        List.iter raw_escapes ~f:(fun e ->
+          match e with
+          | Yelu_langs.Yc_wellform.Raw_cmake_escape { text; reason } ->
+            warn (Yelu_langs.Yc_wellform.format_raw_escape file text reason)
+          | _ -> ())
     end;
     Yelu_langs.Yelu_cmake_emit.emit_script expr
 
