@@ -51,8 +51,7 @@ let add_fmt_test_fn =
     yifthen (EVar "FMT_WERROR")
       (yc_apply (ystr "target_compile_options")
          [EVar "name"; ystr "PRIVATE"; EVar "WERROR_FLAG"]);
-    yc_apply (ystr "add_test")
-      [ystr "NAME"; EVar "name"; ystr "COMMAND"; EVar "name"];
+    yc_add_test (EVar "name") (EVar "name") [];
   ]
 
 (* ---------- preamble ---------- *)
@@ -179,8 +178,7 @@ let msvc_runtime_block = ESeq [
     yifthen (EVar "MSVC")
       (yc_apply (ystr "target_compile_options")
          [ystr "posix-mock-test"; ystr "PRIVATE"; ystr "/utf-8"]);
-    yc_apply (ystr "add_test")
-      [ystr "NAME"; ystr "posix-mock-test"; ystr "COMMAND"; ystr "posix-mock-test"];
+    yc_add_test (ystr "posix-mock-test") (ystr "posix-mock-test") [];
     aft "os-test";
   ]);
 
@@ -322,9 +320,7 @@ let cuda_block =
     };
     yifthen (EVar "CUDA_FOUND") (ESeq [
       yc_apply (ystr "add_subdirectory") [ystr "cuda-test"];
-      yc_apply (ystr "add_test")
-        [ystr "NAME"; ystr "cuda-test";
-         ystr "COMMAND"; ystr "fmt-in-cuda-test"];
+      yc_add_test (ystr "cuda-test") (ystr "fmt-in-cuda-test") [];
     ]);
   ])
 
