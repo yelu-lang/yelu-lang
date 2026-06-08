@@ -948,6 +948,20 @@ let p_property_command_y1_inner name args kwargs =
     in
     Some (yc_set_source_files_properties files properties)
   | "set_property", args ->
+    (* SOURCE, GLOBAL, DIRECTORY, TEST, INSTALL, CACHE scopes are not
+       handled by the typed API — fall back to yc_raw. *)
+    let is_other_scope = function
+      | EVar "SOURCE" | EString "SOURCE"
+      | EVar "GLOBAL" | EString "GLOBAL"
+      | EVar "DIRECTORY" | EString "DIRECTORY"
+      | EVar "TEST" | EString "TEST"
+      | EVar "INSTALL" | EString "INSTALL"
+      | EVar "CACHE" | EString "CACHE" -> true
+      | _ -> false
+    in
+    (match args with
+     | e :: _ when is_other_scope e -> None
+     | _ ->
     let sections = split_by_keywords ~keywords:["APPEND"; "PROPERTY"] args in
     let targets = match List.Assoc.find sections ~equal:String.equal "_head" with
       | Some items -> items | None -> []
@@ -965,7 +979,7 @@ let p_property_command_y1_inner name args kwargs =
         [(name, value)]
       | _ -> []
     in
-    Some (yc_set_property ~append ~targets properties)
+    Some (yc_set_property ~append ~targets properties))
   | "get_directory_property", [] ->
     Some (yc_get_directory_property "PROP" out)
   | "set_directory_property", [] ->
