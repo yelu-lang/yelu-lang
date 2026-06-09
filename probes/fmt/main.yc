@@ -1,4 +1,4 @@
-( cmake_minimum_required VERSION "3.8...3.28";
+cmake_minimum_required VERSION "3.8...3.28";
   include_guard GLOBAL;
 
   if ver_lt ${CMAKE_VERSION} "3.12" then (
@@ -440,4 +440,3 @@
     CPACK_RESOURCE_FILE_README := "${PROJECT_SOURCE_DIR}/README.md";
     include CPack
   )
-)
