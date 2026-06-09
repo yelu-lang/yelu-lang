@@ -659,14 +659,17 @@ let yc_get_filename_component ~mode var filename =
 
 open Yelu_cmake_install
 
-let yc_install_targets ?export targets destination =
-  ECmakeInstallTargets { targets; destination; export }
+let yc_install_targets ?export ?component ?(artifact_clauses = []) targets destination =
+  ECmakeInstallTargets { targets; destination; component; export; artifact_clauses }
 
-let yc_install_files files destination =
-  ECmakeInstallFiles { files; destination }
+let yc_install_files ?component files destination =
+  ECmakeInstallFiles { files; destination; component }
 
-let yc_install_export ?file ?namespace export destination =
-  ECmakeInstallExport { file; export; destination; namespace }
+let yc_install_export ?file ?namespace ?component export destination =
+  ECmakeInstallExport { file; export; destination; namespace; component }
+
+let yc_install_directory ?component ?(optional = false) directory destination =
+  ECmakeInstallDirectory { directory; destination; component; optional }
 
 let yc_export_export ?file name =
   ECmakeExportExport { name; file }

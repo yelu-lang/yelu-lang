@@ -16,18 +16,28 @@ let provides =
 type expr +=
   | ECmakeInstallTargets of {
       targets : expr list;
-      destination : expr;
+      destination : expr option;
+      component : string option;
       export : expr option;
+      artifact_clauses : (string * expr) list;
     }
   | ECmakeInstallFiles of {
       files : expr list;
       destination : expr;
+      component : string option;
     }
   | ECmakeInstallExport of {
       export : expr;
       destination : expr;
       file : expr option;
       namespace : string option;
+      component : string option;
+    }
+  | ECmakeInstallDirectory of {
+      directory : expr;
+      destination : expr;
+      component : string option;
+      optional : bool;
     }
   | ECmakeExportExport of {
       name : expr;
@@ -59,29 +69,39 @@ let eval_optional_string ~eval env = function
     env, Some s
 
 let eval_case ~eval env = function
-  | ECmakeInstallTargets { targets; destination; export } ->
+  | ECmakeInstallTargets { targets; destination; component; export;
+                            artifact_clauses } ->
     let env, targets = eval_string_list ~eval env targets in
-    let env, destination = eval_string ~eval env destination in
-    let env, export =
-      match export with
-      | None -> env, None
-      | Some export ->
-        let env, export = eval_string ~eval env export in
-        env, Some export
+    let env, destination = eval_optional_string ~eval env destination in
+    let env, export = eval_optional_string ~eval env export in
+    let env, clauses =
+      List.fold_map artifact_clauses ~init:env ~f:(fun env (kind, dest) ->
+        let env, dest = eval_string ~eval env dest in
+        env, (kind, dest))
     in
-    Some (add_install_rule env (InstallTargets { targets; destination; export }), VUnit)
-  | ECmakeInstallFiles { files; destination } ->
+    Some (add_install_rule env
+            (InstallTargets { targets; destination; component; export;
+                              artifact_clauses = clauses }),
+          VUnit)
+  | ECmakeInstallFiles { files; destination; component } ->
     let env, files = eval_string_list ~eval env files in
     let env, destination = eval_string ~eval env destination in
-    Some (add_install_rule env (InstallFiles { files; destination }), VUnit)
-  | ECmakeInstallExport { export; destination; file; namespace } ->
+    Some (add_install_rule env
+            (InstallFiles { files; destination; component }), VUnit)
+  | ECmakeInstallExport { export; destination; file; namespace; component } ->
     let env, export = eval_string ~eval env export in
     let env, destination = eval_string ~eval env destination in
     let env, file = eval_optional_string ~eval env file in
     Some
       ( add_install_rule env
-          (InstallExport { export; destination; file; namespace }),
+          (InstallExport { export; destination; file; namespace; component }),
         VUnit )
+  | ECmakeInstallDirectory { directory; destination; component; optional } ->
+    let env, directory = eval_string ~eval env directory in
+    let env, destination = eval_string ~eval env destination in
+    Some (add_install_rule env
+            (InstallDirectory { directory; destination; component; optional }),
+          VUnit)
   | ECmakeExportExport { name; file } ->
     let env, name = eval_string ~eval env name in
     let env, file = eval_optional_string ~eval env file in

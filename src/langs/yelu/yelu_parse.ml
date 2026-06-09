@@ -1256,12 +1256,105 @@ let p_install_command_y1_inner name args kwargs =
   let kwarg_opt ~key = List.Assoc.find kwargs ~equal:String.equal key in
   let kwarg_bool ~key = List.Assoc.mem kwargs ~equal:String.equal key in
   match name, args with
-  | "install_targets", destination :: targets ->
-    Some (yc_install_targets targets destination)
-  | "install_files", destination :: files ->
-    Some (yc_install_files files destination)
-  | "install_export", [ export; destination ] ->
-    Some (yc_install_export export destination)
+  | "install_targets", args ->
+    let install_kw = ["DESTINATION"; "COMPONENT"; "EXPORT";
+                      "LIBRARY"; "ARCHIVE"; "RUNTIME";
+                      "PUBLIC_HEADER"; "PRIVATE_HEADER"; "FILE_SET"] in
+    let has_kw = List.exists args ~f:(fun e ->
+      match e with EVar s | EString s -> List.mem install_kw s ~equal:String.equal | _ -> false) in
+    if has_kw then
+      let sections = split_by_keywords ~keywords:install_kw args in
+      let targets = match List.Assoc.find sections ~equal:String.equal "_head" with
+        | Some items -> items | None -> [] in
+      let destination = match List.Assoc.find sections ~equal:String.equal "DESTINATION" with
+        | Some (e :: _) -> Some e | _ -> None in
+      let component = match List.Assoc.find sections ~equal:String.equal "COMPONENT" with
+        | Some [ EString s | EVar s ] -> Some s | _ -> None in
+      let export = match List.Assoc.find sections ~equal:String.equal "EXPORT" with
+        | Some (e :: _) -> Some e | _ -> None in
+      let artifact_clauses =
+        List.filter_map sections ~f:(fun (k, items) ->
+          match k with
+          | "LIBRARY" | "ARCHIVE" | "RUNTIME"
+          | "PUBLIC_HEADER" | "PRIVATE_HEADER" ->
+            (match items with
+             | [ EVar "DESTINATION" | EString "DESTINATION"; e ] -> Some (k, e)
+             | _ :: EVar "DESTINATION" :: e :: _ | _ :: EString "DESTINATION" :: e :: _ -> Some (k, e)
+             | _ -> None)
+          | s when String.is_prefix s ~prefix:"FILE_SET" ->
+            (match items with e :: _ -> Some (s, e) | _ -> None)
+          | _ -> None) in
+      Some (yc_install_targets ?export ?component ~artifact_clauses targets destination)
+    else begin
+      (* Backward-compat positional: install_targets dest targets *)
+      match args with
+      | destination :: targets ->
+        Some (yc_install_targets targets (Some destination))
+      | _ -> None
+    end
+  | "install_files", args ->
+    let has_kw = List.exists args ~f:(function
+      | EVar "DESTINATION" | EString "DESTINATION"
+      | EVar "COMPONENT" | EString "COMPONENT" -> true | _ -> false) in
+    if has_kw then
+      let sections = split_by_keywords ~keywords:["DESTINATION"; "COMPONENT"] args in
+      let files = match List.Assoc.find sections ~equal:String.equal "_head" with
+        | Some items -> items | None -> [] in
+      let destination = match List.Assoc.find sections ~equal:String.equal "DESTINATION" with
+        | Some (e :: _) -> e | _ -> EString "?" in
+      let component = match List.Assoc.find sections ~equal:String.equal "COMPONENT" with
+        | Some [ EString s | EVar s ] -> Some s | _ -> None in
+      Some (yc_install_files ?component files destination)
+    else begin
+      (* Backward-compat positional: install_files dest files *)
+      match args with
+      | destination :: files ->
+        Some (yc_install_files files destination)
+      | _ -> None
+    end
+  | "install_export", args ->
+    let has_kw = List.exists args ~f:(function
+      | EVar "DESTINATION" | EString "DESTINATION"
+      | EVar "FILE" | EString "FILE"
+      | EVar "NAMESPACE" | EString "NAMESPACE"
+      | EVar "COMPONENT" | EString "COMPONENT" -> true | _ -> false) in
+    if has_kw then
+      let sections = split_by_keywords ~keywords:["DESTINATION"; "FILE"; "NAMESPACE"; "COMPONENT"] args in
+      let export = match List.Assoc.find sections ~equal:String.equal "_head" with
+        | Some (e :: _) -> e | _ -> EVar "?" in
+      let destination = match List.Assoc.find sections ~equal:String.equal "DESTINATION" with
+        | Some (e :: _) -> e | _ -> EString "?" in
+      let file = match List.Assoc.find sections ~equal:String.equal "FILE" with
+        | Some (e :: _) -> Some e | _ -> None in
+      let namespace = match List.Assoc.find sections ~equal:String.equal "NAMESPACE" with
+        | Some [ EString s | EVar s ] -> Some s | _ -> None in
+      let component = match List.Assoc.find sections ~equal:String.equal "COMPONENT" with
+        | Some [ EString s | EVar s ] -> Some s | _ -> None in
+      Some (yc_install_export ?file ?namespace ?component export destination)
+    else begin
+      (* Backward-compat positional: install_export exp dest *)
+      match args with
+      | [ export; destination ] ->
+        Some (yc_install_export export destination)
+      | _ -> None
+    end
+  | "install_directory", args ->
+    let sections = split_by_keywords
+      ~keywords:["DESTINATION"; "COMPONENT"; "OPTIONAL"] args
+    in
+    let directory = match List.Assoc.find sections ~equal:String.equal "_head" with
+      | Some (e :: _) -> e | _ -> EVar "?"
+    in
+    let destination = match List.Assoc.find sections ~equal:String.equal "DESTINATION" with
+      | Some (e :: _) -> e | _ -> EString "?"
+    in
+    let component = match List.Assoc.find sections ~equal:String.equal "COMPONENT" with
+      | Some [ EString s | EVar s ] -> Some s | _ -> None
+    in
+    let optional = List.Assoc.find sections ~equal:String.equal "OPTIONAL"
+                   |> Option.is_some
+    in
+    Some (yc_install_directory ?component ~optional directory destination)
   | "export", args ->
     (* Check for keyword form: export TARGETS ... NAMESPACE ... FILE ... *)
     let has_targets = List.exists args ~f:(function
@@ -1344,6 +1437,7 @@ let p_install_command_y1 toks =
   | IDENT name :: rest
       when (match name with
             | "install_targets" | "install_files" | "install_export"
+            | "install_directory"
             | "export" | "configure_package_config_file"
             | "write_basic_package_version_file" -> true
             | _ -> false) ->

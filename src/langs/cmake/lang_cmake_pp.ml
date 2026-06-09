@@ -1349,7 +1349,12 @@ and pp_project_cmd ff cmd =
           (pp_with_key "FILE" pp_arg)
           file pp_arg destination
           (pp_with_key "NAMESPACE" string) namespace)
-  (* misc *)
+  | Install_directory { directory; destination; component; optional; _ } ->
+      Fmt.(
+        pf ff "install(DIRECTORY %a@;DESTINATION %a%a%s)" string directory
+          pp_arg destination
+          (pp_with_key "COMPONENT" string) component
+          (if optional then " OPTIONAL" else ""))
   | Aux_source_directory { dir; var } ->
       Fmt.(pf ff "aux_source_directory(%a %a)" string dir pp_var var)
   | Build_command { var; configuration; parallel_level; target; project_name } ->

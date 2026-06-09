@@ -352,29 +352,29 @@ file(WRITE run-msbuild.bat "${MSBUILD_SETUP}
       )
     );
 
-    yc_raw 'install(TARGETS ${INSTALL_TARGETS}
-      COMPONENT fmt_core
+    install_targets ${INSTALL_TARGETS}
+      COMPONENT "fmt_core"
       EXPORT ${targets_export_name}
       LIBRARY DESTINATION ${FMT_LIB_DIR}
       ARCHIVE DESTINATION ${FMT_LIB_DIR}
-      PUBLIC_HEADER DESTINATION ${FMT_INC_DIR}/fmt
+      PUBLIC_HEADER DESTINATION "${FMT_INC_DIR}/fmt"
       RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-      ${INSTALL_FILE_SET})';
+      ${INSTALL_FILE_SET};
 
     export ${targets_export_name} ~file:"${PROJECT_BINARY_DIR}/${targets_export_name}.cmake";
 
-    yc_raw 'install(FILES ${project_config} ${version_config}
+    install_files ${project_config} ${version_config}
       DESTINATION ${FMT_CMAKE_DIR}
-      COMPONENT fmt_core)';
+      COMPONENT "fmt_core";
 
-    yc_raw 'install(EXPORT ${targets_export_name}
+    install_export ${targets_export_name}
       DESTINATION ${FMT_CMAKE_DIR}
-      NAMESPACE fmt::
-      COMPONENT fmt_core)';
+      NAMESPACE "fmt::"
+      COMPONENT "fmt_core";
 
-    yc_raw 'install(FILES ${pkgconfig}
+    install_files ${pkgconfig}
       DESTINATION ${FMT_PKGCONFIG_DIR}
-      COMPONENT fmt_core)'
+      COMPONENT "fmt_core"
   );
 
   fun add_doc_target() (
@@ -403,10 +403,10 @@ file(WRITE run-msbuild.bat "${MSBUILD_SETUP}
         "--site-dir" "${CMAKE_CURRENT_BINARY_DIR}/doc-html"
         "--no-directory-urls"
       SOURCES ${sources};
-    yc_raw 'install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/doc-html/
+    install_directory ${CMAKE_CURRENT_BINARY_DIR}/doc-html/
       DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/doc/fmt
-      COMPONENT fmt_doc
-      OPTIONAL)'
+      COMPONENT "fmt_doc"
+      OPTIONAL
   );
 
   if ${FMT_DOC} then (

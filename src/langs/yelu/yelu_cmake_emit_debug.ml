@@ -601,7 +601,7 @@ let rec emit_expr_impl ~env e =
     @ comment_lines
     @ verbatim_lines
     @ [ ")" ]
-  | ECmakeInstallTargets { targets; destination; export } ->
+  | ECmakeInstallTargets { targets; destination; export; _ } ->
     let export =
       Option.value_map export ~default:"" ~f:(fun export ->
         " EXPORT " ^ arg export)
@@ -609,14 +609,14 @@ let rec emit_expr_impl ~env e =
     [ Fmt.str "install(TARGETS %s%s DESTINATION %s)"
         (String.concat ~sep:" " (List.map targets ~f:target_arg))
         export
-        (arg destination)
+        (match destination with Some d -> arg d | None -> "")
     ]
-  | ECmakeInstallFiles { files; destination } ->
+  | ECmakeInstallFiles { files; destination; _ } ->
     [ Fmt.str "install(FILES %s DESTINATION %s)"
         (String.concat ~sep:" " (List.map files ~f:arg))
         (arg destination)
     ]
-  | ECmakeInstallExport { export; destination; file; namespace } ->
+  | ECmakeInstallExport { export; destination; file; namespace; _ } ->
     let file_part =
       Option.value_map file ~default:"" ~f:(fun f -> Fmt.str " FILE %s" (arg f))
     in

@@ -941,6 +941,13 @@ and project_cmd =
       rename : string option;
       permissions : permissions;
     }
+  | Install_directory of {
+      directory : directory;
+      destination : arg;
+      component : string option;
+      optional : bool;
+      permissions : permissions;
+    }
   | Load_cache_read of {
       directory : directory;
       prefix : string;

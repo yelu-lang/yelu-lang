@@ -461,10 +461,6 @@ let tier6_find_install_y1 = ("t6-find-install-y1", [
   assert_parse_y1_emits "y1: find_file"    "( find_file VAR ~names:\"config\" )"
     "find_file(VAR NAMES config)";
   assert_parse_y1_emits "y1: install_targets" "( install_targets \"lib\" )"
-    (* Tier 4 IR widening: the double space here is the empty-targets
-       edge case (Fmt's `list_sp` emits nothing on []; the literal
-       space before `%a` remains). Empty targets isn't valid cmake
-       so the shape isn't load-bearing. *)
     "install(TARGETS  DESTINATION lib)";
   assert_parse_y1_emits "y1: install_files"   "( install_files \"include\" )"
     "install(FILES  DESTINATION include)";

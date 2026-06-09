@@ -69,7 +69,7 @@ let configure_tutorial_header =
     Requires: [yvar "tut"]. Steps: 5-12. *)
 let install_tutorial =
   [
-    yc_install_targets [ yvar "tut" ] (ydir "bin");
+    yc_install_targets [ yvar "tut" ] (Some (ydir "bin"));
     yc_install_files
       [ dir_concat output_root "TutorialConfig.h" ]
       (ydir "include");
@@ -183,7 +183,7 @@ let math_install_libs ?export () =
     yc_set (ycvar "installable_libs") [ yvar "math"; yvar "flags" ];
     yifthen (yis_target (ytval "SqrtLibrary"))
       (ycmd_of_list [ yc_list_append (ycvar "installable_libs") [ yvar "sqrt" ] ]);
-    yc_install_targets ?export [ ytval "${installable_libs}" ] (ydir "lib");
+    yc_install_targets ?export [ ytval "${installable_libs}" ] (Some (ydir "lib"));
     yc_install_files [ yfile "MathFunctions.h" ] (ydir "include");
   ]
 

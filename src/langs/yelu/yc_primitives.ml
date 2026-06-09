@@ -69,7 +69,8 @@ let command_names : Set.M(String).t =
     "find_package"; "find_library"; "find_path";
     "find_program"; "find_file";
     (* install *)
-    "install_targets"; "install_files"; "install_export"; "export";
+    "install_targets"; "install_files"; "install_export";
+    "install_directory"; "export";
     "configure_package_config_file";
     "write_basic_package_version_file";
     (* try *)

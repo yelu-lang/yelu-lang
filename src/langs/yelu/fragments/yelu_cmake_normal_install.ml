@@ -5,18 +5,28 @@ open Yelu_cmake_normal_target
 type expr +=
   | EInstallTargets of {
       targets : expr list;
-      destination : expr;
+      destination : expr option;
+      component : string option;
       export : expr option;
+      artifact_clauses : (string * expr) list;
     }
   | EInstallFiles of {
       files : expr list;
       destination : expr;
+      component : string option;
     }
   | EInstallExport of {
       export : expr;
       destination : expr;
       file : expr option;
       namespace : string option;
+      component : string option;
+    }
+  | EInstallDirectory of {
+      directory : expr;
+      destination : expr;
+      component : string option;
+      optional : bool;
     }
   | EExportExport of {
       name : expr;
@@ -51,29 +61,39 @@ let eval_targets ~eval env targets =
   env, List.rev targets
 
 let eval_case ~eval env = function
-  | EInstallTargets { targets; destination; export } ->
+  | EInstallTargets { targets; destination; component; export;
+                      artifact_clauses } ->
     let env, targets = eval_targets ~eval env targets in
-    let env, destination = eval_string ~eval env destination in
-    let env, export =
-      match export with
-      | None -> env, None
-      | Some export ->
-        let env, export = eval_string ~eval env export in
-        env, Some export
+    let env, destination = eval_optional_string ~eval env destination in
+    let env, export = eval_optional_string ~eval env export in
+    let env, clauses =
+      List.fold_map artifact_clauses ~init:env ~f:(fun env (kind, dest) ->
+        let env, dest = eval_string ~eval env dest in
+        env, (kind, dest))
     in
-    Some (add_install_rule env (InstallTargets { targets; destination; export }), VUnit)
-  | EInstallFiles { files; destination } ->
+    Some (add_install_rule env
+            (InstallTargets { targets; destination; component; export;
+                              artifact_clauses = clauses }),
+          VUnit)
+  | EInstallFiles { files; destination; component } ->
     let env, files = eval_string_list ~eval env files in
     let env, destination = eval_string ~eval env destination in
-    Some (add_install_rule env (InstallFiles { files; destination }), VUnit)
-  | EInstallExport { export; destination; file; namespace } ->
+    Some (add_install_rule env
+            (InstallFiles { files; destination; component }), VUnit)
+  | EInstallExport { export; destination; file; namespace; component } ->
     let env, export = eval_string ~eval env export in
     let env, destination = eval_string ~eval env destination in
     let env, file = eval_optional_string ~eval env file in
     Some
       ( add_install_rule env
-          (InstallExport { export; destination; file; namespace }),
+          (InstallExport { export; destination; file; namespace; component }),
         VUnit )
+  | EInstallDirectory { directory; destination; component; optional } ->
+    let env, directory = eval_string ~eval env directory in
+    let env, destination = eval_string ~eval env destination in
+    Some (add_install_rule env
+            (InstallDirectory { directory; destination; component; optional }),
+          VUnit)
   | EExportExport { name; file } ->
     let env, name = eval_string ~eval env name in
     let env, file = eval_optional_string ~eval env file in

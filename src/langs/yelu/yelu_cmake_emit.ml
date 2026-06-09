@@ -554,15 +554,25 @@ let rec emit_exp ~env (e : expr) : C.exp =
     C.Find_file fa
 
   (* Install / Export / Package config *)
-  | Yelu_cmake_install.ECmakeInstallExport { export; destination; file; namespace } ->
+  | Yelu_cmake_install.ECmakeInstallExport
+      { export; destination; file; namespace; component } ->
     C.Project_cmd
       (C.Install_export
          { file = Option.map file ~f:(arg ~env);
            export = arg ~env export;
            destination = arg ~env destination;
            namespace;
-           component = None;
+           component;
            rename = None;
+           permissions = [] })
+  | Yelu_cmake_install.ECmakeInstallDirectory
+      { directory; destination; component; optional } ->
+    C.Project_cmd
+      (C.Install_directory
+         { directory = target_arg ~env directory;
+           destination = arg ~env destination;
+           component;
+           optional;
            permissions = [] })
   | Yelu_cmake_install.ECmakeExportExport { name; file } ->
     C.Project_cmd
@@ -852,22 +862,37 @@ let rec emit_exp ~env (e : expr) : C.exp =
       { var = out; file = arg ~env path; format; utc }
 
   (* Install *)
-  | Yelu_cmake_install.ECmakeInstallTargets { targets; destination; export } ->
+  | Yelu_cmake_install.ECmakeInstallTargets { targets; destination; component;
+                                              export; artifact_clauses } ->
+    let clauses = List.map artifact_clauses ~f:(fun (kind, dest) ->
+      let iak = match kind with
+        | "LIBRARY" -> Lang_cmake.Iak_library
+        | "ARCHIVE" -> Lang_cmake.Iak_archive
+        | "RUNTIME" -> Lang_cmake.Iak_runtime
+        | "PUBLIC_HEADER" -> Lang_cmake.Iak_public_header
+        | "PRIVATE_HEADER" -> Lang_cmake.Iak_private_header
+        | "FILE_SET" -> Lang_cmake.Iak_file_set ""
+        | s when String.is_prefix s ~prefix:"FILE_SET" ->
+          Lang_cmake.Iak_file_set (String.chop_prefix_exn s ~prefix:"FILE_SET ")
+        | _ -> Lang_cmake.Iak_library
+      in
+      { Lang_cmake.kind = iak; destination = Some (arg ~env dest) })
+    in
     C.Project_cmd
       (C.Install_targets
          { targets = List.map targets ~f:(target_arg ~env);
-           destination = Some (arg ~env destination);
-           artifact_clauses = [];
-           component = None;
+           destination = Option.map destination ~f:(arg ~env);
+           artifact_clauses = clauses;
+           component;
            rename = None;
            export = Option.map export ~f:(target_arg ~env);
            permissions = [] })
-  | Yelu_cmake_install.ECmakeInstallFiles { files; destination } ->
+  | Yelu_cmake_install.ECmakeInstallFiles { files; destination; component } ->
     C.Project_cmd
       (C.Install_files
          { files = List.map files ~f:(arg ~env);
            destination = arg ~env destination;
-           component = None;
+           component;
            rename = None;
            permissions = [] })
 

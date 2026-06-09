@@ -284,24 +284,27 @@ let rec to_normal = function
         headers = List.map headers ~f:to_normal }
 
   (* Shared install theory. *)
-  | EInstallTargets { targets; destination; export } ->
+  | EInstallTargets { targets; destination; export; component; artifact_clauses } ->
     EInstallTargets
       {
         targets = List.map targets ~f:to_normal;
-        destination = to_normal destination;
+        destination = Option.map destination ~f:to_normal;
         export = Option.map export ~f:to_normal;
+        component; artifact_clauses;
       }
-  | EInstallFiles { files; destination } ->
+  | EInstallFiles { files; destination; component } ->
     EInstallFiles
       {
         files = List.map files ~f:to_normal;
+        component;
         destination = to_normal destination;
       }
-  | EInstallExport { export; destination; file; namespace } ->
+  | EInstallExport { export; destination; file; namespace; component } ->
     EInstallExport
       {
         export = to_normal export;
         destination = to_normal destination;
+        component;
         file = Option.map file ~f:to_normal;
         namespace;
       }
@@ -712,30 +715,33 @@ let rec to_normal = function
       { target = to_normal target;
         visibility;
         headers = List.map headers ~f:to_normal }
-  | ECmakeInstallTargets { targets; destination; export } ->
+  | ECmakeInstallTargets { targets; destination; export; _ } ->
     ESeq
       [
         EInstallTargets
           {
             targets = List.map targets ~f:to_normal;
-            destination = to_normal destination;
+            destination = Option.map destination ~f:to_normal;
+            component = None; artifact_clauses = [];
             export = Option.map export ~f:to_normal;
           };
         EUnit;
       ]
-  | ECmakeInstallFiles { files; destination } ->
+  | ECmakeInstallFiles { files; destination; component } ->
     ESeq
       [
         EInstallFiles
           {
             files = List.map files ~f:to_normal;
+        component;
             destination = to_normal destination;
           };
         EUnit;
       ]
-  | ECmakeInstallExport { export; destination; file; namespace } ->
+  | ECmakeInstallExport { export; destination; file; namespace; component } ->
     EInstallExport
       {
+        component;
         export = to_normal export;
         destination = to_normal destination;
         file = Option.map file ~f:to_normal;
@@ -1289,26 +1295,29 @@ let rec from_normal = function
       { target = from_normal target;
         visibility;
         headers = List.map headers ~f:from_normal }
-  | EInstallTargets { targets; destination; export } ->
+  | EInstallTargets { targets; destination; export; _ } ->
     ECmakeInstallTargets
       {
         targets = List.map targets ~f:from_normal;
-        destination = from_normal destination;
+        component = None; artifact_clauses = [];
+        destination = Option.map destination ~f:from_normal;
         export = Option.map export ~f:from_normal;
       }
-  | EInstallFiles { files; destination } ->
+  | EInstallFiles { files; destination; _ } ->
     ECmakeInstallFiles
       {
+        component = None;
         files = List.map files ~f:from_normal;
         destination = from_normal destination;
       }
-  | EInstallExport { export; destination; file; namespace } ->
+  | EInstallExport { export; destination; file; namespace; component } ->
     ECmakeInstallExport
       {
         export = from_normal export;
         destination = from_normal destination;
         file = Option.map file ~f:from_normal;
         namespace;
+        component;
       }
   | EExportExport { name; file } ->
     ECmakeExportExport

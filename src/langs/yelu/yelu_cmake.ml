@@ -131,12 +131,15 @@ and tiny_target_sources_item =
 type install_rule =
   | InstallTargets of {
       targets : string list;
-      destination : string;
+      destination : string option;
+      component : string option;
       export : string option;
+      artifact_clauses : (string * string) list;
     }
   | InstallFiles of {
       files : string list;
       destination : string;
+      component : string option;
     }
   (* [install(EXPORT name FILE file DESTINATION dest NAMESPACE ns)] —
      emit-time install rule that writes out an export set declared via
@@ -146,6 +149,13 @@ type install_rule =
       destination : string;
       file : string option;
       namespace : string option;
+      component : string option;
+    }
+  | InstallDirectory of {
+      directory : string;
+      destination : string;
+      component : string option;
+      optional : bool;
     }
   (* [export(EXPORT name FILE file)] — eager export of the in-tree
      targets to a file usable by sibling projects. Stored alongside
