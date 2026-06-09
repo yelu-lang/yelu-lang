@@ -875,7 +875,7 @@ let yelu2_to_yelu1 =
           EInstallTargets
             { targets = [ ETarget "app" ]; destination = Some (EString "bin"); export = None; component = None; artifact_clauses = [] };
           EInstallFiles
-            { files = [ EString "include/app.h" ]; destination = EString "include" };
+            { files = [ EString "include/app.h" ]; destination = EString "include"; component = None };
         ])
         ~expected_value:VUnit
         ~expected_env:

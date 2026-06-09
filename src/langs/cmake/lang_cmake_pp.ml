@@ -11,7 +11,11 @@ open Lang_cmake
 
 let list_sp pp = Fmt.list ~sep:Fmt.sp pp
 let list_br pp = Fmt.list ~sep:Stdlib.Format.pp_force_newline pp
-let quoted s = "\"" ^ s ^ "\""
+let quoted s =
+  (* Escape backslash and double-quote for cmake string literals *)
+  let s = String.substr_replace_all s ~pattern:"\\" ~with_:"\\\\" in
+  let s = String.substr_replace_all s ~pattern:"\"" ~with_:"\\\"" in
+  "\"" ^ s ^ "\""
 let pp_quoted = Fmt.using quoted Fmt.string
 
 let pp_with_key key pp_ele ff = function

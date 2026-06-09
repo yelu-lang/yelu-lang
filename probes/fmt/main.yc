@@ -159,15 +159,15 @@
   );
 
   if ${FMT_MASTER_PROJECT} and match ${CMAKE_GENERATOR} "Visual Studio" then (
-    yc_raw 'include(FindSetEnv)
-if (WINSDK_SETENV)
-  set(MSBUILD_SETUP "call \"${WINSDK_SETENV}\"")
-endif ()
-join(netfxpath
-     "C:\\Program Files\\Reference Assemblies\\Microsoft\\Framework\\"
-     ".NETFramework\\v4.0")
-file(WRITE run-msbuild.bat "${MSBUILD_SETUP}
-  ${CMAKE_MAKE_PROGRAM} -p:FrameworkPathOverride=\"${netfxpath}\" %*")'
+    include FindSetEnv;
+    if ${WINSDK_SETENV} then (
+      MSBUILD_SETUP := "call \"${WINSDK_SETENV}\""
+    );
+    join netfxpath
+      "C:\\Program Files\\Reference Assemblies\\Microsoft\\Framework\\"
+      ".NETFramework\\v4.0";
+    file_write "run-msbuild.bat" "${MSBUILD_SETUP}
+  ${CMAKE_MAKE_PROGRAM} -p:FrameworkPathOverride=\"${netfxpath}\" %*"
   );
 
   fun setup_target(tgt kind) (

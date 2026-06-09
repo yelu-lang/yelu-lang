@@ -35,14 +35,14 @@ type error =
 [@@deriving sexp_of]
 
 let classify_escape text =
-  if String.is_prefix text ~prefix:"install(" then "complex install command"
-  else if String.is_substring text ~substring:"${kind}" then "dynamic visibility"
+  if String.is_substring text ~substring:"${kind}"
+  then "dynamic visibility (by design)"
+  else if String.is_prefix text ~prefix:"install(" then "complex install"
   else if String.is_prefix text ~prefix:"get_target_property("
        || String.is_prefix text ~prefix:"set_property("
        || String.is_prefix text ~prefix:"path_convert_to_native"
-  then "parser gap (fixable)"
-  else if String.length text > 80 then "explicit yc_raw"
-  else "untyped fallback"
+  then "typed API gap"
+  else "raw cmake text"
 
 let format_raw_escape ?(index = 0) file text reason =
   let lines = String.split_lines text in
