@@ -1,0 +1,4 @@
+(executables
+ (names debug_genex debug_kwarg)
+ (libraries base yelu_langs)
+ (promote (until-clean)))

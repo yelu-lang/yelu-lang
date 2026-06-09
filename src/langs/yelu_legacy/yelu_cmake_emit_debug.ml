@@ -1,9 +1,8 @@
-(* Direct-text emit for yelu_cmake.expr.
+(* Direct-text emit for yelu_cmake.expr — LEGACY.
 
-   As of Phase 1.5 (retirement plan), this module is no longer on the
-   production path — production emits via
-   [yelu_cmake_emit] -> [lang_cmake_pp]. The direct-text emit
-   stays callable as a *diagnostic aid*: useful for human inspection of
+   Moved to yelu_legacy/ 2026-06-09. Not on the production path —
+   production emits via [yelu_cmake_emit] -> [lang_cmake_pp].
+   Kept as a *diagnostic aid*: useful for human inspection of
    the bridge output without going through the cmake AST, and as a
    regression target for the step-level bridge tests in
    [test_yelu_steps] and [test_yelu_emit_debug] that document
@@ -32,12 +31,8 @@ open Yelu_cmake_property
 open Yelu_cmake_find
 open Yelu_cmake_try
 
-let escape_quoted s =
-  s
-  |> String.substr_replace_all ~pattern:"\\" ~with_:"\\\\"
-  |> String.substr_replace_all ~pattern:"\"" ~with_:"\\\""
-
-let quoted s = "\"" ^ escape_quoted s ^ "\""
+let escape_quoted = Lang_cmake_strings.escape_quoted
+let quoted = Lang_cmake_strings.quoted
 
 (* Substitution env carried through emit so that ELet bindings can be
    resolved as a side effect of textual rendering. The architecture is the

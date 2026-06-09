@@ -217,25 +217,18 @@ let args_to_exprs args = List.map args ~f:arg_to_expr
    "Bool literals — parse-time vs eval-time" for the migration
    path. Until then, this is the single source of truth for
    parse-time cmake bool literals. *)
-let bool_literal_of_string (s : string) : Yelu_cmake.expr option =
-  match String.uppercase s with
-  | "TRUE" | "ON" | "YES" | "Y" | "1" -> Some (e_bool true)
-  | "FALSE" | "OFF" | "NO" | "N" | "0" | "IGNORE" | "NOTFOUND" ->
-    Some (e_bool false)
-  | _ -> None
-
 (* ============================================================
    cond-token -> expr.
    Bare identifier "FOO" treated as ${FOO} (EVar lookup).
    Quoted "literal" -> EString.
-   Bool literal (case-insensitive) -> EBool via [bool_literal_of_string].
+   Bool literal (case-insensitive) -> EBool via [Yelu_cmake.bool_literal_of_string].
    Numeric -> EInt. *)
 let cond_token_to_expr (s : string) : Yelu_cmake.expr =
   let n = String.length s in
   if n >= 2 && Char.equal s.[0] '"' && Char.equal s.[n - 1] '"' then
     e_str (String.sub s ~pos:1 ~len:(n - 2))
   else
-    match bool_literal_of_string s with
+    match Yelu_cmake.bool_literal_of_string s with
     | Some e -> e
     | None ->
       (match Int.of_string_opt s with
@@ -397,7 +390,7 @@ let rec from_emit (e : C.exp) : Yelu_cmake.expr =
        && Char.equal s.[n - 1] '}'
     then e_var (String.sub s ~pos:2 ~len:(n - 3))
     else
-      (match bool_literal_of_string s with
+      (match Yelu_cmake.bool_literal_of_string s with
        | Some e -> e
        | None -> e_var s)
   | C.Quote s -> e_str s

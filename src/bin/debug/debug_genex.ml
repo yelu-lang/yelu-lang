@@ -6,7 +6,7 @@ let test name input =
   match parse_string ~consume:All token_list input with
   | Ok [EVAL s] -> Stdio.printf "%-30s -> %s\n" name s
   | Ok toks -> Stdio.printf "%-30s -> %d tokens: %s\n" name (List.length toks)
-      (String.concat ~sep:", " (List.map toks ~f:(fun t -> Sexp.to_string_hum ([%sexp_of: token] t))))
+      (String.concat ~sep:", " (List.map toks ~f:(fun t -> Sexp.to_string_hum (sexp_of_token t))))
   | Error e -> Stdio.printf "%-30s -> ERROR: %s\n" name e
 
 let () =

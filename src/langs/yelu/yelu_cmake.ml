@@ -888,3 +888,14 @@ type expr +=
      evaluated the binding is gone. Distinct from ESetVar, which models
      cmake's global/mutable [set()] and persists across the program. *)
   | ELet of { var : string; value : expr; body : expr }
+
+(* Parse-time cmake bool-literal recognition. Case-insensitive; returns
+   [None] on non-bool so the caller decides the fallback. Related to
+   [expect_bool] above (eval-time, total). Future (Y17): collapse these
+   into one place. *)
+let bool_literal_of_string (s : string) : expr option =
+  match String.uppercase s with
+  | "TRUE" | "ON" | "YES" | "Y" | "1" -> Some (EBool true)
+  | "FALSE" | "OFF" | "NO" | "N" | "0" | "IGNORE" | "NOTFOUND" ->
+    Some (EBool false)
+  | _ -> None

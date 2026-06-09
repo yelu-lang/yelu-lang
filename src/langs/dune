@@ -1,9 +1,9 @@
 (include_subdirs unqualified)
 
-; yelu_legacy/ modules are retained on disk for reference but excluded
-; from the [yelu_langs] library — no src/ or test/ code imports them
-; (E1 deadcode milestone). Add a module here if you genuinely add it
-; outside yelu_legacy/.
+; yelu_legacy/ modules are retained on disk for reference. Most are
+; excluded from the [yelu_langs] library (E1 deadcode milestone).
+; Exception: yelu_cmake_emit_debug.ml is still compiled — it serves as a
+; diagnostic aid and regression target; slated for removal at Y17/R3.
 (library
  (name yelu_langs)
  (package yelu)

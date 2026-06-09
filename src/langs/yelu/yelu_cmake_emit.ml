@@ -179,39 +179,6 @@ and cond_atom ?(env = empty_subst) (e : expr) : string list =
    commits expand coverage until parity with [yelu_cmake_emit_debug].
    ======================================================================== *)
 
-let message_mode_of_string = function
-  | "" | "NONE" -> C.Mm_none
-  | "STATUS" -> C.Mm_status
-  | "NOTICE" -> C.Mm_notice
-  | "VERBOSE" -> C.Mm_verbose
-  | "DEBUG" -> C.Mm_debug
-  | "TRACE" -> C.Mm_trace
-  | "WARNING" -> C.Mm_warning
-  | "AUTHOR_WARNING" -> C.Mm_author_warning
-  | "CHECK_START" -> C.Mm_check_start
-  | "CHECK_PASS" -> C.Mm_check_pass
-  | "CHECK_FAIL" -> C.Mm_check_fail
-  | "SEND_ERROR" -> C.Mm_send_error
-  | "FATAL_ERROR" -> C.Mm_fatal_error
-  | "DEPRECATION" -> C.Mm_deprecation
-  | other -> fail "emit_ast: unknown message mode %S" other
-
-let version_of_string s : C.version =
-  (* For ranges like "3.8...3.28", take the minimum version *)
-  let s =
-    if String.is_substring s ~substring:".." then
-      match String.split s ~on:'.' with
-      | maj :: min :: _ -> maj ^ "." ^ min
-      | _ -> s
-    else s
-  in
-  match String.split s ~on:'.' with
-  | [ maj; min ] ->
-    { major = Int.of_string maj; minor = Int.of_string min; patch = "" }
-  | [ maj; min; patch ] ->
-    { major = Int.of_string maj; minor = Int.of_string min; patch }
-  | _ -> { major = 3; minor = 20; patch = "" }
-
 (* Wrap a tiny [visibility : string] + [expr list] into the cmake AST's
    [items_with_kind list] shape. cmake's PUBLIC/PRIVATE/INTERFACE keyword
    separates groups; the bridge always collapses to a single group. *)
@@ -329,16 +296,16 @@ let rec emit_exp ~env (e : expr) : C.exp =
   (* cmake_op: project metadata *)
   | ECmakeMinimumRequired version_s ->
     C.Cmake_cmd
-      (C.Cmake_minimum_required { min = version_of_string version_s; max = None })
+      (C.Cmake_minimum_required { min = Lang_cmake_utils.version_of_string version_s; max = None })
   | ECmakeMessage { mode; texts } ->
     C.Message
-      { mode = message_mode_of_string mode;
+      { mode = Yelu_cmake_utils.message_mode_of_string mode;
         texts = List.map texts ~f:(target_arg ~env) }
   | ECmakeProject { name; languages; version } ->
     C.Project_cmd
       (C.Project
          { name;
-           version = Option.map version ~f:version_of_string;
+           version = Option.map version ~f:Lang_cmake_utils.version_of_string;
            description = None;
            homepage_url = None;
            languages })
@@ -1320,19 +1287,11 @@ let rec emit_exp ~env (e : expr) : C.exp =
   | ETarget _ -> C.Exp_list []
 
   | _ ->
-    (* Phase 1 coverage gap. The first-field-of-extension trick gets the
-       ctor name as a string so the test oracle can group uncovered
-       programs by their root constructor. *)
-    let r = Stdlib.Obj.repr e in
-    let name =
-      if Stdlib.Obj.is_block r then
-        let head = Stdlib.Obj.field r 0 in
-        if Stdlib.Obj.tag head = Stdlib.Obj.object_tag
-        then (Stdlib.Obj.magic (Stdlib.Obj.field head 0) : string)
-        else "?"
-      else "?"
-    in
-    fail "emit_ast gap: %s" name
+    (* Emit coverage gap. When a new constructor is added to yelu_cmake.expr
+       but emit hasn't been taught about it yet, this catch-all fires.
+       The Phase 1 byte-equality oracle retired — add an emit clause above
+       for the uncovered constructor, then remove this comment. *)
+    failwith "emit_ast: uncovered expr constructor"
 
 (* Public API. *)
 

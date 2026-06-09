@@ -82,3 +82,35 @@ let of_compatibility : Lang_cmake.compatibility -> string = function
   | Same_major_version -> "SameMajorVersion"
   | Same_minor_version -> "SameMinorVersion"
   | Exact_version -> "ExactVersion"
+
+(* --- cmake string escaping --- *)
+
+(* Escape backslash and double-quote characters for embedding inside a
+   cmake double-quoted string literal. Does NOT add the surrounding
+   double-quotes — callers that need the full cmake quoted-string form
+   should call [quoted] or add the outer quotes themselves. *)
+let escape_quoted s =
+  let buf = Buffer.create (String.length s) in
+  String.iter s ~f:(function
+    | '\\' -> Buffer.add_string buf "\\\\"
+    | '"' -> Buffer.add_string buf "\\\""
+    | c -> Buffer.add_char buf c);
+  Buffer.contents buf
+
+(* Escape and wrap in double-quotes for a cmake string literal. *)
+let quoted s = "\"" ^ escape_quoted s ^ "\""
+
+(* Library type → cmake string. *)
+let of_library_type : Lang_cmake.library_type -> string = function
+  | Lib_static -> "STATIC"
+  | Lib_shared -> "SHARED"
+  | Lib_module -> "MODULE"
+  | Lib_unknown -> "UNKNOWN"
+  | Lib_object -> "OBJECT"
+  | Lib_interface -> "INTERFACE"
+  | Lib_global -> "GLOBAL"
+
+(* Include guard scope → cmake string. *)
+let of_include_guard_scope : Lang_cmake.include_guard_scope -> string = function
+  | Ig_directory -> "DIRECTORY"
+  | Ig_global -> "GLOBAL"

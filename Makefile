@@ -164,11 +164,11 @@ define check_yelu
 	@bash -c '\
 	  if [ ! -s "$(2)" ]; then \
 	    echo "  SKIP $(1) -> $(2) (empty reference)"; \
-	  elif diff -B <($(DUNE) dune exec src/bin/yelu/$(1).exe 2>/dev/null | gersemi - 2>/dev/null) <(gersemi $(2) 2>/dev/null) > /dev/null 2>&1; then \
+	  elif diff -B <($(DUNE) dune exec src/bin/cmake_only/$(1).exe 2>/dev/null | gersemi - 2>/dev/null) <(gersemi $(2) 2>/dev/null) > /dev/null 2>&1; then \
 	    echo "  OK   $(1) -> $(2)"; \
 	  else \
 	    echo "  FAIL $(1) -> $(2)"; \
-	    diff -B <($(DUNE) dune exec src/bin/yelu/$(1).exe 2>/dev/null | gersemi - 2>/dev/null) <(gersemi $(2) 2>/dev/null) | head -20; \
+	    diff -B <($(DUNE) dune exec src/bin/cmake_only/$(1).exe 2>/dev/null | gersemi - 2>/dev/null) <(gersemi $(2) 2>/dev/null) | head -20; \
 	    echo "$(1)" >> /tmp/tola-cmake-check-failures; \
 	  fi'
 endef

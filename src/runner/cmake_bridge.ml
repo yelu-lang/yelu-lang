@@ -35,7 +35,7 @@ module If_frag = Yelu_langs.Yelu_cmake_if
    can override at startup if running from a different cwd.
    cmake_modules_dir is probed once via `cmake -P` and cached. *)
 
-let default_parse_py = "tool/cmake_text/parse.py"
+let default_parse_py = "tool/cmake_text/cmake_to_json.py"
 let parse_py = ref default_parse_py
 let set_parse_py p = parse_py := p
 

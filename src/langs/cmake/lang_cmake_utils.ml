@@ -2,8 +2,15 @@ open Base
 open Lang_cmake
 
 let version_of_string s =
-  let parts = String.split s ~on:'.' in
-  match parts with
+  (* For ranges like "3.8...3.28", take the minimum version *)
+  let s =
+    if String.is_substring s ~substring:".." then
+      match String.split s ~on:'.' with
+      | maj :: min :: _ -> maj ^ "." ^ min
+      | _ -> s
+    else s
+  in
+  match String.split s ~on:'.' with
   | [major; minor] -> { major = Int.of_string major; minor = Int.of_string minor; patch = "" }
   | [major; minor; patch] -> { major = Int.of_string major; minor = Int.of_string minor; patch }
   | _ -> failwith (Printf.sprintf "version_of_string: invalid version %S" s)

@@ -9,10 +9,9 @@ All commands run from the yelu repo root (`dune-project` lives here).
 
 ```sh
 dune build                                      # everything
-dune build src/langs/ src/bin/cmake/v1/         # cmake layer only
-dune build src/langs/ src/bin/yelu/             # yelu layer only
-dune test                                       # all unit tests (738 tests)
-dune build --force @runtest                     # all tests + Phase 1 oracle line
+dune build src/langs/ src/bin/yelu/             # yelu layer + main binary
+dune build src/langs/ src/bin/cmake_only/       # cmake-only generators
+dune test                                       # all unit tests (~850 tests)
 ```
 
 After Phase 1 of retirement, the production yelu compile path is
@@ -115,16 +114,18 @@ All 14 `Make_*_check` modules expose `let stage = Stage_typecheck`, enforced by 
 | `lang_yelu_test.ml`     | 20    | Test ops                                    |
 | `lang_yelu_genex.ml`    | 50    | Generator expressions                       |
 
-### Step files (tutorial + CMakeOnly generators)
+### Step files (tutorial, CMakeOnly generators, debug)
 
 | Directory              | Count | Purpose                                |
 | ---------------------- | ----- | -------------------------------------- |
-| `src/bin/cmake/v1/`    | 25    | CMake tutorial v1 reference generators |
-| `src/bin/cmake/v2/`    | 11    | CMake tutorial v2 reference generators |
-| `src/bin/yelu/v1/`     | 25    | Same tutorials in yelu DSL             |
-| `src/bin/yelu/v2/`     | 11    | Same tutorials in yelu DSL             |
-| `src/bin/yelu/` (top)  | 13    | CMakeOnly test suite generators        |
-| `src/bin/yelu/common/` | 1     | Shared step utilities (`step_common`)  |
+| `src/bin/cmake/v1/`       | 25    | CMake tutorial v1 reference generators |
+| `src/bin/cmake/v2/`       | 11    | CMake tutorial v2 reference generators |
+| `src/bin/yelu/v1/`        | 25    | Same tutorials in yelu DSL             |
+| `src/bin/yelu/v2/`        | 11    | Same tutorials in yelu DSL             |
+| `src/bin/yelu/` (top)     | 1     | Main CLI binary (`yelu.ml`)            |
+| `src/bin/yelu/common/`    | 1     | Shared step utilities (`step_common`)  |
+| `src/bin/cmake_only/`     | 12    | CMakeOnly test suite generators        |
+| `src/bin/debug/`          | 2     | Ad-hoc parser/lexer debug scripts      |
 
 ### Tests
 

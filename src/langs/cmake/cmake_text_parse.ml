@@ -166,16 +166,6 @@ let arg_of_raw (s : string) : L.arg =
   else
     Bare s
 
-let raw_of_arg (a : L.arg) : string =
-  match a with
-  | Bare s -> s
-  | Quoted s -> "\"" ^ s ^ "\""
-  | Bracket (level, s) ->
-    let eqs = String.make level '=' in
-    "[" ^ eqs ^ "[" ^ s ^ "]" ^ eqs ^ "]"
-
-let _ = raw_of_arg  (* might be needed for fallback paths later *)
-
 (* Treat an arg as a plain string for slots that take [string] /
    [var] / [target] / [file] etc. Strips outer quoting / brackets. *)
 let str_of_raw (s : string) : string =

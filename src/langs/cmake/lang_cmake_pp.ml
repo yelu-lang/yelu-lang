@@ -11,11 +11,7 @@ open Lang_cmake
 
 let list_sp pp = Fmt.list ~sep:Fmt.sp pp
 let list_br pp = Fmt.list ~sep:Stdlib.Format.pp_force_newline pp
-let quoted s =
-  (* Escape backslash and double-quote for cmake string literals *)
-  let s = String.substr_replace_all s ~pattern:"\\" ~with_:"\\\\" in
-  let s = String.substr_replace_all s ~pattern:"\"" ~with_:"\\\"" in
-  "\"" ^ s ^ "\""
+let quoted = Lang_cmake_strings.quoted
 let pp_quoted = Fmt.using quoted Fmt.string
 
 let pp_with_key key pp_ele ff = function
@@ -74,9 +70,7 @@ let pp_custom_command ff ({ command; args } : custom_command) =
 
 (* New helper printers *)
 
-let string_of_include_guard_scope = function
-  | Ig_directory -> "DIRECTORY"
-  | Ig_global -> "GLOBAL"
+let string_of_include_guard_scope = Lang_cmake_strings.of_include_guard_scope
 
 let pp_include_guard_scope =
   Fmt.using string_of_include_guard_scope Fmt.string

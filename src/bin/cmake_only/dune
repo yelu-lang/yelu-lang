@@ -1,0 +1,17 @@
+(executables
+ (names
+  all_find_modules
+  fetch_content
+  find_library
+  find_path
+  link_interface_loop
+  major_version_selection
+  project_include
+  project_include_before
+  select_library_configurations
+  target_scope
+  target_scope_sib
+  target_scope_sub
+  target_scope_sub_sub)
+ (libraries base yelu_langs step_common)
+ (promote (until-clean)))

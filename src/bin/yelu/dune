@@ -1,16 +1,4 @@
 (executables
- (names
-  yelu
-  debug_kwarg
-  target_scope target_scope_sub target_scope_sub_sub target_scope_sib
-  link_interface_loop
-  find_path
-  find_library
-  select_library_configurations
-  major_version_selection
-  all_find_modules
-  fetch_content
-  project_include
-  project_include_before)
+ (names yelu)
  (libraries base yelu_langs step_common yojson unix)
  (promote (until-clean)))

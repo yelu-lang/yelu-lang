@@ -196,21 +196,25 @@ let yc_project ?version ?(languages = []) name =
   in
   ECmakeProject { name; languages = languages_s; version = version_s }
 
-(* Legacy [Ycmake_message] carries [texts : string list]; step files
-   pass bare string literals. Wrap each as [EString] for the IR ctor
-   (which carries [expr list]). *)
+(* Canonical string → Lang_cmake.message_mode converter. Used by:
+   - [yc_message_mode] (this file)
+   - [yelu_cmake_emit] (production emit of ECmakeMessage)
+   - [yelu_parse] (parser for message() commands) *)
 let message_mode_of_string = function
+  | "" | "NONE" -> Lang_cmake.Mm_none
   | "STATUS" -> Lang_cmake.Mm_status
-  | "WARNING" -> Lang_cmake.Mm_warning
-  | "AUTHOR_WARNING" -> Lang_cmake.Mm_author_warning
-  | "FATAL_ERROR" -> Lang_cmake.Mm_fatal_error
-  | "SEND_ERROR" -> Lang_cmake.Mm_fatal_error
   | "NOTICE" -> Lang_cmake.Mm_notice
   | "VERBOSE" -> Lang_cmake.Mm_verbose
   | "DEBUG" -> Lang_cmake.Mm_debug
   | "TRACE" -> Lang_cmake.Mm_trace
+  | "WARNING" -> Lang_cmake.Mm_warning
+  | "AUTHOR_WARNING" -> Lang_cmake.Mm_author_warning
   | "CHECK_START" -> Lang_cmake.Mm_check_start
-  | "" -> Lang_cmake.Mm_none
+  | "CHECK_PASS" -> Lang_cmake.Mm_check_pass
+  | "CHECK_FAIL" -> Lang_cmake.Mm_check_fail
+  | "SEND_ERROR" -> Lang_cmake.Mm_send_error
+  | "FATAL_ERROR" -> Lang_cmake.Mm_fatal_error
+  | "DEPRECATION" -> Lang_cmake.Mm_deprecation
   | s -> failwith (Printf.sprintf "unknown message mode: %s" s)
 
 let yc_message ?(mode = Lang_cmake.Mm_status) texts =
@@ -225,11 +229,7 @@ let yc_include ?(optional = false) file =
   ECmakeInclude { file; optional }
 
 let yc_include_guard scope =
-  let scope_s = match scope with
-    | Lang_cmake.Ig_directory -> "DIRECTORY"
-    | Lang_cmake.Ig_global -> "GLOBAL"
-  in
-  ECmakeIncludeGuard { scope = scope_s }
+  ECmakeIncludeGuard { scope = Lang_cmake_strings.of_include_guard_scope scope }
 
 let yc_policy_set ?(new_ = true) id = ECmakePolicySet { id; new_ }
 
@@ -346,14 +346,17 @@ let vis_of_kind k : visibility = match k with
   | Lang_cmake.Interface -> Vis_interface
   | Lang_cmake.Plain -> Vis_private
 
-let library_type_name = function
-  | Lang_cmake.Lib_static -> "STATIC"
-  | Lang_cmake.Lib_shared -> "SHARED"
-  | Lang_cmake.Lib_module -> "MODULE"
-  | Lang_cmake.Lib_unknown -> "UNKNOWN"
-  | Lang_cmake.Lib_object -> "OBJECT"
-  | Lang_cmake.Lib_interface -> "INTERFACE"
-  | Lang_cmake.Lib_global -> "GLOBAL"
+(* Detect a visibility-keyword expr; matches both bare-IDENT forms
+   (EVar "PUBLIC") and string-quoted forms (EString "PUBLIC").
+   Used by the parser's [group_by_visibility_y1] and target-family
+   command grouping. *)
+let visibility_of_expr = function
+  | EVar "PUBLIC" | EString "PUBLIC" -> Some Vis_public
+  | EVar "PRIVATE" | EString "PRIVATE" -> Some Vis_private
+  | EVar "INTERFACE" | EString "INTERFACE" -> Some Vis_interface
+  | _ -> None
+
+let library_type_name = Lang_cmake_strings.of_library_type
 
 (* Visibility group at the IR-utils API. Legacy [yelu_items_with_kind]
    carries [yelu_expr list]; we carry [expr list] (IR) since helpers
@@ -1164,3 +1167,20 @@ let yc_target_precompile_headers target items =
     ECmakeTargetPrecompileHeaders
       { target; visibility = vis_of_kind kind; headers = items })
   |> (fun xs -> ESeq xs)
+
+(* --- Name mapping: yelu alias → cmake command name --- *)
+
+(* The typed IR uses short yelu names as aliases (e.g. [add_exe] for
+   [add_executable]). When the parser falls back to a raw [ECmakeRawCmd],
+   it must emit the real cmake name so the generated cmake text is legal. *)
+let cmake_name_of_yelu = function
+  | "add_exe" -> "add_executable"
+  | "add_lib" -> "add_library"
+  | "link_lib" -> "target_link_libraries"
+  | "include_dirs" -> "target_include_directories"
+  | "compile_defs" -> "target_compile_definitions"
+  | "compile_opts" -> "target_compile_options"
+  | "compile_feats" -> "target_compile_features"
+  | "link_opts" -> "target_link_options"
+  | "link_dirs" -> "target_link_directories"
+  | n -> n
