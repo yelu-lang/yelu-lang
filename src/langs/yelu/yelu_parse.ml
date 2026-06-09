@@ -1107,50 +1107,25 @@ let p_property_command_y1_inner name args kwargs =
     in
     Some (yc_set_source_files_properties files properties)
   | "set_property", args ->
-    (* GLOBAL, DIRECTORY, TEST, INSTALL, CACHE scopes are not
-       handled by the typed API — fall back to yc_raw.
-       SOURCE is handled as typed IR (ECmakeSetPropertySource). *)
+    (* GLOBAL, DIRECTORY, TEST, INSTALL scopes fall back to yc_raw.
+       SOURCE and CACHE are handled as typed IR. *)
     let is_other_scope = function
       | EVar "GLOBAL" | EString "GLOBAL"
       | EVar "DIRECTORY" | EString "DIRECTORY"
       | EVar "TEST" | EString "TEST"
-      | EVar "INSTALL" | EString "INSTALL"
-      | EVar "CACHE" | EString "CACHE" -> true
+      | EVar "INSTALL" | EString "INSTALL" -> true
       | _ -> false
     in
     let is_source = function
       | EVar "SOURCE" | EString "SOURCE" -> true
       | _ -> false
     in
-    (match args with
-     | e :: _ when is_other_scope e -> None
-     | e :: rest when is_source e ->
-       let sections = split_by_keywords ~keywords:["APPEND"; "PROPERTY"] rest in
-       let files = match List.Assoc.find sections ~equal:String.equal "_head" with
-         | Some items -> items | None -> []
-       in
-       let append = List.Assoc.find sections ~equal:String.equal "APPEND"
-                    |> Option.is_some in
-       let properties = match List.Assoc.find sections ~equal:String.equal "PROPERTY" with
-         | Some (prop_name :: values) ->
-           let name = match prop_name with EVar s | EString s -> s | _ -> "?" in
-           let value = match values with
-             | [ v ] -> v
-             | _ -> EString (String.concat ~sep:";" (List.map values ~f:(fun e ->
-                 match e with EVar s | EString s -> s | _ -> "")))
-           in
-           [(name, value)]
-         | _ -> []
-       in
-       Some (yc_set_property_source ~append ~files properties)
-     | _ ->
-    let sections = split_by_keywords ~keywords:["APPEND"; "PROPERTY"] args in
-    let targets = match List.Assoc.find sections ~equal:String.equal "_head" with
-      | Some items -> items | None -> []
+    let is_cache = function
+      | EVar "CACHE" | EString "CACHE" -> true
+      | _ -> false
     in
-    let append = List.Assoc.find sections ~equal:String.equal "APPEND"
-                 |> Option.is_some in
-    let properties = match List.Assoc.find sections ~equal:String.equal "PROPERTY" with
+    let extract_properties sections =
+      match List.Assoc.find sections ~equal:String.equal "PROPERTY" with
       | Some (prop_name :: values) ->
         let name = match prop_name with EVar s | EString s -> s | _ -> "?" in
         let value = match values with
@@ -1161,7 +1136,32 @@ let p_property_command_y1_inner name args kwargs =
         [(name, value)]
       | _ -> []
     in
-    Some (yc_set_property ~append ~targets properties))
+    (match args with
+     | e :: _ when is_other_scope e -> None
+     | e :: rest when is_source e ->
+       let sections = split_by_keywords ~keywords:["APPEND"; "PROPERTY"] rest in
+       let files = match List.Assoc.find sections ~equal:String.equal "_head" with
+         | Some items -> items | None -> []
+       in
+       let append = List.Assoc.find sections ~equal:String.equal "APPEND"
+                    |> Option.is_some in
+       Some (yc_set_property_source ~append ~files (extract_properties sections))
+     | e :: rest when is_cache e ->
+       let sections = split_by_keywords ~keywords:["APPEND"; "PROPERTY"] rest in
+       let entries = match List.Assoc.find sections ~equal:String.equal "_head" with
+         | Some items -> items | None -> []
+       in
+       let append = List.Assoc.find sections ~equal:String.equal "APPEND"
+                    |> Option.is_some in
+       Some (yc_set_property_cache ~append ~entries (extract_properties sections))
+     | _ ->
+    let sections = split_by_keywords ~keywords:["APPEND"; "PROPERTY"] args in
+    let targets = match List.Assoc.find sections ~equal:String.equal "_head" with
+      | Some items -> items | None -> []
+    in
+    let append = List.Assoc.find sections ~equal:String.equal "APPEND"
+                 |> Option.is_some in
+    Some (yc_set_property ~append ~targets (extract_properties sections)))
   | "get_directory_property", [] ->
     Some (yc_get_directory_property "PROP" out)
   | "set_directory_property", [] ->

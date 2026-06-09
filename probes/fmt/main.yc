@@ -104,7 +104,7 @@
   if ${FMT_MASTER_PROJECT} and not (defined CMAKE_CXX_VISIBILITY_PRESET) then (
     set_verbose "CMAKE_CXX_VISIBILITY_PRESET" "hidden" "CACHE" "STRING"
       "Preset for the export of private symbols.";
-    yc_raw 'set_property(CACHE CMAKE_CXX_VISIBILITY_PRESET PROPERTY STRINGS hidden default)'
+    set_property CACHE CMAKE_CXX_VISIBILITY_PRESET PROPERTY STRINGS hidden default
   );
 
   if ${FMT_MASTER_PROJECT} and not (defined CMAKE_VISIBILITY_INLINES_HIDDEN) then (

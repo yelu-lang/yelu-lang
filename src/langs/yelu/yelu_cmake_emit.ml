@@ -628,6 +628,15 @@ let rec emit_exp ~env (e : expr) : C.exp =
     (match properties with
      | [ p ] -> one p
      | ps -> C.Exp_list (List.map ps ~f:one))
+  | Yelu_cmake_property.ECmakeSetPropertyCache { entries = _; append; properties } ->
+    let scope = C.Sps_cache [] in
+    let one (prop, value) =
+      C.Set_property { scope; append; append_string = false;
+                       property = prop; values = [ arg ~env value ] }
+    in
+    (match properties with
+     | [ p ] -> one p
+     | ps -> C.Exp_list (List.map ps ~f:one))
   | Yelu_cmake_property.ECmakeSetGlobalProperty { properties } ->
     let scope = C.Sps_global in
     let one (prop, value) =

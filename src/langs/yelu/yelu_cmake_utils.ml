@@ -570,6 +570,9 @@ let yc_set_property ?(append = false) ~targets properties =
 let yc_set_property_source ?(append = false) ~files properties =
   ECmakeSetPropertySource { files; append; properties }
 
+let yc_set_property_cache ?(append = false) ~entries properties =
+  ECmakeSetPropertyCache { entries; append; properties }
+
 let yc_set_global_property properties =
   ECmakeSetGlobalProperty { properties }
 
