@@ -52,3 +52,42 @@ Phase 5 (cuda-test), Phase 6 (main CMakeLists.txt), Phase 7
 - `tool/cmake_roundtrip/` → `tool/cmake_text/` with per-file renames:
   `parse.py` → `cmake_to_json.py`, `print2.ml` → `cmake_reprint.ml`, etc.
 - `[tool-interface]` header annotations on 10 pipeline modules
+
+---
+
+## 2026-06-08: fmT probe Phase 8 — .yc concrete-syntax conversion
+
+Full record in [`probes/fmt/migration_status.md`](../../probes/fmt/migration_status.md).
+
+**Result.** 11/11 `.yc` files compile and pass the matrix oracle.
+`yc_apply` in `main.ml` dropped from ~100 → 35. Raw escapes 14 → 3
+(remaining 3 are dynamic visibility — by design). All `.yc` files
+use the git-worktree hybrid driver; manifest auto-discovers helpers
+by naming convention (4-line manifest.json).
+
+**Key changes across ~25 commits:**
+- **Parser:** `add_test` keyword form, `set_property` SOURCE/CACHE scopes,
+  LPAREN in `p_expr_y1` + `p_cond_atom_y1`, `ver_ge`/`ver_le`, message
+  mode keywords, `policy_set` multi-arg, `include_guard` GLOBAL, `:=`
+  target accepting `${var}`, `cache` kwargs `~type:`/`~force`, `option`
+  help+default, `add_lib_alias`, `enable_language` lang+optional,
+  `get_target_property` 3-arg, `configure_file` @ONLY, `add_custom_target`
+  keyword sections, `configure_package_config_file` `INSTALL_DESTINATION`,
+  `export` TARGETS/NAMESPACE/FILE, `include` literalize module name,
+  install keyword forms (TARGETS/FILES/EXPORT/DIRECTORY),
+  `cmake_name_of_yelu` raw-fallback mapping, `parent_scope` restore
+- **Lexer:** `\"` + `\\` escape in `path_lit`; cmake pp: `quoted()` escapes
+  `\`→`\\` and `"`→`\"`
+- **IR:** `ECmakeSetPropertySource`, `ECmakeSetPropertyCache`,
+  `ECmakeExportTargets`, full install IR (component/artifact_clauses/
+  directory), `ECmakeConfigureFile.only`, `ECmakeAddCustomTarget.sources`,
+  `custom_target.sources` env type
+- **Driver:** auto-discovery by naming convention, git-worktree hybrid
+  source, categorized cache diff, log file with stderr capture,
+  wellform `~warn` callback, numbered `[yelu][emit][warning][N]` format,
+  `manifest.json` simplified to 4 lines
+- **Wellform:** `Raw_cmake_escape` carries `text`+`reason`,
+  `format_raw_escape` with truncation for multi-line blocks
+
+**Archived phase log** (Phases 0–7) in
+[`migration_status.md`](../../probes/fmt/migration_status.md).

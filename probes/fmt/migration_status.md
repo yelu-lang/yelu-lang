@@ -1,28 +1,14 @@
 # fmt migration status — full-project hybrid coverage
 
-> Status snapshot for the fmt → yelu migration. Originally a forward-
-> looking plan (Phases 0–7); rewritten as a status report on
-> 2026-06-05 after all phases closed. Strategy framing in
-> [`../../doc/yelu_cmake/hybrid_strategy.md`](../../doc/yelu_cmake/hybrid_strategy.md);
-> per-helper detail in [`README.md`](README.md).
+> Status snapshot for the fmt → yelu migration. Covers Phases 0–8.
+> Phase log archived in [`doc/worklog/worklog_2026_06.md`](../../doc/worklog/worklog_2026_06.md).
+> Current-state overview in [`README.md`](README.md).
 
-## Headline
+## Headline (2026-06-08)
 
-**All 11 vendor/fmt cmake sources are migrated.** Every
-`CMakeLists.txt` (or `.cmake` module) under `vendor/fmt/` is now
-generated from OCaml or `.yc` sources under `probes/fmt/`. The
-matrix oracle (24 cells: 12 fmt options × {ON, OFF}) shows
-byte-identical `CMakeCache.txt` between the vendor source and the
-hybrid-generated source.
-
-```
-vendor/fmt/  →  probes/fmt/main.ml + 10 sibling .ml/.yc
-            →  yelu_cmake IR + raw_cmake escapes
-            →  Lang_cmake AST
-            →  cmake text (in _out/fmt/hybrid/source/)
-            →  cmake configure
-            →  identical CMakeCache.txt across 24/24 cells
-```
+**11/11 `.yc` files compile and pass the matrix oracle.**
+24/24 cells match. 14→3 raw escapes (by design). git-worktree
+hybrid driver with auto-discovered helpers from a 4-line manifest.
 
 ## Inventory (vendor/fmt, 1354 lines, 11 cmake files)
 
@@ -222,18 +208,15 @@ project-defined functions `set_verbose`/`join`/`setup_target`/
 
 ## Phase log
 
-| phase | status | finish | summary |
-|---|---|---|---|
-| 0 (pilot: join + set_verbose) | ✓ | 2026-06-04 | First helper pair; 24/24 cells. |
-| 0+ (mixed-format demo) | ✓ | 2026-06-04 | First `.yc` source alongside `.ml`; commit `12da517`. |
-| 1 (8 remaining helpers) | ✓ | 2026-06-04 | `join_paths` (`.yc`, surfaced + fixed two parser gaps: `foreach IN LISTS` and `set ... PARENT_SCOPE`); 7 others as `.ml` (dynamic target names and `cmake_parse_arguments` handled via `yc_apply`). |
-| 2 (support/) | ✓ | 2026-06-04 | `JoinPaths.cmake` (`.yc`, whole-file) and `FindSetEnv.cmake` (`.ml`, whole-file). Added `whole_file: true` mode to the splice manifest. |
-| 3 (small test subdirs) | ✓ | 2026-06-04 | 5 subdir files migrated as whole-file `.ml`. New surface exercised: `find_package(Threads)`, `set_property(TARGET ...)`, `CheckIPOSupported`, `option()`, `set CACHE STRING`, VERSION_LESS/GREATER. Decision-point passed: surface holds, continue. |
-| 4 (large test subdirs) | ✓ | 2026-06-04 | `test/CMakeLists.txt` and `test/compile-error-test/CMakeLists.txt` as whole-file `.ml`. New: `string(REGEX REPLACE)` backrefs, `try_compile OUTPUT_VARIABLE`, `ECmakeVarDefined`, `check_cxx_compiler_flag`, `enable_language(C)`, ctest `--build-and-test`. Added `Yelu_emit_main.escape` helper. |
-| 5 (cuda) | ✓ | 2026-06-04 | `test/cuda-test/CMakeLists.txt` whole-file `.ml`. CMake-version split (`< 3.15` legacy FindCUDA / `cuda_add_executable` vs modern `enable_language(CUDA)` + `add_executable` + `CUDA_SEPARABLE_COMPILATION`). Matrix never enters this file; codegen-only verification. |
-| 6 (main CMakeLists) | ✓ | 2026-06-04 | `vendor/fmt/CMakeLists.txt` (593 lines) as `main.ml`. Superseded 4 splice files + `use_cmake_modules_false.yc`. Emit fix: `target_feature_of_expr` was dropping visibility; threaded through. New: `ECmakeIncludeGuard`, `ECmakeMath`, `ECmakeFileRead`, `ECmakeFileStrings`, `ECmakeFileExists`, `ECmakeStringReplace`, `ECmakeInList`, `write_basic_package_version_file`, `configure_package_config_file`, `configure_file`. |
-| 7 (Shape C lockup) | ✓ | 2026-06-04 | Added first-class `ECmakeRaw` escape (new fragment `yelu_cmake_raw.ml`) + `Yelu_emit_main.raw_cmake` helper. Used in `main.ml` for the WINSDK / netfxpath / `run-msbuild.bat` block. Footprint audit in [`README.md` § Shape C lockup](README.md). |
-| 8 (.yc concrete-syntax conversion) | ✓ | 2026-06-08 | 8 of 11 `.ml` files converted to `.yc` concrete syntax. `main.yc`, `test_main.yc`, `compile_error_test.yc`, `cuda_test.yc`, `fuzzing.yc`, `static_export_test.yc`, `gtest.yc`, `find_package_test.yc`, `add_subdirectory_test.yc` all compile and produce valid cmake. 35 parser/lexer/emit fixes needed (see commit log). `yc_apply` count in `main.ml` dropped from ~100 to 35. Matrix test now runs 100% from `.yc` files via `manifest.json`. |
+Full phase-by-phase record (Phases 0–8) archived in
+[`doc/worklog/worklog_2026_06.md`](../../doc/worklog/worklog_2026_06.md).
+Key milestones:
+
+- **Phase 0–7** (2026-06-04): all 11 files migrated as `.ml` OCaml DSL emits.
+  `raw_cmake` escape hatch for the WINSDK block. Matrix: 24/24 cells.
+- **Phase 8** (2026-06-08): `.yc` concrete-syntax conversion. All 11 files
+  have `.yc` versions. `yc_apply` in main.ml: ~100 → 35. Raw escapes: 14 → 3.
+  Auto-discovery by naming convention. Git-worktree hybrid driver.
 
 ## What didn't get done (or got de-scoped)
 
