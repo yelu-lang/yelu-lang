@@ -316,22 +316,23 @@ let splice ~target_content ~anchor_start ~anchor_end ~anchor_end_occurrence
 
 let build_hybrid_tree ~source_dir ~hybrid_root ~spliced_files =
   let source_abs = run_capture (Printf.sprintf "realpath %s" (Stdlib.Filename.quote source_dir)) |> fst |> String.strip in
-  (* Resolve hybrid_root to absolute — git worktree paths are relative to
-     the source git repo, not the yelu working directory. *)
   let _ = run_capture (Printf.sprintf "mkdir -p %s" (Stdlib.Filename.quote hybrid_root)) in
   let hybrid_abs = run_capture (Printf.sprintf "realpath %s" (Stdlib.Filename.quote hybrid_root)) |> fst |> String.strip in
-  (* Clean up previous worktree (directory + git metadata) *)
-  let _ = run_capture (Printf.sprintf "git -C %s worktree remove --force %s 2>/dev/null || true"
-             (Stdlib.Filename.quote source_abs) (Stdlib.Filename.quote hybrid_abs)) in
-  let _ = run_capture (Printf.sprintf "git -C %s worktree prune" (Stdlib.Filename.quote source_abs)) in
-  let _ = run_capture (Printf.sprintf "rm -rf %s" (Stdlib.Filename.quote hybrid_abs)) in
-  (* git worktree add --detach: lightweight checkout, no new branch *)
-  let cmd = Printf.sprintf "git -C %s worktree add --detach %s HEAD 2>&1"
-    (Stdlib.Filename.quote source_abs) (Stdlib.Filename.quote hybrid_abs) in
-  let out, code = run_capture cmd in
-  if code <> 0 then begin
-    Stdlib.Printf.eprintf "[yelu] git worktree failed:\n%s\n" out;
-    Stdlib.exit 1
+  (* Create worktree once; reuse on subsequent runs. A git worktree has a
+     .git file (not directory) at its root — detect that to decide. *)
+  let has_worktree = Stdlib.Sys.file_exists (Stdlib.Filename.concat hybrid_abs ".git") in
+  if not has_worktree then begin
+    let _ = run_capture (Printf.sprintf "git -C %s worktree remove --force %s 2>/dev/null || true"
+               (Stdlib.Filename.quote source_abs) (Stdlib.Filename.quote hybrid_abs)) in
+    let _ = run_capture (Printf.sprintf "git -C %s worktree prune" (Stdlib.Filename.quote source_abs)) in
+    let _ = run_capture (Printf.sprintf "rm -rf %s" (Stdlib.Filename.quote hybrid_abs)) in
+    let cmd = Printf.sprintf "git -C %s worktree add --detach %s HEAD 2>&1"
+      (Stdlib.Filename.quote source_abs) (Stdlib.Filename.quote hybrid_abs) in
+    let out, code = run_capture cmd in
+    if code <> 0 then begin
+      Stdlib.Printf.eprintf "[yelu] git worktree failed:\n%s\n" out;
+      Stdlib.exit 1
+    end
   end;
   (* Overwrite generated files in-place *)
   Map.iteri spliced_files ~f:(fun ~key:rel_path ~data:content ->
