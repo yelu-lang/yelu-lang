@@ -365,7 +365,7 @@ let yelu1_to_yelu2 =
           ECmakeInstallTargets
             { targets = [ EString "app" ]; destination = Some (EString "bin"); export = None; component = None; artifact_clauses = [] };
           ECmakeInstallFiles
-            { files = [ EString "include/app.h" ]; destination = EString "include" };
+            { files = [ EString "include/app.h" ]; destination = EString "include"; component = None };
         ])
         ~expected_value:VUnit
         ~expected_env:

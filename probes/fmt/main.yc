@@ -403,10 +403,10 @@ file(WRITE run-msbuild.bat "${MSBUILD_SETUP}
         "--site-dir" "${CMAKE_CURRENT_BINARY_DIR}/doc-html"
         "--no-directory-urls"
       SOURCES ${sources};
-    install_directory ${CMAKE_CURRENT_BINARY_DIR}/doc-html/
-      DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/doc/fmt
+    install_directory "${CMAKE_CURRENT_BINARY_DIR}/doc-html/"
+      DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/doc/fmt"
       COMPONENT "fmt_doc"
-      OPTIONAL
+      OPTIONAL;
   );
 
   if ${FMT_DOC} then (

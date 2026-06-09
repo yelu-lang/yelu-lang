@@ -1257,9 +1257,9 @@ let p_install_command_y1_inner name args kwargs =
   let kwarg_bool ~key = List.Assoc.mem kwargs ~equal:String.equal key in
   match name, args with
   | "install_targets", args ->
-    let install_kw = ["DESTINATION"; "COMPONENT"; "EXPORT";
-                      "LIBRARY"; "ARCHIVE"; "RUNTIME";
-                      "PUBLIC_HEADER"; "PRIVATE_HEADER"; "FILE_SET"] in
+    let top_kw = ["DESTINATION"; "COMPONENT"; "EXPORT"; "FILE_SET"] in
+    let art_kw = ["LIBRARY"; "ARCHIVE"; "RUNTIME"; "PUBLIC_HEADER"; "PRIVATE_HEADER"] in
+    let install_kw = top_kw @ art_kw in
     let has_kw = List.exists args ~f:(fun e ->
       match e with EVar s | EString s -> List.mem install_kw s ~equal:String.equal | _ -> false) in
     if has_kw then
@@ -1274,16 +1274,17 @@ let p_install_command_y1_inner name args kwargs =
         | Some (e :: _) -> Some e | _ -> None in
       let artifact_clauses =
         List.filter_map sections ~f:(fun (k, items) ->
-          match k with
-          | "LIBRARY" | "ARCHIVE" | "RUNTIME"
-          | "PUBLIC_HEADER" | "PRIVATE_HEADER" ->
-            (match items with
-             | [ EVar "DESTINATION" | EString "DESTINATION"; e ] -> Some (k, e)
-             | _ :: EVar "DESTINATION" :: e :: _ | _ :: EString "DESTINATION" :: e :: _ -> Some (k, e)
-             | _ -> None)
-          | s when String.is_prefix s ~prefix:"FILE_SET" ->
-            (match items with e :: _ -> Some (s, e) | _ -> None)
-          | _ -> None) in
+          if List.mem art_kw k ~equal:String.equal then
+            (* Artifact clause: items are [DESTINATION, value] or just [value].
+               DESTINATION may appear as a bare keyword or before the value. *)
+            let dest = match items with
+              | EVar "DESTINATION" :: e :: _ | EString "DESTINATION" :: e :: _ -> Some e
+              | [ e ] -> Some e
+              | _ -> None
+            in Option.map dest ~f:(fun d -> (k, d))
+          else if String.is_prefix k ~prefix:"FILE_SET" then
+            match items with e :: _ -> Some (k, e) | _ -> None
+          else None) in
       Some (yc_install_targets ?export ?component ~artifact_clauses targets destination)
     else begin
       (* Backward-compat positional: install_targets dest targets *)
