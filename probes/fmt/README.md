@@ -143,12 +143,18 @@ dune exec src/bin/yelu/yelu.exe -- hybrid probes/fmt
 dune exec src/bin/yelu/yelu.exe -- hybrid probes/fmt -D FMT_FUZZ=ON
 ```
 
+The driver reads `manifest.json`, auto-discovers `.yc` files by naming
+convention (`main.yc → CMakeLists.txt`, `snake_case.yc → CamelCase.cmake`),
+compiles each in-process, checks out `vendor/fmt` via `git worktree add --detach`,
+overwrites the 11 target files with generated cmake, then runs cmake on both
+vendor and the hybrid tree, diffs the stripped caches.
+
 Layout written to `_out/fmt/hybrid/`:
 
 ```
 _out/fmt/hybrid/
-├── source/                vendor/fmt mirrored via symlinks
-│   └── CMakeLists.txt     ← spliced version (helpers replaced)
+├── source/                git worktree checkout of vendor/fmt
+│   └── CMakeLists.txt     ← overwritten in-place (11 files)
 ├── build-vendor/          real cmake on vendor/fmt
 └── build-hybrid/          real cmake on source/
 ```

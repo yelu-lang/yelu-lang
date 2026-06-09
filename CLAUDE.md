@@ -414,6 +414,26 @@ configuration generation with verifier feedback. cmake is the first specimen.
 - **cmake runtime is 4.3.1**: Both runtime and vendor source are cmake 4.3.1 (Kitware apt).
   Previously 3.28.3; upgrading unblocked `cmake_path GET`, `message/newline`,
   `string/RegexEmptyMatch`, and `get_filename_component KnownComponents`.
+- **Git worktree paths are relative to source repo, not yelu cwd.**
+  `git -C <repo> worktree add --detach <path> HEAD` creates the worktree at
+  `<repo>/<path>`, not at `<cwd>/<path>`. Always resolve to absolute:
+  `realpath _out/fmt/hybrid/source` before passing to `git worktree add`.
+  Similarly, `git worktree remove` must use the absolute path.
+- **`git worktree remove` cleans metadata; `rm -rf` does not.**
+  Deleted worktrees leave stale entries in `<repo>/.git/worktrees/`.
+  Always `git worktree remove --force` (or `git worktree prune` as fallback)
+  before `rm -rf` when cleaning up. The stale metadata prevents re-creating
+  a worktree at the same path.
+- **`Stdlib.Filename.dirname "foo"` returns `"."` not `""`.**
+  For root-level files (no directory prefix), `dirname` returns `"."`.
+  `Stdlib.Filename.concat "." "bar"` → `"./bar"` — the `./` prefix breaks
+  downstream path handling. Check for `"."` and use the bare filename.
+- **`mkdirp` must skip `"."`** — `Sys.file_exists "."` returns true, but
+  `Unix.mkdir "."` fails with EEXIST. Guard with `String.equal path "."`.
+- **Symlink-mirror leaves stale real directories under `_out/`.**
+  The old `build_hybrid_tree` created real directories for ancestors of
+  spliced files (`test/`, `support/`). The git-worktree replacement needs
+  a full `rm -rf` before checkout to avoid conflicts.
 - Remote: `github.com/yelu-lang/yelu-lang`.
 
 ## Handoff Workflow
