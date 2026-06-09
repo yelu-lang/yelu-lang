@@ -1,5 +1,10 @@
 {
   "project": "fmt",
   "source_dir": "vendor/fmt",
-  "out_root": "_out/fmt"
+  "out_root": "_out/fmt",
+  "options": [
+    "FMT_DOC", "FMT_INSTALL", "FMT_TEST", "FMT_FUZZ",
+    "FMT_CUDA_TEST", "FMT_OS", "FMT_MODULE", "FMT_SYSTEM_HEADERS",
+    "FMT_UNICODE", "FMT_PEDANTIC", "FMT_WERROR", "FMT_FUZZ_LINKMAIN"
+  ]
 }

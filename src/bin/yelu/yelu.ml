@@ -39,6 +39,10 @@ USAGE:
     Splice PROBE_DIR/manifest.json helpers into SRC_DIR. Run cmake
     on vendor (SRC_DIR) and hybrid (_out/<proj>/hybrid/source/).
     Diff CMakeCache.txt; exit 0 if match.
+
+  yelu matrix PROBE_DIR
+    Run hybrid for every option in manifest.json × {ON, OFF}.
+    Reports pass/fail per cell; exit 0 if all cells match.
 |}
 
 (* ============================================================
@@ -169,6 +173,7 @@ type manifest = {
   source_dir : string;
   out_root : string;
   cmake_flags : string list;
+  options : string list;
   helpers : helper list;
 }
 
@@ -261,10 +266,15 @@ let load_manifest manifest_path : manifest =
     | `Null -> []
     | j -> j |> to_list |> List.map ~f:to_string
   in
+  let options =
+    match json |> member "options" with
+    | `Null -> []
+    | j -> j |> to_list |> List.map ~f:to_string
+  in
   let project    = json |> member "project"    |> to_string in
   let source_dir = json |> member "source_dir" |> to_string in
   let out_root   = json |> member "out_root"   |> to_string in
-  { project; source_dir; out_root; cmake_flags; helpers }
+  { project; source_dir; out_root; cmake_flags; options; helpers }
 
 (* ============================================================
    Splice: replace anchor_start-to-Nth-anchor_end (inclusive) in
@@ -554,6 +564,40 @@ let () =
       collect None [] rest
     in
     cmd_hybrid ~source_dir_override manifest_path d_flags
+  | "matrix" :: probe_dir :: _ ->
+    let manifest_path = Stdlib.Filename.concat probe_dir "manifest.json" in
+    let m = load_manifest manifest_path in
+    let options = match m.options with
+      | [] -> failwith "matrix: no 'options' field in manifest.json"
+      | opts -> opts
+    in
+    Stdlib.Printf.printf "[yelu] matrix: %d options x {ON,OFF} = %d cells\n%!"
+      (List.length options) (List.length options * 2);
+    let results = ref [] in
+    let exe = Stdlib.Filename.quote
+      (Stdlib.Filename.concat (Stdlib.Sys.getcwd ())
+         "_build/default/src/bin/yelu/yelu.exe") in
+    List.iter options ~f:(fun opt ->
+      List.iter ["ON"; "OFF"] ~f:(fun val_ ->
+        let flag = Printf.sprintf "%s=%s" opt val_ in
+        Stdlib.Printf.printf "[yelu] cell %s ... %!" flag;
+        let cmd = Printf.sprintf "cd %s && %s hybrid %s -D%s 2>/dev/null"
+          (Stdlib.Filename.quote (Stdlib.Sys.getcwd ()))
+          exe (Stdlib.Filename.quote probe_dir) flag in
+        let _out, code = run_capture cmd in
+        let ok = (code = 0) in
+        results := (opt, val_, ok) :: !results;
+        Stdlib.Printf.printf "%s\n%!" (if ok then "OK" else "FAIL")));
+    let passed = List.count !results ~f:(fun (_, _, ok) -> ok) in
+    let total = List.length !results in
+    let failed_cells = List.filter !results ~f:(fun (_, _, ok) -> not ok) in
+    Stdlib.Printf.printf "[yelu] matrix done: %d/%d cells passed\n%!" passed total;
+    if not (List.is_empty failed_cells) then begin
+      Stdlib.Printf.printf "[yelu] failed cells:\n%!";
+      List.iter failed_cells ~f:(fun (opt, val_, _) ->
+        Stdlib.Printf.printf "  %s=%s\n" opt val_)
+    end;
+    if passed = total then Stdlib.exit 0 else Stdlib.exit 1
   | _ ->
     Stdlib.print_string usage;
     Stdlib.exit 1
