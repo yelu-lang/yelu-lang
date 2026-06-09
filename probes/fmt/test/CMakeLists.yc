@@ -1,4 +1,4 @@
-fun add_fmt_test(name) (
+( fun add_fmt_test(name) (
     cmake_parse_arguments ADD_FMT_TEST "HEADER_ONLY;MODULE" "" "" ${ARGN};
     sources := "${name}.cc", ${ADD_FMT_TEST_UNPARSED_ARGUMENTS};
     if ${ADD_FMT_TEST_HEADER_ONLY} then (
@@ -172,3 +172,4 @@ fun add_fmt_test(name) (
   add_exe Target c-test "c-test.c";
   link_lib Target c-test :PRIVATE "fmt::fmt-c";
   add_test NAME "c-test" COMMAND "c-test"
+)

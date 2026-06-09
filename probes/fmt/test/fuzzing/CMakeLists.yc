@@ -1,4 +1,4 @@
-fun add_fuzzer(source) (
+( fun add_fuzzer(source) (
     get_filename_component ${source} ~mode:NAME_WE ~out:basename;
     name := "${basename}-fuzzer";
     add_exe Target ${name} "fuzzer-common.h" ${source};
@@ -20,3 +20,4 @@ fun add_fuzzer(source) (
      "float.cc"; "named-arg.cc";
      "one-arg.cc"; "two-args.cc"]
     ( add_fuzzer ${source} )
+)

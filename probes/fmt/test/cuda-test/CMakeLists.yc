@@ -1,4 +1,4 @@
-add_lib Target fmt-in-cuda-test "cuda-cpp14.cu" "cpp14.cc" ~type:SHARED;
+( add_lib Target fmt-in-cuda-test "cuda-cpp14.cu" "cpp14.cc" ~type:SHARED;
 
   list_append "CUDA_NVCC_FLAGS" '-std=c++14';
   if ${MSVC} then (
@@ -20,3 +20,4 @@ add_lib Target fmt-in-cuda-test "cuda-cpp14.cu" "cpp14.cc" ~type:SHARED;
   get_target_property IN_USE_CUDA_STANDARD_REQUIRED Target fmt-in-cuda-test CUDA_STANDARD_REQUIRED;
   message "cuda_standard_required: ${IN_USE_CUDA_STANDARD_REQUIRED}";
   target_link_libraries Target fmt-in-cuda-test :PUBLIC "fmt::fmt"
+)

@@ -1,4 +1,4 @@
-add_lib Target gtest "gmock-gtest-all.cc" "gmock/gmock.h" "gtest/gtest.h" "gtest/gtest-spi.h" ~type:STATIC;
+( add_lib Target gtest "gmock-gtest-all.cc" "gmock/gmock.h" "gtest/gtest.h" "gtest/gtest-spi.h" ~type:STATIC;
 
   compile_defs Target gtest :PUBLIC 'GTEST_HAS_STD_WSTRING=1';
   include_dirs Target gtest :PUBLIC "." ~system;
@@ -17,3 +17,4 @@ add_lib Target gtest "gmock-gtest-all.cc" "gmock/gmock.h" "gtest/gtest.h" "gtest
       compile_opts Target gtest :PUBLIC '-Wno-deprecated-declarations'
     )
   )
+)

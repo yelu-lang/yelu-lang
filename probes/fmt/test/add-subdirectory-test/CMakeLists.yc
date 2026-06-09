@@ -1,4 +1,4 @@
-cmake_minimum_required VERSION "3.8...3.25";
+( cmake_minimum_required VERSION "3.8...3.25";
   project "fmt-test" "CXX";
   add_subdirectory "../.." "fmt";
 
@@ -13,3 +13,4 @@ cmake_minimum_required VERSION "3.8...3.25";
     compile_opts Target header-only-test :PRIVATE ${PEDANTIC_COMPILE_FLAGS};
     link_lib Target header-only-test :PUBLIC "fmt::fmt-header-only"
   )
+)

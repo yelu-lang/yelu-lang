@@ -2112,28 +2112,16 @@ let p_stmt_y1 = p_stmt_inner_y1
    ============================================================ *)
 
 let parse_tokens_y1 toks =
-  (* Collect multiple top-level statements separated by semicolons.
-     A single statement (including a block) is returned as-is;
-     multiple statements are wrapped in ESeq. *)
-  let rec collect acc = function
-    | [] -> Ok (match List.rev acc with [ s ] -> s | ss -> ESeq ss)
-    | toks ->
-      match p_stmt_y1 toks with
-      | None ->
-        if List.is_empty acc
-        then Error "parse error (unsupported yelu_cmake direct-parser syntax)"
-        else begin
-          let ctx = match toks with
-            | [] -> ""
-            | t :: _ -> " at " ^ Sexp.to_string ([%sexp_of: token] t)
-          in
-          Error ("unexpected trailing tokens" ^ ctx)
-        end
-      | Some (s, rest) ->
-        let rest = match rest with SEMI :: r -> r | _ -> rest in
-        collect (s :: acc) rest
-  in
-  collect [] toks
+  match p_stmt_y1 toks with
+  | Some (e, []) -> Ok e
+  | Some (_, rest) ->
+    let ctx = match rest with
+      | [] -> ""
+      | t :: _ -> " at " ^ Sexp.to_string ([%sexp_of: token] t)
+    in
+    Error ("unexpected trailing tokens" ^ ctx)
+  | None ->
+    Error "parse error (unsupported yelu_cmake direct-parser syntax)"
 
 let parse_program_y1 input =
   match Angstrom.parse_string ~consume:All token_list input with

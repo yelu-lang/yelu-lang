@@ -1,4 +1,4 @@
-fun expect_compile(name code_fragment) (
+( fun expect_compile(name code_fragment) (
     cmake_parse_arguments EXPECT_COMPILE "ERROR" "" "" ${ARGN};
     string_make_c_identifier "${name}" ~out:test_name;
     if ${EXPECT_COMPILE_ERROR} then (
@@ -212,3 +212,4 @@ fun expect_compile(name code_fragment) (
   );
 
   run_tests
+)
