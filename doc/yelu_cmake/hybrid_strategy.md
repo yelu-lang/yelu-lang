@@ -308,9 +308,9 @@ generated `.cmake` produces equivalent build behavior.
 
 Output: proves one helper rewrite is build-equivalent. ✓
 Landed via the universal `yelu hybrid` driver
-(src/bin/yelu/yelu.ml + probes/fmt/manifest.json).
+(src/bin/yelu/yelu.ml + probes/fmt/main.json).
 
 **Step 2+.** Expand outward. Each subsequent helper adds at most
 one new fragment to `yelu_parse.ml` (if needed) and one new
-entry to the project's manifest.json. Whole-fmt is a composition
+entry to the project's main.json. Whole-fmt is a composition
 of steps, not a new project.

@@ -26,7 +26,7 @@ oracle confirms identical `CMakeCache.txt` across all 24 option flips.
 
 ```
 probes/fmt/
-├── manifest.json              ← 4 lines: project, source_dir, out_root
+├── main.json              ← 4 lines: project, source_dir, out_root
 ├── main.ml / main.yc          ← CMakeLists.txt (690 lines OCaml / ~450 lines .yc)
 ├── test/
 │   ├── CMakeLists.yc          ← test/CMakeLists.txt
@@ -67,7 +67,7 @@ The hybrid driver:
 4. Overwrites the 11 target files with generated cmake
 5. Runs `cmake -B` on both vendor and hybrid, diffs stripped caches
 6. Reports: `MATCH` / `DIVERGE` with categorized diff (path / non-det / semantic)
-7. Saves full log to `_out/fmt/hybrid/log_<timestamp>.txt`
+7. Saves full log to `_out/fmt/yelu/log/log_<ts>.txt`
 
 ## Project spec — user-knob surface
 
@@ -108,7 +108,7 @@ Two options (`FMT_OS`, `FMT_PEDANTIC`) have cache-invisible effects
 
 - [`migration_status.md`](migration_status.md) — full phase log, `yc_apply`
   footprint, known limitations detail
-- [`manifest.json`](manifest.json) — hybrid driver configuration
+- [`main.json`](main.json) — hybrid driver configuration
 - [`../../doc/worklog/worklog_2026_06.md`](../../doc/worklog/worklog_2026_06.md) —
   Phase 8 archival entry
 - [`../../doc/yelu_cmake/hybrid_strategy.md`](../../doc/yelu_cmake/hybrid_strategy.md) —

@@ -18,7 +18,7 @@
                                       run cmake on both vendor and
                                       hybrid; diff caches.
 
-   See probes/<name>/manifest.json for the per-project helper list.
+   See probes/<name>/main.json for the per-project helper list.
    Doc: doc/yelu_cmake/hybrid_strategy.md.
 
    Invocation:
@@ -36,12 +36,12 @@ USAGE:
     Compile a .ml or .yc source to cmake text. Stdout unless -o.
 
   yelu hybrid PROBE_DIR --project SRC_DIR [-D K=V ...]
-    Splice PROBE_DIR/manifest.json helpers into SRC_DIR. Run cmake
-    on vendor (SRC_DIR) and hybrid (_out/<proj>/hybrid/source/).
+    Splice PROBE_DIR/main.json helpers into SRC_DIR. Run cmake
+    on vendor (SRC_DIR) and hybrid (_out/<proj>/yelu/source/).
     Diff CMakeCache.txt; exit 0 if match.
 
   yelu matrix PROBE_DIR
-    Run hybrid for every option in manifest.json × {ON, OFF}.
+    Run hybrid for every option in main.json × {ON, OFF}.
     Reports pass/fail per cell; exit 0 if all cells match.
 |}
 
@@ -144,7 +144,7 @@ let compile ?(warn = fun _ -> ()) file =
    them through the caller's logging channel (for log-file capture). *)
 
 (* ============================================================
-   Manifest reading. JSON shape (see probes/fmt/manifest.json):
+   Manifest reading. JSON shape (see probes/fmt/main.json):
 
    {
      "project": "fmt",
@@ -324,20 +324,20 @@ let splice ~target_content ~anchor_start ~anchor_end ~anchor_end_occurrence
    hybrid: check out source_dir via git worktree; overwrite
    target files with generated cmake; run cmake on both; diff. *)
 
-let build_hybrid_tree ~source_dir ~hybrid_root ~spliced_files =
+let build_hybrid_tree ~source_dir ~yelu_root ~spliced_files =
   let source_abs = run_capture (Printf.sprintf "realpath %s" (Stdlib.Filename.quote source_dir)) |> fst |> String.strip in
-  let _ = run_capture (Printf.sprintf "mkdir -p %s" (Stdlib.Filename.quote hybrid_root)) in
-  let hybrid_abs = run_capture (Printf.sprintf "realpath %s" (Stdlib.Filename.quote hybrid_root)) |> fst |> String.strip in
+  let _ = run_capture (Printf.sprintf "mkdir -p %s" (Stdlib.Filename.quote yelu_root)) in
+  let yelu_abs = run_capture (Printf.sprintf "realpath %s" (Stdlib.Filename.quote yelu_root)) |> fst |> String.strip in
   (* Create worktree once; reuse on subsequent runs. A git worktree has a
      .git file (not directory) at its root — detect that to decide. *)
-  let has_worktree = Stdlib.Sys.file_exists (Stdlib.Filename.concat hybrid_abs ".git") in
+  let has_worktree = Stdlib.Sys.file_exists (Stdlib.Filename.concat yelu_abs ".git") in
   if not has_worktree then begin
     let _ = run_capture (Printf.sprintf "git -C %s worktree remove --force %s 2>/dev/null || true"
-               (Stdlib.Filename.quote source_abs) (Stdlib.Filename.quote hybrid_abs)) in
+               (Stdlib.Filename.quote source_abs) (Stdlib.Filename.quote yelu_abs)) in
     let _ = run_capture (Printf.sprintf "git -C %s worktree prune" (Stdlib.Filename.quote source_abs)) in
-    let _ = run_capture (Printf.sprintf "rm -rf %s" (Stdlib.Filename.quote hybrid_abs)) in
+    let _ = run_capture (Printf.sprintf "rm -rf %s" (Stdlib.Filename.quote yelu_abs)) in
     let cmd = Printf.sprintf "git -C %s worktree add --detach %s HEAD 2>&1"
-      (Stdlib.Filename.quote source_abs) (Stdlib.Filename.quote hybrid_abs) in
+      (Stdlib.Filename.quote source_abs) (Stdlib.Filename.quote yelu_abs) in
     let out, code = run_capture cmd in
     if code <> 0 then begin
       Stdlib.Printf.eprintf "[yelu] git worktree failed:\n%s\n" out;
@@ -346,7 +346,7 @@ let build_hybrid_tree ~source_dir ~hybrid_root ~spliced_files =
   end;
   (* Overwrite generated files in-place *)
   Map.iteri spliced_files ~f:(fun ~key:rel_path ~data:content ->
-    let target = Stdlib.Filename.concat hybrid_abs rel_path in
+    let target = Stdlib.Filename.concat yelu_abs rel_path in
     mkdirp (Stdlib.Filename.dirname target);
     write_all target content)
 
@@ -373,15 +373,15 @@ let strip_cache ~build_dir ~source_dir path =
   let build_abs =
     run_capture (Printf.sprintf "realpath %s" (Stdlib.Filename.quote build_dir))
     |> fst |> String.strip in
-  let build_hybrid_abs =
+  let build_yelu_abs =
     run_capture (Printf.sprintf "realpath %s"
       (Stdlib.Filename.quote
-         (Stdlib.Filename.concat (Stdlib.Filename.dirname build_dir) "build-hybrid")))
+         (Stdlib.Filename.concat (Stdlib.Filename.dirname build_dir) "build-yelu")))
     |> fst |> String.strip in
   let source_abs =
     run_capture (Printf.sprintf "realpath %s" (Stdlib.Filename.quote source_dir))
     |> fst |> String.strip in
-  let hybrid_source =
+  let yelu_source =
     run_capture (Printf.sprintf "realpath %s"
       (Stdlib.Filename.quote
          (Stdlib.Filename.concat (Stdlib.Filename.dirname build_dir) "source")))
@@ -397,8 +397,8 @@ let strip_cache ~build_dir ~source_dir path =
      | sed 's|%s|$SOURCE_DIR|g' \
      | sort"
     (Stdlib.Filename.quote path)
-    (sed_pat build_abs) (sed_pat build_hybrid_abs)
-    (sed_pat source_abs) (sed_pat hybrid_source)
+    (sed_pat build_abs) (sed_pat build_yelu_abs)
+    (sed_pat source_abs) (sed_pat yelu_source)
   in
   fst (run_capture cmd)
 
@@ -417,7 +417,7 @@ let cmd_hybrid ?(source_dir_override = None) manifest_path d_flags =
   let d_flags = merge_flags ~manifest:m.cmake_flags ~cmdline:d_flags in
 
   (* Open log early so compile warnings land there via stderr redirect. *)
-  let log_dir = Stdlib.Filename.concat m.out_root "hybrid" in
+  let log_dir = Stdlib.Filename.concat (Stdlib.Filename.concat m.out_root "yelu") "log" in
   mkdirp log_dir;
   let timestamp = Unix.time () |> Int64.of_float |> Int64.to_string in
   let log_path = Stdlib.Filename.concat log_dir (Printf.sprintf "log_%s.txt" timestamp) in
@@ -462,15 +462,15 @@ let cmd_hybrid ?(source_dir_override = None) manifest_path d_flags =
   in
 
   (* 3. Build hybrid source tree. *)
-  let hybrid_root = Stdlib.Filename.concat m.out_root "hybrid/source" in
-  build_hybrid_tree ~source_dir:m.source_dir ~hybrid_root ~spliced_files;
-  log "[yelu] hybrid source at %s/" hybrid_root;
+  let yelu_root = Stdlib.Filename.concat m.out_root "yelu/source" in
+  build_hybrid_tree ~source_dir:m.source_dir ~yelu_root ~spliced_files;
+  log "[yelu] hybrid source at %s/" yelu_root;
 
   (* 4. Run cmake on both. *)
-  let vendor_build = Stdlib.Filename.concat m.out_root "hybrid/build-vendor" in
-  let hybrid_build = Stdlib.Filename.concat m.out_root "hybrid/build-hybrid" in
+  let vendor_build = Stdlib.Filename.concat m.out_root "yelu/build-cmake" in
+  let hybrid_build = Stdlib.Filename.concat m.out_root "yelu/build-yelu" in
   let code_v = cmake_configure ~source_dir:source_abs ~build_dir:vendor_build ~d_flags in
-  let code_h = cmake_configure ~source_dir:hybrid_root ~build_dir:hybrid_build ~d_flags in
+  let code_h = cmake_configure ~source_dir:yelu_root ~build_dir:hybrid_build ~d_flags in
   if code_v <> 0 || code_h <> 0 then begin
     log "[yelu] cmake failed (vendor=%d hybrid=%d)" code_v code_h;
     Stdlib.close_out log_oc;
@@ -553,7 +553,7 @@ let () =
      | None -> Stdlib.print_string cmake_text
      | Some path -> write_all path cmake_text)
   | "hybrid" :: probe_dir :: rest ->
-    let manifest_path = Stdlib.Filename.concat probe_dir "manifest.json" in
+    let manifest_path = Stdlib.Filename.concat probe_dir "main.json" in
     let source_dir_override, d_flags =
       let rec collect src_acc flags = function
         | [] -> (src_acc, List.rev flags)
@@ -565,10 +565,10 @@ let () =
     in
     cmd_hybrid ~source_dir_override manifest_path d_flags
   | "matrix" :: probe_dir :: _ ->
-    let manifest_path = Stdlib.Filename.concat probe_dir "manifest.json" in
+    let manifest_path = Stdlib.Filename.concat probe_dir "main.json" in
     let m = load_manifest manifest_path in
     let options = match m.options with
-      | [] -> failwith "matrix: no 'options' field in manifest.json"
+      | [] -> failwith "matrix: no 'options' field in main.json"
       | opts -> opts
     in
     Stdlib.Printf.printf "[yelu] matrix: %d options x {ON,OFF} = %d cells\n%!"

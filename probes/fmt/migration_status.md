@@ -8,7 +8,7 @@
 
 **11/11 `.yc` files compile and pass the matrix oracle.**
 24/24 cells match. 14→3 raw escapes (by design). git-worktree
-hybrid driver with auto-discovered helpers from a 4-line manifest.
+hybrid driver with auto-discovered helpers from a 5-line main.json.
 
 ## Inventory (vendor/fmt, 1354 lines, 11 cmake files)
 
@@ -43,7 +43,7 @@ for cell in (FMT_DOC, FMT_INSTALL, FMT_TEST, FMT_FUZZ, FMT_CUDA_TEST,
              FMT_OS, FMT_MODULE, FMT_SYSTEM_HEADERS, FMT_UNICODE,
              FMT_PEDANTIC, FMT_WERROR, FMT_FUZZ_LINKMAIN) × {ON, OFF}:
     cmake -B vendor-build  -S vendor/fmt              -D<cell>
-    cmake -B hybrid-build  -S _out/fmt/hybrid/source  -D<cell>
+    cmake -B hybrid-build  -S _out/fmt/yelu/source  -D<cell>
     diff vendor-build/CMakeCache.txt hybrid-build/CMakeCache.txt
 ```
 
@@ -254,7 +254,7 @@ Key milestones:
 
 - [`README.md`](README.md) — fmt probe status, adaptation footprint,
   Shape C lockup footprint table.
-- [`manifest.json`](manifest.json) — the splice manifest read by
+- [`main.json`](main.json) — the splice manifest read by
   `yelu hybrid`. Each entry now says `whole_file: true`.
 - `yelu hybrid` ([`src/bin/yelu/yelu.ml`](../../src/bin/yelu/yelu.ml))
   — the universal driver.
