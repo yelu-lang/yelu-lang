@@ -1,4 +1,4 @@
-( cmake_minimum_required VERSION "3.8...3.25";
+cmake_minimum_required VERSION "3.8...3.25";
   project "fmt-link" "CXX";
 
   BUILD_SHARED_LIBS := OFF;
@@ -25,4 +25,3 @@
 
   add_exe Target exe-test "main.cc";
   link_lib Target exe-test :PRIVATE "library-test"
-)
