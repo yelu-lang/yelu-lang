@@ -194,6 +194,7 @@ let snapshot_paths =
   [ "tool/cmake_text/cmake_reserved.tsv";
     "../../tool/cmake_text/cmake_reserved.tsv";
     "../../../tool/cmake_text/cmake_reserved.tsv";
+    "../../../../tool/cmake_text/cmake_reserved.tsv";
   ]
 
 let find_snapshot () =

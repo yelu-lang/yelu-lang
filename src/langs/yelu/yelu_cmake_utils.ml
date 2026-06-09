@@ -115,12 +115,10 @@ let dir_concat d suffix = ycref_path d suffix
    ([yelu_cmake_legacy_bridge.ml:1056]).
    ============================================================ *)
 
-(* Mirror the legacy bridge's [let_value] transformation
-   (yelu_cmake_legacy_bridge.ml). In argument position, [ycstr "X"] / [EVar "X"]
-   means "deref the cmake var X" (emits [${X}]); in let-value position the
-   user means "bind the compile-time name to the cmake symbol [X]". Without
-   the demotion, [emit_debug.arg] would loop expanding [EVar "X"] under an
-   env that maps [X] back to [EVar "X"]. *)
+(* Mirror the legacy bridge's [let_value] transformation.
+   TODO: the blanket demotion (EVar n → EString n) breaks chained
+   binds like ylet "y" (yvar "x"). A proper fix needs cycle detection
+   in target_arg/arg rather than this safety valve. *)
 let ylet name value =
   let value = match value with
     | EVar n -> EString n
