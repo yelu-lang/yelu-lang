@@ -406,10 +406,10 @@ let strip_cache ~build_dir ~source_dir path =
    manifest ["FMT_FUZZ=ON"] + cmdline ["FMT_FUZZ=OFF"] → ["FMT_FUZZ=OFF"]. *)
 let merge_flags ~manifest ~cmdline =
   let key_of = fun s -> match String.split s ~on:'=' with k :: _ -> k | [] -> s in
-  let manifest_keys = List.map manifest ~f:key_of |> Set.of_list (module String) in
-  let cmdline_only = List.filter cmdline ~f:(fun f ->
-    not (Set.mem manifest_keys (key_of f))) in
-  manifest @ cmdline_only
+  let cmdline_keys = List.map cmdline ~f:key_of |> Set.of_list (module String) in
+  let manifest_only = List.filter manifest ~f:(fun f ->
+    not (Set.mem cmdline_keys (key_of f))) in
+  manifest_only @ cmdline
 
 let cmd_hybrid ?(source_dir_override = None) manifest_path d_flags =
   let m = load_manifest manifest_path in
@@ -463,7 +463,7 @@ let cmd_hybrid ?(source_dir_override = None) manifest_path d_flags =
 
   (* 3. Build hybrid source tree. *)
   let yelu_root = Stdlib.Filename.concat m.out_root "yelu/source" in
-  build_hybrid_tree ~source_dir:m.source_dir ~yelu_root ~spliced_files;
+  build_hybrid_tree ~source_dir ~yelu_root ~spliced_files;
   log "[yelu] hybrid source at %s/" yelu_root;
 
   (* 4. Run cmake on both. *)
@@ -479,9 +479,9 @@ let cmd_hybrid ?(source_dir_override = None) manifest_path d_flags =
   log "[yelu] both configures done";
 
   (* 5. Diff caches and report. *)
-  let v_cache = strip_cache ~build_dir:vendor_build ~source_dir:m.source_dir
+  let v_cache = strip_cache ~build_dir:vendor_build ~source_dir
       (Stdlib.Filename.concat vendor_build "CMakeCache.txt") in
-  let h_cache = strip_cache ~build_dir:vendor_build ~source_dir:m.source_dir
+  let h_cache = strip_cache ~build_dir:vendor_build ~source_dir
       (Stdlib.Filename.concat hybrid_build "CMakeCache.txt") in
   if String.equal v_cache h_cache then begin
     log "[yelu] caches MATCH — hybrid is semantically equivalent";

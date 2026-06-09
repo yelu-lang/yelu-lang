@@ -313,25 +313,26 @@ let p_var_stmt_y1 toks =
 let rec collect_command_args args kwargs toks =
   match toks with
   (* `~public:[items]`, `~private:[items]`, `~interface:[items]` —
-     kind-scoped lists. Legacy parser stores the kwarg as
-     (kw, Yexpr_bool true) and discards the inner items. Mirror that:
-     consume tokens through the matching RBRACK and record the
-     boolean flag only. Items are not yet plumbed end-to-end through
-     the target_groups_to_y1 path; tracked as a follow-up. *)
+     kind-scoped lists. Items are parsed and stored as an EList value.
+     The target parser currently reads positional visibility groups,
+     not kwarg payloads; this preserves the items for future plumbing. *)
   | TILDE :: IDENT kw :: COLON :: LBRACK :: rest
     when String.equal kw "public"
       || String.equal kw "private"
       || String.equal kw "interface" ->
-    let rec skip_items = function
-      | RBRACK :: r -> r
-      | COMMA :: r -> skip_items r
+    let rec collect_items acc = function
+      | RBRACK :: r -> (List.rev acc, r)
+      | COMMA :: r -> collect_items acc r
       | toks' ->
         (match p_expr_y1 toks' with
-         | Some (_, r) -> skip_items r
-         | None -> toks')
+         | Some (e, r) -> collect_items (e :: acc) r
+         | None -> (List.rev acc, toks'))
     in
-    let rest = skip_items rest in
-    collect_command_args args ((kw, EBool true) :: kwargs) rest
+    let items, rest = collect_items [] rest in
+    (* Store items as multiple kwargs with the same key. The target
+       parser will read all values via kwarg_list. *)
+    let kwargs' = List.map items ~f:(fun e -> (kw, e)) in
+    collect_command_args args (kwargs' @ kwargs) rest
   | TILDE :: IDENT kw :: COLON :: rest ->
     (match p_expr_y1 rest with
      | Some (v, r) -> collect_command_args args ((kw, v) :: kwargs) r
