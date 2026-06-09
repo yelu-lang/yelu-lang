@@ -145,3 +145,41 @@ oracle cannot ground-truth `-DFOO=BAR` programs without it.
 **Unblocked by this:** the behavior-level oracle (now the lead forward
 item), optimizer correctness under known `-D`, community `-D` demos,
 and Y17's cache-vs-normal namespace type distinction.
+
+---
+
+## 2026-06-09: src/langs dedup (refactoring_plan P0+P1 — shipped)
+
+Consolidated from the retired `refactoring_plan_2026_06_09.md` (deleted
+same day; this is the durable record). The plan audited `src/langs/yelu/`
+for duplicated conversion tables and functions that belonged in shared
+modules. P0 + P1 (items 1–6) landed in `6a41f96`; the P2 design items
+(7–9) moved to `../yelu_cmake/status.md` § "Post-retirement cleanup"
+(items 8–10).
+
+**Done (1–6):**
+1. **`message_mode` string→enum** — canonical in
+   `Yelu_cmake_utils.message_mode_of_string`; `yelu_cmake_emit` now
+   references it (its copy deleted). Note: `yelu_cmake_from_emit`'s
+   enum→string `message_mode_to_string` is **intentionally** kept
+   separate from `Lang_cmake_strings.of_message_mode` — it maps
+   `Mm_none → "STATUS"` (IR-reconstruction default) vs the canonical's
+   `Mm_none → ""` (emit: no mode keyword). Not a dedup target.
+2. **`version_of_string`** — `yelu_cmake_emit` uses
+   `Lang_cmake_utils.version_of_string` (which handles `..` ranges,
+   e.g. `3.8...3.28 → 3.8`); emit copy deleted.
+3. **`visibility_of_expr`** — lifted from the parser into
+   `Yelu_cmake_utils` (was `visibility_of_expr_y1`); parser references it.
+4. **String escaping** — `Lang_cmake_strings.escape_quoted` / `quoted`
+   canonical; `yelu_emit_main.escape` and `lang_cmake_pp.quoted` both
+   delegate (the third, `yelu_cmake_emit_debug`, moved to `yelu_legacy`).
+5. **`bool_literal_of_string`** — moved to `Yelu_cmake` (next to
+   `expect_bool`); `yelu_cmake_from_emit` references it. Full unification
+   with eval-side `expect_bool` is a Y17 item.
+6. **Enum→string tables** — `library_type_name = of_library_type` and
+   `yc_include_guard` uses `of_include_guard_scope`; both now live in
+   `Lang_cmake_strings`.
+
+**Deferred design (P2 → status.md cleanup 8–10):** parser family split
+(`yelu_parse.ml` ~2.1 k lines — defer until parser stabilizes), CLI
+driver split (`yelu.ml`), and an escape registry (markdown-first).

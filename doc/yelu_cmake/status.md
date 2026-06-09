@@ -250,6 +250,26 @@ In order of value:
    (`EVar`, `EString`, `EBool`, `EInt`, `ESeq`, `ELet`,
    `ESetVar`, `EUnit`) staying in a small shared core. Pairs
    with item 6 and Y17.
+8. **Parser family dispatch split (`yelu_parse.ml`, ~2.1 k lines).**
+   One file with 12 family parsers + dispatch + shared helpers
+   (`str_of`, `collect_command_args`, `split_by_keywords`,
+   `fallback_to_raw`) and mutually-recursive dispatch. Options:
+   (A) per-family `.ml` + shared `yelu_parse_util.ml`; (B) keep whole
+   with banner sections + TOC; (C) defer until the parser stabilizes.
+   **Recommended: defer (C)** — the parser is still growing and a split
+   adds friction to each new command family.
+9. **CLI driver split (`yelu.ml`, ~600 lines).** Move reusable logic
+   into library modules. Independent of the language layer. **Defer**
+   until the driver gains a second major subcommand or ~200 more lines.
+10. **Escape registry.** Track every `ECmakeRaw` / `ECmakeApply` / raw
+    fallback site with reason, location, and test coverage — needed to
+    scale to z3/llvm. **Start as a markdown file in `doc/yelu_cmake/`,
+    not code**; code-level tracking (`reason` fields on ctors) waits for
+    Y17.
+
+(Items 8–10 migrated from the retired `refactoring_plan_2026_06_09.md`
+— its P0/P1 dedup landed in `6a41f96`; see `../worklog/worklog_2026_06.md`
+§ "src/langs dedup".)
 
 ## Deferred
 
