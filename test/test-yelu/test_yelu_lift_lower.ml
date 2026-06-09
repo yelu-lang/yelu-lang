@@ -873,7 +873,7 @@ let yelu2_to_yelu1 =
           ESetVar
             ("APP", EExecutable { name = EString "app"; sources = [ EString "main.c" ] });
           EInstallTargets
-            { targets = [ ETarget "app" ]; destination = Some (EString "bin"); export = None };
+            { targets = [ ETarget "app" ]; destination = Some (EString "bin"); export = None; component = None; artifact_clauses = [] };
           EInstallFiles
             { files = [ EString "include/app.h" ]; destination = EString "include" };
         ])

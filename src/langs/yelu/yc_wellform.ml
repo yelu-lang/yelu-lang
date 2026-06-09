@@ -37,12 +37,12 @@ type error =
 let classify_escape text =
   if String.is_prefix text ~prefix:"install(" then "complex install command"
   else if String.is_substring text ~substring:"${kind}" then "dynamic visibility"
-  else if String.is_substring text ~substring:"yc_raw" then "explicit yc_raw escape"
   else if String.is_prefix text ~prefix:"get_target_property("
        || String.is_prefix text ~prefix:"set_property("
        || String.is_prefix text ~prefix:"path_convert_to_native"
-  then "typed API gap (parser missing)"
-  else "untyped cmake primitive"
+  then "parser gap (fixable)"
+  else if String.length text > 80 then "explicit yc_raw"
+  else "untyped fallback"
 
 let format_raw_escape ?(index = 0) file text reason =
   let lines = String.split_lines text in
