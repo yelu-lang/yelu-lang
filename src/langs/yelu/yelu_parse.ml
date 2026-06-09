@@ -833,13 +833,18 @@ let p_target_command_y1_inner name args kwargs =
       (fun ~visibility items ->
         ECmakeTargetCompileOptions
           { target; visibility; before; options_ = items })
-  | "link_opts", target :: items ->
+  | ("compile_feats" | "target_compile_features"), target :: items ->
+    try_groups_or_raw items
+      (fun ~visibility items ->
+        ECmakeTargetCompileFeatures
+          { target; visibility; features = items })
+  | ("link_opts" | "target_link_options"), target :: items ->
     let before = kw_bool "before" in
     try_groups_or_raw items
       (fun ~visibility items ->
         ECmakeTargetLinkOptions
           { target; visibility; before; options_ = items })
-  | "link_dirs", target :: items ->
+  | ("link_dirs" | "target_link_directories"), target :: items ->
     let before = kw_bool "before" in
     try_groups_or_raw items
       (fun ~visibility items ->
@@ -849,11 +854,6 @@ let p_target_command_y1_inner name args kwargs =
     try_groups_or_raw items
       (fun ~visibility items ->
         ECmakeTargetSources { target; visibility; sources = items })
-  | "compile_feats", target :: features ->
-    try_groups_or_raw features
-      (fun ~visibility items ->
-        ECmakeTargetCompileFeatures
-          { target; visibility; features = items })
   | "add_lib_alias", args ->
     let name_arg = match args with
       | [ e ] -> e
@@ -961,6 +961,8 @@ let p_target_command_y1 toks =
             | "target_link_libraries" | "target_include_directories"
             | "compile_defs" | "compile_opts" | "compile_feats"
             | "target_compile_definitions" | "target_compile_options"
+            | "target_compile_features" | "target_link_options"
+            | "target_link_directories"
             | "link_opts" | "link_dirs" | "target_sources"
             | "add_lib_alias" | "add_custom_target" | "add_custom_command" -> true
             | _ -> false) ->
