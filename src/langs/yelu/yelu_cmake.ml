@@ -875,6 +875,10 @@ type expr +=
   | EString of string
   | EBool of bool
   | ECmakeRaw of string  (* verbatim cmake text — codegen-only escape *)
+  | ECmakeRawCmd of {     (* raw cmake with structured args — parser fallback *)
+      name : string;
+      args : expr list;
+    }
   | EInt of int
   | EUnit
   | ESetVar of string * expr

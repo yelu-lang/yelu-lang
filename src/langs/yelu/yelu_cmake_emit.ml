@@ -276,6 +276,22 @@ let rec emit_exp ~env (e : expr) : C.exp =
   | ESeq exprs ->
     C.Exp_list (List.map exprs ~f:(emit_exp ~env))
   | ECmakeRaw text -> C.Quote text
+  | ECmakeRawCmd { name; args } ->
+    (* Reconstruct cmake text from args without quoting (matching old
+       args_to_cmake_text behavior). EVar → ${name}, EString → bare.
+       This preserves cmake variable expansion semantics that arg ~env
+       would break by quoting ${...} strings. *)
+    let raw_arg = function
+      | EVar n -> C.Bare ("${" ^ n ^ "}")
+      | EString s -> C.Bare s
+      | EBool true -> C.Bare "ON"
+      | EBool false -> C.Bare "OFF"
+      | ETarget n -> C.Bare n
+      | ECmakeGenex s -> C.Bare s
+      | EInt n -> C.Bare (Int.to_string n)
+      | _ -> C.Bare "?"
+    in
+    C.Apply { name; args = List.map args ~f:raw_arg }
   | ELet { var; value; body } ->
     let env = Map.set env ~key:var ~data:value in
     emit_exp ~env body

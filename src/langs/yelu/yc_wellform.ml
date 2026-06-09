@@ -76,6 +76,7 @@ let walk_children (f : error list -> expr -> error list) (acc : error list) (e :
     (match else_ with Some e -> f acc e | None -> acc)
   | ECmakeFunction { body; _ } -> f acc body
   | ECmakeMacro { body; _ } -> f acc body
+  | ECmakeRawCmd { args; _ } -> List.fold args ~init:acc ~f
   | ECmakeApply { args; _ } -> List.fold args ~init:acc ~f
   (* Option / SetCache — carry expr values *)
   | ECmakeOption { value; _ } -> f acc value

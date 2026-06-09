@@ -379,18 +379,6 @@ let split_by_keywords ~(keywords : string list) (args : expr list)
   in
   loop [] "_head" [] args
 
-(* ── args → cmake text (for yc_raw fallback) ─── *)
-
-let expr_to_cmake_text = function
-  | EVar n -> "${" ^ n ^ "}"
-  | EString s -> s
-  | EBool true -> "ON"
-  | EBool false -> "OFF"
-  | ETarget n -> n
-  | ECmakeGenex s -> s
-  | EInt n -> Int.to_string n
-  | _ -> "?"
-
 (* Yelu wrapper → cmake command name. The typed IR uses short yelu names
    as aliases; raw-fallback emit must produce the real cmake name. *)
 let cmake_name_of_yelu = function
@@ -404,10 +392,6 @@ let cmake_name_of_yelu = function
   | "link_opts" -> "target_link_options"
   | "link_dirs" -> "target_link_directories"
   | n -> n
-
-let args_to_cmake_text name args =
-  let body = String.concat ~sep:" " (List.map args ~f:expr_to_cmake_text) in
-  cmake_name_of_yelu name ^ "(" ^ body ^ ")"
 
 (* Match legacy [Lang_yelu_parse.out_var] sentinel: "?" when ~out
    missing. Some parser tests omit ~out and rely on this fallback;
@@ -519,7 +503,7 @@ let p_string_command_y1 toks =
   | IDENT name :: rest when String.is_prefix name ~prefix:"string_" ->
       let args, kwargs, rest = collect_command_args [] [] rest in
       (match p_string_command_y1_inner name args kwargs with
-       | None -> Some (ECmakeRaw (args_to_cmake_text name args), rest)
+       | None -> Some (ECmakeRawCmd { name = cmake_name_of_yelu name; args }, rest)
        | Some e -> Some (e, rest))
     | _ -> None
 
@@ -596,7 +580,7 @@ let p_list_command_y1 toks =
   | IDENT name :: rest when String.is_prefix name ~prefix:"list_" ->
       let args, kwargs, rest = collect_command_args [] [] rest in
       (match p_list_command_y1_inner name args kwargs with
-       | None -> Some (ECmakeRaw (args_to_cmake_text name args), rest)
+       | None -> Some (ECmakeRawCmd { name = cmake_name_of_yelu name; args }, rest)
        | Some e -> Some (e, rest))
     | _ -> None
 
@@ -685,7 +669,7 @@ let p_path_command_y1 toks =
         || String.equal name "get_filename_component" ->
       let args, kwargs, rest = collect_command_args [] [] rest in
       (match p_path_command_y1_inner name args kwargs with
-       | None -> Some (ECmakeRaw (args_to_cmake_text name args), rest)
+       | None -> Some (ECmakeRawCmd { name = cmake_name_of_yelu name; args }, rest)
        | Some e -> Some (e, rest))
     | _ -> None
 
@@ -724,7 +708,7 @@ let p_file_command_y1 toks =
         || String.equal name "configure_file" ->
       let args, kwargs, rest = collect_command_args [] [] rest in
       (match p_file_command_y1_inner name args kwargs with
-       | None -> Some (ECmakeRaw (args_to_cmake_text name args), rest)
+       | None -> Some (ECmakeRawCmd { name = cmake_name_of_yelu name; args }, rest)
        | Some e -> Some (e, rest))
     | _ -> None
 
@@ -802,7 +786,7 @@ let p_target_command_y1_inner name args kwargs =
   in
   let try_groups_or_raw items ctor =
     if is_dynamic_first_item items
-    then Some (ECmakeRaw (args_to_cmake_text name args))
+    then Some (ECmakeRawCmd { name = cmake_name_of_yelu name; args })
     else Some (target_groups_to_y1 ctor items)
   in
   match name, args with
@@ -952,7 +936,7 @@ let p_target_command_y1_inner name args kwargs =
   | _ ->
     (* Known command but args don't match typed patterns
        (e.g. dynamic visibility ${kind}). Fall back to yc_raw. *)
-    Some (ECmakeRaw (args_to_cmake_text name args))
+    Some (ECmakeRawCmd { name = cmake_name_of_yelu name; args })
 
 let p_target_command_y1 toks =
   match toks with
@@ -969,7 +953,7 @@ let p_target_command_y1 toks =
             | _ -> false) ->
       let args, kwargs, rest = collect_command_args [] [] rest in
       (match p_target_command_y1_inner name args kwargs with
-       | None -> Some (ECmakeRaw (args_to_cmake_text name args), rest)
+       | None -> Some (ECmakeRawCmd { name = cmake_name_of_yelu name; args }, rest)
        | Some e -> Some (e, rest))
     | _ -> None
 
@@ -1001,7 +985,7 @@ let p_dir_command_y1 toks =
             | _ -> false) ->
       let args, kwargs, rest = collect_command_args [] [] rest in
       (match p_dir_command_y1_inner name args kwargs with
-       | None -> Some (ECmakeRaw (args_to_cmake_text name args), rest)
+       | None -> Some (ECmakeRawCmd { name = cmake_name_of_yelu name; args }, rest)
        | Some e -> Some (e, rest))
     | _ -> None
 
@@ -1045,7 +1029,7 @@ let p_test_command_y1 toks =
         || String.equal name "add_test" ->
       let args, kwargs, rest = collect_command_args [] [] rest in
       (match p_test_command_y1_inner name args kwargs with
-       | None -> Some (ECmakeRaw (args_to_cmake_text name args), rest)
+       | None -> Some (ECmakeRawCmd { name = cmake_name_of_yelu name; args }, rest)
        | Some e -> Some (e, rest))
     | _ -> None
 
@@ -1196,7 +1180,7 @@ let p_property_command_y1 toks =
             | _ -> false) ->
       let args, kwargs, rest = collect_command_args [] [] rest in
       (match p_property_command_y1_inner name args kwargs with
-       | None -> Some (ECmakeRaw (args_to_cmake_text name args), rest)
+       | None -> Some (ECmakeRawCmd { name = cmake_name_of_yelu name; args }, rest)
        | Some e -> Some (e, rest))
     | _ -> None
 
@@ -1249,7 +1233,7 @@ let p_find_command_y1 toks =
       when String.is_prefix name ~prefix:"find_" ->
       let args, kwargs, rest = collect_command_args [] [] rest in
       (match p_find_command_y1_inner name args kwargs with
-       | None -> Some (ECmakeRaw (args_to_cmake_text name args), rest)
+       | None -> Some (ECmakeRawCmd { name = cmake_name_of_yelu name; args }, rest)
        | Some e -> Some (e, rest))
     | _ -> None
 
@@ -1456,7 +1440,7 @@ let p_install_command_y1 toks =
             | _ -> false) ->
       let args, kwargs, rest = collect_command_args [] [] rest in
       (match p_install_command_y1_inner name args kwargs with
-       | None -> Some (ECmakeRaw (args_to_cmake_text name args), rest)
+       | None -> Some (ECmakeRawCmd { name = cmake_name_of_yelu name; args }, rest)
        | Some e -> Some (e, rest))
     | _ -> None
 
@@ -1487,7 +1471,7 @@ let p_try_command_y1 toks =
             | _ -> false) ->
       let args, kwargs, rest = collect_command_args [] [] rest in
       (match p_try_command_y1_inner name args kwargs with
-       | None -> Some (ECmakeRaw (args_to_cmake_text name args), rest)
+       | None -> Some (ECmakeRawCmd { name = cmake_name_of_yelu name; args }, rest)
        | Some e -> Some (e, rest))
     | _ -> None
 
@@ -1645,7 +1629,7 @@ let p_cmake_op_command_y1 toks =
             | _ -> false) ->
       let args, kwargs, rest = collect_command_args [] [] rest in
       (match p_cmake_op_command_y1_inner name args kwargs with
-       | None -> Some (ECmakeRaw (args_to_cmake_text name args), rest)
+       | None -> Some (ECmakeRawCmd { name = cmake_name_of_yelu name; args }, rest)
        | Some e -> Some (e, rest))
     | _ -> None
 
@@ -2060,7 +2044,7 @@ and p_generic_command_y1 toks =
   | IDENT name :: rest ->
     let args, _kwargs, rest = collect_command_args [] [] rest in
     if Yc_primitives.is_known_command name then
-      Some (ECmakeRaw (args_to_cmake_text name args), rest)
+      Some (ECmakeRawCmd { name = cmake_name_of_yelu name; args }, rest)
     else
       Some (ECmakeApply { name = EString name; args }, rest)
   | _ -> None

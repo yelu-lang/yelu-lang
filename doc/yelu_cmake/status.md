@@ -37,7 +37,27 @@ Verification baseline:
 Parser coverage: 277 tests (126 inline-golden + 151 smoke),
 ~90 commands across all 14 theories. Catch-all for unknowns →
 ECmakeApply, yc_raw fallback for known commands with dynamic args.
-fmt probe: 7/11 helpers converted .ml → .yc. IR fidelity design:
+fmt probe: 11/11 .yc files compile, 24/24 matrix cells pass, 3 raw escapes
+(all dynamic visibility). See `probes/fmt/README.md`.
+
+## Architecture TODO: eval-before-emit resolve pass
+
+The current pipeline is `parse → emit`. Raw-fallback args (e.g. `EVar "${kind}"`)
+are reconstructed to cmake text at parse time via `args_to_cmake_text` and
+stored as `ECmakeRaw string`. This loses type information before emit can
+resolve bindings.
+
+A resolve pass between parse and emit would evaluate statically-known
+bindings (function params, local `set()` chains, option defaults) and
+attempt to promote `ECmakeRawCmd` fragments to typed IR. Only configure-time
+unknowns (`-D` flags, `${CMAKE_VERSION}`, file probes) would remain as
+`${VAR}` deferrals.
+
+The `yelu_cmake_eval.ml` evaluator already exists and is used by the matrix
+oracle (`.ml` path). It has not yet been wired into the `.yc` → emit
+pipeline.
+
+Related: IR fidelity tiers in [`ir_tiers.md`](ir_tiers.md).
 4 tiers (typed → cmake_lang → yc_raw → yc_apply)
 in [`ir_tiers.md`](ir_tiers.md).
 
