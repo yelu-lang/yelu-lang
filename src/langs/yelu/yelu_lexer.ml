@@ -127,6 +127,7 @@ let path_lit =
         advance 1 *>
         peek_char >>= (function
           | Some '"' -> advance 1 *> (Buffer.add_char buf '"'; loop ())
+          | Some '\\' -> advance 1 *> (Buffer.add_char buf '\\'; loop ())
           | Some c -> advance 1 *> (Buffer.add_char buf '\\'; Buffer.add_char buf c; loop ())
           | None -> fail "unterminated escape in path string")
       | Some c -> advance 1 *> (Buffer.add_char buf c; loop ())

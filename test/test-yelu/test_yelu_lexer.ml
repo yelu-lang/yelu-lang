@@ -26,6 +26,22 @@ let lex_tests = ("lex", [
     "\"tutorial.cxx\" \"src/\""
     ["(PATH tutorial.cxx)"; "(PATH src/)"];
 
+  assert_tokens "path string escaped quote"
+    "\"call \\\"hello\\\" world\""
+    ["(PATH call \"hello\" world)"];
+
+  assert_tokens "path string escaped backslash"
+    "\"C:\\\\foo\\\\bar\""
+    ["(PATH C:\\foo\\bar)"];
+
+  assert_tokens "path string mixed escapes"
+    "\"a\\\\b\\\"c\""
+    ["(PATH a\\b\"c)"];
+
+  assert_tokens "path string multi-line"
+    "\"line1\nline2\""
+    ["(PATH line1\nline2)"];
+
   assert_tokens "plain string"
     "'hello' 'world'"
     ["(STRING hello)"; "(STRING world)"];

@@ -25,6 +25,18 @@ let primitives =
       check "set quoted"
         "set(FOO \"hello\" )"
         (set "FOO" [ quote "hello" ]);
+      check "set quoted with embedded double-quote"
+        "set(FOO \"call \\\"hello\\\"\" )"
+        (set "FOO" [ quote "call \"hello\"" ]);
+      check "set quoted with backslash"
+        "set(FOO \"C:\\\\foo\\\\bar\" )"
+        (set "FOO" [ quote "C:\\foo\\bar" ]);
+      check "set quoted mixed escapes"
+        "set(FOO \"a\\\\b\\\"c\" )"
+        (set "FOO" [ quote "a\\b\"c" ]);
+      check "set quoted multi-line"
+        "set(FOO \"line1\nline2\" )"
+        (set "FOO" [ quote "line1\nline2" ]);
       check "set bool"
         "set(FOO ON )"
         (set "FOO" [ bool_ true ]);
