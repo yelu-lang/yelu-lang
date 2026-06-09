@@ -105,6 +105,10 @@ let rbrack = delim RBRACK
 let eq_tok = delim EQ
 let dotdot = delim DOTDOT
 
+let str_of ?(default = "?") = function
+  | EVar s | EString s -> s
+  | _ -> default
+
 (* ============================================================
    Expression parsing — currently the common literal/name subset used
    by the covered statement families.
@@ -204,7 +208,7 @@ let p_assign_y1 toks =
            | TILDE :: IDENT "type" :: (COLON | EQ) :: rest ->
              (match p_expr_y1 rest with
               | Some (v, r) ->
-                let t = match v with EString s | EVar s -> s | _ -> "STRING" in
+                let t = str_of ~default:"STRING" v in
                 collect_cache_kwargs t force r
               | None -> collect_cache_kwargs cache_type force rest)
            | TILDE :: IDENT "type" :: _ :: rest ->
@@ -275,7 +279,7 @@ let p_option_command_y1 toks =
        | Some (help, rest) ->
          (match p_expr_y1 rest with
           | Some (value, rest) ->
-            let msg = match help with EString s | EVar s -> s | _ -> "" in
+            let msg = str_of ~default:"" help in
             Some (yc_option ~value ~msg name, rest)
           | None ->
             (* No default value — help was actually the default *)
@@ -504,7 +508,7 @@ let p_string_command_y1_inner name args kwargs =
     Some (ECmakeStringUuid
             { out; namespace = "ns"; name = "n"; type_ = "MD5"; upper = false })
   | "string_json", op :: rest ->
-    let op_name = match op with EString s | EVar s -> s | _ -> "JSON_op" in
+    let op_name = str_of ~default:"JSON_op" op in
     Some (ECmakeStringJson
             { out; error_var = None; op_name; args = rest })
   | _ -> None
@@ -570,7 +574,7 @@ let p_list_command_y1_inner name args kwargs =
     Some (yc_list_sublist (cvar_name_of_y1 cvar)
             (expr_to_int_y1 b) (expr_to_int_y1 l) out)
   | "list_filter", [ cvar; regex ] ->
-    let regex_s = match regex with EString s | EVar s -> s | _ -> "" in
+    let regex_s = str_of ~default:"" regex in
     Some (ECmakeListFilter
             { list = cvar_name_of_y1 cvar;
               mode = "INCLUDE";
@@ -876,7 +880,7 @@ let p_target_command_y1_inner name args kwargs =
         (name_arg :: rest)
       in
       let name = match List.Assoc.find sections ~equal:String.equal "_head" with
-        | Some (n :: _) -> (match n with EString s | EVar s -> s | _ -> "?")
+        | Some (n :: _) -> (str_of n)
         | _ -> "?"
       in
       let all = kw_bool "all" in
@@ -889,9 +893,9 @@ let p_target_command_y1_inner name args kwargs =
           match cmd_args with
           | [] -> { Lang_cmake.command = ""; args = [] }
           | cmd :: arg_args ->
-            { Lang_cmake.command = (match cmd with EString s | EVar s -> s | _ -> "");
+            { Lang_cmake.command = (str_of ~default:"" cmd);
               args = List.map arg_args ~f:(fun e ->
-                match e with EString s | EVar s -> s | _ -> "") })
+                str_of ~default:"" e) })
       in
       let depends = match List.Assoc.find sections ~equal:String.equal "DEPENDS" with
         | Some items -> items | None -> []
@@ -907,7 +911,7 @@ let p_target_command_y1_inner name args kwargs =
               ~depends ~comment ~sources name)
     else
       let all = kw_bool "all" in
-      let name = match name_arg with EString s | EVar s -> s | _ -> "?" in
+      let name = str_of name_arg in
       Some (yc_add_custom_target ~all name)
   | "add_custom_command", args ->
     let sections = split_by_keywords
@@ -938,9 +942,9 @@ let p_target_command_y1_inner name args kwargs =
       match cmd_args with
       | [] -> { command = ""; args = [] }
       | cmd :: arg_args ->
-        { command = (match cmd with EString s | EVar s -> s | _ -> "");
+        { command = (str_of ~default:"" cmd);
           args = List.map arg_args ~f:(fun e ->
-            match e with EString s | EVar s -> s | _ -> "") })
+            str_of ~default:"" e) })
     in
     Some (ECmakeAddCustomCommand
             { outputs; commands = build_commands; depends; comment; verbatim })
@@ -1056,7 +1060,7 @@ let p_property_command_y1_inner name args kwargs =
   | "get_target_property", [ var; target; property ] ->
     let var = match var with EVar s | EString s -> s | _ -> "?" in
     let target = match target with ETarget t | EVar t | EString t -> t | _ -> "?" in
-    let property = match property with EString s | EVar s -> s | _ -> "?" in
+    let property = str_of property in
     Some (yc_get_target_property var target property)
   | "get_target_property", [ tgt ] ->
     Some (yc_get_property ~target:tgt "PROP" out)
@@ -1497,7 +1501,7 @@ let p_try_command_y1 toks =
    ============================================================ *)
 
 let str_of e =
-  match e with EString s | EVar s -> s | _ -> ""
+  str_of ~default:"" e
 
 let p_cmake_op_command_y1_inner name args kwargs =
   let out = out_var_y1 kwargs in
@@ -1525,7 +1529,7 @@ let p_cmake_op_command_y1_inner name args kwargs =
       | _ -> "Project"
     in
     let languages = List.map langs ~f:(fun e ->
-      match e with EString s | EVar s -> s | _ -> "") in
+      str_of ~default:"" e) in
     Some (ECmakeProject { name = s; languages; version = None })
   | "message", args ->
     let mode, texts = match args with
@@ -1624,7 +1628,7 @@ let p_cmake_op_command_y1_inner name args kwargs =
   | "cmake_get_log_level", [] ->
     Some (ECmakeLanguageGetLogLevel { out })
   | "yc_raw", [ e ] ->
-    let s = match e with EString s | EVar s -> s | _ -> "?" in
+    let s = str_of e in
     Some (ECmakeRaw s)
   | _ -> None
 
