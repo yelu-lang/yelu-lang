@@ -1053,6 +1053,11 @@ let p_test_command_y1 toks =
 let p_property_command_y1_inner name args kwargs =
   let out = out_var_y1 kwargs in
   match name, args with
+  | "get_target_property", [ var; target; property ] ->
+    let var = match var with EVar s | EString s -> s | _ -> "?" in
+    let target = match target with ETarget t | EVar t | EString t -> t | _ -> "?" in
+    let property = match property with EString s | EVar s -> s | _ -> "?" in
+    Some (yc_get_target_property var target property)
   | "get_target_property", [ tgt ] ->
     Some (yc_get_property ~target:tgt "PROP" out)
   | "set_target_properties", target :: rest ->

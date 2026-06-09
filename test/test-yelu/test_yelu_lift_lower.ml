@@ -373,7 +373,7 @@ let yelu1_to_yelu2 =
              ~targets:[ target "app" ~sources:[ { visibility = Vis_private; source = "main.c" } ] ]
              ~install_rules:
                [
-                 InstallTargets { targets = [ "app" ]; destination = "bin"; export = None };
+                 InstallTargets { targets = [ "app" ]; destination = Some "bin"; export = None; component = None; artifact_clauses = [] };
                  InstallFiles { files = [ "include/app.h" ]; destination = "include" };
                ]
              []);
@@ -883,7 +883,7 @@ let yelu2_to_yelu1 =
              ~targets:[ target "app" ~sources:[ { visibility = Vis_private; source = "main.c" } ] ]
              ~install_rules:
                [
-                 InstallTargets { targets = [ "app" ]; destination = "bin"; export = None };
+                 InstallTargets { targets = [ "app" ]; destination = Some "bin"; export = None; component = None; artifact_clauses = [] };
                  InstallFiles { files = [ "include/app.h" ]; destination = "include" };
                ]
              [ "APP", VTarget "app" ]);

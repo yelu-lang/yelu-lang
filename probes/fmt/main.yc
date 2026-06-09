@@ -243,7 +243,7 @@ file(WRITE run-msbuild.bat "${MSBUILD_SETUP}
     if ${MSVC} then (
       if not (str_eq ${CMAKE_GENERATOR} "Ninja") then (
         BMI_DIR := "${CMAKE_CURRENT_BINARY_DIR}";
-        path_convert_to_native_path "${BMI_DIR}/${name}.ifc" ~out:BMI;
+        path_convert_to_native "${BMI_DIR}/${name}.ifc" ~out:BMI;
         compile_opts Target ${name} :PRIVATE
           "/interface" "/ifcOutput" ${BMI}
           INTERFACE "/reference" "fmt=${BMI}";
