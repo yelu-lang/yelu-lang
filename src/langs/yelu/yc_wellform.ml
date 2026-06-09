@@ -44,10 +44,10 @@ let classify_escape text =
   then "typed API gap (parser missing)"
   else "untyped cmake primitive"
 
-let format_raw_escape file text reason =
-  (* Replace literal \n with actual newlines for readability *)
-  let body = String.substr_replace_all text ~pattern:"\\n" ~with_:"\n      " in
-  Printf.sprintf "raw cmake escape in %s [%s]:\n      %s" file reason body
+let format_raw_escape ?(index = 0) file text reason =
+  let body = String.substr_replace_all text ~pattern:"\\n" ~with_:"\n        " in
+  Printf.sprintf "[yelu][emit][warning][%d] %s [%s]:\n        %s"
+    index file reason body
 
 (* ── Recursion helper ──────────────────────────── *)
 

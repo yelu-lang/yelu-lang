@@ -116,12 +116,13 @@ let compile_yc ?(wellform = true) ?(warn = fun _ -> ()) file =
             | Yelu_langs.Yc_wellform.Raw_cmake_escape _ -> true
             | _ -> false)
         in
-        List.iter others ~f:(fun e ->
-          warn (Sexp.to_string_hum (Yelu_langs.Yc_wellform.sexp_of_error e)));
-        List.iter raw_escapes ~f:(fun e ->
+        List.iteri others ~f:(fun i e ->
+          warn (Printf.sprintf "[yelu][emit][warning][%d] %s"
+                  i (Sexp.to_string_hum (Yelu_langs.Yc_wellform.sexp_of_error e))));
+        List.iteri raw_escapes ~f:(fun i e ->
           match e with
           | Yelu_langs.Yc_wellform.Raw_cmake_escape { text; reason } ->
-            warn (Yelu_langs.Yc_wellform.format_raw_escape file text reason)
+            warn (Yelu_langs.Yc_wellform.format_raw_escape ~index:(i + List.length others) file text reason)
           | _ -> ())
     end;
     Yelu_langs.Yelu_cmake_emit.emit_script expr
