@@ -335,6 +335,19 @@ spellings (case-insensitive). Eval-time coercion lives in
 cmake-tolerance, not principled — see `io_architecture.md` § 8
 for the migration path to eval-side-only as part of Y17.
 
+### Known bug: `ylet` alias chain (`EVar→EString` demotion)
+
+`ylet` blanket-demotes `EVar n` to `EString n`
+([`yelu_cmake_utils.ml`](../../src/langs/yelu/yelu_cmake_utils.ml) `ylet`), so a
+chained alias (`ylet "alias" (yvar "name")`) binds to the literal string
+`"name"` instead of recursively resolving the prior binding. The
+`ylet chain` test is commented out at
+[`test_yelu_compile.ml:149`](../../test/test-yelu/test_yelu_compile.ml#L149)
+because the un-demoted form loops (no cycle detection in `target_arg`/`arg`).
+Proper fix needs cycle detection there. Surfaced by the 2026-06-09 code
+audit (finding #5); skip landed in `9041558`. `dune test` is green only
+because the test is skipped.
+
 ### Other
 
 - **Cache residuals** (from the shipped cache + `-D` work, see

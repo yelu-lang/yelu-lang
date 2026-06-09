@@ -183,3 +183,23 @@ modules. P0 + P1 (items 1–6) landed in `6a41f96`; the P2 design items
 **Deferred design (P2 → status.md cleanup 8–10):** parser family split
 (`yelu_parse.ml` ~2.1 k lines — defer until parser stabilizes), CLI
 driver split (`yelu.ml`), and an escape registry (markdown-first).
+
+### Source docs retired
+
+The two 2026-06-09 audit docs that fed the above were also deleted
+(intentionally, as solved/legacy); their dispositions:
+
+- **`code_audit_2026_06_09.md`** (correctness audit, 5 findings).
+  #1–3 (target kwarg payload loss, `--project` override, `merge_flags`)
+  fixed in `7cceb89`. #4 (lossy raw fallback via `args_to_cmake_text`)
+  — structural fix in `030cfb1` (`ECmakeRawCmd`); the residual is tracked
+  in `../yelu_cmake/status.md` § "Architecture TODO: eval-before-emit
+  resolve pass". #5 (full `dune test` not green) — LLVM cram /
+  include-optional / lexer-escape / cache-snapshot-path sub-issues all
+  fixed (`42c9ca2`, `b7a1dd6`, and the `cmake_reserved_vars.tsv` path),
+  **except** the `ylet` `EVar→EString` demotion bug, which is open and
+  now tracked in status.md § "Known bug: `ylet` alias chain" (test
+  skipped in `9041558`).
+- **`code_quality_review_2026_06_09.md`** (maintainability review) — fully
+  consumed: it produced `refactoring_plan_2026_06_09.md`, itself retired
+  above (P0/P1 shipped in `6a41f96`, P2 → status.md cleanup 8–10).
