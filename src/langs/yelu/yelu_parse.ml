@@ -1500,9 +1500,6 @@ let p_try_command_y1 toks =
    exprs), so we extract a string from EString / EVar.
    ============================================================ *)
 
-let str_of e =
-  str_of ~default:"" e
-
 let p_cmake_op_command_y1_inner name args kwargs =
   let out = out_var_y1 kwargs in
   match name, args with

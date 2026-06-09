@@ -258,6 +258,18 @@ let cmake_path_compare_op_of_string s : C.cmake_path_compare_op =
   | "NOT_EQUAL" -> C.Cpco_not_equal
   | _ -> fail "emit_ast: unknown cmake_path COMPARE op %S" s
 
+(* Shared helper for Set_property scopes. Each scope variant computes
+   its own C.set_property_scope; the property fan-out is identical. *)
+let emit_set_properties ~env ~scope ~append properties =
+  let arg = arg ~env in
+  let one (prop, value) =
+    C.Set_property { scope; append; append_string = false;
+                     property = prop; values = [ arg value ] }
+  in
+  match properties with
+  | [ p ] -> one p
+  | ps -> C.Exp_list (List.map ps ~f:one)
+
 let rec emit_exp ~env (e : expr) : C.exp =
   match e with
   | EUnit -> C.Exp_list []
@@ -605,47 +617,21 @@ let rec emit_exp ~env (e : expr) : C.exp =
            compatibility;
            arch_independent })
 
-  (* Property scopes beyond target. The cmake IR now models one
-     PROPERTY clause per Set_property exp; fan out yelu's
-     (prop, value) list into Exp_list of N Set_property calls. *)
+  (* Property scopes share a common emit pattern. *)
   | Yelu_cmake_property.ECmakeSetProperty { targets; append; properties } ->
-    let scope = C.Sps_target (List.map targets ~f:(target_arg ~env)) in
-    let one (prop, value) =
-      C.Set_property { scope; append; append_string = false;
-                       property = prop; values = [ arg ~env value ] }
-    in
-    (match properties with
-     | [ p ] -> one p
-     | ps -> C.Exp_list (List.map ps ~f:one))
+    emit_set_properties ~env
+      ~scope:(C.Sps_target (List.map targets ~f:(target_arg ~env)))
+      ~append properties
   | Yelu_cmake_property.ECmakeSetPropertySource { files; append; properties } ->
-    let scope = C.Sps_source
-        { sources = List.map files ~f:(target_arg ~env);
-          directories = []; target_directories = [] } in
-    let one (prop, value) =
-      C.Set_property { scope; append; append_string = false;
-                       property = prop; values = [ arg ~env value ] }
-    in
-    (match properties with
-     | [ p ] -> one p
-     | ps -> C.Exp_list (List.map ps ~f:one))
+    emit_set_properties ~env
+      ~scope:(C.Sps_source
+                { sources = List.map files ~f:(target_arg ~env);
+                  directories = []; target_directories = [] })
+      ~append properties
   | Yelu_cmake_property.ECmakeSetPropertyCache { entries = _; append; properties } ->
-    let scope = C.Sps_cache [] in
-    let one (prop, value) =
-      C.Set_property { scope; append; append_string = false;
-                       property = prop; values = [ arg ~env value ] }
-    in
-    (match properties with
-     | [ p ] -> one p
-     | ps -> C.Exp_list (List.map ps ~f:one))
+    emit_set_properties ~env ~scope:(C.Sps_cache []) ~append properties
   | Yelu_cmake_property.ECmakeSetGlobalProperty { properties } ->
-    let scope = C.Sps_global in
-    let one (prop, value) =
-      C.Set_property { scope; append = false; append_string = false;
-                       property = prop; values = [ arg ~env value ] }
-    in
-    (match properties with
-     | [ p ] -> one p
-     | ps -> C.Exp_list (List.map ps ~f:one))
+    emit_set_properties ~env ~scope:C.Sps_global ~append:false properties
   | Yelu_cmake_property.ECmakeGetProperty { var; target; property; set_form } ->
     C.Get_property
       { var;
