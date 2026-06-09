@@ -91,3 +91,57 @@ by naming convention (4-line manifest.json).
 
 **Archived phase log** (Phases 0–7) in
 [`migration_status.md`](../../probes/fmt/migration_status.md).
+
+---
+
+## 2026-06-01: Cache namespace + `-D` cmd-line input — shipped
+
+Consolidated from the retired `cache_plan.md` (deleted 2026-06-09 once
+fully implemented; this is the durable record). Was the lead forward
+item ahead of the behavior-level oracle, because cache + `-D` is
+foundational — every cmake user touches it, and the behavior-level
+oracle cannot ground-truth `-DFOO=BAR` programs without it.
+
+**Design (now realized in code; code is source of truth):**
+- `cache_vars : value Map.M(String).t` namespace in `env`
+  ([`yelu_cmake.ml`](../../src/langs/yelu/yelu_cmake.ml)), global to the
+  configure run (outside the `frames` scope chain, since cmake's cache
+  is shared across `add_subdirectory` / `function()` / `block()`).
+- Read path: `find_var` consults frames first, `cache_vars` as
+  fallback (normal wins). `var_defined` follows the same rule.
+- `ECmakeSetCache`: first-write-wins + dual-write to current frame.
+- `ECmakeOption`: no-op if name already in cache (honors pre-set/`-D`),
+  else write declared default + dual-write.
+- `unset(VAR)` clears normal only; `unset(VAR CACHE)` clears both.
+- `-D` channel: `populate_cmd_line` + `?cmd_line:(string*string) list`
+  on `eval_yelu_cmake_expr` / `eval_yelu_cmake_normal_expr`
+  ([`yelu_cmake_convert.ml`](../../src/langs/yelu/yelu_cmake_convert.ml)).
+- Spec ground truth: [`../cmake/cache_semantics.md`](../cmake/cache_semantics.md)
+  (12 cases verified against cmake 4.3.1).
+
+**Tests (three tiers, all landed):**
+- Unit — [`test_yelu_cache.ml`](../../test/test-yelu/test_yelu_cache.ml):
+  16 `check_cache_eval` calls covering the 12-case matrix across yc + ycn.
+- Dual-eval — `test_yelu_dual_eval.ml` extended with `?cmd_line` cases
+  (`-D` populates cache, normal-wins, option suppression, set-CACHE no-op).
+- Real-cmake oracle — [`test_yelu_cache_oracle.ml`](../../test/test-runcmake/test_yelu_cache_oracle.ml)
+  (the stretch step 10); the broader fmt 24-cell matrix
+  (`test_fmt_matrix_smoke.ml`) is a superset cache oracle, 24/24.
+
+**Commits:** `de961b1` (env namespace + cmd-line, steps 1–7),
+`3d3d902` (12-row spec verification, step 8), `2350f29` (ycn `ESetCache`
++ dual-eval, steps 6+9), `b46f761` (symmetric yc/ycn verification +
+`EUnsetVarCache`).
+
+**Residual gaps** (migrated to `../yelu_cmake/status.md` Deferred):
+- `CACHE … FORCE` precedence over `-D` — IR carries `force : bool`
+  ([`lang_cmake.ml`](../../src/langs/cmake/lang_cmake.ml) `Set_cache`)
+  but yc-eval does not yet honor it.
+- `$CACHE{VAR}` explicit-read syntax — not in IR (only a comment at
+  `yelu_cmake.ml`); cache fallback covers most uses.
+- Cross-run cache persistence (real `CMakeCache.txt` on disk) — the
+  `-D` channel is the single-configure proxy.
+
+**Unblocked by this:** the behavior-level oracle (now the lead forward
+item), optimizer correctness under known `-D`, community `-D` demos,
+and Y17's cache-vs-normal namespace type distinction.

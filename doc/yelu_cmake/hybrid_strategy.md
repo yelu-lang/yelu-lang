@@ -230,9 +230,9 @@ What's **not** needed for the pilot:
   library / impure runner split that makes the hybrid strategy
   composable. Generators are pure functions of `.yc` input; the
   build system handles the I/O.
-- [`cache_plan.md`](cache_plan.md) — the `-D` cmd-line input
-  pathway that hybrid projects need to handle the same way pure
-  cmake projects do.
+- [`../worklog/worklog_2026_06.md`](../worklog/worklog_2026_06.md)
+  (§ "Cache namespace") — the `-D` cmd-line input pathway that hybrid
+  projects need to handle the same way pure cmake projects do.
 - [`status.md`](status.md) — where the "deferred" items live.
   Hybrid pilot work would be tracked here once a step lands.
 - [`../../probes/cache_matrix.md`](../../probes/cache_matrix.md) —

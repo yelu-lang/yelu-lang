@@ -116,8 +116,9 @@ unrelated to recent work.
 - **Cache namespace + `-D` cmd-line input.** ✅ Shipped 2026-06-01.
   `ECmakeSetCache` and `ECmakeOption` now write into `env.cache_vars`
   (separate from `env.frames`); `-D` populates cache before eval so
-  `option()` is correctly a NO-OP when the entry exists. Plan in
-  [`yelu_cmake/cache_plan.md`](yelu_cmake/cache_plan.md).
+  `option()` is correctly a NO-OP when the entry exists. Record in
+  [`worklog/worklog_2026_06.md`](worklog/worklog_2026_06.md)
+  (§ "Cache namespace + `-D` cmd-line input — shipped").
 - **fmt predictor probe complete.** ✅ Shipped 2026-06-03. 24-cell matrix
   (11 options × ON/OFF) — all cells perfect: real-only=0, mismatched=0,
   pred-only=0, median matched 20. Closing it required:
@@ -212,7 +213,6 @@ in [`yelu_cmake/status.md`](yelu_cmake/status.md).
 | `yelu_cmake/structure.md`                  | Code-anchored guide to the yelu_cmake modules.                     |
 | `yelu_cmake/cmake_vs_normal.md`            | yc ↔ ycn ecosystem comparison: per-theory fragment coverage.       |
 | `yelu_cmake/io_architecture.md`            | I/O library/runner split + callback-via-env pattern (include_loader, subdir_loader). |
-| `yelu_cmake/cache_plan.md`                 | Active plan: cache namespace + `-D` cmd-line input (shipped 2026-06-01). |
 | `yelu_cmake/hybrid_strategy.md`            | Y16 reframed: cmake-as-assembly; gradual hybrid adoption (.yc + .cmake side-by-side, or whole-file w/ raw_cmake escape). |
 | `yelu_cmake/status.md`                     | Living tracker for current open work (IR cleanup, Y17, E2, etc.).  |
 | `../probes/README.md`                         | Probe cluster intro: real-world cmake projects as predictor testbeds. |

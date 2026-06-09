@@ -187,7 +187,6 @@ Total unit: 655. Total cmake-backed: 40.
 | `doc/yelu_cmake/structure.md`         | Code-anchored guide to the yelu_cmake modules       |
 | `doc/yelu_cmake/cmake_vs_normal.md`   | yelu_cmake ↔ yelu_cmake_normal ecosystem comparison (parser/eval/emit coverage, per-fragment ctor counts, gaps) |
 | `doc/yelu_cmake/io_architecture.md`   | I/O architecture: library/runner split, callback-via-env pattern, relationship to a future ycn module-import feature |
-| `doc/yelu_cmake/cache_plan.md`        | Active plan: cache namespace + `-D` cmd-line input — design, impl steps, three-tier test strategy |
 | `doc/yelu_cmake/hybrid_strategy.md`   | Y16 reframed as gradual hybrid adoption (side-by-side .yc + .cmake, or whole-file with raw_cmake escape). cmake-as-assembly framing; no embedded-in-cmake shape. |
 | `doc/yelu_cmake/ycn_concrete_syntax.md` | Design notes for a future concrete-syntax parser for `yelu_cmake_normal`. No implementation; uses the lift_lower 65-test corpus as design substrate. |
 | `doc/yelu_cmake/driver.md`            | Merged pipelines graph + tool-interface matrix + per-language driver modules + cross-language pipeline utils |

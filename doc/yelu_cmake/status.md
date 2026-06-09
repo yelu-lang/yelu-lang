@@ -3,10 +3,9 @@
 Living tracker. Strip and update freely; durable design is in
 `design.md`, code-anchored module guide in `structure.md`,
 side-by-side comparison of `yelu_cmake` and `yelu_cmake_normal`
-ecosystem coverage in `cmake_vs_normal.md`, active plans live
-under `*_plan.md` (currently [`cache_plan.md`](cache_plan.md)),
-chronological history (retirement archive + Bar #3-lite audit
-trail) in `../worklog/worklog_2026_05.md`.
+ecosystem coverage in `cmake_vs_normal.md`, chronological history
+(retirement archive + Bar #3-lite audit trail) in
+`../worklog/worklog_2026_05.md` and `../worklog/worklog_2026_06.md`.
 
 ## Current state (2026-05-31)
 
@@ -64,43 +63,33 @@ in [`ir_tiers.md`](ir_tiers.md).
 ## Open work — forward
 
 Static round-trip is at a natural stop ([`worklog_2026_06.md`](../../doc/worklog/worklog_2026_06.md) § 10).
-Forward work falls into four buckets, in priority order:
-(a) **cache + cmd-line input** — foundational for everything below
-(see [`cache_plan.md`](cache_plan.md));
-(b) the behavior-level oracle (blocked on (a));
-(c) the language-layer cleanups that Y17 typing depends on;
-(d) E2 mechanical retirement tail.
+Forward work falls into three buckets, in priority order:
+(a) **the behavior-level oracle** — now the lead, since its foundational
+blocker (cache + `-D` cmd-line input) shipped 2026-06-01;
+(b) the language-layer cleanups that Y17 typing depends on;
+(c) E2 mechanical retirement tail.
 
-### Cache namespace + `-D` cmd-line input — *lead*
+### Cache namespace + `-D` cmd-line input — *shipped 2026-06-01*
 
-> Promoted 2026-06-01 ahead of the behavior-level oracle.
+`cache_vars` namespace in `env`, `?cmd_line` input channel, cache
+read-fallback, `option()` suppression, and a three-tier test suite
+(unit `test_yelu_cache.ml`, dual-eval `?cmd_line` cases, real-cmake
+oracle `test_yelu_cache_oracle.ml`) all landed. Full record — design,
+commits, residual gaps — in
+[`../worklog/worklog_2026_06.md`](../worklog/worklog_2026_06.md)
+(§ "Cache namespace + `-D` cmd-line input — shipped"). Residual gaps
+(`CACHE FORCE` vs `-D`, `$CACHE{VAR}` explicit read, cross-run
+persistence) are in Deferred below. The plan doc (`cache_plan.md`) was
+retired into the worklog.
 
-Today's coverage: cache syntax parses and emits round-trip
-(Bar #3-lite covers it). But `ECmakeSetCache` and `ECmakeOption`
-in eval just call `set_var` — there's no separate cache
-namespace, no `-D` input channel, and no behavior tests.
-Any program whose behavior depends on `-DUSE_X=OFF` would
-evaluate identically regardless of the cmd-line state.
-
-Blocker for:
-- Behavior-level oracle (can't ground-truth `-D` programs)
-- Community-share demos (every cmake user touches `-D`)
-- Optimizer correctness (constant-fold under `-D` assumptions)
-
-Design + implementation + three-tier test plan in
-[`cache_plan.md`](cache_plan.md). Est. 2-3 days for steps 1-9;
-+half-day for the stretch real-cmake oracle harness. Cache
-semantics matrix already documented in
-[`../cmake/cache_semantics.md`](../cmake/cache_semantics.md)
-(12 cases, verified against cmake 4.3.1).
-
-### Behavior-level oracle (blocked on cache plan)
+### Behavior-level oracle — *lead* (foundation unblocked 2026-06-01)
 
 The natural successor to Bar #3-lite. Lite proved the **syntactic** IR
 shape is rich enough to carry every cmake call in real corpora.
 The behavior-level oracle proves the **runtime semantics** match
-real cmake — but it can't ground-truth a single `-D`-bearing
-program until the cache plan lands.
+real cmake. Its foundational blocker — cache + `-D` cmd-line input,
+needed to ground-truth `-D`-bearing programs — shipped 2026-06-01, so
+this is now the lead forward item.
 
 > Names: this used to be called "Bar #3-full" alongside Bar #3-lite.
 > Now that the syntactic milestone is shipped and archived, the
@@ -328,7 +317,20 @@ for the migration path to eval-side-only as part of Y17.
 
 ### Other
 
-- Cache / env namespaces beyond the normal-variable slice.
+- **Cache residuals** (from the shipped cache + `-D` work, see
+  `../worklog/worklog_2026_06.md` § "Cache namespace"):
+  - `CACHE … FORCE` precedence over `-D` — `Lang_cmake.Set_cache`
+    carries `force : bool` but yc-eval does not yet honor it (real
+    cmake: `-D` wins over even `FORCE` for the initial value).
+  - `$CACHE{VAR}` explicit-read syntax — not in the IR (only a comment
+    in `yelu_cmake.ml`); the normal→cache read fallback covers most uses.
+  - Cross-run cache persistence (real `CMakeCache.txt` on disk) — the
+    `-D` channel is the single-configure proxy.
+- Process-env namespace (`set(ENV{FOO} val)` / `$ENV{FOO}`) — routes to
+  a no-op in eval; needs an I/O callback.
+- Generator expressions as delayed values (currently flow as
+  opaque `EString`s via `Ycs_eval`; real cmake handles them at
+  generate time).
 - Generator expressions as delayed values (currently flow as
   opaque `EString`s via `Ycs_eval`; real cmake handles them at
   generate time).

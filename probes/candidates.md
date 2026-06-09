@@ -15,7 +15,7 @@ Anchoring the criteria in actual capability:
 | **Syntactic round-trip** (cmake text → IR → cmake text) | ✅ STRUCT=0 / FORMAT=0 across **z3 (108 files), llvm (596), tutorial (25)** as of Bar #3-lite. PyTorch *not* yet probed (a prior chat mistakenly listed it as done — it isn't).  |
 | **yelu_cmake ↔ Lang_cmake** (production emit)          | ✅ via `yelu_cmake_emit`                                                                                                                                                         |
 | **yelu_cmake ↔ yelu_cmake_normal** (convert)            | ✅ via `to_normal` / `from_normal` (1,750 LOC, exercised by 65 lift_lower + 25 dual_eval tests)                                                                                  |
-| **`-D` cmd-line + cache namespace**                     | ✅ landed 2026-06-01 (cache_plan.md). 14 spec cases × 2 evaluators verified against `cache_semantics.md`.                                                                       |
+| **`-D` cmd-line + cache namespace**                     | ✅ landed 2026-06-01 (see `doc/worklog/worklog_2026_06.md` § "Cache namespace"). 14 spec cases × 2 evaluators verified against `cache_semantics.md`.                            |
 | **Direct ycn-text emit / ycn parser**                  | ❌ ycn is currently an internal IR only; cmake-text emit always routes through yelu_cmake.                                                                                       |
 | **Behavior-level oracle** (configure-output diff)       | ⏭ scoped to cache for step 10; broader oracle is the next major milestone                                                                                                       |
 
@@ -152,7 +152,8 @@ Two distinct measurements, both should run on every candidate:
    Expected: STRUCT=0, FORMAT=0 on all files. Per-file
    modeled/stdlib/resolved/generic/other counts get logged.
 
-2. **Cache + cmd-line behavior** (cache_plan step 10, future):
+2. **Cache + cmd-line behavior** (per-project extension of the shipped
+   cache oracle, future):
    For each project's documented options, run real cmake with
    various `-D` flag combinations; capture cache state via
    `cmake -LA -N` or message() probes; compare to yc-eval's
