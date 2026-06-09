@@ -45,7 +45,15 @@ let classify_escape text =
   else "untyped cmake primitive"
 
 let format_raw_escape ?(index = 0) file text reason =
-  let body = String.substr_replace_all text ~pattern:"\\n" ~with_:"\n        " in
+  let lines = String.split_lines text in
+  let body =
+    if List.length lines <= 3 then
+      String.concat ~sep:"\n        " lines
+    else
+      Printf.sprintf "%s\n        ... (%d more lines)"
+        (String.concat ~sep:"\n        " (List.take lines 2))
+        (List.length lines - 2)
+  in
   Printf.sprintf "[yelu][emit][warning][%d] %s [%s]:\n        %s"
     index file reason body
 

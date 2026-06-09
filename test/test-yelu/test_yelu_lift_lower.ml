@@ -374,7 +374,7 @@ let yelu1_to_yelu2 =
              ~install_rules:
                [
                  InstallTargets { targets = [ "app" ]; destination = Some "bin"; export = None; component = None; artifact_clauses = [] };
-                 InstallFiles { files = [ "include/app.h" ]; destination = "include" };
+                 InstallFiles { files = [ "include/app.h" ]; destination = "include"; component = None };
                ]
              []);
       check_yelu1_to_yelu2 "cmake_op project + minimum_required + message"
@@ -873,7 +873,7 @@ let yelu2_to_yelu1 =
           ESetVar
             ("APP", EExecutable { name = EString "app"; sources = [ EString "main.c" ] });
           EInstallTargets
-            { targets = [ ETarget "app" ]; destination = EString "bin"; export = None };
+            { targets = [ ETarget "app" ]; destination = Some (EString "bin"); export = None };
           EInstallFiles
             { files = [ EString "include/app.h" ]; destination = EString "include" };
         ])
@@ -884,7 +884,7 @@ let yelu2_to_yelu1 =
              ~install_rules:
                [
                  InstallTargets { targets = [ "app" ]; destination = Some "bin"; export = None; component = None; artifact_clauses = [] };
-                 InstallFiles { files = [ "include/app.h" ]; destination = "include" };
+                 InstallFiles { files = [ "include/app.h" ]; destination = "include"; component = None };
                ]
              [ "APP", VTarget "app" ]);
       check_yelu2_to_yelu1 "cmake_op project + min + message lower to cmake"
