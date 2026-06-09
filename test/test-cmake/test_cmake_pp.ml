@@ -52,7 +52,7 @@ let primitives =
         "include(CheckCXXSourceCompiles)"
         (include_ (str_ "CheckCXXSourceCompiles"));
       check "include optional"
-        "include(foo OPTIONAL )"
+        "include(foo OPTIONAL)"
         (include_ ~optional:true (str_ "foo"));
     ] )
 
