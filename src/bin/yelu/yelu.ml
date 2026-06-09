@@ -356,12 +356,39 @@ let cmake_configure ~source_dir ~build_dir ~d_flags =
   code
 
 (* Strip cmake's reserved-name noise; keep project + unknown tier. *)
-let strip_cache path =
+let strip_cache ~build_dir ~source_dir path =
+  (* Normalize paths so vendor/hybrid cache lines are comparable:
+     build dirs → $BUILD_DIR, original source + worktree source → $SOURCE_DIR.
+     Keeps KEY:TYPE=VALUE intact for value-level comparison. *)
+  let build_abs =
+    run_capture (Printf.sprintf "realpath %s" (Stdlib.Filename.quote build_dir))
+    |> fst |> String.strip in
+  let build_hybrid_abs =
+    run_capture (Printf.sprintf "realpath %s"
+      (Stdlib.Filename.quote
+         (Stdlib.Filename.concat (Stdlib.Filename.dirname build_dir) "build-hybrid")))
+    |> fst |> String.strip in
+  let source_abs =
+    run_capture (Printf.sprintf "realpath %s" (Stdlib.Filename.quote source_dir))
+    |> fst |> String.strip in
+  let hybrid_source =
+    run_capture (Printf.sprintf "realpath %s"
+      (Stdlib.Filename.quote
+         (Stdlib.Filename.concat (Stdlib.Filename.dirname build_dir) "source")))
+    |> fst |> String.strip in
+  (* Escape / for sed: s|pattern|replacement|g *)
+  let sed_pat s = String.substr_replace_all s ~pattern:"/" ~with_:"\\/" in
   let cmd = Printf.sprintf
     "grep -E '^[A-Za-z_][A-Za-z0-9_]*:' %s \
      | grep -vE '^(CMAKE_|CTEST_|_CMAKE|GLOBAL_FLAGS_|PACKAGE_|CPACK_|fmt_DIR)' \
-     | cut -d: -f1,3- | sort"
+     | sed 's|%s|$BUILD_DIR|g' \
+     | sed 's|%s|$BUILD_DIR|g' \
+     | sed 's|%s|$SOURCE_DIR|g' \
+     | sed 's|%s|$SOURCE_DIR|g' \
+     | sort"
     (Stdlib.Filename.quote path)
+    (sed_pat build_abs) (sed_pat build_hybrid_abs)
+    (sed_pat source_abs) (sed_pat hybrid_source)
   in
   fst (run_capture cmd)
 
@@ -442,8 +469,10 @@ let cmd_hybrid ?(source_dir_override = None) manifest_path d_flags =
   log "[yelu] both configures done";
 
   (* 5. Diff caches and report. *)
-  let v_cache = strip_cache (Stdlib.Filename.concat vendor_build "CMakeCache.txt") in
-  let h_cache = strip_cache (Stdlib.Filename.concat hybrid_build "CMakeCache.txt") in
+  let v_cache = strip_cache ~build_dir:vendor_build ~source_dir:m.source_dir
+      (Stdlib.Filename.concat vendor_build "CMakeCache.txt") in
+  let h_cache = strip_cache ~build_dir:vendor_build ~source_dir:m.source_dir
+      (Stdlib.Filename.concat hybrid_build "CMakeCache.txt") in
   if String.equal v_cache h_cache then begin
     log "[yelu] caches MATCH — hybrid is semantically equivalent";
     log "[yelu] log saved: %s" log_path;
