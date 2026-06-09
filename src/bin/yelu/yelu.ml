@@ -60,7 +60,7 @@ let write_all path content =
   Stdlib.close_out oc
 
 let rec mkdirp path =
-  if Stdlib.Sys.file_exists path then ()
+  if String.equal path "." || Stdlib.Sys.file_exists path then ()
   else begin
     mkdirp (Stdlib.Filename.dirname path);
     Unix.mkdir path 0o755
@@ -201,11 +201,15 @@ let discover_helpers probe_dir =
                 let base = Stdlib.Filename.basename rel_from_probe in
                 let dir = Stdlib.Filename.dirname rel_from_probe in
                 let stem = String.chop_suffix_exn base ~suffix:".yc" in
-                if String.is_prefix stem ~prefix:"CMakeLists"
-                then Stdlib.Filename.concat dir "CMakeLists.txt"
-                else if String.is_substring stem ~substring:"_"
-                then Stdlib.Filename.concat dir (snake_to_camel stem ^ ".cmake")
-                else Stdlib.Filename.concat dir "CMakeLists.txt"
+                let name =
+                  if String.is_prefix stem ~prefix:"CMakeLists"
+                  then "CMakeLists.txt"
+                  else if String.is_substring stem ~substring:"_"
+                  then snake_to_camel stem ^ ".cmake"
+                  else "CMakeLists.txt"
+                in
+                if String.equal dir "." then name
+                else Stdlib.Filename.concat dir name
               in
               yc_files := { source = path; target_file; whole_file = true;
                             anchor_start = ""; anchor_end = "";
@@ -307,57 +311,33 @@ let splice ~target_content ~anchor_start ~anchor_end ~anchor_end_occurrence
   String.concat ~sep:"\n" (before @ [replacement] @ after)
 
 (* ============================================================
-   hybrid: mirror source_dir with symlinks; splice helpers'
-   cmake output into target files; run cmake on both; diff. *)
+   hybrid: check out source_dir via git worktree; overwrite
+   target files with generated cmake; run cmake on both; diff. *)
 
 let build_hybrid_tree ~source_dir ~hybrid_root ~spliced_files =
-  (* Mirror source_dir as a tree of symlinks, except files that are
-     spliced (real, with new content) and the directories above them
-     (real, so the spliced descendants are reachable). Spliced files
-     are keyed by relative path from source_dir, so "CMakeLists.txt"
-     and "support/cmake/JoinPaths.cmake" both work. *)
-  let _ = run_capture (Printf.sprintf "rm -rf %s" (Stdlib.Filename.quote hybrid_root)) in
   let source_abs = run_capture (Printf.sprintf "realpath %s" (Stdlib.Filename.quote source_dir)) |> fst |> String.strip in
-  (* Set of relative paths that must be REAL directories (vs symlinks):
-     every ancestor of every spliced file. *)
-  let real_dirs =
-    let acc = ref (Set.empty (module String)) in
-    Map.iter_keys spliced_files ~f:(fun rel_path ->
-      let parts = String.split rel_path ~on:'/' in
-      let rec walk current = function
-        | [] | [_] -> ()  (* last part is the file itself, not a dir *)
-        | part :: rest ->
-          let next = if String.is_empty current then part else current ^ "/" ^ part in
-          acc := Set.add !acc next;
-          walk next rest
-      in
-      walk "" parts);
-    !acc
-  in
-  let rec mirror rel_dir =
-    let src_dir =
-      if String.is_empty rel_dir then source_abs
-      else Stdlib.Filename.concat source_abs rel_dir
-    in
-    let dst_dir =
-      if String.is_empty rel_dir then hybrid_root
-      else Stdlib.Filename.concat hybrid_root rel_dir
-    in
-    mkdirp dst_dir;
-    let entries = Stdlib.Sys.readdir src_dir |> Array.to_list in
-    List.iter entries ~f:(fun name ->
-      let rel_path =
-        if String.is_empty rel_dir then name else rel_dir ^ "/" ^ name
-      in
-      let src = Stdlib.Filename.concat src_dir name in
-      let dst = Stdlib.Filename.concat dst_dir name in
-      match Map.find spliced_files rel_path with
-      | Some content -> write_all dst content
-      | None ->
-        if Set.mem real_dirs rel_path then mirror rel_path
-        else Unix.symlink src dst)
-  in
-  mirror ""
+  (* Resolve hybrid_root to absolute — git worktree paths are relative to
+     the source git repo, not the yelu working directory. *)
+  let _ = run_capture (Printf.sprintf "mkdir -p %s" (Stdlib.Filename.quote hybrid_root)) in
+  let hybrid_abs = run_capture (Printf.sprintf "realpath %s" (Stdlib.Filename.quote hybrid_root)) |> fst |> String.strip in
+  (* Clean up previous worktree (directory + git metadata) *)
+  let _ = run_capture (Printf.sprintf "git -C %s worktree remove --force %s 2>/dev/null || true"
+             (Stdlib.Filename.quote source_abs) (Stdlib.Filename.quote hybrid_abs)) in
+  let _ = run_capture (Printf.sprintf "git -C %s worktree prune" (Stdlib.Filename.quote source_abs)) in
+  let _ = run_capture (Printf.sprintf "rm -rf %s" (Stdlib.Filename.quote hybrid_abs)) in
+  (* git worktree add --detach: lightweight checkout, no new branch *)
+  let cmd = Printf.sprintf "git -C %s worktree add --detach %s HEAD 2>&1"
+    (Stdlib.Filename.quote source_abs) (Stdlib.Filename.quote hybrid_abs) in
+  let out, code = run_capture cmd in
+  if code <> 0 then begin
+    Stdlib.Printf.eprintf "[yelu] git worktree failed:\n%s\n" out;
+    Stdlib.exit 1
+  end;
+  (* Overwrite generated files in-place *)
+  Map.iteri spliced_files ~f:(fun ~key:rel_path ~data:content ->
+    let target = Stdlib.Filename.concat hybrid_abs rel_path in
+    mkdirp (Stdlib.Filename.dirname target);
+    write_all target content)
 
 (* Run cmake -B build_dir -S source_dir with -D flags. *)
 let cmake_configure ~source_dir ~build_dir ~d_flags =
