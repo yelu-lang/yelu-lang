@@ -159,6 +159,7 @@ Total unit: 655. Total cmake-backed: 40.
 | `doc/lang/lang_coverage.md`           | cmake command coverage tracker                      |
 | `doc/lang/syntax_tiers.md`            | Concrete syntax tier plan                           |
 | `doc/lang/concrete_syntax_parser.md`  | Implemented two-pass parser (Angstrom + pure OCaml) |
+| `doc/lang/surface_lsp_framework.md`   | Surface syntax + LSP design exploration (yc-first): driver-as-plug, CST/spans, manifest-as-co-truth, TextMate Milestone 0 |
 | `doc/cmake/painpoints.md`            | 27 documented cmake pain points                     |
 | `doc/cmake/comparison.md`            | cmake PL properties, equivalence levels             |
 | `doc/cmake/policy.md`                | cmake policy system, CMP* history                   |

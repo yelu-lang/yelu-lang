@@ -129,6 +129,20 @@ Reference points:
 This is the manifesto-level "does it scale" test (Y16 in
 `CLAUDE.md`). Not started.
 
+### Surface syntax + LSP (sibling track)
+
+The *static-semantics* half to the oracle's *dynamic* half: a
+higher-fidelity surface + language server for yc (then ycn), feeding off
+the driver's `check` op the way the oracle feeds off `eval`. Design
+exploration + decision-map in
+[`../lang/surface_lsp_framework.md`](../lang/surface_lsp_framework.md)
+(yc-first). **Milestone 0** (agreed 2026-06-09): a server-less VS Code
+TextMate highlighter, whose `.tmLanguage.json` vocabulary is generated
+from a command **manifest** that is test-locked to the AST as a co-truth
+(extensible variants preclude ppx reflection). The manifest gets exposed
+as a new driver introspection op (`manifest`/`describe`). Parser CST/spans
++ error recovery and the LSP itself are later milestones. Not started.
+
 ### Behavior-level sequels (parked, in order)
 
 - **Real-world cmake rewrites.** Rewrite z3 / llvm / torch
