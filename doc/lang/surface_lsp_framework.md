@@ -327,22 +327,39 @@ needs pinning down before the `check` signature is frozen.
 
 ## 5. Milestones & forcing-function order
 
-### Milestone 0 — server-less TextMate highlighter (the agreed first cut)
+### Milestone 0 — server-less TextMate highlighter — **shipped 2026-06-10**
 
-Independent of the parser/CST/LSP work; ships first. Deliverables:
-- a VS Code extension skeleton — `package.json` contributing the `.yc`
-  language + grammar;
-- `language-configuration.json` (brackets, comments, auto-close, indent);
-- `editors/vscode/syntaxes/yc.tmLanguage.json` — **vocabulary patterns
-  generated** from the command manifest / `yc_primitives` (§3.8),
-  **structure patterns hand-written** (coarse);
-- the generator exe + dune rule.
+Independent of the parser/CST/LSP work; shipped first. Delivered:
+- [`Yc_manifest`](../../src/langs/yelu/yc_manifest.ml) — the typed
+  vocabulary table, test-locked to `Yc_primitives` + the lexer as a
+  co-truth ([`test_yc_manifest.ml`](../../test/test-yelu/test_yc_manifest.ml));
+- [`Yc_driver.manifest`](../../src/langs/drivers/yc_driver.ml) — the
+  co-truth on the uniform driver interface;
+- [`Yc_tmgrammar`](../../src/langs/yelu/yc_tmgrammar.ml) — vocabulary →
+  `(regex, scope)` rules (escaping / longest-first / `\b`), unit-tested
+  ([`test_yc_tmgrammar.ml`](../../test/test-yelu/test_yc_tmgrammar.ml));
+- `yelu manifest` (print the TSV) + `yelu tmgrammar` (emit the JSON);
+- [`editors/vscode/yc/`](../../editors/vscode/yc/) — the extension
+  (`package.json`, `language-configuration.json`, generated
+  `syntaxes/yc.tmLanguage.json`), with `make tmgrammar` (regen) and
+  `make tmgrammar-check` (drift guard).
 
-No OCaml server, no spans, no parser changes. This validates the
-toolchain (extension packaging, `.tmLanguage` scopes) and *forces* the
-lexical-SSOT work (manifest → generated vocabulary) — which is exactly the
-"coherent truth agreement" prerequisite. It only needs the lexical slice
-of the manifest, so it does not block on the typed-IR truth.
+Verified by tokenizing `probes/fmt/main.yc` with the real VS Code
+TextMate + Oniguruma engine (`editors/vscode/yc/test/tokenize.js`): every
+manifest class fires correctly on real source. Install/enable steps are in
+the extension [README](../../editors/vscode/yc/README.md).
+
+Deviations from the original sketch: the generator is a CLI subcommand
+(`yelu tmgrammar`), not a dune-rule + cross-dir `promote` — simpler and
+deterministic; the drift guard is `make tmgrammar-check`. JSON
+serialization lives in the `yelu` binary (where yojson is); the
+`Yc_tmgrammar` library stays dep-free. The `ctor` (AST-link) manifest
+column is present but unpopulated — see §3.8.
+
+This validated the toolchain (extension packaging, `.tmLanguage` scopes)
+and forced the lexical-SSOT work (manifest → generated vocabulary) — the
+"coherent truth agreement" prerequisite — using only the lexical slice of
+the manifest, with no dependency on the typed-IR truth.
 
 ### Milestone 1+ — LSP (forcing-function order)
 

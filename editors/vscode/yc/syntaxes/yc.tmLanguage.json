@@ -1,0 +1,44 @@
+{
+  "name": "Yelu-cmake",
+  "scopeName": "source.yc",
+  "fileTypes": [ "yc" ],
+  "patterns": [
+    { "match": "#.*$", "name": "comment.line.number-sign.yc" },
+    { "match": "\"(\\\\.|[^\"\\\\])*\"", "name": "string.quoted.double.yc" },
+    { "match": "'[^']*'", "name": "string.quoted.single.yc" },
+    { "match": "\\$\\{[^}]*\\}", "name": "variable.other.substitution.yc" },
+    { "match": "\\$<[^>]*>", "name": "variable.other.genex.yc" },
+    { "match": "\\b[0-9]+\\b", "name": "constant.numeric.integer.yc" },
+    { "match": ":[A-Za-z0-9_-]+", "name": "entity.other.attribute-name.yc" },
+    { "match": "\\b(OFF|ON)\\b", "name": "constant.language.boolean.yc" },
+    {
+      "match": "\\b(continue|function|foreach|return|RANGE|break|macro|while|else|then|fun|let|if|in)\\b",
+      "name": "keyword.control.yc"
+    },
+    {
+      "match": "\\b(defined|list_in|exists|is_abs|is_dir|policy|str_eq|str_gt|str_lt|ver_eq|ver_gt|ver_lt|match|and|not|eq|gt|lt|or)\\b",
+      "name": "keyword.operator.word.yc"
+    },
+    {
+      "match": "\\b(Target|target|cache|Cvar|cvar)\\b",
+      "name": "storage.type.yc"
+    },
+    {
+      "match": "\\b(write_basic_package_version_file|configure_package_config_file|set_source_files_properties|target_compile_definitions|target_include_directories|string_make_c_identifier|add_compile_definitions|cmake_minimum_required|get_directory_property|get_filename_component|list_remove_duplicates|path_convert_to_native|path_replace_extension|set_directory_property|target_compile_options|path_convert_to_cmake|path_remove_extension|path_replace_filename|set_target_properties|string_regex_matchall|target_link_libraries|path_remove_filename|string_regex_replace|add_compile_options|cmake_get_log_level|file_make_directory|get_global_property|get_target_property|include_directories|set_global_property|set_source_property|set_test_properties|path_absolute_path|path_append_string|path_relative_path|precompile_headers|separate_arguments|string_genex_strip|string_regex_match|string_regex_quote|add_custom_target|file_read_symlink|install_directory|add_dependencies|add_lib_imported|add_link_options|add_subdirectory|link_directories|list_remove_item|path_is_absolute|path_is_relative|path_native_path|path_normal_path|string_substring|string_timestamp|add_definitions|enable_language|execute_process|install_targets|configure_file|enable_testing|file_real_path|file_timestamp|install_export|list_pop_front|list_remove_at|list_transform|path_is_prefix|string_compare|string_prepend|string_replace|string_tolower|string_toupper|target_sources|add_exe_alias|add_lib_alias|compile_feats|include_guard|install_files|list_pop_back|string_append|string_concat|string_length|string_repeat|compile_defs|compile_opts|file_strings|find_library|find_package|find_program|include_dirs|list_prepend|list_reverse|list_sublist|path_compare|set_property|string_strip|file_remove|file_rename|list_append|list_filter|list_insert|list_length|path_append|string_find|string_join|string_json|string_uuid|try_compile|cmake_call|cmake_eval|file_touch|file_write|policy_set|string_hex|file_copy|file_glob|file_read|file_size|find_file|find_path|link_dirs|link_opts|list_find|list_join|list_sort|path_hash|add_test|link_lib|list_get|path_get|path_has|path_set|add_exe|add_lib|include|message|project|try_run|export|yc_raw|math)\\b",
+      "name": "support.function.yc"
+    },
+    { "match": "(\\.\\.)", "name": "keyword.operator.range.yc" },
+    { "match": "(:=)", "name": "keyword.operator.assignment.yc" },
+    { "match": "(\\()", "name": "punctuation.section.parens.begin.yc" },
+    { "match": "(\\))", "name": "punctuation.section.parens.end.yc" },
+    { "match": "(,)", "name": "punctuation.separator.yc" },
+    { "match": "(:)", "name": "punctuation.separator.yc" },
+    { "match": "(;)", "name": "punctuation.terminator.yc" },
+    { "match": "(=)", "name": "keyword.operator.assignment.yc" },
+    { "match": "(\\[)", "name": "punctuation.section.brackets.begin.yc" },
+    { "match": "(\\])", "name": "punctuation.section.brackets.end.yc" },
+    { "match": "(\\{)", "name": "punctuation.section.braces.begin.yc" },
+    { "match": "(\\})", "name": "punctuation.section.braces.end.yc" },
+    { "match": "(~)", "name": "keyword.operator.yc" }
+  ]
+}

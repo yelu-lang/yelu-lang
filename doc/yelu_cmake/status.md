@@ -136,12 +136,16 @@ higher-fidelity surface + language server for yc (then ycn), feeding off
 the driver's `check` op the way the oracle feeds off `eval`. Design
 exploration + decision-map in
 [`../lang/surface_lsp_framework.md`](../lang/surface_lsp_framework.md)
-(yc-first). **Milestone 0** (agreed 2026-06-09): a server-less VS Code
-TextMate highlighter, whose `.tmLanguage.json` vocabulary is generated
-from a command **manifest** that is test-locked to the AST as a co-truth
-(extensible variants preclude ppx reflection). The manifest gets exposed
-as a new driver introspection op (`manifest`/`describe`). Parser CST/spans
-+ error recovery and the LSP itself are later milestones. Not started.
+(yc-first). **Milestone 0 — shipped 2026-06-10:** a server-less VS Code
+TextMate highlighter whose `.tmLanguage.json` vocabulary is generated from
+the `Yc_manifest` co-truth (test-locked to `Yc_primitives` + the lexer;
+exposed via the `Yc_driver.manifest` op; emitted by `yelu tmgrammar`).
+Extension under `editors/vscode/yc/`, verified on `probes/fmt/main.yc`
+with the real TextMate engine. Full record in
+[`../lang/surface_lsp_framework.md`](../lang/surface_lsp_framework.md)
+§ Milestone 0. **Next (Milestone 1+):** parser CST/spans + error recovery,
+then the LSP itself (`linol` shell over `Yc_driver`, diagnostics ← check,
+semantic tokens). Not started.
 
 ### Behavior-level sequels (parked, in order)
 

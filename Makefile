@@ -42,6 +42,21 @@ test-pp:
 test-yc:
 	$(DUNE) dune test test/test-yelu/
 
+# Regenerate the VS Code TextMate grammar from the yc vocabulary manifest.
+tmgrammar:
+	$(DUNE) dune exec src/bin/yelu/yelu.exe -- tmgrammar
+
+# Drift guard: fail if the committed grammar is stale vs the manifest.
+tmgrammar-check:
+	@$(DUNE) dune exec src/bin/yelu/yelu.exe -- tmgrammar -o /tmp/yc.tmLanguage.json.check 2>/dev/null
+	@if diff -q editors/vscode/yc/syntaxes/yc.tmLanguage.json /tmp/yc.tmLanguage.json.check >/dev/null; then \
+	  echo "  OK   yc.tmLanguage.json is up to date with the manifest"; \
+	else \
+	  echo "  FAIL yc.tmLanguage.json is stale — run 'make tmgrammar'"; \
+	  diff editors/vscode/yc/syntaxes/yc.tmLanguage.json /tmp/yc.tmLanguage.json.check | head -20; \
+	  exit 1; \
+	fi
+
 build-check:
 	$(DUNE) dune build src/bin/cmake/v1/ src/bin/yelu/
 	$(DUNE) python3 test/test-build/run_build_check.py
@@ -230,7 +245,7 @@ cmake-only-check: dune-build-yelu
 	  echo "=== All checks passed ==="; \
 	fi'
 
-.PHONY: build build-cmake build-yelu test test-pp test-yc \
+.PHONY: build build-cmake build-yelu test test-pp test-yc tmgrammar tmgrammar-check \
         cmake-check cmake-check-v1 cmake-check-v2 yelu-check-v2 cmake-only-check \
         runcmake-compat runcmake-yelu cmake-commands file-api-test build-check \
         coverage test-all dune-build-cmake dune-build-yelu dune-build-yelu-v2 \

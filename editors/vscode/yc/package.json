@@ -1,0 +1,28 @@
+{
+  "name": "yc",
+  "displayName": "Yelu-cmake (yc)",
+  "description": "Syntax highlighting for yelu-cmake (.yc) source files.",
+  "version": "0.0.1",
+  "publisher": "yelu-lang",
+  "license": "MIT",
+  "repository": { "type": "git", "url": "https://github.com/yelu-lang/yelu-lang" },
+  "engines": { "vscode": "^1.75.0" },
+  "categories": ["Programming Languages"],
+  "contributes": {
+    "languages": [
+      {
+        "id": "yc",
+        "aliases": ["Yelu-cmake", "yc"],
+        "extensions": [".yc"],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "yc",
+        "scopeName": "source.yc",
+        "path": "./syntaxes/yc.tmLanguage.json"
+      }
+    ]
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "name": "yc-grammar-test",
+  "private": true,
+  "description": "Headless TextMate verification for the yc grammar.",
+  "scripts": { "test": "node tokenize.js" },
+  "devDependencies": {
+    "vscode-oniguruma": "^2.0.1",
+    "vscode-textmate": "^9.0.0"
+  }
+}
