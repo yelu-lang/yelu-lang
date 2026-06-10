@@ -39,6 +39,15 @@ let eval env e =
 let to_ycn (e : expr) : expr =
   Yelu_cmake_convert.to_normal e
 
+(* ══  introspect  ══════════════════════════════ *)
+
+(* The vocabulary co-truth (Yc_manifest), exposed on the uniform driver
+   interface so external consumers — the tm-grammar generator, the
+   `yelu manifest` CLI, future tools — read it through the driver rather
+   than reaching into Yc_primitives internals. See
+   doc/lang/surface_lsp_framework.md Sec 3.8. *)
+let manifest () : Yc_manifest.entry list = Yc_manifest.all
+
 (* ══  check  ═══════════════════════════════════ *)
 
 (* Typecheck: per-theory Make_*_check functors.

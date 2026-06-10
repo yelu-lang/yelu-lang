@@ -43,6 +43,14 @@ USAGE:
   yelu matrix PROBE_DIR
     Run hybrid for every option in main.json × {ON, OFF}.
     Reports pass/fail per cell; exit 0 if all cells match.
+
+  yelu manifest
+    Print the yc vocabulary manifest (the surface co-truth):
+    one row per token — surface<TAB>class<TAB>tm-scope.
+
+  yelu tmgrammar [-o PATH]
+    Generate the VS Code TextMate grammar (yc.tmLanguage.json) from
+    the manifest. Default PATH: editors/vscode/yc/syntaxes/yc.tmLanguage.json
 |}
 
 (* ============================================================
@@ -535,10 +543,66 @@ let cmd_hybrid ?(source_dir_override = None) manifest_path d_flags =
 (* ============================================================
    Arg dispatch. *)
 
+(* ============================================================
+   manifest / tmgrammar (surface Milestone 0).
+   Generation consumes Yc_driver.manifest — the driver is the boundary.
+   Vocabulary regexes come from Yc_tmgrammar; the structure rules
+   (comments, strings, ${…}/$<…>, numbers, :attrs) are the hand-written
+   template here. See doc/lang/surface_lsp_framework.md Sec 3.8. *)
+
+let default_tmgrammar_path = "editors/vscode/yc/syntaxes/yc.tmLanguage.json"
+
+let tmgrammar_json () : Yojson.Safe.t =
+  let rule ~re ~name = `Assoc [ "match", `String re; "name", `String name ] in
+  (* Structure rules — order matters: comments/strings/interpolation must
+     precede keywords so tokens inside them are not re-scanned; :attr must
+     precede the bare-colon punctuation rule. *)
+  let structure =
+    [ rule ~re:"#.*$"                      ~name:"comment.line.number-sign.yc";
+      rule ~re:"\"(\\\\.|[^\"\\\\])*\""    ~name:"string.quoted.double.yc";
+      rule ~re:"'[^']*'"                   ~name:"string.quoted.single.yc";
+      rule ~re:"\\$\\{[^}]*\\}"            ~name:"variable.other.substitution.yc";
+      rule ~re:"\\$<[^>]*>"                ~name:"variable.other.genex.yc";
+      rule ~re:"\\b[0-9]+\\b"              ~name:"constant.numeric.integer.yc";
+      rule ~re:":[A-Za-z0-9_-]+"           ~name:"entity.other.attribute-name.yc";
+    ]
+  in
+  let vocab =
+    Yelu_langs.Yc_tmgrammar.vocabulary_rules (Yelu_langs.Yc_driver.manifest ())
+    |> List.map ~f:(fun (re, name) -> rule ~re ~name)
+  in
+  `Assoc
+    [ "name", `String "Yelu-cmake";
+      "scopeName", `String "source.yc";
+      "fileTypes", `List [ `String "yc" ];
+      "patterns", `List (structure @ vocab) ]
+
+let cmd_manifest () =
+  List.iter (Yelu_langs.Yc_manifest.to_lines ()) ~f:Stdlib.print_endline
+
+let cmd_tmgrammar out =
+  mkdirp (Stdlib.Filename.dirname out);
+  let json = Yojson.Safe.pretty_to_string (tmgrammar_json ()) in
+  write_all out (json ^ "\n");
+  let n = List.length (Yelu_langs.Yc_tmgrammar.vocabulary_rules
+                         (Yelu_langs.Yc_driver.manifest ())) in
+  Stdlib.Printf.printf "[yelu] wrote %s (%d vocabulary rules)\n%!" out n
+
 let () =
   let args = Sys.get_argv () |> Array.to_list |> List.tl_exn in
   match args with
   | [] | ["-h"] | ["--help"] -> Stdlib.print_string usage
+  | "manifest" :: _ -> cmd_manifest ()
+  | "tmgrammar" :: rest ->
+    let out =
+      let rec find = function
+        | "-o" :: o :: _ -> o
+        | _ :: r -> find r
+        | [] -> default_tmgrammar_path
+      in
+      find rest
+    in
+    cmd_tmgrammar out
   | "compile" :: file :: rest ->
     let out =
       let rec find = function
