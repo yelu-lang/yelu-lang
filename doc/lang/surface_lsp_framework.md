@@ -371,6 +371,46 @@ the manifest, with no dependency on the typed-IR truth.
 5. **Plug ecosystem-semantic into `check`** (§4) — hover types,
    diagnostics, semantic tokens.
 
+### Formatter (`yelu fmt` / LSP formatting) — elaborates steps 1–2
+
+The `.yc` auto-formatter is not a separate component: it *is* `print_ye`
+(step 2), gated on the CST/trivia work (step 1), and later surfaced by the
+LSP formatting provider (step 4) and a `yelu fmt` CLI from the *same*
+engine.
+
+**Comment syntax — decided:** `#` line comment to end of line, the one
+form yc already uses; no block comments. So the trivia model stays simple:
+one comment kind to retain.
+
+**The gate (step 1):** the lexer today *discards* `#…` during
+whitespace-skip, so the AST never sees comments. A formatter that drops
+comments is unacceptable, so the CST work must **tokenize/retain comments
++ spans as trivia** (attached to lines/nodes) before any printing. This is
+the hard prerequisite; everything below is downstream of it.
+
+**Implementation — fixed first, no Doc IR needed (step 2):** v1 is a naive
+*canonical* pretty-print of the AST/CST through OCaml's `Format` boxes at a
+fixed width (80), no options — reusing the exact pattern
+[`Lang_cmake_pp`](../../src/langs/cmake/lang_cmake_pp.ml) already uses for
+cmake. `Format`'s box model *is* the underlying Doc/box layout algebra
+(hovbox ≈ `group`, break hints ≈ `line`, margin ≈ width); it is a bit
+obscure but already proven in this codebase, so v1 needs no bespoke Doc
+type. An explicit Wadler/Leijen **Doc IR** (with `width` / `indent` as the
+only render-time knobs) is an *optional later refinement* — worth it only
+if the box model gets awkward or we want to transform layout before
+rendering. *Style* configurability (break rules, alignment) is
+deliberately omitted: opinionated/canonical formatting fits a low-entropy
+config language (the gofmt stance). [Doc/box algebra is a flagged
+revisit-for-know-how topic.]
+
+**Testable properties (the oracle):**
+- *semantics-preserving:* `parse (format x) ≡ parse x` — formatting changes
+  layout only, never the AST. A round-trip oracle in the same style as
+  lift_lower / the cache oracle.
+- *idempotent:* `format (format x) = format x`.
+
+These give the formatter a cheap, strong test harness from day one.
+
 ## 6. The first LSP slice — a one-theory tracer bullet
 
 Once Milestone 0 ships, the first LSP step. Before committing span
