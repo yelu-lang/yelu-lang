@@ -67,12 +67,27 @@ same retirement discipline as the yelu_cmake byte oracle.
 | ----- | ---- | ------ |
 | M0    | TextMate highlighter | ✅ shipped 2026-06-10 |
 | M1.0  | lexer: lossless located scanner (`lex_located`) | ✅ shipped 2026-06-10 |
-| M1.1  | `cst_lite` type + parser `text → cst_lite` (consume `lex_located`) | ⏳ next |
-| M1.2  | `lower : cst_lite → expr` + emit-bridge oracle over the corpus | ⏳ |
+| M1.1  | `cst_lite` type + parser `text → cst_lite` (consume `lex_located`) | ✅ shipped 2026-06-10 (parses all 11 fmt .yc) |
+| M1.2  | `lower : cst_lite → expr` + emit-bridge oracle over the corpus | ✅ shipped 2026-06-10 (byte-identical on all 11 probe files) |
 | M1.3  | `print_ye` (the formatter) + round-trip / idempotence oracle | ⏳ |
 | M1.4  | statement-level error recovery (partial tree while editing) | ⏳ |
 | M1.5  | LSP shell (`linol`) over `Yc_driver`: diagnostics / hover / format / semantic tokens | ⏳ |
 | —     | retire `parse_ast`; production path is `text → cst → lower → expr` | ⏳ |
+
+## Testing strategy (target, build out over M1.2–M1.3)
+
+Layered coverage for the parse/lower/print round-trips:
+
+- **Exhaustive single-construct round-trips** — one round-trip per
+  length-one expression / construct (each atom, each command shape, each
+  cond op, each control form), so every grammar leaf is covered in
+  isolation. Length-two combinations are valuable but combinatorially
+  large — sample rather than enumerate.
+- **Regression collection** — every bug found (e.g. the `~type:STRING`
+  cache-assign gap) becomes a pinned case. Grow it over time.
+- **Absorb real-world inputs** — harvest test inputs from the probe `.yc`
+  files and real-world cmake corpora (z3/llvm/torch), not just synthetic
+  snippets. The emit-bridge already runs over the probe corpus; widen it.
 
 ## Open decisions / parked
 
