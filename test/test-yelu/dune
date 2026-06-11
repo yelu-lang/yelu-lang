@@ -17,7 +17,8 @@
   test_yelu_utils_stubs
   test_yc_manifest
   test_yc_tmgrammar
-  test_yelu_lex_located)
+  test_yelu_lex_located
+  test_yc_cst_parse)
  (libraries base alcotest angstrom yelu_langs yelu_runner step_common)
  (preprocess
   (pps ppx_jane)))
