@@ -17,8 +17,14 @@ type token =
   | INT of int
   | LBRACE | RBRACE | LBRACK | RBRACK | LPAREN | RPAREN
   | COMMA | SEMI | COLON | DOTDOT | EQ | WALRUS  (* := *) | TILDE  (* ~ *)
+  | COMMENT of string    (* # line comment; body excludes '#' and newline.
+                            Trivia: only emitted by the lossless located
+                            scanner, never by [token_list]. *)
   | EOF
 [@@deriving equal, sexp_of]
+
+(* Source span: byte offsets into the original input, half-open [lo, hi). *)
+type span = { lo : int; hi : int } [@@deriving equal, sexp_of]
 
 (* ============================================================
    Whitespace & comments
@@ -40,7 +46,12 @@ let rec skip () =
   | Some '#' -> advance 1 *> skip_while not_newline *> skip ()
   | Some _ -> return ()
 
-let token p = p <* skip ()
+(* [token] no longer skips trailing trivia — the trailing [skip] moved into
+   [token_list] (below). This leaves every core parser trivia-free, so the
+   lossless located scanner can capture tight spans and the comments
+   between tokens. [token] is kept as the identity wrapper so the per-token
+   definitions read unchanged. *)
+let token p = p
 
 (* ============================================================
    Identifiers & keywords
@@ -209,4 +220,46 @@ let any_token =
   ]
 
 let token_list =
-  skip () *> many any_token
+  skip () *> many (any_token <* skip ())
+
+(* ============================================================
+   Lossless located scanner (for the CST / formatter / LSP)
+
+   Unlike [token_list], this preserves comments — as [COMMENT]
+   trivia tokens — and tags every token with its source [span].
+   It is the front-end the comment-preserving CST will consume;
+   the existing [token_list] / parser path is unchanged.
+   ============================================================ *)
+
+(* Leading-trivia scanner: drop whitespace, emit each `#…` line comment
+   as a located [COMMENT] token. cmake/yelu has no block comments, so a
+   single line-comment form is all the trivia model needs. *)
+let trivia_tokens : (token * span) list Angstrom.t =
+  let rec go acc =
+    pos >>= fun p ->
+    peek_char >>= function
+    | Some c when is_ws c -> advance 1 *> go acc
+    | Some '#' ->
+      advance 1 *> take_while not_newline >>= fun body ->
+      pos >>= fun p2 ->
+      go ((COMMENT body, { lo = p; hi = p2 }) :: acc)
+    | _ -> return (List.rev acc)
+  in
+  go []
+
+(* Tag a core token parser with its tight [span] (no trailing trivia,
+   since [token] no longer skips). *)
+let spanned (p : token Angstrom.t) : (token * span) Angstrom.t =
+  pos >>= fun lo -> p >>= fun t -> pos >>| fun hi -> (t, { lo; hi })
+
+(* Full lossless stream: leading trivia, then (token, following-trivia)*.
+   Every token consumes ≥1 char, so [many] cannot spin. *)
+let located_tokens : (token * span) list Angstrom.t =
+  trivia_tokens >>= fun lead ->
+  many
+    (spanned any_token >>= fun tk ->
+     trivia_tokens >>| fun tr -> tk :: tr)
+  >>| fun rest -> lead @ List.concat rest
+
+let lex_located (input : string) : ((token * span) list, string) Result.t =
+  Angstrom.parse_string ~consume:All located_tokens input
