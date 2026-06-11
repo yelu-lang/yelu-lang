@@ -71,7 +71,9 @@ same retirement discipline as the yelu_cmake byte oracle.
 | M1.2  | `lower : cst_lite → expr` + emit-bridge oracle over the corpus | ✅ shipped 2026-06-10 (byte-identical on all 11 probe files) |
 | M1.3  | `print_ye` (the formatter) + round-trip / idempotence oracle | ✅ shipped 2026-06-10 (`yelu fmt`; round-trip+idempotent+comments on all 11 probe files) |
 | M1.4  | statement-level error recovery (partial tree while editing) | ⏸ **deferred into M1.5** — only the LSP consumes partial trees; the formatter is already fail-safe (parse error → no overwrite). Do the light top-level version when the LSP needs it. |
-| M1.5  | LSP shell (`linol`) over `Yc_driver`: diagnostics / hover / format / semantic tokens | ⏳ (new dep: `linol` — confirm before starting) |
+| M1.5a | LSP server (`linol-lwt`): `textDocument/formatting` (via `Yc_driver.format`) + parse diagnostics + fail-safe | ✅ shipped 2026-06-10 (`src/bin/yelu_lsp/`; manually verified over JSON-RPC; built against the yojson-3 linol fork @ lsp 1.26) |
+| M1.5c | VS Code client wiring (`vscode-languageclient`) to launch `yelu-lsp` — deploy locally; enables format-on-save | ⏳ next |
+| M1.5b | richer diagnostics (parse error spans) + hover / semantic tokens | ⏳ |
 | —     | retire `parse_ast`; production path is `text → cst → lower → expr` | ⏳ |
 
 ## Testing strategy (target, build out over M1.2–M1.3)
