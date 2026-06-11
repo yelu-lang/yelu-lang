@@ -1,8 +1,39 @@
-# yc — VS Code syntax highlighting
+# yc — VS Code support for yelu-cmake
 
-TextMate-grammar syntax highlighting for yelu-cmake (`.yc`) files. This is
-**Milestone 0** of the surface/LSP track — a server-less highlighter; no
-language server yet. Design: [`doc/lang/surface_lsp_framework.md`](../../../doc/lang/surface_lsp_framework.md).
+TextMate-grammar **highlighting** plus a **language server** (`yelu-lsp`)
+providing **formatting** and **parse diagnostics** for yelu-cmake (`.yc`)
+files. Design: [`doc/lang/surface_lsp_framework.md`](../../../doc/lang/surface_lsp_framework.md).
+
+## Language server (formatting + diagnostics)
+
+The extension launches `yelu-lsp` and connects it to `.yc` documents.
+
+**Prerequisite — build the server:**
+
+```sh
+dune build src/bin/yelu_lsp/
+```
+
+The extension finds the binary at
+`<workspace>/_build/default/src/bin/yelu_lsp/yelu_lsp.exe` by default
+(so opening the yelu repo + building just works), or at the absolute path
+in the `yc.server.path` setting.
+
+**Use it:**
+
+- **Diagnostics** appear in the Problems panel as you edit (parse errors).
+- **Format:** right-click → *Format Document* (or `Shift+Alt+F`). The edit
+  is exactly `yelu fmt` — and it is **fail-safe**: if the file doesn't
+  parse, formatting returns no edits (never corrupts the buffer).
+- **Format on save:** add to settings —
+  ```json
+  "[yc]": { "editor.formatOnSave": true }
+  ```
+  Save then calls the server's `textDocument/formatting`.
+
+> The extension uses `vscode-languageclient` (installed via `npm install`
+> in this folder, bundled into the `.vsix`). After `dune build`, reload the
+> window to pick up a rebuilt server.
 
 ## Enable it
 

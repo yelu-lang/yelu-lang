@@ -1,13 +1,15 @@
 {
   "name": "yc",
   "displayName": "Yelu-cmake (yc)",
-  "description": "Syntax highlighting for yelu-cmake (.yc) source files.",
-  "version": "0.0.1",
+  "description": "Syntax highlighting + language server (formatting, diagnostics) for yelu-cmake (.yc) files.",
+  "version": "0.1.0",
   "publisher": "yelu-lang",
   "license": "MIT",
   "repository": { "type": "git", "url": "https://github.com/yelu-lang/yelu-lang" },
-  "engines": { "vscode": "^1.75.0" },
+  "engines": { "vscode": "^1.82.0" },
   "categories": ["Programming Languages"],
+  "main": "./extension.js",
+  "activationEvents": ["onLanguage:yc"],
   "contributes": {
     "languages": [
       {
@@ -23,6 +25,19 @@
         "scopeName": "source.yc",
         "path": "./syntaxes/yc.tmLanguage.json"
       }
-    ]
+    ],
+    "configuration": {
+      "title": "Yelu-cmake (yc)",
+      "properties": {
+        "yc.server.path": {
+          "type": "string",
+          "default": "",
+          "description": "Absolute path to the yelu-lsp server binary. If empty, the extension looks for _build/default/src/bin/yelu_lsp/yelu_lsp.exe under the first workspace folder."
+        }
+      }
+    }
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
   }
 }
