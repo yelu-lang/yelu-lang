@@ -596,14 +596,20 @@ let () =
   let args = Sys.get_argv () |> Array.to_list |> List.tl_exn in
   match args with
   | [] | ["-h"] | ["--help"] -> Stdlib.print_string usage
-  | "fmt" :: file :: rest ->
-    let src = read_all file in
-    (match Yelu_langs.Yc_driver.format src with
-     | Error e -> Stdlib.Printf.eprintf "fmt: %s: %s\n" file e; Stdlib.exit 1
-     | Ok out ->
-       let out = out ^ "\n" in
-       if List.mem rest "-w" ~equal:String.equal then write_all file out
-       else Stdlib.print_string out)
+  | "fmt" :: rest ->
+    let write = List.mem rest "-w" ~equal:String.equal in
+    let files = List.filter rest ~f:(fun a -> not (String.is_prefix a ~prefix:"-")) in
+    (match files with
+     | [] -> Stdlib.Printf.eprintf "fmt: no input file\n"; Stdlib.exit 1
+     | file :: _ when not (Stdlib.Sys.file_exists file) ->
+       Stdlib.Printf.eprintf "fmt: %s: no such file\n" file; Stdlib.exit 1
+     | file :: _ ->
+       (match Yelu_langs.Yc_driver.format (read_all file) with
+        (* parse failure → never overwrite; the formatter is fail-safe *)
+        | Error e -> Stdlib.Printf.eprintf "fmt: %s: %s\n" file e; Stdlib.exit 1
+        | Ok out ->
+          let out = out ^ "\n" in
+          if write then write_all file out else Stdlib.print_string out))
   | "manifest" :: _ -> cmd_manifest ()
   | "tmgrammar" :: rest ->
     let out =
