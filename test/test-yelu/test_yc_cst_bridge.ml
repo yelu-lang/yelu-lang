@@ -71,7 +71,33 @@ let corpus =
     "some_unknown_cmd \"a\" \"b\"";
   ]
 
+(* Comment placement: the formatter preserves `#` comments and places them
+   by source span — leading, between, inside-block (correct indent), and
+   trailing — and is idempotent + comment-count-preserving across a
+   re-parse. *)
+let test_comment_placement =
+  Alcotest.test_case "comment placement + preservation" `Quick (fun () ->
+    let src =
+      "# leading\nmessage 'a';\n# between\nif defined X then (\n# inside\n\
+       message 'b'\n);\nmessage 'c'\n# trailing" in
+    let fmt s =
+      match Cstp.parse s with
+      | Ok c -> Yelu_langs.Yc_cst_print.print_program c
+      | Error e -> Alcotest.failf "parse %S: %s" s e
+    in
+    let out = fmt src in
+    let expected =
+      "# leading\nmessage 'a';\n# between\nif defined X then (\n  # inside\n\
+      \  message 'b'\n);\nmessage 'c'\n# trailing\n" in
+    Alcotest.(check string) "placement" expected out;
+    (* idempotent + comments survive re-parse *)
+    Alcotest.(check string) "idempotent" out (fmt out);
+    (match Cstp.parse out with
+     | Ok c -> Alcotest.(check int) "4 comments preserved" 4 (List.length c.comments)
+     | Error e -> Alcotest.failf "reparse: %s" e))
+
 let () =
   Alcotest.run "yc_cst_bridge"
     [ "bridge", List.map corpus ~f:bridge;
-      "roundtrip", List.map corpus ~f:roundtrip ]
+      "roundtrip", List.map corpus ~f:roundtrip;
+      "comments", [ test_comment_placement ] ]

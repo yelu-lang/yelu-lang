@@ -71,6 +71,28 @@ let rec pr_cond b (c : Cst.cond) =
 (* space-separated list with a leading separator before each item *)
 let pr_spaced b ~f items = List.iter items ~f:(fun x -> Buffer.add_char b ' '; f b x)
 
+(* Comment placement: the program-level comments (sorted by source offset)
+   are flushed at each statement boundary as the traversal advances — a
+   comment lands just before the statement that follows it in source
+   order, at that statement's indent (so nesting is respected, since inner
+   statements are visited in source order via DFS). Single CLI use, so a
+   module ref is fine; reset per print_program. *)
+let pending : Yc_cst.comment list ref = ref []
+let clo (c : Yc_cst.comment) = c.Yc_cst.span.Yelu_lexer.lo
+let slo (s : Yc_cst.stmt) = s.Yc_cst.span.Yelu_lexer.lo
+
+let flush_before b indent (lo : int) =
+  let rec go () =
+    match !pending with
+    | c :: rest when clo c < lo ->
+      pending := rest;
+      Buffer.add_string b indent;
+      Buffer.add_char b '#'; Buffer.add_string b c.Yc_cst.text; Buffer.add_char b '\n';
+      go ()
+    | _ -> ()
+  in
+  go ()
+
 let rec pr_stmt b indent (s : Cst.stmt) =
   match s.node with
   | S_command { name; args } ->
@@ -136,13 +158,21 @@ and pr_block b indent (stmts : Cst.block) =
     Buffer.add_string b "(\n";
     List.iteri stmts ~f:(fun i s ->
       if i > 0 then Buffer.add_string b ";\n";
+      flush_before b inner (slo s);
       Buffer.add_string b inner;
       pr_stmt b inner s);
     Buffer.add_char b '\n'; Buffer.add_string b indent; Buffer.add_char b ')'
 
 let print_program (p : Cst.program) : string =
   let b = Buffer.create 512 in
+  pending :=
+    List.sort p.comments ~compare:(fun a b -> Int.compare (clo a) (clo b));
   List.iteri p.stmts ~f:(fun i s ->
     if i > 0 then Buffer.add_string b ";\n";
+    flush_before b "" (slo s);
     pr_stmt b "" s);
+  (* trailing comments after the last statement *)
+  (match !pending with
+   | [] -> ()
+   | _ -> Buffer.add_char b '\n'; flush_before b "" Int.max_value);
   Buffer.contents b
