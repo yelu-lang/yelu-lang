@@ -1,0 +1,3 @@
+(executable
+ (name yelu_lsp)
+ (libraries linol linol-lwt lsp yelu_langs))
