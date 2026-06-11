@@ -25,6 +25,23 @@ let bridge src =
     Alcotest.(check string) "emit(lower cst) == emit(ast)"
       (emit_ast src) (emit_cst src))
 
+(* print round-trip + idempotence: printing the CST, re-parsing, and
+   re-emitting must reproduce the original emit; printing is idempotent. *)
+let roundtrip src =
+  Alcotest.test_case src `Quick (fun () ->
+    match Cstp.parse src with
+    | Error e -> Alcotest.failf "cst-parse %S: %s" src e
+    | Ok c1 ->
+      let printed = Yelu_langs.Yc_cst_print.print_program c1 in
+      (match Cstp.parse printed with
+       | Error e -> Alcotest.failf "reparse of printed %S failed: %s\n%s" src e printed
+       | Ok c2 ->
+         Alcotest.(check string) "emit after round-trip == emit(ast)"
+           (emit_ast src)
+           (Emit.emit_script (Lower.lower_program c2));
+         Alcotest.(check string) "print idempotent"
+           printed (Yelu_langs.Yc_cst_print.print_program c2)))
+
 let corpus =
   [ (* commands across families *)
     "policy_set CMP0074 NEW";
@@ -55,4 +72,6 @@ let corpus =
   ]
 
 let () =
-  Alcotest.run "yc_cst_bridge" [ "bridge", List.map corpus ~f:bridge ]
+  Alcotest.run "yc_cst_bridge"
+    [ "bridge", List.map corpus ~f:bridge;
+      "roundtrip", List.map corpus ~f:roundtrip ]

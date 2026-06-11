@@ -25,9 +25,19 @@ let compile_to_cmake_ast (e : expr) : Lang_cmake.exp =
 let print_cmake_debug (e : expr) : string =
   Yelu_cmake_emit_debug.emit_script e
 
-(* → .yc text: not implemented *)
+(* → .yc text from an [expr]: not implemented — the faithful formatter is
+   text→text (it needs the CST's comments/structure, which [expr] drops).
+   See [format] below and doc/lang/surface_status.md (M1.3). *)
 let print_yc _e =
-  failwith "yc_driver.print_yc: not implemented"
+  failwith "yc_driver.print_yc: not implemented (use [format] / text→CST→text)"
+
+(* The .yc formatter (print_ye): text → canonical text, via the CST.
+   parse_cst then print; semantics-preserving + idempotent (oracles in
+   test_yc_cst_bridge). *)
+let format (src : string) : (string, string) Result.t =
+  match Yc_cst_parse.parse src with
+  | Ok cst -> Ok (Yc_cst_print.print_program cst)
+  | Error e -> Error e
 
 (* ══  eval  ════════════════════════════════════ *)
 

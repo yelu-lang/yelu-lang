@@ -1,0 +1,148 @@
+(* yc_cst_print — print yc_cst back to canonical .yc text (M1.3, the
+   formatter / print_ye).
+
+   Naive fixed pretty-print: one statement per line, blocks indented two
+   spaces, no line-width wrapping (an explicit Doc IR / width knob is a
+   later refinement — see surface_lsp_framework.md § Formatter). Generic
+   over the uniform command + the bespoke forms; correctness is measured
+   at the emit level by the round-trip oracle
+   (emit(lower(parse(print cst))) == emit(lower cst)), not exact text.
+
+   Comment placement (the program-level span side-list) lands in M1.3b. *)
+
+open Base
+module Cst = Yc_cst
+
+(* escape backslash and double-quote for a "..."-path literal *)
+let esc_double s =
+  String.concat_map s ~f:(function
+    | '\\' -> "\\\\"
+    | '"' -> "\\\""
+    | c -> String.of_char c)
+
+(* A name is safe to print bare iff it is an eval (`${…}` / `$<…>`) or a
+   plain identifier; anything else (e.g. `fmt::fmt-c`, which would re-lex
+   as two colons) must be double-quoted to round-trip. *)
+let is_bare_name n =
+  (not (String.is_empty n))
+  && (String.is_prefix n ~prefix:"$"
+      || String.for_all n ~f:(fun c ->
+           Char.is_alphanum c || Char.equal c '_' || Char.equal c '-'))
+
+let rec pr_atom b (a : Cst.atom) =
+  match a with
+  | A_name n -> Buffer.add_string b n
+  | A_string s -> Buffer.add_char b '\''; Buffer.add_string b s; Buffer.add_char b '\''
+  | A_path s -> Buffer.add_char b '"'; Buffer.add_string b (esc_double s); Buffer.add_char b '"'
+  | A_eval s -> Buffer.add_string b s
+  | A_bool true -> Buffer.add_string b "ON"
+  | A_bool false -> Buffer.add_string b "OFF"
+  | A_int n -> Buffer.add_string b (Int.to_string n)
+  | A_keyword s -> Buffer.add_char b ':'; Buffer.add_string b s
+  | A_target n ->
+    Buffer.add_string b "target ";
+    if is_bare_name n then Buffer.add_string b n
+    else (Buffer.add_char b '"'; Buffer.add_string b (esc_double n); Buffer.add_char b '"')
+  | A_paren a -> Buffer.add_string b "( "; pr_atom b a; Buffer.add_string b " )"
+
+let pr_arg b (arg : Cst.arg) =
+  match arg with
+  | Pos a -> pr_atom b a
+  | Kw (k, v) ->
+    Buffer.add_char b '~'; Buffer.add_string b k; Buffer.add_char b ':'; pr_atom b v
+  | Kw_flag k -> Buffer.add_char b '~'; Buffer.add_string b k
+  | Kw_list (k, items) ->
+    Buffer.add_char b '~'; Buffer.add_string b k; Buffer.add_string b ":[ ";
+    List.iter items ~f:(fun a -> pr_atom b a; Buffer.add_char b ' ');
+    Buffer.add_char b ']'
+
+let rec pr_cond b (c : Cst.cond) =
+  match c with
+  | C_app (op, args) ->
+    Buffer.add_string b op;
+    List.iter args ~f:(fun a -> Buffer.add_char b ' '; pr_atom b a)
+  | C_not c -> Buffer.add_string b "not "; pr_cond b c
+  | C_and (a, b') -> pr_cond b a; Buffer.add_string b " and "; pr_cond b b'
+  | C_or (a, b') -> pr_cond b a; Buffer.add_string b " or "; pr_cond b b'
+  | C_paren c -> Buffer.add_string b "( "; pr_cond b c; Buffer.add_string b " )"
+  | C_target a -> Buffer.add_string b "target "; pr_atom b a
+  | C_expr a -> pr_atom b a
+
+(* space-separated list with a leading separator before each item *)
+let pr_spaced b ~f items = List.iter items ~f:(fun x -> Buffer.add_char b ' '; f b x)
+
+let rec pr_stmt b indent (s : Cst.stmt) =
+  match s.node with
+  | S_command { name; args } ->
+    Buffer.add_string b name;
+    pr_spaced b ~f:pr_arg args
+  | S_flow Break -> Buffer.add_string b "break"
+  | S_flow Continue -> Buffer.add_string b "continue"
+  | S_flow Return -> Buffer.add_string b "return"
+  | S_block stmts -> pr_block b indent stmts
+  | S_assign { cache; name; values; kwargs; docstring; parent_scope } ->
+    if cache then Buffer.add_string b "cache ";
+    Buffer.add_string b name; Buffer.add_string b " :=";
+    List.iteri values ~f:(fun i a ->
+      Buffer.add_string b (if i = 0 then " " else ", "); pr_atom b a);
+    Option.iter docstring ~f:(fun d ->
+      Buffer.add_string b " "; pr_atom b (A_string d));
+    List.iter kwargs ~f:(fun (k, v) ->
+      Buffer.add_string b " ~"; Buffer.add_string b k; Buffer.add_char b ':'; pr_atom b v);
+    if parent_scope then Buffer.add_string b " PARENT_SCOPE"
+  | S_let { var; ty; value; body } ->
+    Buffer.add_string b "let "; Buffer.add_string b var;
+    Option.iter ty ~f:(fun t -> Buffer.add_string b " : "; Buffer.add_string b t);
+    Buffer.add_string b " = "; pr_atom b value; Buffer.add_string b " in ";
+    pr_stmt b indent body
+  | S_while { cond; body } ->
+    Buffer.add_string b "while "; pr_cond b cond; Buffer.add_char b ' ';
+    pr_block b indent body
+  | S_function { name; params; body } ->
+    Buffer.add_string b "fun "; Buffer.add_string b name;
+    Buffer.add_char b '('; Buffer.add_string b (String.concat ~sep:", " params);
+    Buffer.add_string b ") "; pr_block b indent body
+  | S_macro { name; params; body } ->
+    Buffer.add_string b "macro "; Buffer.add_string b name;
+    Buffer.add_char b '('; Buffer.add_string b (String.concat ~sep:", " params);
+    Buffer.add_string b ") "; pr_block b indent body
+  | S_if { cond; then_; else_ } ->
+    Buffer.add_string b "if "; pr_cond b cond; Buffer.add_string b " then ";
+    pr_block b indent then_;
+    (match else_ with
+     | None -> ()
+     | Some (Else_block eb) -> Buffer.add_string b " else "; pr_block b indent eb
+     | Some (Else_if s) -> Buffer.add_string b " else "; pr_stmt b indent s)
+  | S_foreach { var; iter; body } ->
+    Buffer.add_string b "foreach "; Buffer.add_string b var; Buffer.add_string b " in ";
+    (match iter with
+     | F_range { start; stop } ->
+       Buffer.add_string b "RANGE ";
+       Option.iter start ~f:(fun s -> Buffer.add_string b (Int.to_string s); Buffer.add_string b " .. ");
+       Buffer.add_string b (Int.to_string stop)
+     | F_lists lists -> Buffer.add_string b "LISTS "; Buffer.add_string b (String.concat ~sep:" " lists)
+     | F_items items ->
+       Buffer.add_char b '[';
+       List.iter items ~f:(fun a -> Buffer.add_char b ' '; pr_atom b a);
+       Buffer.add_string b " ]");
+    Buffer.add_char b ' '; pr_block b indent body
+
+(* `(\n  stmt;\n  stmt\n<indent>)` *)
+and pr_block b indent (stmts : Cst.block) =
+  match stmts with
+  | [] -> Buffer.add_string b "(  )"
+  | _ ->
+    let inner = indent ^ "  " in
+    Buffer.add_string b "(\n";
+    List.iteri stmts ~f:(fun i s ->
+      if i > 0 then Buffer.add_string b ";\n";
+      Buffer.add_string b inner;
+      pr_stmt b inner s);
+    Buffer.add_char b '\n'; Buffer.add_string b indent; Buffer.add_char b ')'
+
+let print_program (p : Cst.program) : string =
+  let b = Buffer.create 512 in
+  List.iteri p.stmts ~f:(fun i s ->
+    if i > 0 then Buffer.add_string b ";\n";
+    pr_stmt b "" s);
+  Buffer.contents b

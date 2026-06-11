@@ -91,6 +91,13 @@ Layered coverage for the parse/lower/print round-trips:
 
 ## Open decisions / parked
 
+- **Revisit the driver interface (non-urgent).** Once parse/lower/print
+  stabilize, the "language components" view shifts: the CST becomes a
+  first-class form, so `parse` is really `text → CST → lower`, `print_ye`
+  is `CST → text`, and `Yc_driver` / [`../yelu_cmake/driver.md`](../yelu_cmake/driver.md)
+  (the pipelines graph + op matrix) should be updated to reflect
+  text ↔ CST ↔ expr rather than text ↔ expr. Do after M1.3; not a hurry.
+
 - **Token-stream formatter shortcut** — could ship canonical formatting
   over `lex_located` before the CST (indent by paren/brace depth, break at
   `;`, keep `COMMENT`s), but comment placement is heuristic and it's a

@@ -40,6 +40,23 @@ let bridge_file f =
     | Ok a, Ok c -> Alcotest.(check string) "emit(lower cst) == emit(ast)" a c
     | Error e, _ | _, Error e -> Alcotest.failf "%s: %s" f e)
 
+(* print round-trip + idempotence over the real corpus *)
+let roundtrip_file f =
+  Alcotest.test_case f `Quick (fun () ->
+    let src = read_all f in
+    let ref_emit = match emit_ast src with Ok a -> a | Error e -> Alcotest.failf "%s: %s" f e in
+    match Yelu_langs.Yc_cst_parse.parse src with
+    | Error e -> Alcotest.failf "%s cst-parse: %s" f e
+    | Ok c1 ->
+      let printed = Yelu_langs.Yc_cst_print.print_program c1 in
+      (match Yelu_langs.Yc_cst_parse.parse printed with
+       | Error e -> Alcotest.failf "%s reparse-of-print: %s" f e
+       | Ok c2 ->
+         Alcotest.(check string) "emit after round-trip == emit(ast)" ref_emit
+           (Yelu_langs.Yelu_cmake_emit.emit_script (Yelu_langs.Yc_cst_lower.lower_program c2));
+         Alcotest.(check string) "print idempotent" printed
+           (Yelu_langs.Yc_cst_print.print_program c2)))
+
 let () =
   let files =
     if Stdlib.Sys.file_exists "probes" then List.sort ~compare:String.compare (find_yc "probes")
@@ -48,4 +65,5 @@ let () =
   Stdlib.Printf.printf "[cst-bridge] %d .yc files under probes/\n%!"
     (List.length files);
   Alcotest.run "yc_cst_bridge_probes"
-    [ "probe-corpus", List.map files ~f:bridge_file ]
+    [ "emit-bridge", List.map files ~f:bridge_file;
+      "print-roundtrip", List.map files ~f:roundtrip_file ]

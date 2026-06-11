@@ -44,6 +44,10 @@ USAGE:
     Run hybrid for every option in main.json × {ON, OFF}.
     Reports pass/fail per cell; exit 0 if all cells match.
 
+  yelu fmt FILE [-w]
+    Format a .yc file (canonical pretty-print). Prints to stdout;
+    -w rewrites FILE in place.
+
   yelu manifest
     Print the yc vocabulary manifest (the surface co-truth):
     one row per token — surface<TAB>class<TAB>tm-scope.
@@ -592,6 +596,14 @@ let () =
   let args = Sys.get_argv () |> Array.to_list |> List.tl_exn in
   match args with
   | [] | ["-h"] | ["--help"] -> Stdlib.print_string usage
+  | "fmt" :: file :: rest ->
+    let src = read_all file in
+    (match Yelu_langs.Yc_driver.format src with
+     | Error e -> Stdlib.Printf.eprintf "fmt: %s: %s\n" file e; Stdlib.exit 1
+     | Ok out ->
+       let out = out ^ "\n" in
+       if List.mem rest "-w" ~equal:String.equal then write_all file out
+       else Stdlib.print_string out)
   | "manifest" :: _ -> cmd_manifest ()
   | "tmgrammar" :: rest ->
     let out =
