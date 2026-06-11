@@ -171,6 +171,25 @@ TextMate grammar + `language-configuration.json`. We are already in VS
 Code, so the client is trivial. Later: bundle the binary into the
 extension for distribution.
 
+**Shipped (M1.5a/M1.5c, 2026-06-10).** Concrete deployment, verified
+working in-editor:
+
+- Server: [`src/bin/yelu_lsp/`](../../src/bin/yelu_lsp/) — a `linol-lwt`
+  server over stdio (`linol`/`lsp`/`jsonrpc` 1.26 via the yojson-3 linol
+  fork pinned at `/home/red/code/contrib/linol`). Built with
+  `dune build src/bin/yelu_lsp/`.
+- Client: [`editors/vscode/yc/extension.js`](../../editors/vscode/yc/)
+  (plain CommonJS, not TS) using `vscode-languageclient` — spawns the
+  server and resolves its path from the `yc.server.path` setting, else
+  `<workspace>/_build/default/src/bin/yelu_lsp/yelu_lsp.exe`.
+- Deploy locally: `dune build src/bin/yelu_lsp/` →
+  `code --install-extension <yc-x.y.z.vsix>` → Reload Window. Open a
+  `.yc`: diagnostics in the Problems panel; *Format Document* and
+  `"[yc]": {"editor.formatOnSave": true}` route through the server's
+  `textDocument/formatting` (the `Yc_driver.format` / `yelu fmt` engine),
+  fail-safe (parse error → no edits). Full steps + settings in the
+  extension [README](../../editors/vscode/yc/README.md) § "Language server".
+
 ### 3.7 Testing → at the driver-op level, with Alcotest
 
 Do **not** test through JSON-RPC (that is `linol`'s code, not ours). Test
