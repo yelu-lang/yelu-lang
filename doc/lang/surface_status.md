@@ -69,7 +69,7 @@ same retirement discipline as the yelu_cmake byte oracle.
 | M1.0  | lexer: lossless located scanner (`lex_located`) | ✅ shipped 2026-06-10 |
 | M1.1  | `cst_lite` type + parser `text → cst_lite` (consume `lex_located`) | ✅ shipped 2026-06-10 (parses all 11 fmt .yc) |
 | M1.2  | `lower : cst_lite → expr` + emit-bridge oracle over the corpus | ✅ shipped 2026-06-10 (byte-identical on all 11 probe files) |
-| M1.3  | `print_ye` (the formatter) + round-trip / idempotence oracle | ⏳ |
+| M1.3  | `print_ye` (the formatter) + round-trip / idempotence oracle | ✅ shipped 2026-06-10 (`yelu fmt`; round-trip+idempotent+comments on all 11 probe files) |
 | M1.4  | statement-level error recovery (partial tree while editing) | ⏳ |
 | M1.5  | LSP shell (`linol`) over `Yc_driver`: diagnostics / hover / format / semantic tokens | ⏳ |
 | —     | retire `parse_ast`; production path is `text → cst → lower → expr` | ⏳ |
