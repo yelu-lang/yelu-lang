@@ -75,14 +75,23 @@ those. Re-fmt the corpus; emit-bridge + matrix confirm.
 
 Status: **confirmed, not yet implemented.**
 
-### 2. Unify the keyword mechanisms → one form
+### 2. Unify the keyword mechanisms → casing lanes + `~` modifiers
 
-Pick a single surface for "named modifier" and route the three current
-ones through it. Candidate: the `~kw` / `~kw:val` form everywhere, with
-`yelu fmt` rewriting bare `BEFORE`/`SYSTEM` flags and `:PUBLIC` visibility
-into it (or vice-versa). Needs a design pass: section markers like
-`COMMAND`/`OUTPUT` introduce *groups* of args, not single modifiers, so
-they may not collapse cleanly into `~kw`. Status: **design needed.**
+The real problem (corpus-grounded): the form is assigned *per-command*, so
+the same concept appears in 2–3 forms (output-var as `OUTPUT_VARIABLE` *and*
+`~out:`; type as `:STATIC`/`:STRING` *and* `~type:`; mode as `:NAME_WE` *and*
+`~mode:NAME_WE`). Fix: surface form = a function of the token's *role*.
+
+**Enum-choice half — designed (2026-06-12), see
+[`casing_design.md`](casing_design.md).** Enum choices become leading-cap
+constructors (`Public`, no colon); cmake globals become dotted lowercase
+(`$cmake.version`); locals stay lowercase; reserved-word shadowing is a hard
+reject (Y14). All surface transforms — emit is exact cmake — fmt-canonicalized.
+
+**`~`-modifier half — still deferred.** Flags (`~system`), named values
+(`~out:`), and especially bracket-groups (`~command:[…]`) — the last needs a
+per-keyword *arity* table in the parser (which keyword is flag / value /
+group), the real work. Status: **design partial; `~`/group deferred.**
 
 ### 3. Single string syntax — ✅ **done (2026-06-12)**
 

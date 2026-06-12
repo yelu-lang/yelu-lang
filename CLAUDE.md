@@ -163,6 +163,7 @@ Total unit: 655. Total cmake-backed: 40.
 | `doc/lang/surface_status.md`          | Living tracker for the surface track (highlighter→formatter→LSP): phases, CST-lite migration via emit-bridge oracle |
 | `doc/lang/yc_syntax_critique.md`      | yc surface-syntax critique + per-item improvement plan (impl-1: implicit `target`; keyword unification; string-quote unification; `$foo` brace-elision sugar) |
 | `doc/lang/var_centric_design.md`      | Postponed direction: value-default reads (bare `foo` = value, name explicit). Belongs in ycn not yc; ties to tc_name / Y17; needs a frequency study |
+| `doc/lang/casing_design.md`           | Settled (deferred behind parser): identifier casing lanes — enum constructors `Public` (no colon, table emit), cmake globals `$cmake.version` (dotted→`UPPER_SNAKE`, tableless), locals `$x` verbatim, oddball escape; Y14 hard-reject on reserved-word shadowing; fmt-canonicalized. The enum-choice half of critique #2 |
 | `doc/cmake/painpoints.md`            | 27 documented cmake pain points                     |
 | `doc/cmake/comparison.md`            | cmake PL properties, equivalence levels             |
 | `doc/cmake/policy.md`                | cmake policy system, CMP* history                   |
