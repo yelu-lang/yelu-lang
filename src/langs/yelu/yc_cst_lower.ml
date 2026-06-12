@@ -135,6 +135,9 @@ let cmake_op_names =
    p_stmt_inner_y1's order + guards, with raw fallback. *)
 let lower_command (name : string) (args : Cst.arg list) : expr =
   let pos, kwargs = convert_args args in
+  (* Implicit target (syntax #1) is applied inside p_target_command_y1_inner,
+     which both this CST path and the legacy parser call — single source of
+     truth, so both stay consistent. *)
   let raw () = ECmakeRawCmd { name = cmake_name_of_yelu name; args = pos } in
   let via inner = match inner name pos kwargs with Some e -> e | None -> raw () in
   let prefix p = String.is_prefix name ~prefix:p in

@@ -15,7 +15,7 @@ if not ${BROKEN_LTO} and ver_gt ${CMAKE_VERSION} "3.8" then (
 );
 add_subdirectory "../.." "fmt";
 set_property target fmt PROPERTY POSITION_INDEPENDENT_CODE ON;
-add_lib target library-test "library.cc" ~type:SHARED;
-link_lib target library-test :PRIVATE "fmt::fmt";
-add_exe target exe-test "main.cc";
-link_lib target exe-test :PRIVATE "library-test"
+add_lib library-test "library.cc" ~type:SHARED;
+link_lib library-test :PRIVATE "fmt::fmt";
+add_exe exe-test "main.cc";
+link_lib exe-test :PRIVATE "library-test"

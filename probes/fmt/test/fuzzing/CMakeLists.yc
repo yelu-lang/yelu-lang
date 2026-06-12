@@ -1,15 +1,15 @@
 fun add_fuzzer(source) (
   get_filename_component ${source} ~mode:NAME_WE ~out:basename;
   name := "${basename}-fuzzer";
-  add_exe target ${name} "fuzzer-common.h" ${source};
+  add_exe ${name} "fuzzer-common.h" ${source};
   if ${FMT_FUZZ_LINKMAIN} then (
-    target_sources target ${name} :PRIVATE "main.cc"
+    target_sources ${name} :PRIVATE "main.cc"
   );
-  link_lib target ${name} :PRIVATE "fmt";
+  link_lib ${name} :PRIVATE "fmt";
   if ${FMT_FUZZ_LDFLAGS} then (
-    link_lib target ${name} :PRIVATE ${FMT_FUZZ_LDFLAGS}
+    link_lib ${name} :PRIVATE ${FMT_FUZZ_LDFLAGS}
   );
-  compile_feats target ${name} :PRIVATE 'cxx_std_14'
+  compile_feats ${name} :PRIVATE 'cxx_std_14'
 );
 cache FMT_FUZZ_LINKMAIN := ON 'Enables the reproduce mode, instead of libFuzzer';
 cache FMT_FUZZ_LDFLAGS := "" 'LDFLAGS for the fuzz targets';

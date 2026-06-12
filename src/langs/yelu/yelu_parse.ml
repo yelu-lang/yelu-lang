@@ -770,6 +770,18 @@ let p_target_command_y1_inner name args kwargs =
     then Some (ECmakeRawCmd { name = cmake_name_of_yelu name; args })
     else Some (target_groups_to_y1 ctor items)
   in
+  (* Implicit target (syntax #1): the first positional arg of a target
+     command is a target, with or without the explicit `target` tag. Coerce
+     it to ETarget here so both the CST path and the legacy parser agree.
+     Idempotent for an already-tagged `target fmt`; correct for literal
+     (`fmt`→`fmt`) and dynamic (`${tgt}`→`${tgt}`) names. The list excludes
+     add_custom_command/add_custom_target (their first arg isn't a target
+     expr). *)
+  let args =
+    if List.mem Yc_cst.target_first_arg_commands name ~equal:String.equal then
+      match args with (EVar s | EString s) :: rest -> ETarget s :: rest | a -> a
+    else args
+  in
   match name, args with
   | "add_exe", name_arg :: sources ->
     Some (ECmakeAddExecutable { name = name_arg; sources })

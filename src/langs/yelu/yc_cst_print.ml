@@ -56,6 +56,24 @@ let pr_arg b (arg : Cst.arg) =
     List.iter items ~f:(fun a -> pr_atom b a; Buffer.add_char b ' ');
     Buffer.add_char b ']'
 
+(* The first positional arg of a target command: print the target NAME
+   without the `target` tag (syntax #1; lowering re-tags it). *)
+let rec target_name_of (a : Cst.atom) : string =
+  match a with
+  | A_target n | A_name n | A_string n | A_path n | A_eval n | A_keyword n -> n
+  | A_int n -> Int.to_string n
+  | A_bool true -> "ON"
+  | A_bool false -> "OFF"
+  | A_paren a -> target_name_of a
+
+let pr_target_first b (arg : Cst.arg) =
+  match arg with
+  | Pos a ->
+    let n = target_name_of a in
+    if is_bare_name n then Buffer.add_string b n
+    else (Buffer.add_char b '"'; Buffer.add_string b (esc_double n); Buffer.add_char b '"')
+  | _ -> pr_arg b arg (* first arg should be positional; defensive *)
+
 let rec pr_cond b (c : Cst.cond) =
   match c with
   | C_app (op, args) ->
@@ -97,7 +115,12 @@ let rec pr_stmt b indent (s : Cst.stmt) =
   match s.node with
   | S_command { name; args } ->
     Buffer.add_string b name;
-    pr_spaced b ~f:pr_arg args
+    if Cst.is_target_first_arg_command name then
+      (match args with
+       | first :: rest ->
+         Buffer.add_char b ' '; pr_target_first b first; pr_spaced b ~f:pr_arg rest
+       | [] -> ())
+    else pr_spaced b ~f:pr_arg args
   | S_flow Break -> Buffer.add_string b "break"
   | S_flow Continue -> Buffer.add_string b "continue"
   | S_flow Return -> Buffer.add_string b "return"

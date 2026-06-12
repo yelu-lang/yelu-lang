@@ -36,9 +36,18 @@
 
 ## Improvement items (one-by-one)
 
-### 1. Implicit target — drop the `target` tag — **confirmed, ready**
+### 1. Implicit target — drop the `target` tag — ✅ **done (2026-06-12)**
 
 `compile_opts target fmt :PRIVATE …` → `compile_opts fmt :PRIVATE …`.
+
+**Shipped.** The coercion lives in the shared `p_target_command_y1_inner`
+(both the legacy parser and the CST lowering call it, so they stay
+consistent — the lesson the bridge taught: production still compiles via
+the legacy parser, so a single-path change isn't enough). The printer omits
+the `target` tag for these commands; the corpus was re-`fmt`'d (the tag
+vanished from ~30 sites). Verified: emit-bridge green, legacy parser (280)
++ compile-oracle (193) green, **fmt matrix 24/24**. The list lives in
+`Yc_cst.target_first_arg_commands`.
 
 **Confirmed (2026-06-12):** the first positional argument is a target for
 *every* target-family command **except `add_custom_command`** (which takes
@@ -75,12 +84,17 @@ into it (or vice-versa). Needs a design pass: section markers like
 `COMMAND`/`OUTPUT` introduce *groups* of args, not single modifiers, so
 they may not collapse cleanly into `~kw`. Status: **design needed.**
 
-### 3. Single string syntax → drop `'`/`"`
+### 3. Single string syntax → drop `'`/`"`  — **TODO**
+
+> **TODO (deferred).** Unify the two string syntaxes. Design needed before
+> implementation.
 
 The `Ycs_path` vs `Ycs_string` distinction is cmake-internal; the author
 shouldn't pick quotes. Option: one quote (`"…"`), infer path-ness from
 position/command, or make it a non-surface concern. Needs care — the
-distinction does affect some emit. Status: **design needed.**
+distinction does affect some emit, so the design pass must map exactly
+which emit sites depend on the path-vs-string tag before collapsing it.
+Status: **TODO — design needed.**
 
 ### 4. `${}` noise — defend (optional sugar later)
 

@@ -1,4 +1,4 @@
-add_lib target fmt-in-cuda-test "cuda-cpp14.cu" "cpp14.cc" ~type:SHARED;
+add_lib fmt-in-cuda-test "cuda-cpp14.cu" "cpp14.cc" ~type:SHARED;
 list_append "CUDA_NVCC_FLAGS" '-std=c++14';
 if ${MSVC} then (
   list_append "CUDA_NVCC_FLAGS" '-Xcompiler' '/std:c++14';
@@ -6,7 +6,7 @@ if ${MSVC} then (
 );
 cuda_add_executable fmt-in-cuda-test "cuda-cpp14.cu" "cpp14.cc";
 set_target_properties target fmt-in-cuda-test PROPERTIES CUDA_SEPARABLE_COMPILATION ON;
-compile_feats target fmt-in-cuda-test :PRIVATE 'cxx_std_14';
+compile_feats fmt-in-cuda-test :PRIVATE 'cxx_std_14';
 if ${MSVC} then (
   set_property SOURCE "cuda-cpp14.cu" APPEND PROPERTY COMPILE_OPTIONS "-Xcompiler" "/std:c++14" "-Xcompiler" "/Zc:__cplusplus";
   set_property SOURCE "cpp14.cc" APPEND PROPERTY COMPILE_OPTIONS "/std:c++14" "/Zc:__cplusplus"
@@ -15,4 +15,4 @@ get_target_property IN_USE_CUDA_STANDARD target fmt-in-cuda-test CUDA_STANDARD;
 message "cuda_standard: ${IN_USE_CUDA_STANDARD}";
 get_target_property IN_USE_CUDA_STANDARD_REQUIRED target fmt-in-cuda-test CUDA_STANDARD_REQUIRED;
 message "cuda_standard_required: ${IN_USE_CUDA_STANDARD_REQUIRED}";
-target_link_libraries target fmt-in-cuda-test :PUBLIC "fmt::fmt"
+target_link_libraries fmt-in-cuda-test :PUBLIC "fmt::fmt"

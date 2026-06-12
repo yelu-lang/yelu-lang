@@ -81,3 +81,24 @@ and block = stmt list
 type comment = { text : string; span : span } [@@deriving sexp_of]
 
 type program = { stmts : stmt list; comments : comment list } [@@deriving sexp_of]
+
+(* Surface metadata: commands whose first positional argument is a target
+   (`Ns_target`). For these the `target` tag is implicit — the lowering
+   auto-tags the first arg, and the printer omits the tag. Excluded:
+   `add_custom_command` (first arg is `OUTPUT files`, not a target) and
+   `add_custom_target` (its constructor takes the name as a plain string,
+   not a target expr, and it is already written bare). See
+   doc/lang/yc_syntax_critique.md item 1. *)
+let target_first_arg_commands =
+  [ "add_exe"; "add_lib"; "add_lib_alias";
+    "link_lib"; "target_link_libraries";
+    "include_dirs"; "target_include_directories";
+    "compile_defs"; "target_compile_definitions";
+    "compile_opts"; "target_compile_options";
+    "compile_feats"; "target_compile_features";
+    "link_opts"; "target_link_options";
+    "link_dirs"; "target_link_directories";
+    "target_sources" ]
+
+let is_target_first_arg_command name =
+  Base.List.mem target_first_arg_commands name ~equal:Base.String.equal
