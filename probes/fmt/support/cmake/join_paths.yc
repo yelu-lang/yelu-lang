@@ -1,5 +1,5 @@
-function join_paths(joined_path, first_path_segment) (
-  temp_path := "${first_path_segment}"
+fun join_paths(joined_path, first_path_segment) (
+  temp_path := "${first_path_segment}";
   foreach current_segment in LISTS ARGN (
     if not str_eq "${current_segment}" "" then (
       if is_abs "${current_segment}" then (
@@ -8,6 +8,6 @@ function join_paths(joined_path, first_path_segment) (
         temp_path := "${temp_path}/${current_segment}"
       )
     )
-  )
+  );
   set "${joined_path}" "${temp_path}" PARENT_SCOPE
 )

@@ -1,19 +1,16 @@
-add_lib Target gtest "gmock-gtest-all.cc" "gmock/gmock.h" "gtest/gtest.h" "gtest/gtest-spi.h" ~type:STATIC;
-
-  compile_defs Target gtest :PUBLIC 'GTEST_HAS_STD_WSTRING=1';
-  include_dirs Target gtest :PUBLIC "." ~system;
-  compile_feats Target gtest :PUBLIC 'cxx_std_11';
-
-  find_package "Threads";
-  if ${Threads_FOUND} then (
-    link_lib Target gtest :PUBLIC ${CMAKE_THREAD_LIBS_INIT}
-  ) else (
-    compile_defs Target gtest :PUBLIC 'GTEST_HAS_PTHREAD=0'
-  );
-
-  if ${MSVC} then (
-    compile_defs Target gtest :PRIVATE '_CRT_SECURE_NO_WARNINGS';
-    if match ${CMAKE_CXX_COMPILER_ID} "Clang" then (
-      compile_opts Target gtest :PUBLIC '-Wno-deprecated-declarations'
-    )
+add_lib target gtest "gmock-gtest-all.cc" "gmock/gmock.h" "gtest/gtest.h" "gtest/gtest-spi.h" ~type:STATIC;
+compile_defs target gtest :PUBLIC 'GTEST_HAS_STD_WSTRING=1';
+include_dirs target gtest :PUBLIC "." ~system;
+compile_feats target gtest :PUBLIC 'cxx_std_11';
+find_package "Threads";
+if ${Threads_FOUND} then (
+  link_lib target gtest :PUBLIC ${CMAKE_THREAD_LIBS_INIT}
+) else (
+  compile_defs target gtest :PUBLIC 'GTEST_HAS_PTHREAD=0'
+);
+if ${MSVC} then (
+  compile_defs target gtest :PRIVATE '_CRT_SECURE_NO_WARNINGS';
+  if match ${CMAKE_CXX_COMPILER_ID} "Clang" then (
+    compile_opts target gtest :PUBLIC '-Wno-deprecated-declarations'
   )
+)

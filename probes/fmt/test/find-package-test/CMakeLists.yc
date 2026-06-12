@@ -1,15 +1,13 @@
 cmake_minimum_required VERSION "3.8...3.25";
-  project "fmt-test";
-  find_package "FMT" REQUIRED;
-
-  add_exe Target library-test "main.cc";
-  link_lib Target library-test :PUBLIC "fmt::fmt";
-  compile_opts Target library-test :PRIVATE ${PEDANTIC_COMPILE_FLAGS};
-  include_dirs Target library-test :PUBLIC "." ~system;
-
-  if target Target "fmt::fmt-header-only" then (
-    add_exe Target header-only-test "main.cc";
-    link_lib Target header-only-test :PUBLIC "fmt::fmt-header-only";
-    compile_opts Target header-only-test :PRIVATE ${PEDANTIC_COMPILE_FLAGS};
-    include_dirs Target header-only-test :PUBLIC "." ~system
-  )
+project "fmt-test";
+find_package "FMT" REQUIRED;
+add_exe target library-test "main.cc";
+link_lib target library-test :PUBLIC "fmt::fmt";
+compile_opts target library-test :PRIVATE ${PEDANTIC_COMPILE_FLAGS};
+include_dirs target library-test :PUBLIC "." ~system;
+if target target "fmt::fmt-header-only" then (
+  add_exe target header-only-test "main.cc";
+  link_lib target header-only-test :PUBLIC "fmt::fmt-header-only";
+  compile_opts target header-only-test :PRIVATE ${PEDANTIC_COMPILE_FLAGS};
+  include_dirs target header-only-test :PUBLIC "." ~system
+)
