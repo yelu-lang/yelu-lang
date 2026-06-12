@@ -1,4 +1,4 @@
-# cmake deref semantics — `foo` vs `${foo}` vs `"${foo}"`
+# cmake variable references — `foo` vs `${foo}` vs `"${foo}"`
 
 > Empirically resolved against **cmake 4.3.1** (`cmake -P`), in the style of
 > [`cache_semantics.md`](cache_semantics.md). Answers: how do the three
@@ -7,18 +7,37 @@
 > "string interpolation with a single name reference" — this doc shows that
 > is sound only for scalar, non-empty values.
 
-> **Terminology.** "deref" is loose shorthand here. `${foo}` is *not* a
-> dereference (no pointer / ref-cell to follow, as OCaml `!foo` / C `*p`);
-> cmake has no reference type. It is **variable expansion** — substitute the
-> token with the *string value* bound to `foo` (cmake's own term:
-> *variable reference*). Bare `foo` is the **literal** `foo` in argument
-> position — so cmake *inverts* the usual convention (bare = literal, `${}`
-> = read; the opposite of Python/most languages). Nesting `${${foo}}` gives
-> *computed-name indirection*, still substitution, not pointer-following.
-> Two **orthogonal** axes hide under "deref": *read-vs-literal* (does the
-> text contain `${…}`?) and *quoted-vs-unquoted* (does the expansion split
-> on `;`?). Only the second is a representation gap — hence the IR node is
-> `EUnquoted` (the quoting axis), not `EDeref`.
+## Model — `$` is expansion, `"…"` is quote, and quoting is compositional
+
+"deref" is the wrong word; the precise model has two **primitive operations**
+and one **wrapper**, and they compose.
+
+- **`$` — variable expansion**, a map `name (bare string) → value`. This shape
+  is rare in ordinary languages: there, a bare identifier *is* the lookup.
+  cmake inverts it — **bare `foo` is the literal string `"foo"`**, and you
+  must write `$` to read. Two ways to read `$`: (a) *metaprogramming* — the
+  name is data, and a computed name can be looked up (`${${foo}}` is "look up
+  the variable whose name is the value of `foo`"); (b) an **explicit global
+  dict** `string → value` with `$` as its lookup operator. cmake is (b) at
+  runtime with the (a) flavor that the key may itself be computed. It is *not*
+  a dereference — there is no ref cell to follow (cf. OCaml `!foo`, C `*p`).
+- **`"…"` — quote / string construction**: turn text into one string value,
+  *keeping `;` literal* (so the result is one argument, never split).
+- **String interpolation is compositional, not a primitive.** `"${foo}"` is
+  **not** a standalone form to case on — it is `quote(interpolate(…))`, and
+  the interpolation can hold *any* number of expansions and literal text:
+  `"${foo} -- ${bar}"`. So the IR must store the *content* as interpolated
+  text and treat **quoting as a separate wrapper**, never match the exact
+  shape `${IDENT}` as a unit (that "primitive" reading can't represent
+  `"${foo} -- ${bar}"`, and it is the trap yc fell into — see below).
+
+So the three surface forms decompose as: bare `foo` = literal text; `${foo}`
+= *unquoted* interpolated text (splits on `;`); `"${foo}"` = *quoted*
+interpolated text (one arg). The only thing the production IR dropped is the
+**quoted/unquoted wrapper bit** — the interpolated content was always carried
+as a string. Hence the new node names the *quoting* axis (`EUnquoted`, the
+`quoted=false` sibling of `EString`), and both nodes hold arbitrary
+interpolated text.
 
 ## Methodology
 
@@ -185,12 +204,17 @@ typing (a typed target slot fixes arity). Ground truth is pinned in
 [`test/test_deref_probes.py`](../../test/test_deref_probes.py).
 
 **Representation: a sibling constructor `EUnquoted of string`** (the
-"quoted=false" companion of `EString`). It holds the **verbatim** text and
-emits it **unquoted** — it does *not* subst-resolve (that's what sank the
-`EVar` route: `EVar` is a compile-time binding → `message ${bar}` →
-`message(STATUS "")`). A flag on `EString` is cleaner in theory but
-`EString of string` is pattern-matched in too many places to re-arity; a
-sibling constructor is the minimal encoding of the bit.
+"quoted=false" companion of `EString`). Per the compositional model above,
+the constructor encodes only the **quoting wrapper**; the string it holds is
+the **verbatim interpolated content** — arbitrary literal text + `${…}`
+expansions (`${a} -- ${b}` is fine), *not* a lone name. So we add a wrapper
+bit, not a `${IDENT}` primitive. It emits **unquoted** and does *not*
+subst-resolve — that is what sank the `EVar` route: `EVar` is yc's
+*compile-time* binding (a different namespace from cmake's runtime `${}`
+lookup), so `message ${bar}` resolved to `message(STATUS "")`. A flag on
+`EString` is cleaner in theory but `EString of string` is pattern-matched in
+too many places to re-arity; a sibling constructor is the minimal encoding of
+the bit.
 
 **Layer-by-layer changes:**
 
@@ -201,7 +225,7 @@ sibling constructor is the minimal encoding of the bit.
 | `yelu_parse.p_expr_y1` | `EVAL s` (non-genex) → `EUnquoted s` (was `EString`) |
 | `yelu_cmake_emit` | `EUnquoted s` → `C.Bare s` (unquoted) in **every** position arm (arg / cond / value); `EString` stays quoted |
 | `yelu_cmake_eval` | `EUnquoted` evals like `EString` (substitute the text); **list-splitting deferred** (the relaxed axis) — note it |
-| `yelu_cmake_from_emit.arg_to_expr` | use the cmake arg's quote: `C.Bare` deref → `EUnquoted`, `C.Quoted` → `EString` (this is where the bit comes *from* cmake; today it goes through `unwrap_var_ref → e_var`) |
+| `yelu_cmake_from_emit.arg_to_expr` | use the cmake arg's quote: `C.Bare` → `EUnquoted`, `C.Quoted` → `EString`, **content preserved verbatim**. Stop the `unwrap_var_ref → e_var` collapse: matching `${IDENT}` → `EVar` is the *primitive trap* — it conflates a runtime expansion with a compile-time binding *and* can't represent `${a} -- ${b}`. |
 | byte-oracle goldens | review/regen cases where an unquoted-source deref flips `"${X}"` → `${X}` |
 | CST / printer | unchanged (already carry the distinction) |
 

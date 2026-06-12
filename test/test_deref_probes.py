@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Empirical cmake deref-semantics probes — `foo` vs `${foo}` vs `"${foo}"`.
 
-Covers the combination space from doc/cmake/deref_semantics.md:
+Covers the combination space from doc/cmake/var_reference_semantics.md:
   {bare, unquoted, quoted} x {scalar, list, empty} x {arg, if-truth, if-typed}
 (the {conf-time, run-time} value axis is relaxed — these run cmake, so the
 value is always known; the yc-side prediction is a separate, later pipeline.)
@@ -170,7 +170,7 @@ def main():
           eval_if(lst, '"${foo}" VERSION_LESS "2.0"') in ("T", "F"))
 
     if failures:
-        print(f"\n{len(failures)} probe(s) DIVERGED from doc/cmake/deref_semantics.md")
+        print(f"\n{len(failures)} probe(s) DIVERGED from doc/cmake/var_reference_semantics.md")
         sys.exit(1)
     print("\nall deref probes match the documented semantics")
 
