@@ -96,11 +96,28 @@ distinction does affect some emit, so the design pass must map exactly
 which emit sites depend on the path-vs-string tag before collapsing it.
 Status: **TODO — design needed.**
 
-### 4. `${}` noise — defend (optional sugar later)
+### 4. `${}` noise — defend; lighten with `$foo` sugar
 
-Keep `${X}` as the explicit read; it's correctness, not an accident.
-Possible later sugar: bare names in *condition/value position* where a
-read is unambiguous. Low priority. Status: **parked (defend).**
+Keep the *explicit read* — it's correctness, not an accident (and
+`EVarLookup` just made it more principled). Two threads came out of the
+2026-06-12 discussion:
+
+- **Brace-elision sugar (active candidate).** Accept `$foo` as a lighter
+  spelling of `${foo}` for a plain identifier (shell convention). Pure
+  surface: the lexer normalizes `$foo` → the same `${foo}` token, so the
+  IR / emit are byte-identical (cmake always receives `${foo}`); the
+  formatter may print the lighter form for simple names. Braces stay
+  required for nested / adjacent-text / in-string cases. Low-risk; reduces
+  visual density without touching semantics. Status: **proposed.**
+- **Value-default inversion (postponed).** Making bare `foo` = the value
+  (name explicit) is a bigger, separate idea — it belongs in *ycn*, not
+  yc, and needs a frequency study first. Captured in
+  [`var_centric_design.md`](var_centric_design.md). Status: **postponed.**
+
+### 5. Minor — property lists, cache docstring
+
+`set_target_properties` could take a property record; cache could use a
+`~doc:` kwarg instead of a bare positional string. Status: **parked.**
 
 ### 5. Minor — property lists, cache docstring
 
