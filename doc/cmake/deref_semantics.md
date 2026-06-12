@@ -7,6 +7,19 @@
 > "string interpolation with a single name reference" — this doc shows that
 > is sound only for scalar, non-empty values.
 
+> **Terminology.** "deref" is loose shorthand here. `${foo}` is *not* a
+> dereference (no pointer / ref-cell to follow, as OCaml `!foo` / C `*p`);
+> cmake has no reference type. It is **variable expansion** — substitute the
+> token with the *string value* bound to `foo` (cmake's own term:
+> *variable reference*). Bare `foo` is the **literal** `foo` in argument
+> position — so cmake *inverts* the usual convention (bare = literal, `${}`
+> = read; the opposite of Python/most languages). Nesting `${${foo}}` gives
+> *computed-name indirection*, still substitution, not pointer-following.
+> Two **orthogonal** axes hide under "deref": *read-vs-literal* (does the
+> text contain `${…}`?) and *quoted-vs-unquoted* (does the expansion split
+> on `;`?). Only the second is a representation gap — hence the IR node is
+> `EUnquoted` (the quoting axis), not `EDeref`.
+
 ## Methodology
 
 Two `cmake -P` probes, reported via `message()`. The key subtlety: the
@@ -171,7 +184,7 @@ relaxed), structural (arg vs if — already in emit), or inferable from slot
 typing (a typed target slot fixes arity). Ground truth is pinned in
 [`test/test_deref_probes.py`](../../test/test_deref_probes.py).
 
-**Representation: a sibling constructor `EDeref of string`** (the
+**Representation: a sibling constructor `EUnquoted of string`** (the
 "quoted=false" companion of `EString`). It holds the **verbatim** text and
 emits it **unquoted** — it does *not* subst-resolve (that's what sank the
 `EVar` route: `EVar` is a compile-time binding → `message ${bar}` →
@@ -183,16 +196,16 @@ sibling constructor is the minimal encoding of the bit.
 
 | layer | change |
 | --- | --- |
-| `yelu_cmake.ml` (expr) | add `EDeref of string` |
-| `yc_cst_lower.lower_atom` | `A_eval s` → `EDeref s` (was `EString`); `A_path`/`A_string` → `EString` (quoted); `$<…>` → `ECmakeGenex` (unchanged) |
-| `yelu_parse.p_expr_y1` | `EVAL s` (non-genex) → `EDeref s` (was `EString`) |
-| `yelu_cmake_emit` | `EDeref s` → `C.Bare s` (unquoted) in **every** position arm (arg / cond / value); `EString` stays quoted |
-| `yelu_cmake_eval` | `EDeref` evals like `EString` (substitute the text); **list-splitting deferred** (the relaxed axis) — note it |
-| `yelu_cmake_from_emit.arg_to_expr` | use the cmake arg's quote: `C.Bare` deref → `EDeref`, `C.Quoted` → `EString` (this is where the bit comes *from* cmake; today it goes through `unwrap_var_ref → e_var`) |
+| `yelu_cmake.ml` (expr) | add `EUnquoted of string` |
+| `yc_cst_lower.lower_atom` | `A_eval s` → `EUnquoted s` (was `EString`); `A_path`/`A_string` → `EString` (quoted); `$<…>` → `ECmakeGenex` (unchanged) |
+| `yelu_parse.p_expr_y1` | `EVAL s` (non-genex) → `EUnquoted s` (was `EString`) |
+| `yelu_cmake_emit` | `EUnquoted s` → `C.Bare s` (unquoted) in **every** position arm (arg / cond / value); `EString` stays quoted |
+| `yelu_cmake_eval` | `EUnquoted` evals like `EString` (substitute the text); **list-splitting deferred** (the relaxed axis) — note it |
+| `yelu_cmake_from_emit.arg_to_expr` | use the cmake arg's quote: `C.Bare` deref → `EUnquoted`, `C.Quoted` → `EString` (this is where the bit comes *from* cmake; today it goes through `unwrap_var_ref → e_var`) |
 | byte-oracle goldens | review/regen cases where an unquoted-source deref flips `"${X}"` → `${X}` |
 | CST / printer | unchanged (already carry the distinction) |
 
-**Verification:** emit-text unit test (`EDeref`→unquoted, `EString`→quoted);
+**Verification:** emit-text unit test (`EUnquoted`→unquoted, `EString`→quoted);
 emit-bridge stays green (change legacy + CST together); byte-oracle goldens
 reviewed; fmt matrix 24/24 (scalar-safe); the cmake probes as ground truth.
 Full list-splitting-reaches-the-build verification → the deferred File-API
