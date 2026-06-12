@@ -168,6 +168,7 @@ Total unit: 655. Total cmake-backed: 40.
 | `doc/cmake/genex.md`                 | Generator expressions design                        |
 | `doc/cmake/script.md`                | cmake -P script vs configure mode                   |
 | `doc/cmake/cache_semantics.md`       | Cmake cache vs normal variable namespace            |
+| `doc/cmake/deref_semantics.md`       | `foo` vs `${foo}` vs `"${foo}"` empirics (cmake 4.3.1): arity/split/elision rules + yc unsoundness (always-quotes, cache-invisible) |
 | `doc/cmake/scope_and_control_flow.md` | Block / return / PARENT_SCOPE / macro semantics    |
 | `doc/cmake/equiv_research.md`        | Z3 / e-graph equivalence research prompts           |
 | `probes/README.md`                | Probe cluster intro: real-world cmake projects as predictor testbeds; per-project + methodology layout |
