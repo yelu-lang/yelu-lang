@@ -31,6 +31,11 @@ type error =
   | Apply_shadows_primitive of {
       name : string;
     }
+  (* Y14 — a variable declaration whose name shadows an enum constructor
+     (case-insensitively). Fatal at the compile boundary (see compile_yc);
+     the capitalized form is already blocked at the lexer, this catches the
+     lowercase/mixed shadow (`set public := …`). See casing_design.md. *)
+  | Enum_shadow of { name : string; constructor : string }
   | Raw_cmake_escape of { text : string; reason : string }
 [@@deriving sexp_of]
 
@@ -126,6 +131,36 @@ let check_apply_shadowing e =
   in
   walk [] e
 
+(* ── check_enum_shadow (Y14) ───────────────────── *)
+
+(* A variable / cache / option / let DECLARATION must not shadow an enum
+   constructor: `set public := …` reads as the `Public` choice and is always
+   a mistake. Case-insensitive ([is_known_constr] uppercases); the capitalized
+   `set Public` is already a parse error (the lexer tokenizes `Public` as the
+   KEYWORD), so together no variable can shadow an enum in any case. *)
+let check_enum_shadow e =
+  let chk name acc =
+    if Yelu_lexer.is_known_constr name
+    then
+      Enum_shadow
+        { name; constructor = String.capitalize (String.lowercase name) }
+      :: acc
+    else acc
+  in
+  let rec walk acc e =
+    let acc =
+      match e with
+      | ESetVar (name, _) -> chk name acc
+      | ECmakeSetParentScope { name; _ } -> chk name acc
+      | ECmakeSetCache { name; _ } -> chk name acc
+      | ECmakeOption { name; _ } -> chk name acc
+      | ELet { var; _ } -> chk var acc
+      | _ -> acc
+    in
+    walk_children walk acc e
+  in
+  walk [] e
+
 (* ── check_raw_tainted ─────────────────────────── *)
 
 let check_raw_tainted e =
@@ -144,4 +179,5 @@ let check_raw_tainted e =
 let check_all e =
   check_reserved_names e
   @ check_apply_shadowing e
+  @ check_enum_shadow e
   @ check_raw_tainted e

@@ -127,6 +127,14 @@ let compile_yc ?(wellform = true) ?(warn = fun _ -> ()) file =
       match Yelu_langs.Yc_wellform.check_all expr with
       | [] -> ()
       | errors ->
+        (* Y14: enum-constructor shadowing is fatal (reject), not a warning. *)
+        List.iter errors ~f:(function
+          | Yelu_langs.Yc_wellform.Enum_shadow { name; constructor } ->
+            Stdlib.Printf.eprintf
+              "yelu compile: %s: variable %S shadows the %s constructor; rename it\n"
+              file name constructor;
+            Stdlib.exit 1
+          | _ -> ());
         let raw_escapes, others =
           List.partition_tf errors ~f:(function
             | Yelu_langs.Yc_wellform.Raw_cmake_escape _ -> true

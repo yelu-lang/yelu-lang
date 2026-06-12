@@ -139,9 +139,18 @@ errored (except the Y14 reserved-word collision, which is a real mistake).
   The `~type:` *syntax* is untouched — only the value casing. Quoted `'STRING'`
   args (to the `set_verbose` helper) correctly stay strings. 655 tests, matrix
   24/24, idempotent.
-- Next: **dotted globals** (`$cmake.version`, needs `.` in `$`-reads), then
-  **Y14** reject. The CamelCase enums (`AnyNewerVersion`) still need the
-  per-theory *table* (uppercase ≠ cmake casing), unlike these all-caps ones.
+- **Y14 reject ✅ (2026-06-12).** A variable / cache / option / let
+  *declaration* whose name shadows an enum constructor (case-insensitive) is
+  a **fatal** compile error — `set public := …` → "shadows the Public
+  constructor; rename it". `Yc_wellform.check_enum_shadow` produces a distinct
+  `Enum_shadow` error which `compile_yc` treats as fatal (other wellform
+  findings stay warnings). The capitalized `set Public` is already a *parse*
+  error (lexer → KEYWORD), so together no variable shadows an enum in any
+  case. Reachable case = the lowercase/mixed shadow. Tested in
+  `test_yc_wellform`.
+- Next: **dotted globals** (`$cmake.version`, needs `.` in `$`-reads). The
+  CamelCase enums (`AnyNewerVersion`) still need the per-theory *table*
+  (uppercase ≠ cmake casing), unlike these all-caps ones.
 
 Each step follows the proven pattern: accept old forms, `fmt` canonicalizes,
 emit-bridge + matrix confirm the emitted cmake is byte-unchanged.
