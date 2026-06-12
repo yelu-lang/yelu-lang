@@ -57,6 +57,11 @@ against the local cmake and asserts the tables below.
 | `abc` | **TRUE** (var set) | **FALSE** (`abc` not a var/const) | **FALSE** |
 | `bar` (→ `ON`) | **TRUE** | **TRUE** (`if(bar)` re-derefs) | **FALSE** (quoted, CMP0054) |
 
+**Typed conditions** (`if(<v> VERSION_LESS …)` / `STREQUAL …`): a scalar
+agrees quoted/unquoted, but an **unquoted list** operand is a **parse
+error** — it splits into too many operands (`if(1 5 VERSION_LESS 2.0)`),
+so a list-valued var *must* be quoted in a typed condition.
+
 ## Lattice (argument position)
 
 How the three forms relate, by the cmake arguments they produce — read like
@@ -149,25 +154,50 @@ property*, not a cache entry — a **cache-invisible** effect (fmt flags
 deferred **behavior-level oracle (File API codemodel-v2)** would. So this
 is a real latent unsoundness, currently masked.
 
-**Fix direction (investigated 2026-06-12 — needs a new IR node).** The
-distinction collapses at *parse*: `${foo}` (EVAL) and `"${foo}"` (PATH)
-both become `EString "${foo}"`, and `EString` emits always-quoted. The
-obvious fixes do **not** work:
+## Root cause + implementation plan (bring the quoted-bit back)
 
-- map pure `${foo}` → **`EVar`**: `EVar` is a yc *compile-time binding*
-  that subst-resolves at emit — `message ${bar}` then emits
-  `message(STATUS "")`, **losing the deref**. So `${foo}` ≠ `EVar`.
-- **`ECmakeRaw`**: emits `C.Quote` (quoted) — not unquoted.
+**Root cause — an AST flaw, not cmake's dynamics.** cmake keeps a
+quoted-vs-unquoted bit on every argument; yc's *production* IR
+(`Yelu_cmake.expr`) dropped it — `EString of string` is always-quoted, and
+both `${foo}` (EVAL) and `"${foo}"` (PATH) collapse to it at parse. The bit
+*exists* one layer out: the **CST** distinguishes `A_eval` / `A_path` /
+`A_string`, and the legacy typed AST had `yc_string = Ycs_eval | Ycs_path |
+…`. So `lower_atom` (CST→expr) is exactly where it's lost. The fix restores
+fidelity yc had, not something beyond cmake.
 
-No existing node represents an *unquoted cmake-runtime deref*. The proper
-fix is a **new IR node** (e.g. `EDeref of string`) that emits `${foo}`
-**verbatim + unquoted in every position** and **splits on `;` in eval**.
-Blast radius: emit (all positions), eval (list-split), the cmake→yc bridge
-(`from_emit.unwrap_var_ref` already detects pure `${IDENT}` — it would
-build `EDeref` instead of `e_var`), and the byte-oracle goldens. Verify
-with a unit test on emitted text (unquoted-in → unquoted-out) + the File-API
-behavior oracle (the cache-matrix is blind to it). Medium-sized; pairs with
-standing up that oracle.
+**Combination coverage.** Only the **quoted/unquoted** axis is a
+representation gap; the others are runtime (value shape, conf/run-time —
+relaxed), structural (arg vs if — already in emit), or inferable from slot
+typing (a typed target slot fixes arity). Ground truth is pinned in
+[`test/test_deref_probes.py`](../../test/test_deref_probes.py).
+
+**Representation: a sibling constructor `EDeref of string`** (the
+"quoted=false" companion of `EString`). It holds the **verbatim** text and
+emits it **unquoted** — it does *not* subst-resolve (that's what sank the
+`EVar` route: `EVar` is a compile-time binding → `message ${bar}` →
+`message(STATUS "")`). A flag on `EString` is cleaner in theory but
+`EString of string` is pattern-matched in too many places to re-arity; a
+sibling constructor is the minimal encoding of the bit.
+
+**Layer-by-layer changes:**
+
+| layer | change |
+| --- | --- |
+| `yelu_cmake.ml` (expr) | add `EDeref of string` |
+| `yc_cst_lower.lower_atom` | `A_eval s` → `EDeref s` (was `EString`); `A_path`/`A_string` → `EString` (quoted); `$<…>` → `ECmakeGenex` (unchanged) |
+| `yelu_parse.p_expr_y1` | `EVAL s` (non-genex) → `EDeref s` (was `EString`) |
+| `yelu_cmake_emit` | `EDeref s` → `C.Bare s` (unquoted) in **every** position arm (arg / cond / value); `EString` stays quoted |
+| `yelu_cmake_eval` | `EDeref` evals like `EString` (substitute the text); **list-splitting deferred** (the relaxed axis) — note it |
+| `yelu_cmake_from_emit.arg_to_expr` | use the cmake arg's quote: `C.Bare` deref → `EDeref`, `C.Quoted` → `EString` (this is where the bit comes *from* cmake; today it goes through `unwrap_var_ref → e_var`) |
+| byte-oracle goldens | review/regen cases where an unquoted-source deref flips `"${X}"` → `${X}` |
+| CST / printer | unchanged (already carry the distinction) |
+
+**Verification:** emit-text unit test (`EDeref`→unquoted, `EString`→quoted);
+emit-bridge stays green (change legacy + CST together); byte-oracle goldens
+reviewed; fmt matrix 24/24 (scalar-safe); the cmake probes as ground truth.
+Full list-splitting-reaches-the-build verification → the deferred File-API
+behavior oracle (the cache-matrix is blind to it — this is its first
+client).
 
 ## Related
 
