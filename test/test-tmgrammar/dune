@@ -1,0 +1,16 @@
+; Freshness lock (a co-truth lock for a *generated file*): the committed
+; TextMate grammar must byte-match `yelu tmgrammar` output. So a manifest /
+; constr_names change that isn't followed by a regenerate fails the build.
+; Fix: `dune promote` (updates the committed json), or re-run
+;   dune exec src/bin/yelu/yelu.exe -- tmgrammar
+(rule
+ (target yc.tmLanguage.json.gen)
+ (deps ../../src/bin/yelu/yelu.exe)
+ (action
+  (with-stdout-to yc.tmLanguage.json.gen
+   (run ../../src/bin/yelu/yelu.exe tmgrammar --stdout))))
+
+(rule
+ (alias runtest)
+ (action
+  (diff ../../editors/vscode/yc/syntaxes/yc.tmLanguage.json yc.tmLanguage.json.gen)))

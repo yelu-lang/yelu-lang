@@ -19,4 +19,3 @@ add_lib library-test 'library.cc' ~type:SHARED;
 link_lib library-test Private 'fmt::fmt';
 add_exe exe-test 'main.cc';
 link_lib exe-test Private 'library-test'
-

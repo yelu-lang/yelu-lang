@@ -611,6 +611,9 @@ let () =
           let out = out ^ "\n" in
           if write then write_all file out else Stdlib.print_string out))
   | "manifest" :: _ -> cmd_manifest ()
+  | "tmgrammar" :: rest when List.mem rest "--stdout" ~equal:String.equal ->
+    (* print the grammar to stdout (for the freshness diff rule) *)
+    Stdlib.print_string (Yojson.Safe.pretty_to_string (tmgrammar_json ()) ^ "\n")
   | "tmgrammar" :: rest ->
     let out =
       let rec find = function
