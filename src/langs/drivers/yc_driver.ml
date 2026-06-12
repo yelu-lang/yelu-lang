@@ -17,6 +17,24 @@ let parse_cmake (stmts : Lang_cmake.exp list) : expr =
 let parse_ycn (e : expr) : expr =
   Yelu_cmake_convert.from_normal e
 
+(* ══  cst_lite form  (text ↔ cst_lite ↔ expr) ══
+   The concrete-syntax tree that carries comments + source spans
+   ([Yc_cst]). It is the substrate for the formatter (print_ye) and the
+   LSP. Note: [parse_yc] above is still the production text→expr path; the
+   CST path here is proven byte-identical to it via the emit-bridge oracle
+   (emit of lower_cst.parse_cst equals emit of parse_yc, in the
+   test_yc_cst_bridge tests), but has not yet replaced it (that retirement
+   is deferred work; see doc/lang/surface_status.md). *)
+
+let parse_cst (src : string) : (Yc_cst.program, string) result =
+  Yc_cst_parse.parse src
+
+let lower_cst (p : Yc_cst.program) : expr =
+  Yc_cst_lower.lower_program p
+
+let print_cst (p : Yc_cst.program) : string =
+  Yc_cst_print.print_program p
+
 (* ══  print / compile  ═════════════════════════ *)
 
 let compile_to_cmake_ast (e : expr) : Lang_cmake.exp =

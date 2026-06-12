@@ -2,10 +2,13 @@
 
 Each language in the yelu ecosystem has a driver module in
 [`src/langs/drivers/`](../../src/langs/drivers/) that exports a uniform
-set of operations: **parse**, **print**, **eval**, **compile**, **check**.
+set of operations: **parse**, **print**, **eval**, **compile**, **check**
+(+ **introspect** / **format** on yc).
 A language has two forms: **IR** (AST) and **text** (concrete syntax).
 A driver covers both — parse maps text→IR, print maps IR→text, eval and
-check operate on either form.
+check operate on either form. **yc additionally has a third form, the
+`cst_lite` CST** (comments + spans) sitting between its text and IR — the
+substrate for the formatter and LSP; see §2.
 
 Each operation is a direct implementation (`code`), a shell-out to
 an external tool (`tool:<name>`), a composition through another driver
@@ -48,8 +51,12 @@ Key observations:
   debug text. Every path between cmake and ycn passes through yc.
 - **cmake→yc and yc→cmake** are mirror paths: `emit_ast` / `from_emit_top`.
 - **ycn has only one neighbour** (yc). The `.ycn` parser would add a second inbound.
-- **.yc is asymmetric:** parseable but not printable. The canonical output form
-  is cmake text via yc→cmake emit.
+- **.yc round-trips** via the `cst_lite` form ([`Yc_cst`](../../src/langs/yelu/yc_cst.ml)):
+  a comment+span-bearing CST sits between `.yc` text and the `yc` IR.
+  `parse_cst` / `print_cst` give text↔cst; `lower_cst` gives cst→IR
+  (emit-bridge-proven equal to the legacy `parse_yc`). The formatter
+  (`yelu fmt`) is `print_cst ∘ parse_cst`. The canonical *cmake* output is
+  still cmake text via yc→cmake emit.
 
 ## 2. Language drivers
 
@@ -72,21 +79,29 @@ Parse and eval on the text side are tool:*; print on the IR side is code.
 
 ### yc (`Yc_driver`)
 
-Two forms: IR (`Yelu_cmake.expr`, cmake-faithful) and text (`.yc`).
-Parse is code; print→.yc is a stub.
+**Three** forms now: text (`.yc`), the `cst_lite` CST
+([`Yc_cst`](../../src/langs/yelu/yc_cst.ml) — comments + spans), and IR
+(`Yelu_cmake.expr`, cmake-faithful). The formatter round-trips text↔text
+through the CST; the legacy `parse_yc` still goes text→IR directly, proven
+equal to `lower_cst ∘ parse_cst` by the emit-bridge oracle.
 
 | Op | Function | Strategy | Notes |
 |---|---|---|---|
-| parse ← .yc | `parse_ye` | code | `Yelu_parse.parse_program_y1` |
+| parse ← .yc → IR (legacy/prod) | `parse_yc` | code | `Yelu_parse.parse_program_y1` |
+| parse ← .yc → cst | `parse_cst` | code | `Yc_cst_parse.parse` |
+| lower cst → IR | `lower_cst` | code | `Yc_cst_lower.lower_program` (emit-bridge ≡ `parse_yc`) |
+| print cst → .yc | `print_cst` | code | `Yc_cst_print.print_program` |
+| format: .yc → .yc | `format` | code | `print_cst ∘ parse_cst` (= `yelu fmt`); fail-safe |
 | parse ← cmake | `parse_cmake` | code | `Cmake_driver.compile_to_yc` path |
 | parse ← ycn | `parse_ycn` | code | `Yelu_cmake_convert.from_normal` |
 | compile → cmake | `compile_to_cmake_ast` | code | `Yelu_cmake_emit.emit_ast` |
 | compile → ycn | `to_ycn` | code | `Yelu_cmake_convert.to_normal` |
 | print → cmake text (debug) | `print_cmake_debug` | code | `Yelu_cmake_emit_debug.emit_script` |
-| print → .yc | `print_ye` | **stub** | `failwith "not implemented"` |
+| print → .yc from IR | `print_yc` | **stub** | `expr` drops comments/spans; use `print_cst` / `format` instead |
+| introspect: vocabulary manifest | `manifest` | code | `Yc_manifest.all` (drives tm-grammar, `yelu manifest`) |
 | eval | `eval` | code | `Yelu_cmake_eval.eval_expr` |
 | check (type) | `typecheck` | **stub** | Per-theory functors |
-| check (wellform) | `wellform` | **stub** | Retired |
+| check (wellform) | `wellform` | code | `Yc_wellform.check_all` |
 
 ### ycn (`Ycn_driver`)
 
@@ -109,6 +124,8 @@ Parser and printer are both stubs; only the IR form is operational.
 | `yc_to_cmake` | .yc → yc → cmake → cmake text | `compile_yc` | `yelu compile` |
 | `cmake_to_yc` | cmake text → JSON CST → cmake AST → yc | `file_to_json` | matrix oracle |
 | `yc_ycn` | yc ↔ ycn via convert | `to_ycn`, `from_ycn` | lift-lower oracle |
+| `Yc_driver.format` | .yc text → cst_lite → .yc text | `format` | `yelu fmt`, yelu-lsp formatting |
+| `Yc_cst_lower` | .yc text → cst_lite → yc IR | `lower_cst ∘ parse_cst` | emit-bridge oracle |
 
 ## 4. Tool directory: `tool/cmake_text/`
 

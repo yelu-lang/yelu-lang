@@ -93,12 +93,15 @@ Layered coverage for the parse/lower/print round-trips:
 
 ## Open decisions / parked
 
-- **Revisit the driver interface (non-urgent).** Once parse/lower/print
-  stabilize, the "language components" view shifts: the CST becomes a
-  first-class form, so `parse` is really `text → CST → lower`, `print_ye`
-  is `CST → text`, and `Yc_driver` / [`../yelu_cmake/driver.md`](../yelu_cmake/driver.md)
-  (the pipelines graph + op matrix) should be updated to reflect
-  text ↔ CST ↔ expr rather than text ↔ expr. Do after M1.3; not a hurry.
+- **Driver interface — CST as a first-class form.** *Tier (a) done
+  (2026-06-10):* `Yc_driver` now exposes `parse_cst` / `lower_cst` /
+  `print_cst` / `format`, and [`../yelu_cmake/driver.md`](../yelu_cmake/driver.md)
+  documents the `text ↔ cst_lite ↔ expr` form + ops. *Tier (b) deferred:*
+  point the production `parse_yc` at `lower_cst ∘ parse_cst` and retire the
+  legacy direct parser (`Yelu_parse.parse_program_y1`). The emit-bridge
+  already proves equivalence, so it's safe — but it's a production-path
+  change with its own soak, not a doc tidy-up. Do when consolidating on one
+  parser.
 
 - **Token-stream formatter shortcut** — could ship canonical formatting
   over `lex_located` before the CST (indent by paren/brace depth, break at
