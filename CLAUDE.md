@@ -11,7 +11,7 @@ All commands run from the yelu repo root (`dune-project` lives here).
 dune build                                      # everything
 dune build src/langs/ src/bin/yelu/             # yelu layer + main binary
 dune build src/langs/ src/bin/cmake_only/       # cmake-only generators
-dune test                                       # all unit tests (~850 tests)
+dune test                                       # all unit tests (923 tests)
 ```
 
 After Phase 1 of retirement, the production yelu compile path is
@@ -134,7 +134,7 @@ All 14 `Make_*_check` modules expose `let stage = Stage_typecheck`, enforced by 
 | `test/test-cmake/test_cmake_pp.ml`         | 72    | cmake pretty-printer                                       |
 | `test/test-yelu/test_yelu_compile.ml`      | 194   | yelu → cmake compilation                                   |
 | `test/test-yelu/test_yelu_check.ml`        | 57    | per-theory type checking + wellform name binding           |
-| `test/test-yelu/test_yelu_lexer.ml`        | 25    | concrete-syntax lexer                                      |
+| `test/test-yelu/test_yelu_lexer.ml`        | 31    | concrete-syntax lexer (incl. `$foo` sugar + enum-constructor normalization) |
 | `test/test-yelu/test_yelu_parse.ml`        | 170   | concrete-syntax parser                                     |
 | `test/test-yelu/test_yelu_bridge.ml`       | 43    | production yelu_cmake AST → yelu_cmake (via legacy bridge) |
 | `test/test-yelu/test_yelu_emit_debug.ml`   | 3     | yelu_cmake → cmake text (debug direct-emit path)           |
@@ -142,11 +142,18 @@ All 14 `Make_*_check` modules expose `let stage = Stage_typecheck`, enforced by 
 | `test/test-yelu/test_yelu_lift_lower.ml`   | 65    | yelu_cmake ↔ yelu_cmake_normal roundtrip (file name retains pre-rename "lift_lower" vocab) |
 | `test/test-yelu/test_yelu_steps.ml`        | 19    | tutorial v1 step1–step12 + 8_table + 11_config + ctest     |
 | `test/test-yelu/test_yelu_function.ml`     | 14    | F2: dynamic scope / shallow binding                        |
+| `test/test-yelu/test_yc_cst_bridge.ml`     | 47    | emit-bridge oracle (`emit(lower(parse_cst)) == emit(parse_ast)`) + comment placement + **surface canonicalization** regression (`$foo`, `'`/`"` quotes, enum constructors) |
+| `test/test-yelu/test_yc_manifest.ml`       | 4     | **co-truth lock**: manifest vocabulary ≡ providers (commands, reserved words, **enum constructors ≡ `Yelu_lexer.constr_names`**) |
+| `test/test-yelu/test_yc_tmgrammar.ml`      | 4     | TextMate vocabulary-rule generation (regex escaping, longest-first, `\b` bounds) |
 | `test/test-runcmake/test_yelu_cmake.ml`    | 40    | yelu_cmake lowerings configure through real cmake          |
 | `test/test-runcmake/` (other)              | 37    | cmake -P compat + yelu scripts                             |
 | `test/test-file-api/`                      | —     | codemodel-v2 JSON diff                                     |
+| `test/test_deref_probes.py`                | 23    | cmake **ground-truth** deref probes (`foo`/`${foo}`/`"${foo}"`, nesting, parse-error negatives) — pinned against real cmake, run via `python3` |
+| `test/test-tmgrammar/` (dune `(diff)`)     | 1     | **freshness lock**: committed `yc.tmLanguage.json` must byte-match `yelu tmgrammar`; drift fails `dune test`, fix is `dune promote` |
 
-Total unit: 655. Total cmake-backed: 40.
+Total unit: 923 (dune test). Total cmake-backed: 40. (The table lists the
+load-bearing suites; the full `dune test` count includes the smaller
+per-theory and remaining-command suites not enumerated above.)
 
 ### Documentation
 
@@ -318,8 +325,12 @@ Key milestones: wellform pass (Y1), parser + concrete syntax (in progress), 408 
 
 ### Test infrastructure
 
-- **408 unit tests** (72 cmake PP + 194 yelu compile + 57 yelu check + 20 lexer + 65 parser)
+- **923 unit tests** (`dune test`) — incl. the surface track (lexer, parser,
+  emit-bridge oracle, co-truth locks, grammar freshness) and the per-theory
+  check/compile suites
 - **108 equivalence/semantic checks** (35 structural + 12 CMakeOnly + 61 RunCMake)
+- **cmake ground-truth probes** — `python3 test/test_deref_probes.py` (deref
+  semantics, not in `dune test`)
 - **12 end-to-end tutorial steps** (generate → configure → build → run)
 - **No CI** — all tests are local-only
 
@@ -440,6 +451,19 @@ configuration generation with verifier feedback. cmake is the first specimen.
   The old `build_hybrid_tree` created real directories for ancestors of
   spliced files (`test/`, `support/`). The git-worktree replacement needs
   a full `rm -rf` before checkout to avoid conflicts.
+- **Co-truth lock tests** assert two independently-maintained sources agree
+  (no baked-in golden), so drift is a build failure, not a silent bug. The
+  chain `Yelu_lexer.constr_names` → `Yc_manifest` → `Yc_tmgrammar` rules →
+  committed `yc.tmLanguage.json` is fully locked. **After changing
+  `constr_names` (or any manifest vocabulary), regenerate the grammar with
+  `dune promote`** (the `test/test-tmgrammar` `(diff)` rule fails `dune test`
+  until you do). Same family as the emit-bridge oracle and the fmt matrix.
+- **Surface changes are blind to the emit oracle.** `$foo`/quote/enum-
+  constructor canonicalization all keep emit byte-identical (lexer normalizes
+  to the existing token; formatter only changes display), so the emit-bridge
+  + matrix can't see them — each needs its own surface-level regression test
+  (in `test_yelu_lexer` / `test_yc_cst_bridge`). The fmt CLI double-newline
+  bug hid the same way (tests called `Yc_driver.format`, not the CLI).
 - Remote: `github.com/yelu-lang/yelu-lang`.
 
 ## Handoff Workflow
