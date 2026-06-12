@@ -78,7 +78,14 @@ let rec pr_atom b (a : Cst.atom) =
   | A_bool true -> Buffer.add_string b "ON"
   | A_bool false -> Buffer.add_string b "OFF"
   | A_int n -> Buffer.add_string b (Int.to_string n)
-  | A_keyword s -> Buffer.add_char b ':'; Buffer.add_string b s
+  (* Enum constructor: canonicalize a *recognized* `:KEYWORD` to the leading-cap
+     spelling (`:PRIVATE` → `Private`). Gate on the same set the lexer uses so
+     the round-trip is consistent; an unmigrated keyword keeps the colon form.
+     See casing_design.md. *)
+  | A_keyword s ->
+    if Yelu_lexer.is_known_constr s
+    then Buffer.add_string b (String.capitalize (String.lowercase s))
+    else (Buffer.add_char b ':'; Buffer.add_string b s)
   | A_target n ->
     Buffer.add_string b "target ";
     pr_name_or b n ~otherwise:(fun () ->

@@ -138,18 +138,18 @@ add_lib fmt 'src/format.cc' $FMT_HEADERS 'README.md' 'ChangeLog.md';
 setup_target 'fmt' 'PUBLIC';
 set_target_properties fmt PROPERTY PUBLIC_HEADER '${FMT_HEADERS}';
 if $FMT_OS then (
-  target_sources fmt :PRIVATE 'src/os.cc'
+  target_sources fmt Private 'src/os.cc'
 ) else (
-  compile_defs fmt :PRIVATE 'FMT_OS=0'
+  compile_defs fmt Private 'FMT_OS=0'
 );
 if $FMT_WERROR then (
-  compile_opts fmt :PRIVATE $WERROR_FLAG
+  compile_opts fmt Private $WERROR_FLAG
 );
 if $FMT_PEDANTIC then (
-  compile_opts fmt :PRIVATE $PEDANTIC_COMPILE_FLAGS
+  compile_opts fmt Private $PEDANTIC_COMPILE_FLAGS
 );
 if list_in 'cxx_std_11' $CMAKE_CXX_COMPILE_FEATURES then (
-  compile_feats fmt :PUBLIC 'cxx_std_11'
+  compile_feats fmt Public 'cxx_std_11'
 ) else (
   message WARNING 'Feature cxx_std_11 is unknown for the CXX compiler'
 );
@@ -158,33 +158,33 @@ if str_eq $CMAKE_BUILD_TYPE 'Debug' then (
   FMT_LIB_NAME := '${FMT_LIB_NAME}${FMT_DEBUG_POSTFIX}'
 );
 if $BUILD_SHARED_LIBS then (
-  compile_defs fmt :PRIVATE 'FMT_LIB_EXPORT';
-  compile_defs fmt :INTERFACE 'FMT_SHARED'
+  compile_defs fmt Private 'FMT_LIB_EXPORT';
+  compile_defs fmt Interface 'FMT_SHARED'
 );
 if $FMT_SAFE_DURATION_CAST then (
-  compile_defs fmt :PUBLIC 'FMT_SAFE_DURATION_CAST'
+  compile_defs fmt Public 'FMT_SAFE_DURATION_CAST'
 );
 fun add_module_library(name) (
   cmake_parse_arguments AML '' 'USE_CMAKE_MODULES' '' $ARGN;
   sources := $AML_UNPARSED_ARGUMENTS;
   add_lib $name $sources;
   set_target_properties $name PROPERTY LINKER_LANGUAGE CXX;
-  compile_feats $name :PUBLIC 'cxx_std_20';
+  compile_feats $name Public 'cxx_std_20';
   if $MSVC then (
     if not ( str_eq $CMAKE_GENERATOR 'Ninja' ) then (
       BMI_DIR := '${CMAKE_CURRENT_BINARY_DIR}';
       path_convert_to_native '${BMI_DIR}/${name}.ifc' ~out:BMI;
-      compile_opts $name :PRIVATE '/interface' '/ifcOutput' $BMI INTERFACE '/reference' 'fmt=${BMI}';
+      compile_opts $name Private '/interface' '/ifcOutput' $BMI Interface '/reference' 'fmt=${BMI}';
       set_target_properties $name PROPERTY ADDITIONAL_CLEAN_FILES $BMI;
       set_source_files_properties $BMI PROPERTIES GENERATED ON
     )
   );
   if $AML_USE_CMAKE_MODULES then (
-    target_sources $name :PUBLIC FILE_SET fmt TYPE CXX_MODULES FILES $sources;
+    target_sources $name Public FILE_SET fmt TYPE CXX_MODULES FILES $sources;
     return
   );
   if $CMAKE_COMPILER_IS_GNUCXX then (
-    compile_opts $name :PUBLIC '-fmodules-ts'
+    compile_opts $name Public '-fmodules-ts'
   );
   get_target_property std $name CXX_STANDARD;
   if match $CMAKE_CXX_COMPILER_ID 'Clang' then (
@@ -192,7 +192,7 @@ fun add_module_library(name) (
     foreach src in LISTS sources (
       get_filename_component pcm ~mode:NAME_WE $src;
       pcm := '${pcm}.pcm';
-      compile_opts $name :PUBLIC '-fmodule-file=${CMAKE_CURRENT_BINARY_DIR}/${pcm}';
+      compile_opts $name Public '-fmodule-file=${CMAKE_CURRENT_BINARY_DIR}/${pcm}';
       pcms := $pcms, '${CMAKE_CURRENT_BINARY_DIR}/${pcm}';
       add_custom_command OUTPUT $pcm COMMAND $CMAKE_CXX_COMPILER '-std=c++${std}' '-x' 'c++-module' '--precompile' '-c' '-o' $pcm '${CMAKE_CURRENT_SOURCE_DIR}/${src}' '-I$<JOIN:$<TARGET_PROPERTY:${name},INCLUDE_DIRECTORIES>,;-I>' COMMAND_EXPAND_LISTS DEPENDS $src
     );
@@ -204,22 +204,22 @@ fun add_module_library(name) (
       add_custom_command OUTPUT $obj COMMAND $CMAKE_CXX_COMPILER '$<TARGET_PROPERTY:${name},COMPILE_OPTIONS>' '-c' '-o' $obj $pcm DEPENDS $pcm
     )
   );
-  target_sources $name :PRIVATE $sources
+  target_sources $name Private $sources
 );
 if $FMT_MODULE then (
   add_module_library 'fmt-module' 'src/fmt.cc' USE_CMAKE_MODULES $FMT_USE_CMAKE_MODULES;
   setup_target 'fmt-module' 'PUBLIC'
 );
 add_lib fmt-header-only ~type:INTERFACE;
-compile_defs fmt-header-only :INTERFACE 'FMT_HEADER_ONLY=1';
-compile_feats fmt-header-only :INTERFACE 'cxx_std_11';
+compile_defs fmt-header-only Interface 'FMT_HEADER_ONLY=1';
+compile_feats fmt-header-only Interface 'cxx_std_11';
 setup_target 'fmt-header-only' 'INTERFACE';
 add_lib fmt-c 'src/fmt-c.cc' ~type:STATIC;
-compile_feats fmt-c :INTERFACE 'c_std_11';
+compile_feats fmt-c Interface 'c_std_11';
 if $MSVC then (
-  compile_opts fmt-c :PUBLIC '/Zc:preprocessor'
+  compile_opts fmt-c Public '/Zc:preprocessor'
 );
-link_lib fmt-c :PUBLIC 'fmt::fmt';
+link_lib fmt-c Public 'fmt::fmt';
 add_lib_alias "fmt::fmt-c" ~alias_of:'fmt-c';
 set_target_properties fmt-c PROPERTY PUBLIC_HEADER 'include/fmt/fmt-c.h';
 if $FMT_INSTALL then (
@@ -276,7 +276,7 @@ if $FMT_TEST then (
 );
 if $FMT_FUZZ then (
   add_subdirectory 'test/fuzzing';
-  compile_defs fmt :PUBLIC 'FMT_FUZZ'
+  compile_defs fmt Public 'FMT_FUZZ'
 );
 gitignore := '${PROJECT_SOURCE_DIR}/.gitignore';
 if $FMT_MASTER_PROJECT and exists $gitignore then (

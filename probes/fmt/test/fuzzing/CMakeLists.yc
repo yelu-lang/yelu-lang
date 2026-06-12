@@ -3,13 +3,13 @@ fun add_fuzzer(source) (
   name := '${basename}-fuzzer';
   add_exe $name 'fuzzer-common.h' $source;
   if $FMT_FUZZ_LINKMAIN then (
-    target_sources $name :PRIVATE 'main.cc'
+    target_sources $name Private 'main.cc'
   );
-  link_lib $name :PRIVATE 'fmt';
+  link_lib $name Private 'fmt';
   if $FMT_FUZZ_LDFLAGS then (
-    link_lib $name :PRIVATE $FMT_FUZZ_LDFLAGS
+    link_lib $name Private $FMT_FUZZ_LDFLAGS
   );
-  compile_feats $name :PRIVATE 'cxx_std_14'
+  compile_feats $name Private 'cxx_std_14'
 );
 cache FMT_FUZZ_LINKMAIN := ON 'Enables the reproduce mode, instead of libFuzzer';
 cache FMT_FUZZ_LDFLAGS := '' 'LDFLAGS for the fuzz targets';

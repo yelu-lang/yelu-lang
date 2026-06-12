@@ -118,9 +118,29 @@ let test_brace_elision =
     (* idempotent *)
     Alcotest.(check string) "idempotent" "Y := $X\n" (fmt (fmt "Y := ${X}")))
 
+(* Enum constructor (visibility): the legacy `:PRIVATE` colon-keyword
+   canonicalizes to the leading-cap `Private`; the bare `Public` form already
+   reads that way; the `~public:` kwarg key is untouched (lowercase). *)
+let test_enum_constructor =
+  Alcotest.test_case "enum constructor canonicalization" `Quick (fun () ->
+    let fmt s =
+      match Cstp.parse s with
+      | Ok c -> Yelu_langs.Yc_cst_print.print_program c
+      | Error e -> Alcotest.failf "parse %S: %s" s e
+    in
+    Alcotest.(check string) ":PRIVATE → Private"
+      "compile_opts fmt Private $flags\n" (fmt "compile_opts fmt :PRIVATE $flags");
+    Alcotest.(check string) "Public stays Public"
+      "compile_opts fmt Public $x\n" (fmt "compile_opts fmt Public $x");
+    (* the ~public: kwarg key is a lowercase identifier, not the enum *)
+    Alcotest.(check string) "~public: key untouched"
+      "compile_feats fmt ~public:[ cxx_std_11 ]\n"
+      (fmt "compile_feats fmt ~public:[cxx_std_11]"))
+
 let () =
   Alcotest.run "yc_cst_bridge"
     [ "bridge", List.map corpus ~f:bridge;
       "roundtrip", List.map corpus ~f:roundtrip;
       "comments", [ test_comment_placement ];
-      "elision", [ test_brace_elision ] ]
+      "elision", [ test_brace_elision ];
+      "enum", [ test_enum_constructor ] ]

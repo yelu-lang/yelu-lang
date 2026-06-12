@@ -1,17 +1,17 @@
 add_lib gtest 'gmock-gtest-all.cc' 'gmock/gmock.h' 'gtest/gtest.h' 'gtest/gtest-spi.h' ~type:STATIC;
-compile_defs gtest :PUBLIC 'GTEST_HAS_STD_WSTRING=1';
-include_dirs gtest :PUBLIC '.' ~system;
-compile_feats gtest :PUBLIC 'cxx_std_11';
+compile_defs gtest Public 'GTEST_HAS_STD_WSTRING=1';
+include_dirs gtest Public '.' ~system;
+compile_feats gtest Public 'cxx_std_11';
 find_package 'Threads';
 if $Threads_FOUND then (
-  link_lib gtest :PUBLIC $CMAKE_THREAD_LIBS_INIT
+  link_lib gtest Public $CMAKE_THREAD_LIBS_INIT
 ) else (
-  compile_defs gtest :PUBLIC 'GTEST_HAS_PTHREAD=0'
+  compile_defs gtest Public 'GTEST_HAS_PTHREAD=0'
 );
 if $MSVC then (
-  compile_defs gtest :PRIVATE '_CRT_SECURE_NO_WARNINGS';
+  compile_defs gtest Private '_CRT_SECURE_NO_WARNINGS';
   if match $CMAKE_CXX_COMPILER_ID 'Clang' then (
-    compile_opts gtest :PUBLIC '-Wno-deprecated-declarations'
+    compile_opts gtest Public '-Wno-deprecated-declarations'
   )
 )
 

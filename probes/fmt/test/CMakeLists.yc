@@ -15,23 +15,23 @@ fun add_fmt_test(name) (
     )
   );
   add_exe $name $sources;
-  link_lib $name :PUBLIC $libs;
+  link_lib $name Public $libs;
   if $ADD_FMT_TEST_HEADER_ONLY and not $FMT_UNICODE then (
-    compile_defs $name :PUBLIC 'FMT_UNICODE=0'
+    compile_defs $name Public 'FMT_UNICODE=0'
   );
   if $FMT_PEDANTIC then (
-    compile_opts $name :PRIVATE $PEDANTIC_COMPILE_FLAGS
+    compile_opts $name Private $PEDANTIC_COMPILE_FLAGS
   );
   if $FMT_WERROR then (
-    compile_opts $name :PRIVATE $WERROR_FLAG
+    compile_opts $name Private $WERROR_FLAG
   );
   add_test NAME $name COMMAND $name
 );
 add_subdirectory 'gtest';
 TEST_MAIN_SRC := 'test-main.cc', 'gtest-extra.cc', 'gtest-extra.h', 'util.cc';
 add_lib test-main $TEST_MAIN_SRC ~type:STATIC;
-include_dirs test-main :PUBLIC '$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>';
-link_lib test-main :PUBLIC gtest fmt;
+include_dirs test-main Public '$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>';
+link_lib test-main Public gtest fmt;
 add_fmt_test 'args-test';
 add_fmt_test 'base-test';
 add_fmt_test 'assert-test';
@@ -40,7 +40,7 @@ add_fmt_test 'color-test';
 add_fmt_test 'gtest-extra-test';
 add_fmt_test 'format-test' 'mock-allocator.h';
 if $MSVC then (
-  compile_opts format-test :PRIVATE '/bigobj'
+  compile_opts format-test Private '/bigobj'
 );
 if not ( $MSVC and $BUILD_SHARED_LIBS ) then (
   add_fmt_test 'format-impl-test' 'HEADER_ONLY' 'header-only-test.cc'
@@ -54,17 +54,17 @@ add_fmt_test 'scan-test' 'HEADER_ONLY';
 add_fmt_test 'std-test';
 string_regex_replace '.*libfound \"([^\"]*)\".*' '\\1' '${RAWOUTPUT}' ~out:STDLIBFS;
 if $STDLIBFS then (
-  link_lib std-test :PUBLIC $STDLIBFS
+  link_lib std-test Public $STDLIBFS
 );
 add_fmt_test 'unicode-test' 'HEADER_ONLY';
 if $MSVC then (
-  compile_opts unicode-test :PRIVATE '/utf-8'
+  compile_opts unicode-test Private '/utf-8'
 );
 add_fmt_test 'xchar-test';
 add_fmt_test 'enforce-checks-test';
-compile_defs enforce-checks-test :PRIVATE '-DFMT_ENFORCE_COMPILE_STRING';
+compile_defs enforce-checks-test Private '-DFMT_ENFORCE_COMPILE_STRING';
 add_exe perf-sanity 'perf-sanity.cc';
-link_lib perf-sanity :PUBLIC 'fmt::fmt';
+link_lib perf-sanity Public 'fmt::fmt';
 if $FMT_MODULE then (
   add_fmt_test 'module-test' MODULE
 );
@@ -75,13 +75,13 @@ if $FMT_PEDANTIC then (
   );
   if $HAVE_FNO_EXCEPTIONS_FLAG then (
     add_lib noexception-test '../src/format.cc' 'noexception-test.cc';
-    include_dirs noexception-test :PRIVATE '${PROJECT_SOURCE_DIR}/include';
-    compile_opts noexception-test :PRIVATE '-fno-exceptions';
-    compile_opts noexception-test :PRIVATE $PEDANTIC_COMPILE_FLAGS
+    include_dirs noexception-test Private '${PROJECT_SOURCE_DIR}/include';
+    compile_opts noexception-test Private '-fno-exceptions';
+    compile_opts noexception-test Private $PEDANTIC_COMPILE_FLAGS
   );
   add_lib nolocale-test '../src/format.cc';
-  include_dirs nolocale-test :PRIVATE '${PROJECT_SOURCE_DIR}/include';
-  compile_defs nolocale-test :PRIVATE 'FMT_STATIC_THOUSANDS_SEPARATOR=1'
+  include_dirs nolocale-test Private '${PROJECT_SOURCE_DIR}/include';
+  compile_defs nolocale-test Private 'FMT_STATIC_THOUSANDS_SEPARATOR=1'
 );
 if $FMT_PEDANTIC and not $WIN32 and not ( match $CMAKE_CXX_COMPILER_ID 'GNU' and ver_lt $CMAKE_CXX_COMPILER_VERSION '4.9' ) then (
   add_test NAME 'compile-error-test' COMMAND $CMAKE_CTEST_COMMAND '--build-and-test' '${CMAKE_CURRENT_SOURCE_DIR}/compile-error-test' '${CMAKE_CURRENT_BINARY_DIR}/compile-error-test' '--build-generator' '${CMAKE_GENERATOR}' '--build-makeprogram' '${CMAKE_MAKE_PROGRAM}' '--build-options' '-DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}' '-DCMAKE_CXX_FLAGS=${CMAKE_CXX_FLAGS}' '-DCMAKE_CXX_STANDARD=${CMAKE_CXX_STANDARD}' '-DCXX_STANDARD_FLAG=${CXX_STANDARD_FLAG}' '-DFMT_DIR=${CMAKE_SOURCE_DIR}';
@@ -109,6 +109,6 @@ if $FMT_CUDA_TEST then (
 );
 enable_language C;
 add_exe c-test 'c-test.c';
-link_lib c-test :PRIVATE 'fmt::fmt-c';
+link_lib c-test Private 'fmt::fmt-c';
 add_test NAME 'c-test' COMMAND 'c-test'
 

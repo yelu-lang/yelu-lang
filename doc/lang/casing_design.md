@@ -115,5 +115,20 @@ errored (except the Y14 reserved-word collision, which is a real mistake).
    re-`fmt` the corpus.
 4. **Y14 reject** — wellform pass rejecting reserved-word shadowing.
 
+### Progress
+
+- **Slice 1 — visibility constructors ✅ (2026-06-12).** `Public`/`Private`/
+  `Interface` (no colon). Same minimal pattern as `$foo`: the lexer
+  ([`yelu_lexer.ml`](../../src/langs/yelu/yelu_lexer.ml) `constr_names` /
+  `is_known_constr`) promotes a *capitalized* known constructor to the
+  uppercased `KEYWORD` token (lowercase `public` stays an IDENT — the
+  `~public:` kwarg key); the formatter ([`yc_cst_print.ml`](../../src/langs/yelu/yc_cst_print.ml))
+  canonicalizes the recognized `:KEYWORD` back to leading-cap. **Both gate on
+  the same `constr_names` set** so the round-trip is consistent — an unmigrated
+  enum (e.g. library-type `INTERFACE`) keeps its current form. No
+  parser/emit change; corpus re-fmt'd (21 sites); 655 tests, matrix 24/24,
+  idempotent. Next slices grow `constr_names` per theory (library/cache type,
+  fc mode, …); then dotted globals; then Y14.
+
 Each step follows the proven pattern: accept old forms, `fmt` canonicalizes,
 emit-bridge + matrix confirm the emitted cmake is byte-unchanged.

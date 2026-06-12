@@ -87,11 +87,29 @@ let reserved = Map.of_alist_exn (module String) [
   "RANGE",    RANGE;
 ]
 
+(* Enum-constructor vocabulary (uppercased cmake spelling). Grows per theory as
+   the casing migration proceeds; both the lexer (a bare constructor → KEYWORD,
+   uppercased, unifying with the legacy `:KEYWORD`) and yc_cst_print
+   (canonicalize the KEYWORD back to leading-cap) gate on THIS set so the
+   round-trip stays consistent. Slice 1 = visibility. A bare capitalized word
+   NOT in the set stays an IDENT (var/target name) until its theory migrates
+   (and Y14, eventually, rejects var names that shadow the set).
+   See doc/lang/casing_design.md. *)
+let constr_names = Set.of_list (module String) [ "PUBLIC"; "PRIVATE"; "INTERFACE" ]
+
+let is_known_constr s = Set.mem constr_names (String.uppercase s)
+
 let ident =
   ident_str >>| fun s ->
     match Map.find reserved s with
     | Some kw -> kw
-    | None -> IDENT s
+    (* Only a *capitalized* word promotes to the constructor KEYWORD — a
+       lowercase `public` is an ordinary identifier (e.g. the `~public:` kwarg
+       key), not the enum. *)
+    | None ->
+      if String.length s >= 1 && Char.is_uppercase s.[0] && is_known_constr s
+      then KEYWORD (String.uppercase s)
+      else IDENT s
 
 (* ============================================================
    Literals

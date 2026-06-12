@@ -56,6 +56,13 @@ let lex_tests = ("lex", [
     "$foo ${foo} $CMAKE_VERSION"
     ["(EVAL ${foo})"; "(EVAL ${foo})"; "(EVAL ${CMAKE_VERSION})"];
 
+  (* enum constructor: a capitalized known constructor → uppercased KEYWORD
+     (unifies with the `:KEYWORD` form); a lowercase `public` is the `~public:`
+     kwarg key, NOT the enum, so it stays IDENT *)
+  assert_tokens "enum constructor capitalized"
+    "Public Private :PRIVATE public"
+    ["(KEYWORD PUBLIC)"; "(KEYWORD PRIVATE)"; "(KEYWORD PRIVATE)"; "(IDENT public)"];
+
   assert_tokens "keyword prefix"
     ":PUBLIC :STATIC :private"
     ["(KEYWORD PUBLIC)"; "(KEYWORD STATIC)"; "(KEYWORD private)"];
