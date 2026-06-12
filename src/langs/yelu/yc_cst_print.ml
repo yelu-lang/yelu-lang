@@ -20,6 +20,17 @@ let esc_double s =
     | '"' -> "\\\""
     | c -> String.of_char c)
 
+(* Canonical string literal. yc's `'…'` and `"…"` both lower to the same
+   EString (cmake has no char type — they are *not* char-vs-string), so the
+   quote is pure surface and safe to normalise. Prefer single quotes (raw, no
+   escaping); fall back to double quotes (with `\"` / `\\` escaping) only when
+   the content contains a `'`. This is the Python / Prettier rule — it
+   minimises escaping (single-quoted strings hold `"` raw). *)
+let pr_string b s =
+  if String.exists s ~f:(Char.equal '\'')
+  then (Buffer.add_char b '"'; Buffer.add_string b (esc_double s); Buffer.add_char b '"')
+  else (Buffer.add_char b '\''; Buffer.add_string b s; Buffer.add_char b '\'')
+
 (* A name is safe to print bare iff it is an eval (`${…}` / `$<…>`) or a
    plain identifier; anything else (e.g. `fmt::fmt-c`, which would re-lex
    as two colons) must be double-quoted to round-trip. *)
@@ -58,8 +69,8 @@ let pr_name_or b s ~otherwise =
 let rec pr_atom b (a : Cst.atom) =
   match a with
   | A_name n -> Buffer.add_string b n
-  | A_string s -> Buffer.add_char b '\''; Buffer.add_string b s; Buffer.add_char b '\''
-  | A_path s -> Buffer.add_char b '"'; Buffer.add_string b (esc_double s); Buffer.add_char b '"'
+  | A_string s -> pr_string b s
+  | A_path s -> pr_string b s
   | A_eval s ->
     (match elide_eval_braces s with
      | Some name -> Buffer.add_char b '$'; Buffer.add_string b name

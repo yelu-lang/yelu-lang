@@ -84,17 +84,24 @@ into it (or vice-versa). Needs a design pass: section markers like
 `COMMAND`/`OUTPUT` introduce *groups* of args, not single modifiers, so
 they may not collapse cleanly into `~kw`. Status: **design needed.**
 
-### 3. Single string syntax → drop `'`/`"`  — **TODO**
+### 3. Single string syntax — ✅ **done (2026-06-12)**
 
-> **TODO (deferred).** Unify the two string syntaxes. Design needed before
-> implementation.
+**Premise corrected.** The doc earlier assumed `'…'` vs `"…"` was a
+*path-vs-string type* that "affects some emit". It does not: both lower to
+the same `EString` and emit byte-identical cmake (cmake has no char type —
+they were never char-vs-string). The only real difference was lexer escape
+ergonomics (`"…"` escapes `\"`; `'…'` is raw). So it was pure surface and
+safe to canonicalize — no emit sites depend on the tag.
 
-The `Ycs_path` vs `Ycs_string` distinction is cmake-internal; the author
-shouldn't pick quotes. Option: one quote (`"…"`), infer path-ness from
-position/command, or make it a non-surface concern. Needs care — the
-distinction does affect some emit, so the design pass must map exactly
-which emit sites depend on the path-vs-string tag before collapsing it.
-Status: **TODO — design needed.**
+**Shipped.** The formatter ([`yc_cst_print.ml`](../../src/langs/yelu/yc_cst_print.ml)
+`pr_string`) canonicalizes both quote forms with the Python / Prettier rule:
+**prefer `'…'` (raw, no escaping); fall back to `"…"` (with `\"` / `\\`) only
+when the content contains a `'`.** Both forms are still *accepted* on input;
+the author no longer tracks which to use. Bonus: backslash-heavy content
+(Windows paths, regex) reads cleanly — `'C:\Program Files\…'` instead of
+`"C:\\Program Files\\…"`. Corpus re-`fmt`'d to single quotes.
+
+Verified: 655 unit tests, fmt matrix **24/24** (emit unchanged), idempotent.
 
 ### 4. `${}` noise — defend; lighten with `$foo` sugar
 

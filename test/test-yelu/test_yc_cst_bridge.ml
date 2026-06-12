@@ -111,9 +111,10 @@ let test_brace_elision =
     Alcotest.(check string) "value $X stays"  "Y := $X\n" (fmt "Y := $X");
     (* name slot (assignment LHS) elides too *)
     Alcotest.(check string) "name ${v}→$v" "$v := $w\n" (fmt "${v} := ${w}");
-    (* string-internal ${…} keeps braces (verbatim to cmake) *)
+    (* string-internal ${…} keeps braces (verbatim to cmake); quote
+       canonicalizes "…" → '…' since the content has no single quote *)
     Alcotest.(check string) "in-string keeps braces"
-      "P := \"a${X}b\"\n" (fmt "P := \"a${X}b\"");
+      "P := 'a${X}b'\n" (fmt "P := \"a${X}b\"");
     (* idempotent *)
     Alcotest.(check string) "idempotent" "Y := $X\n" (fmt (fmt "Y := ${X}")))
 
