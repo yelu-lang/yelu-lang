@@ -95,7 +95,11 @@ let reserved = Map.of_alist_exn (module String) [
    NOT in the set stays an IDENT (var/target name) until its theory migrates
    (and Y14, eventually, rejects var names that shadow the set).
    See doc/lang/casing_design.md. *)
-let constr_names = Set.of_list (module String) [ "PUBLIC"; "PRIVATE"; "INTERFACE" ]
+let constr_names =
+  Set.of_list (module String)
+    [ (* slice 1: visibility *) "PUBLIC"; "PRIVATE"; "INTERFACE";
+      (* slice 2: library/cache type, fc mode, language *)
+      "STATIC"; "STRING"; "NAME_WE"; "CXX" ]
 
 let is_known_constr s = Set.mem constr_names (String.uppercase s)
 
@@ -133,7 +137,11 @@ let is_keyword_char c =
 let colon_or_keyword =
   token (
     char ':' *>
-    ((take_while1 is_keyword_char >>| fun s -> KEYWORD s)
+    ((take_while1 is_keyword_char >>| fun s ->
+        (* A `:Constructor` value (e.g. `~type:Static`) normalizes to the
+           uppercase cmake form, same as the bare `Static` — so emit is
+           unchanged and the formatter is free to display it leading-cap. *)
+        KEYWORD (if is_known_constr s then String.uppercase s else s))
      <|> return COLON))
 
 (* Integer literals *)

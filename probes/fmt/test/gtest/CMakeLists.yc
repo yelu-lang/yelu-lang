@@ -1,4 +1,4 @@
-add_lib gtest 'gmock-gtest-all.cc' 'gmock/gmock.h' 'gtest/gtest.h' 'gtest/gtest-spi.h' ~type:STATIC;
+add_lib gtest 'gmock-gtest-all.cc' 'gmock/gmock.h' 'gtest/gtest.h' 'gtest/gtest-spi.h' ~type:Static;
 compile_defs gtest Public 'GTEST_HAS_STD_WSTRING=1';
 include_dirs gtest Public '.' ~system;
 compile_feats gtest Public 'cxx_std_11';

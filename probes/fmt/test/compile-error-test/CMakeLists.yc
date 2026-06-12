@@ -61,7 +61,7 @@ fun run_tests() (
   )
 );
 cmake_minimum_required VERSION '3.8...3.25';
-project compile-error-test CXX;
+project compile-error-test Cxx;
 fmt_headers := '
   #include <fmt/format.h>
   #include <fmt/xchar.h>

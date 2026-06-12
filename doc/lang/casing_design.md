@@ -127,8 +127,21 @@ errored (except the Y14 reserved-word collision, which is a real mistake).
   the same `constr_names` set** so the round-trip is consistent — an unmigrated
   enum (e.g. library-type `INTERFACE`) keeps its current form. No
   parser/emit change; corpus re-fmt'd (21 sites); 655 tests, matrix 24/24,
-  idempotent. Next slices grow `constr_names` per theory (library/cache type,
-  fc mode, …); then dotted globals; then Y14.
+  idempotent.
+- **Slice 2 — type / mode / language ✅ (2026-06-12).** Added `STATIC`,
+  `STRING`, `NAME_WE`, `CXX` to `constr_names`. These live mostly in *tilde
+  value* positions (`~type:STRING`, `~mode:NAME_WE`) plus bare `project … CXX`.
+  Two extensions over slice 1, both still surface-only (emit byte-unchanged):
+  (a) `colon_or_keyword` now uppercase-normalizes a `:Constructor` value
+  (`~type:Static` → internal `STRING`-style uppercase, so emit stays cmake-
+  cased); (b) the formatter canonicalizes `A_name` enum values (the
+  `~type:`/`~mode:` value, which the parser stores as `A_name`) to leading-cap.
+  The `~type:` *syntax* is untouched — only the value casing. Quoted `'STRING'`
+  args (to the `set_verbose` helper) correctly stay strings. 655 tests, matrix
+  24/24, idempotent.
+- Next: **dotted globals** (`$cmake.version`, needs `.` in `$`-reads), then
+  **Y14** reject. The CamelCase enums (`AnyNewerVersion`) still need the
+  per-theory *table* (uppercase ≠ cmake casing), unlike these all-caps ones.
 
 Each step follows the proven pattern: accept old forms, `fmt` canonicalizes,
 emit-bridge + matrix confirm the emitted cmake is byte-unchanged.

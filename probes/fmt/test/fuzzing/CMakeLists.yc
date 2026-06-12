@@ -1,5 +1,5 @@
 fun add_fuzzer(source) (
-  get_filename_component $source ~mode:NAME_WE ~out:basename;
+  get_filename_component $source ~mode:Name_we ~out:basename;
   name := '${basename}-fuzzer';
   add_exe $name 'fuzzer-common.h' $source;
   if $FMT_FUZZ_LINKMAIN then (

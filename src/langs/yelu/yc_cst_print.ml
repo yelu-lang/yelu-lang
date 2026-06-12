@@ -68,7 +68,14 @@ let pr_name_or b s ~otherwise =
 
 let rec pr_atom b (a : Cst.atom) =
   match a with
-  | A_name n -> Buffer.add_string b n
+  | A_name n ->
+    (* An enum value carried as a bare name (e.g. the `~type:STRING` value,
+       which the parser stores as A_name) canonicalizes to leading-cap, same
+       as a standalone constructor. Surface-only: the internal value is the
+       uppercase cmake form, so emit is unchanged. *)
+    if Yelu_lexer.is_known_constr n
+    then Buffer.add_string b (String.capitalize (String.lowercase n))
+    else Buffer.add_string b n
   | A_string s -> pr_string b s
   | A_path s -> pr_string b s
   | A_eval s ->

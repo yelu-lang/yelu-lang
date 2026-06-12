@@ -63,9 +63,11 @@ let lex_tests = ("lex", [
     "Public Private :PRIVATE public"
     ["(KEYWORD PUBLIC)"; "(KEYWORD PRIVATE)"; "(KEYWORD PRIVATE)"; "(IDENT public)"];
 
+  (* a `:Constructor` value normalizes to the uppercase cmake form (so
+     `:private` → PRIVATE); a non-constructor colon-keyword keeps its case *)
   assert_tokens "keyword prefix"
-    ":PUBLIC :STATIC :private"
-    ["(KEYWORD PUBLIC)"; "(KEYWORD STATIC)"; "(KEYWORD private)"];
+    ":PUBLIC :STATIC :private :foo"
+    ["(KEYWORD PUBLIC)"; "(KEYWORD STATIC)"; "(KEYWORD PRIVATE)"; "(KEYWORD foo)"];
 
   assert_tokens "bool"
     "ON OFF"

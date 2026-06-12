@@ -24,7 +24,7 @@ fun set_verbose(variable, value, _cache, type) (
 if $FMT_MASTER_PROJECT and not $CMAKE_BUILD_TYPE then (
   set_verbose 'CMAKE_BUILD_TYPE' 'Release' 'CACHE' 'STRING' 'Choose the type of build, options are: None(CMAKE_CXX_FLAGS or ' 'CMAKE_C_FLAGS used) Debug Release RelWithDebInfo MinSizeRel.'
 );
-project FMT CXX;
+project FMT Cxx;
 FMT_USE_CMAKE_MODULES := 'FALSE';
 if ver_ge $CMAKE_VERSION '3.28' and ver_ge $CMAKE_CXX_STANDARD '20' then (
   if str_eq $CMAKE_GENERATOR 'Ninja' then (
@@ -57,7 +57,7 @@ if $FMT_SYSTEM_HEADERS then (
 );
 include GNUInstallDirs;
 set_verbose 'FMT_INC_DIR' $CMAKE_INSTALL_INCLUDEDIR 'CACHE' 'STRING' 'Installation directory for include files, a relative path that ' 'will be joined with ${CMAKE_INSTALL_PREFIX} or an absolute path.';
-cache FMT_DEBUG_POSTFIX := 'd' 'Debug library postfix.' ~type:STRING;
+cache FMT_DEBUG_POSTFIX := 'd' 'Debug library postfix.' ~type:String;
 file_read 'include/fmt/base.h' ~out:base_h;
 if not ( match $base_h 'FMT_VERSION ([0-9]+)([0-9][0-9])([0-9][0-9])' ) then (
   message FATAL_ERROR 'Cannot get FMT_VERSION from base.h.'
@@ -168,7 +168,7 @@ fun add_module_library(name) (
   cmake_parse_arguments AML '' 'USE_CMAKE_MODULES' '' $ARGN;
   sources := $AML_UNPARSED_ARGUMENTS;
   add_lib $name $sources;
-  set_target_properties $name PROPERTY LINKER_LANGUAGE CXX;
+  set_target_properties $name PROPERTY LINKER_LANGUAGE Cxx;
   compile_feats $name Public 'cxx_std_20';
   if $MSVC then (
     if not ( str_eq $CMAKE_GENERATOR 'Ninja' ) then (
@@ -190,7 +190,7 @@ fun add_module_library(name) (
   if match $CMAKE_CXX_COMPILER_ID 'Clang' then (
     pcms := '';
     foreach src in LISTS sources (
-      get_filename_component pcm ~mode:NAME_WE $src;
+      get_filename_component pcm ~mode:Name_we $src;
       pcm := '${pcm}.pcm';
       compile_opts $name Public '-fmodule-file=${CMAKE_CURRENT_BINARY_DIR}/${pcm}';
       pcms := $pcms, '${CMAKE_CURRENT_BINARY_DIR}/${pcm}';
@@ -198,7 +198,7 @@ fun add_module_library(name) (
     );
     sources := '';
     foreach pcm in LISTS pcms (
-      get_filename_component pcm_we ~mode:NAME_WE $pcm;
+      get_filename_component pcm_we ~mode:Name_we $pcm;
       obj := '${pcm_we}.o';
       sources := $sources, $pcm, '${CMAKE_CURRENT_BINARY_DIR}/${obj}';
       add_custom_command OUTPUT $obj COMMAND $CMAKE_CXX_COMPILER '$<TARGET_PROPERTY:${name},COMPILE_OPTIONS>' '-c' '-o' $obj $pcm DEPENDS $pcm
@@ -210,11 +210,11 @@ if $FMT_MODULE then (
   add_module_library 'fmt-module' 'src/fmt.cc' USE_CMAKE_MODULES $FMT_USE_CMAKE_MODULES;
   setup_target 'fmt-module' 'PUBLIC'
 );
-add_lib fmt-header-only ~type:INTERFACE;
+add_lib fmt-header-only ~type:Interface;
 compile_defs fmt-header-only Interface 'FMT_HEADER_ONLY=1';
 compile_feats fmt-header-only Interface 'cxx_std_11';
 setup_target 'fmt-header-only' 'INTERFACE';
-add_lib fmt-c 'src/fmt-c.cc' ~type:STATIC;
+add_lib fmt-c 'src/fmt-c.cc' ~type:Static;
 compile_feats fmt-c Interface 'c_std_11';
 if $MSVC then (
   compile_opts fmt-c Public '/Zc:preprocessor'

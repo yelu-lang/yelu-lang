@@ -135,7 +135,14 @@ let test_enum_constructor =
     (* the ~public: kwarg key is a lowercase identifier, not the enum *)
     Alcotest.(check string) "~public: key untouched"
       "compile_feats fmt ~public:[ cxx_std_11 ]\n"
-      (fmt "compile_feats fmt ~public:[cxx_std_11]"))
+      (fmt "compile_feats fmt ~public:[cxx_std_11]");
+    (* slice 2: enum VALUES inside ~type:/~mode: canonicalize, key kept; a
+       `:Constructor`-cased input emits unchanged (matrix proves it) *)
+    Alcotest.(check string) "~type:STRING value → String"
+      "cache X := 'v' ~type:String\n" (fmt "cache X := 'v' ~type:STRING");
+    Alcotest.(check string) "~mode value, input already leading-cap"
+      "get_filename_component p ~mode:Name_we $src\n"
+      (fmt "get_filename_component p ~mode:Name_we $src"))
 
 let () =
   Alcotest.run "yc_cst_bridge"

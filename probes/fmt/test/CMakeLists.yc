@@ -29,7 +29,7 @@ fun add_fmt_test(name) (
 );
 add_subdirectory 'gtest';
 TEST_MAIN_SRC := 'test-main.cc', 'gtest-extra.cc', 'gtest-extra.h', 'util.cc';
-add_lib test-main $TEST_MAIN_SRC ~type:STATIC;
+add_lib test-main $TEST_MAIN_SRC ~type:Static;
 include_dirs test-main Public '$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>';
 link_lib test-main Public gtest fmt;
 add_fmt_test 'args-test';
