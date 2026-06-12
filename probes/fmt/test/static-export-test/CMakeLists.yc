@@ -3,13 +3,13 @@ project "fmt-link" "CXX";
 BUILD_SHARED_LIBS := OFF;
 CMAKE_VISIBILITY_INLINES_HIDDEN := TRUE;
 CMAKE_CXX_VISIBILITY_PRESET := 'hidden';
-if ${CMAKE_COMPILER_IS_GNUCXX} and ver_lt ${CMAKE_CXX_COMPILER_VERSION} "5" then (
+if $CMAKE_COMPILER_IS_GNUCXX and ver_lt $CMAKE_CXX_COMPILER_VERSION "5" then (
   BROKEN_LTO := ON
 );
-if not ${BROKEN_LTO} and ver_gt ${CMAKE_VERSION} "3.8" then (
+if not $BROKEN_LTO and ver_gt $CMAKE_VERSION "3.8" then (
   include "CheckIPOSupported";
   check_ipo_supported RESULT "HAVE_IPO";
-  if ${HAVE_IPO} then (
+  if $HAVE_IPO then (
     CMAKE_INTERPROCEDURAL_OPTIMIZATION := TRUE
   )
 );

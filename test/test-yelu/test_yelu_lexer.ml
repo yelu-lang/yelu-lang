@@ -51,6 +51,11 @@ let lex_tests = ("lex", [
     "${CMAKE_SOURCE_DIR} $<CONFIG>"
     ["(EVAL ${CMAKE_SOURCE_DIR})"; "(EVAL $<CONFIG>)"];
 
+  (* brace-elision sugar: `$foo` normalizes to the same token as `${foo}` *)
+  assert_tokens "eval brace-elision sugar"
+    "$foo ${foo} $CMAKE_VERSION"
+    ["(EVAL ${foo})"; "(EVAL ${foo})"; "(EVAL ${CMAKE_VERSION})"];
+
   assert_tokens "keyword prefix"
     ":PUBLIC :STATIC :private"
     ["(KEYWORD PUBLIC)"; "(KEYWORD STATIC)"; "(KEYWORD private)"];

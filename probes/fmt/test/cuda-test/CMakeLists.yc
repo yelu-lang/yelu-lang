@@ -1,13 +1,13 @@
 add_lib fmt-in-cuda-test "cuda-cpp14.cu" "cpp14.cc" ~type:SHARED;
 list_append "CUDA_NVCC_FLAGS" '-std=c++14';
-if ${MSVC} then (
+if $MSVC then (
   list_append "CUDA_NVCC_FLAGS" '-Xcompiler' '/std:c++14';
   list_append "CUDA_NVCC_FLAGS" '-Xcompiler' '/Zc:__cplusplus'
 );
 cuda_add_executable fmt-in-cuda-test "cuda-cpp14.cu" "cpp14.cc";
 set_target_properties target fmt-in-cuda-test PROPERTIES CUDA_SEPARABLE_COMPILATION ON;
 compile_feats fmt-in-cuda-test :PRIVATE 'cxx_std_14';
-if ${MSVC} then (
+if $MSVC then (
   set_property SOURCE "cuda-cpp14.cu" APPEND PROPERTY COMPILE_OPTIONS "-Xcompiler" "/std:c++14" "-Xcompiler" "/Zc:__cplusplus";
   set_property SOURCE "cpp14.cc" APPEND PROPERTY COMPILE_OPTIONS "/std:c++14" "/Zc:__cplusplus"
 );

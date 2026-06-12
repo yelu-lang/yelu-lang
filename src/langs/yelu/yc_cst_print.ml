@@ -29,20 +29,50 @@ let is_bare_name n =
       || String.for_all n ~f:(fun c ->
            Char.is_alphanum c || Char.equal c '_' || Char.equal c '-'))
 
+(* Brace-elision: `${foo}` with a plain-identifier name prints as the lighter
+   `$foo`. Charset must match the lexer's `$foo` sugar rule (is_ident_start /
+   is_ident_cont) so the round-trip is stable; nested / genex / odd-char names
+   keep the braces. *)
+let elide_eval_braces s =
+  let n = String.length s in
+  if n >= 4 && Char.equal s.[0] '$' && Char.equal s.[1] '{'
+     && Char.equal s.[n - 1] '}'
+  then
+    let inner = String.sub s ~pos:2 ~len:(n - 3) in
+    let is_start c = Char.is_alpha c || Char.equal c '_' in
+    let is_cont c = Char.is_alphanum c || Char.equal c '_' || Char.equal c '-' in
+    if (not (String.is_empty inner)) && is_start inner.[0]
+       && String.for_all inner ~f:is_cont
+    then Some inner else None
+  else None
+
+(* Print a name string, eliding `${ident}` → `$ident` where safe; otherwise
+   defer to [otherwise] (literal / quoted form). Used for the name/target
+   slots (assignment LHS, target-first, A_target) so the lighter form is
+   uniform with value-position evals. *)
+let pr_name_or b s ~otherwise =
+  match elide_eval_braces s with
+  | Some nm -> Buffer.add_char b '$'; Buffer.add_string b nm
+  | None -> otherwise ()
+
 let rec pr_atom b (a : Cst.atom) =
   match a with
   | A_name n -> Buffer.add_string b n
   | A_string s -> Buffer.add_char b '\''; Buffer.add_string b s; Buffer.add_char b '\''
   | A_path s -> Buffer.add_char b '"'; Buffer.add_string b (esc_double s); Buffer.add_char b '"'
-  | A_eval s -> Buffer.add_string b s
+  | A_eval s ->
+    (match elide_eval_braces s with
+     | Some name -> Buffer.add_char b '$'; Buffer.add_string b name
+     | None -> Buffer.add_string b s)
   | A_bool true -> Buffer.add_string b "ON"
   | A_bool false -> Buffer.add_string b "OFF"
   | A_int n -> Buffer.add_string b (Int.to_string n)
   | A_keyword s -> Buffer.add_char b ':'; Buffer.add_string b s
   | A_target n ->
     Buffer.add_string b "target ";
-    if is_bare_name n then Buffer.add_string b n
-    else (Buffer.add_char b '"'; Buffer.add_string b (esc_double n); Buffer.add_char b '"')
+    pr_name_or b n ~otherwise:(fun () ->
+      if is_bare_name n then Buffer.add_string b n
+      else (Buffer.add_char b '"'; Buffer.add_string b (esc_double n); Buffer.add_char b '"'))
   | A_paren a -> Buffer.add_string b "( "; pr_atom b a; Buffer.add_string b " )"
 
 let pr_arg b (arg : Cst.arg) =
@@ -70,8 +100,9 @@ let pr_target_first b (arg : Cst.arg) =
   match arg with
   | Pos a ->
     let n = target_name_of a in
-    if is_bare_name n then Buffer.add_string b n
-    else (Buffer.add_char b '"'; Buffer.add_string b (esc_double n); Buffer.add_char b '"')
+    pr_name_or b n ~otherwise:(fun () ->
+      if is_bare_name n then Buffer.add_string b n
+      else (Buffer.add_char b '"'; Buffer.add_string b (esc_double n); Buffer.add_char b '"'))
   | _ -> pr_arg b arg (* first arg should be positional; defensive *)
 
 let rec pr_cond b (c : Cst.cond) =
@@ -127,7 +158,8 @@ let rec pr_stmt b indent (s : Cst.stmt) =
   | S_block stmts -> pr_block b indent stmts
   | S_assign { cache; name; values; kwargs; docstring; parent_scope } ->
     if cache then Buffer.add_string b "cache ";
-    Buffer.add_string b name; Buffer.add_string b " :=";
+    pr_name_or b name ~otherwise:(fun () -> Buffer.add_string b name);
+    Buffer.add_string b " :=";
     List.iteri values ~f:(fun i a ->
       Buffer.add_string b (if i = 0 then " " else ", "); pr_atom b a);
     Option.iter docstring ~f:(fun d ->

@@ -187,6 +187,13 @@ let eval_lit =
        >>| fun s -> EVAL ("${" ^ s ^ "}"))
       <|>
       genex
+      <|>
+      (* Brace-elision sugar: `$foo` is `${foo}` for a plain identifier
+         (yc_cst_print canonicalizes back to this lighter form). Same
+         charset as [ident] so the round-trip is stable; normalizes to the
+         `${…}` token so the IR / emit are byte-identical. *)
+      (take_while1 is_ident_start >>= fun first ->
+       take_while is_ident_cont >>| fun rest -> EVAL ("${" ^ first ^ rest ^ "}"))
     ))
 
 (* ============================================================

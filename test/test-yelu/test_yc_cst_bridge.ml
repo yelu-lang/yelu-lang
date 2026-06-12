@@ -96,8 +96,30 @@ let test_comment_placement =
      | Ok c -> Alcotest.(check int) "4 comments preserved" 4 (List.length c.comments)
      | Error e -> Alcotest.failf "reparse: %s" e))
 
+(* `$foo` brace-elision sugar: the formatter canonicalizes `${ident}` to the
+   lighter `$ident` in value AND name/target slots, while string-internal
+   `${…}` and genex keep braces. Input `$foo` and `${foo}` are equivalent. *)
+let test_brace_elision =
+  Alcotest.test_case "brace-elision canonicalization" `Quick (fun () ->
+    let fmt s =
+      match Cstp.parse s with
+      | Ok c -> Yelu_langs.Yc_cst_print.print_program c
+      | Error e -> Alcotest.failf "parse %S: %s" s e
+    in
+    (* value slot: ${X} → $X; already-bare $X stays *)
+    Alcotest.(check string) "value ${X}→$X" "Y := $X" (fmt "Y := ${X}");
+    Alcotest.(check string) "value $X stays"  "Y := $X" (fmt "Y := $X");
+    (* name slot (assignment LHS) elides too *)
+    Alcotest.(check string) "name ${v}→$v" "$v := $w" (fmt "${v} := ${w}");
+    (* string-internal ${…} keeps braces (verbatim to cmake) *)
+    Alcotest.(check string) "in-string keeps braces"
+      "P := \"a${X}b\"" (fmt "P := \"a${X}b\"");
+    (* idempotent *)
+    Alcotest.(check string) "idempotent" "Y := $X" (fmt (fmt "Y := ${X}")))
+
 let () =
   Alcotest.run "yc_cst_bridge"
     [ "bridge", List.map corpus ~f:bridge;
       "roundtrip", List.map corpus ~f:roundtrip;
-      "comments", [ test_comment_placement ] ]
+      "comments", [ test_comment_placement ];
+      "elision", [ test_brace_elision ] ]

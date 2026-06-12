@@ -1,7 +1,7 @@
 fun expect_compile(name, code_fragment) (
-  cmake_parse_arguments EXPECT_COMPILE "ERROR" "" "" ${ARGN};
+  cmake_parse_arguments EXPECT_COMPILE "ERROR" "" "" $ARGN;
   string_make_c_identifier "${name}" ~out:test_name;
-  if ${EXPECT_COMPILE_ERROR} then (
+  if $EXPECT_COMPILE_ERROR then (
     file_write "${CMAKE_CURRENT_BINARY_DIR}/test/${test_name}.cc" '
       ${fmt_headers}
       void ${test_name}() {
@@ -45,18 +45,18 @@ fun run_tests() (
     ';
   build_directory := "${CMAKE_CURRENT_BINARY_DIR}/test/build";
   file_make_directory "${build_directory}";
-  execute_process COMMAND ${CMAKE_COMMAND} "-DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}" "-DCMAKE_CXX_FLAGS=${CMAKE_CXX_FLAGS}" "-DCMAKE_CXX_STANDARD=${CMAKE_CXX_STANDARD}" "-DCMAKE_GENERATOR=${CMAKE_GENERATOR}" "-DCMAKE_MAKE_PROGRAM=${CMAKE_MAKE_PROGRAM}" "-DFMT_DIR=${FMT_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/test" WORKING_DIRECTORY "${build_directory}" RESULT_VARIABLE result_var OUTPUT_VARIABLE output_var ERROR_VARIABLE output_var;
-  if not ( eq ${result_var} 0 ) then (
+  execute_process COMMAND $CMAKE_COMMAND "-DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}" "-DCMAKE_CXX_FLAGS=${CMAKE_CXX_FLAGS}" "-DCMAKE_CXX_STANDARD=${CMAKE_CXX_STANDARD}" "-DCMAKE_GENERATOR=${CMAKE_GENERATOR}" "-DCMAKE_MAKE_PROGRAM=${CMAKE_MAKE_PROGRAM}" "-DFMT_DIR=${FMT_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/test" WORKING_DIRECTORY "${build_directory}" RESULT_VARIABLE result_var OUTPUT_VARIABLE output_var ERROR_VARIABLE output_var;
+  if not ( eq $result_var 0 ) then (
     message FATAL_ERROR "Unable to configure:\\n${output_var}"
   );
   foreach test_name in LISTS error_test_names (
-    execute_process COMMAND ${CMAKE_COMMAND} "--build" "${build_directory}" "--target" "test-${test_name}" WORKING_DIRECTORY "${build_directory}" RESULT_VARIABLE result_var OUTPUT_VARIABLE output_var ERROR_QUIET;
-    if eq ${result_var} 0 then (
+    execute_process COMMAND $CMAKE_COMMAND "--build" "${build_directory}" "--target" "test-${test_name}" WORKING_DIRECTORY "${build_directory}" RESULT_VARIABLE result_var OUTPUT_VARIABLE output_var ERROR_QUIET;
+    if eq $result_var 0 then (
       message SEND_ERROR "No compile error for \"${test_name}\":\\n${output_var}"
     )
   );
-  execute_process COMMAND ${CMAKE_COMMAND} "--build" "${build_directory}" "--target" "non-error-test" WORKING_DIRECTORY "${build_directory}" RESULT_VARIABLE result_var OUTPUT_VARIABLE output_var ERROR_VARIABLE output_var;
-  if not ( eq ${result_var} 0 ) then (
+  execute_process COMMAND $CMAKE_COMMAND "--build" "${build_directory}" "--target" "non-error-test" WORKING_DIRECTORY "${build_directory}" RESULT_VARIABLE result_var OUTPUT_VARIABLE output_var ERROR_VARIABLE output_var;
+  if not ( eq $result_var 0 ) then (
     message SEND_ERROR "Compile error for combined non-error test:\\n${output_var}"
   )
 );
@@ -106,7 +106,7 @@ expect_compile "format-lots-of-arguments-with-function" "
   void (*f)();
   fmt::format(\"\", 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, f);
   " "ERROR";
-if ver_ge ${CMAKE_CXX_STANDARD} "20" then (
+if ver_ge $CMAKE_CXX_STANDARD "20" then (
   expect_compile "format-string-number-spec" "
     #ifdef FMT_HAS_CONSTEVAL
       fmt::format(\"{:d}\", 42);

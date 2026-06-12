@@ -102,13 +102,17 @@ Keep the *explicit read* — it's correctness, not an accident (and
 `EVarLookup` just made it more principled). Two threads came out of the
 2026-06-12 discussion:
 
-- **Brace-elision sugar (active candidate).** Accept `$foo` as a lighter
-  spelling of `${foo}` for a plain identifier (shell convention). Pure
-  surface: the lexer normalizes `$foo` → the same `${foo}` token, so the
-  IR / emit are byte-identical (cmake always receives `${foo}`); the
-  formatter may print the lighter form for simple names. Braces stay
-  required for nested / adjacent-text / in-string cases. Low-risk; reduces
-  visual density without touching semantics. Status: **proposed.**
+- **Brace-elision sugar — ✅ done (2026-06-12).** `$foo` is a lighter
+  spelling of `${foo}` for a plain identifier (shell convention). The lexer
+  ([`yelu_lexer.ml`](../../src/langs/yelu/yelu_lexer.ml) `eval_lit`)
+  normalizes `$foo` → the same `${foo}` token, so the IR / emit are
+  byte-identical (cmake always receives `${foo}`). The formatter
+  ([`yc_cst_print.ml`](../../src/langs/yelu/yc_cst_print.ml)
+  `elide_eval_braces` + `pr_name_or`) canonicalizes toward `$foo` in value
+  *and* name/target/assignment-LHS slots; braces stay for nested / genex /
+  odd-char / **in-string** names (cmake needs `${}` there). Corpus re-`fmt`'d.
+  Verified: 655 unit tests (incl. new lexer + elision round-trip tests),
+  fmt matrix **24/24**, idempotent.
 - **Value-default inversion (postponed).** Making bare `foo` = the value
   (name explicit) is a bigger, separate idea — it belongs in *ycn*, not
   yc, and needs a frequency study first. Captured in

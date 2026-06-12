@@ -1,18 +1,18 @@
 fun add_fuzzer(source) (
-  get_filename_component ${source} ~mode:NAME_WE ~out:basename;
+  get_filename_component $source ~mode:NAME_WE ~out:basename;
   name := "${basename}-fuzzer";
-  add_exe ${name} "fuzzer-common.h" ${source};
-  if ${FMT_FUZZ_LINKMAIN} then (
-    target_sources ${name} :PRIVATE "main.cc"
+  add_exe $name "fuzzer-common.h" $source;
+  if $FMT_FUZZ_LINKMAIN then (
+    target_sources $name :PRIVATE "main.cc"
   );
-  link_lib ${name} :PRIVATE "fmt";
-  if ${FMT_FUZZ_LDFLAGS} then (
-    link_lib ${name} :PRIVATE ${FMT_FUZZ_LDFLAGS}
+  link_lib $name :PRIVATE "fmt";
+  if $FMT_FUZZ_LDFLAGS then (
+    link_lib $name :PRIVATE $FMT_FUZZ_LDFLAGS
   );
-  compile_feats ${name} :PRIVATE 'cxx_std_14'
+  compile_feats $name :PRIVATE 'cxx_std_14'
 );
 cache FMT_FUZZ_LINKMAIN := ON 'Enables the reproduce mode, instead of libFuzzer';
 cache FMT_FUZZ_LDFLAGS := "" 'LDFLAGS for the fuzz targets';
 foreach source in [ "chrono-duration.cc" "chrono-timepoint.cc" "float.cc" "named-arg.cc" "one-arg.cc" "two-args.cc" ] (
-  add_fuzzer ${source}
+  add_fuzzer $source
 )
