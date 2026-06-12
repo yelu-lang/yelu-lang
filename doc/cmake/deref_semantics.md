@@ -32,6 +32,10 @@ endfunction()
 
 **Probe B — condition position** (`if(foo)` / `if(${foo})` / `if("${foo}")`).
 
+Both probes are pinned as a reproducible test:
+[`test/test_deref_probes.py`](../../test/test_deref_probes.py) — runs them
+against the local cmake and asserts the tables below.
+
 ## Findings
 
 ### Argument position (command args, `:=` values)
@@ -52,6 +56,35 @@ endfunction()
 | `OFF` / `0` / empty | FALSE | FALSE | FALSE |
 | `abc` | **TRUE** (var set) | **FALSE** (`abc` not a var/const) | **FALSE** |
 | `bar` (→ `ON`) | **TRUE** | **TRUE** (`if(bar)` re-derefs) | **FALSE** (quoted, CMP0054) |
+
+## Lattice (argument position)
+
+How the three forms relate, by the cmake arguments they produce — read like
+a coercion lattice (the two deref forms *coincide* for a scalar value, and
+*diverge* otherwise):
+
+```
+                       ${foo}                      "${foo}"
+              (list view: 0 .. N args;        (scalar view: always
+               splits on ';', drops             exactly 1 arg = the
+               empty elements)                   raw value, ';' kept)
+                    \                                   /
+                     \        foo is SCALAR            /
+                      \    (no ';', non-empty)        /
+                       \________ ${foo} ≡ "${foo}" __/
+                                  (the only collapse)
+
+                                  ▲ diverge below ▲
+                 foo = "a;b;c"  : ${foo} → 3 args ⟂ "${foo}" → 1 arg
+                 foo = "" / ";" : ${foo} → 0 args ⟂ "${foo}" → 1 arg
+
+      bare  foo  :  the literal text "foo" — NOT in this lattice in
+                    argument position. It enters only inside if()/while(),
+                    where cmake auto-dereferences it (→ rule 3 below).
+```
+
+Mnemonic: `"${foo}"` is the *value*; `${foo}` is the *value spread as a
+list*. Equal exactly when the list has one non-empty element.
 
 ## Equivalence rules
 
