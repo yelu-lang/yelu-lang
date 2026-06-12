@@ -39,6 +39,14 @@ let check_subset name ~sub ~super =
 let command_surfaces = sset (M.surfaces_of_class M.Command)
 let word_surfaces = sset M.word_surfaces
 
+(* Enum constructors are sourced from the lexer's [constr_names] set, in the
+   leading-cap surface spelling. *)
+let constr_surfaces = sset M.constr_surfaces
+let lexer_constr_surfaces =
+  Set.to_list Yelu_langs.Yelu_lexer.constr_names
+  |> List.map ~f:(fun u -> String.capitalize (String.lowercase u))
+  |> sset
+
 (* Control + Type are the manifest's hard-keyword classes — the ones the
    lexer turns into dedicated keyword tokens. *)
 let manifest_hard_keywords =
@@ -52,6 +60,8 @@ let tests =
       ~expected:P.command_names ~got:command_surfaces;
     check_set_eq "word surfaces ≡ Yc_primitives.reserved_names"
       ~expected:P.reserved_names ~got:word_surfaces;
+    check_set_eq "enum constructors ≡ Yelu_lexer.constr_names (leading-cap)"
+      ~expected:lexer_constr_surfaces ~got:constr_surfaces;
     check_subset "lexer hard keywords ⊆ manifest (Control ∪ Type)"
       ~sub:lexer_hard_keywords ~super:manifest_hard_keywords;
   ]

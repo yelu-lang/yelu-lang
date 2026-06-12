@@ -25,6 +25,7 @@ type lexical_class =
   | Type_keyword     (* target, cvar, cache                   *)
   | Bool_literal     (* ON, OFF                               *)
   | Cond_operator    (* not, and, or, str_eq, ver_lt, ...     *)
+  | Enum_constructor (* Public, Private, Static, Name_we, ... *)
   | Punctuation      (* := = ~ .. ( ) { } [ ] , ; :           *)
 [@@deriving equal, sexp_of]
 
@@ -51,6 +52,7 @@ let default_scope = function
   | Type_keyword    -> "storage.type.yc"
   | Bool_literal    -> "constant.language.boolean.yc"
   | Cond_operator   -> "keyword.operator.word.yc"
+  | Enum_constructor -> "constant.language.yc"
   | Punctuation     -> "punctuation.yc"
 
 let mk ?ctor lexical_class surface =
@@ -77,6 +79,15 @@ let type_keywords =
 
 let bool_literals =
   [ "ON"; "OFF" ] |> List.map ~f:(mk Bool_literal)
+
+(* Enum constructors ride on [Yelu_lexer.constr_names] (the lexer's truth for
+   which capitalized words are enum choices), so the highlighter can never list
+   an enum the lexer doesn't accept, or vice-versa. The surface is the
+   leading-cap spelling (`PUBLIC` → `Public`). Test-locked in
+   test_yc_manifest. *)
+let enum_constructors =
+  Set.to_list Yelu_lexer.constr_names
+  |> List.map ~f:(fun u -> mk Enum_constructor (String.capitalize (String.lowercase u)))
 
 let cond_operators =
   [ "not"; "and"; "or"; "str_eq"; "str_lt"; "str_gt";
@@ -107,7 +118,7 @@ let punctuation =
 
 let all : entry list =
   command_entries @ control_keywords @ type_keywords
-  @ bool_literals @ cond_operators @ punctuation
+  @ bool_literals @ cond_operators @ enum_constructors @ punctuation
 
 (* ── Accessors for the generator + driver introspection ── *)
 
@@ -117,13 +128,22 @@ let by_class cls =
 let surfaces_of_class cls = List.map (by_class cls) ~f:(fun e -> e.surface)
 
 (* Word-classes are everything except [Punctuation] — these are the
-   `\b`-bounded identifier-like tokens, and together their surfaces
-   should equal [Yc_primitives.reserved_names]. *)
+   `\b`-bounded identifier-like tokens the grammar renders as `\b(…)\b`
+   rules. [Enum_constructor] is a word class too (it gets a `\b` rule), but
+   it is sourced from a *different* provider ([Yelu_lexer.constr_names]), so
+   it is excluded from [word_surfaces] — the reserved-backed set the lock
+   test pins to [Yc_primitives.reserved_names]. *)
 let is_word_class = function Punctuation -> false | _ -> true
+
+let is_reserved_backed cls =
+  is_word_class cls && not (equal_lexical_class cls Enum_constructor)
 
 let word_surfaces =
   List.filter_map all ~f:(fun e ->
-    if is_word_class e.lexical_class then Some e.surface else None)
+    if is_reserved_backed e.lexical_class then Some e.surface else None)
+
+(* Enum-constructor surfaces, locked to [Yelu_lexer.constr_names]. *)
+let constr_surfaces = surfaces_of_class Enum_constructor
 
 (* A single-line textual dump, for the driver `manifest` op / `yelu
    manifest` CLI. One row per entry: surface<TAB>class<TAB>tm_scope. *)

@@ -12,6 +12,10 @@
     { "match": ":[A-Za-z0-9_-]+", "name": "entity.other.attribute-name.yc" },
     { "match": "\\b(OFF|ON)\\b", "name": "constant.language.boolean.yc" },
     {
+      "match": "\\b(Interface|Name_we|Private|Public|Static|String|Cxx)\\b",
+      "name": "constant.language.yc"
+    },
+    {
       "match": "\\b(continue|function|foreach|return|RANGE|break|macro|while|else|then|fun|let|if|in)\\b",
       "name": "keyword.control.yc"
     },
