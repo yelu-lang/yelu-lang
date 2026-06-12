@@ -85,6 +85,31 @@ foreach(s IN ITEMS scalar empty indirect onoff)
 endforeach()
 '''
 
+# --- Probe D: expansion *structure* (for first-class `$` = EVarLookup) -
+# Beyond the value-shape matrix: confirm the two structural cases the IR
+# node must honour. Nested ${${inner}} is computed-name indirection (proves
+# the operand must be an expr, not a string); mixed pre${l}post fuses at the
+# boundary then splits (proves a pure $-node can't model it → deferred).
+STRUCT_PROBE = r'''
+function(report label)
+  set(vis "")
+  set(i 1)
+  while(i LESS ${ARGC})
+    set(vis "${vis}<${ARGV${i}}>")
+    math(EXPR i "${i} + 1")
+  endwhile()
+  math(EXPR ra "${ARGC} - 1")
+  message("STR|${label}|argc=${ra}|args=${vis}")
+endfunction()
+set(inner who)
+set(who HELLO)
+report("nested" ${${inner}})
+report("nested.q" "${${inner}}")
+set(l "a;b;c")
+report("mixed.unq" pre${l}post)
+report("mixed.q" "pre${l}post")
+'''
+
 # --- Probe C: condition position, typed (VERSION_LESS) ----------------
 # Run each (value x form) in isolation so an unquoted-list operand — which
 # splits into too many if() operands and is a *parse error* — doesn't abort
@@ -168,6 +193,20 @@ def main():
           eval_if(lst, '${foo} VERSION_LESS "2.0"') == "ERR")
     check("if-typed/list: quoted is valid (not ERR)",
           eval_if(lst, '"${foo}" VERSION_LESS "2.0"') in ("T", "F"))
+
+    # expansion structure (first-class `$` = EVarLookup must honour these)
+    _, out = run(STRUCT_PROBE)
+    d = parse(out, "STR")
+    # nested ${${inner}}: computed name resolves (operand is an expr)
+    check("struct/nested: ${${inner}} resolves",
+          d["nested"] == ["argc=1", "args=<HELLO>"])
+    check("struct/nested.q: same when quoted",
+          d["nested.q"] == ["argc=1", "args=<HELLO>"])
+    # mixed pre${l}post (l=a;b;c): boundary fuse THEN split → 3 args
+    check("struct/mixed.unq: fuse+split (3)",
+          d["mixed.unq"] == ["argc=3", "args=<prea><b><cpost>"])
+    check("struct/mixed.q: one arg",
+          d["mixed.q"] == ["argc=1", "args=<prea;b;cpost>"])
 
     if failures:
         print(f"\n{len(failures)} probe(s) DIVERGED from doc/cmake/var_reference_semantics.md")

@@ -186,55 +186,88 @@ property*, not a cache entry — a **cache-invisible** effect (fmt flags
 deferred **behavior-level oracle (File API codemodel-v2)** would. So this
 is a real latent unsoundness, currently masked.
 
-## Root cause + implementation plan (bring the quoted-bit back)
+## Status of `$` in the IR today (2026-06-12)
 
-**Root cause — an AST flaw, not cmake's dynamics.** cmake keeps a
-quoted-vs-unquoted bit on every argument; yc's *production* IR
-(`Yelu_cmake.expr`) dropped it — `EString of string` is always-quoted, and
-both `${foo}` (EVAL) and `"${foo}"` (PATH) collapse to it at parse. The bit
-*exists* one layer out: the **CST** distinguishes `A_eval` / `A_path` /
-`A_string`, and the legacy typed AST had `yc_string = Ycs_eval | Ycs_path |
-…`. So `lower_atom` (CST→expr) is exactly where it's lost. The fix restores
-fidelity yc had, not something beyond cmake.
+`$` is **not** first-class. A cmake `${foo}` is represented two ways, neither
+an expansion operator:
 
-**Combination coverage.** Only the **quoted/unquoted** axis is a
-representation gap; the others are runtime (value shape, conf/run-time —
-relaxed), structural (arg vs if — already in emit), or inferable from slot
-typing (a typed target slot fixes arity). Ground truth is pinned in
-[`test/test_deref_probes.py`](../../test/test_deref_probes.py).
+- **`EVar of string`** ([`yelu_cmake.ml:874`](../../src/langs/yelu/yelu_cmake.ml#L874))
+  is yc's *compile-time* `let`/`function` binding, **overloaded** to also mean
+  "cmake deref": an unresolved metavar emits `${name}`
+  ([`emit:62`](../../src/langs/yelu/yelu_cmake_emit.ml#L62)). Operand is a bare
+  `string`, so it *cannot* express `${${x}}`; it eval-resolves through the
+  *binding* env, not the cmake var env — which is exactly why
+  `${foo}`→`EVar` blew up `message ${bar}` (runtime expansion run through the
+  compile-time namespace).
+- **`EString "${foo}"`** — a verbatim blob (what the parser/CST actually
+  produce: `A_eval s → EString s`); eval calls `substitute`, emit quotes it
+  because it contains `${`.
 
-**Representation: a sibling constructor `EUnquoted of string`** (the
-"quoted=false" companion of `EString`). Per the compositional model above,
-the constructor encodes only the **quoting wrapper**; the string it holds is
-the **verbatim interpolated content** — arbitrary literal text + `${…}`
-expansions (`${a} -- ${b}` is fine), *not* a lone name. So we add a wrapper
-bit, not a `${IDENT}` primitive. It emits **unquoted** and does *not*
-subst-resolve — that is what sank the `EVar` route: `EVar` is yc's
-*compile-time* binding (a different namespace from cmake's runtime `${}`
-lookup), so `message ${bar}` resolved to `message(STATUS "")`. A flag on
-`EString` is cleaner in theory but `EString of string` is pattern-matched in
-too many places to re-arity; a sibling constructor is the minimal encoding of
-the bit.
+`EVar` is doing **three** jobs at once — let-binding, bare identifier
+(`PUBLIC`), and cmake deref. `from_emit` then collapses both `${x}` forms
+back to `e_var`, losing the quote. The fix is to give `$` its own node and
+let `EVar` go back to meaning only "yc binding".
+
+## Plan — make `$` first-class as `EVarLookup of expr`
+
+**Root cause — a missing operation, not cmake's dynamics.** cmake's `$` is a
+primitive `name → value` lookup; yc never had a node for it, so it leaked
+into `EVar` (the binding) and `EString` (a blob). The fix adds the operation.
+
+**`EVarLookup of expr`** — the `$` operator. The operand is an **expr**
+(not a string) precisely so the *computed-name* case composes:
+`${${inner}}` → `EVarLookup (EVarLookup (EString "inner"))` (cmake resolves
+it — probe-confirmed `HELLO`). Naming: `EVarLookup` over `EDeref` (not a
+deref) / `EExpand` (fine too); it *is* a keyed-dict lookup.
+
+**Quoting falls out, no separate node needed.** Per the model above, quote =
+to-string. So:
+
+| surface | IR | emits | splits? |
+| --- | --- | --- | --- |
+| `${foo}` (unquoted) | `EVarLookup (EString "foo")` | `${foo}` bare | yes |
+| `"${foo}"` (quoted) | `EString "${foo}"` (a *string value*) | `"${foo}"` | no |
+| `${${x}}` | nested `EVarLookup` | `${${x}}` bare | yes |
+
+`EVarLookup` is the unquoted/list form (the one with interesting semantics);
+the quoted form is "just a string", so `EString` already models it. No
+`EUnquoted`, no `EQuoted`. (This supersedes the earlier `EUnquoted`-blob
+sketch — first-class `$` is the cleaner cut the discussion converged on.)
+
+**Deferred corner — mixed unquoted text.** `pre${l}post` with a list value
+fuses at the boundary *then* splits (`<prea><b><cpost>`, probe-confirmed) —
+that needs the surrounding literal text, i.e. *structured* interpolation,
+which first-class `$` deliberately does **not** add. Until then mixed
+unquoted stays an `EString` blob (emitted quoted = a known minor unsoundness,
+same class as the other deferred `from_emit` corners). Pure `${foo}` — the
+common, important case (fmt's `${PEDANTIC_COMPILE_FLAGS}`) — is covered.
 
 **Layer-by-layer changes:**
 
 | layer | change |
 | --- | --- |
-| `yelu_cmake.ml` (expr) | add `EUnquoted of string` |
-| `yc_cst_lower.lower_atom` | `A_eval s` → `EUnquoted s` (was `EString`); `A_path`/`A_string` → `EString` (quoted); `$<…>` → `ECmakeGenex` (unchanged) |
-| `yelu_parse.p_expr_y1` | `EVAL s` (non-genex) → `EUnquoted s` (was `EString`) |
-| `yelu_cmake_emit` | `EUnquoted s` → `C.Bare s` (unquoted) in **every** position arm (arg / cond / value); `EString` stays quoted |
-| `yelu_cmake_eval` | `EUnquoted` evals like `EString` (substitute the text); **list-splitting deferred** (the relaxed axis) — note it |
-| `yelu_cmake_from_emit.arg_to_expr` | use the cmake arg's quote: `C.Bare` → `EUnquoted`, `C.Quoted` → `EString`, **content preserved verbatim**. Stop the `unwrap_var_ref → e_var` collapse: matching `${IDENT}` → `EVar` is the *primitive trap* — it conflates a runtime expansion with a compile-time binding *and* can't represent `${a} -- ${b}`. |
-| byte-oracle goldens | review/regen cases where an unquoted-source deref flips `"${X}"` → `${X}` |
-| CST / printer | unchanged (already carry the distinction) |
+| `yelu_cmake.ml` (expr) | add `EVarLookup of expr` |
+| `yc_cst_lower.lower_atom` | `A_eval s`: if pure `${…}` (no surrounding text), parse to `EVarLookup` (nested for `${${…}}`); `$<…>` → `ECmakeGenex` (unchanged); mixed → `EString` (deferred). `A_path`/`A_string` → `EString` (quoted, unchanged) |
+| `yelu_parse.p_expr_y1` | same: `EVAL s` pure → `EVarLookup`, mixed → `EString` |
+| `yelu_cmake_emit` | `EVarLookup e` → `C.Bare ("${" ^ render e ^ "}")` (unquoted) in arg; cond/target render `${…}` per existing convention; `EString` unchanged (quoted) |
+| `yelu_cmake_eval` | `EVarLookup e`: eval `e` to a name, `find_var`; undefined → `""`; **list-splitting deferred** (relaxed axis) — note it |
+| `yelu_cmake_from_emit.arg_to_expr` | `C.Bare "${X}"` → `EVarLookup`; `C.Quoted "${X}"` → `EString` (preserve the quote). Retire `unwrap_var_ref → e_var` (the primitive trap: conflates expansion with the binding namespace) |
+| `yelu_cmake_utils` | `yvar`/`ycstr` (`= EVar`) and the `EVar n → EString n` demotion: audit so cmake reads route to `EVarLookup`, leaving `EVar` for genuine bindings only |
+| byte-oracle goldens | review/regen cases where an unquoted-source `$` flips `"${X}"` → `${X}` |
+| CST / printer | unchanged (already carries the `A_eval`/`A_string` distinction) |
 
-**Verification:** emit-text unit test (`EUnquoted`→unquoted, `EString`→quoted);
-emit-bridge stays green (change legacy + CST together); byte-oracle goldens
-reviewed; fmt matrix 24/24 (scalar-safe); the cmake probes as ground truth.
-Full list-splitting-reaches-the-build verification → the deferred File-API
-behavior oracle (the cache-matrix is blind to it — this is its first
-client).
+**Coverage test additions** (`test/test_deref_probes.py`, cmake ground
+truth): a *structure* probe set beyond the value-shape matrix — **nested**
+`${${inner}}` (computed-name resolves) and **mixed** `pre${l}post` (boundary
+fuse + split, 3 args, vs quoted = 1). These pin what `EVarLookup` must honor
+and why mixed-unquoted is deferred.
+
+**Verification:** emit-text unit test (`EVarLookup`→unquoted `${X}`,
+`EString`→quoted); emit-bridge stays green (change legacy + CST together);
+byte-oracle goldens reviewed; fmt matrix 24/24 (scalar-safe); the cmake
+probes as ground truth. Full list-splitting-reaches-the-build verification →
+the deferred File-API behavior oracle (the cache-matrix is blind to it — this
+is its first client).
 
 ## Related
 
