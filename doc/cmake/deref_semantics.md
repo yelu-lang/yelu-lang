@@ -149,12 +149,25 @@ property*, not a cache entry — a **cache-invisible** effect (fmt flags
 deferred **behavior-level oracle (File API codemodel-v2)** would. So this
 is a real latent unsoundness, currently masked.
 
-**Fix direction:** carry the unquoted-vs-quoted bit from surface to emit
-(the lexer already distinguishes `EVAL ${…}` from a `PATH "…"` token; the
-distinction is being dropped on the way to emit). Then unquoted `${list}`
-emits unquoted (splits) and `"${list}"` emits quoted. Pairs with W1 — once
-the bit is preserved, the formatter can warn on a likely-wrong choice.
-A behavior-oracle test with a `a;b;c` var in both positions pins it.
+**Fix direction (investigated 2026-06-12 — needs a new IR node).** The
+distinction collapses at *parse*: `${foo}` (EVAL) and `"${foo}"` (PATH)
+both become `EString "${foo}"`, and `EString` emits always-quoted. The
+obvious fixes do **not** work:
+
+- map pure `${foo}` → **`EVar`**: `EVar` is a yc *compile-time binding*
+  that subst-resolves at emit — `message ${bar}` then emits
+  `message(STATUS "")`, **losing the deref**. So `${foo}` ≠ `EVar`.
+- **`ECmakeRaw`**: emits `C.Quote` (quoted) — not unquoted.
+
+No existing node represents an *unquoted cmake-runtime deref*. The proper
+fix is a **new IR node** (e.g. `EDeref of string`) that emits `${foo}`
+**verbatim + unquoted in every position** and **splits on `;` in eval**.
+Blast radius: emit (all positions), eval (list-split), the cmake→yc bridge
+(`from_emit.unwrap_var_ref` already detects pure `${IDENT}` — it would
+build `EDeref` instead of `e_var`), and the byte-oracle goldens. Verify
+with a unit test on emitted text (unquoted-in → unquoted-out) + the File-API
+behavior oracle (the cache-matrix is blind to it). Medium-sized; pairs with
+standing up that oracle.
 
 ## Related
 
