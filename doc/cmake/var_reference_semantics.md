@@ -35,9 +35,32 @@ So the three surface forms decompose as: bare `foo` = literal text; `${foo}`
 = *unquoted* interpolated text (splits on `;`); `"${foo}"` = *quoted*
 interpolated text (one arg). The only thing the production IR dropped is the
 **quoted/unquoted wrapper bit** — the interpolated content was always carried
-as a string. Hence the new node names the *quoting* axis (`EUnquoted`, the
-`quoted=false` sibling of `EString`), and both nodes hold arbitrary
-interpolated text.
+as a string. (The first sketch added an `EUnquoted` sibling for exactly this
+bit; the implemented design instead makes `$` first-class as `EVarLookup` and
+lets quoting fall out — see the plan below. Either way the axis being restored
+is *quoting*, not a `${IDENT}` primitive.)
+
+### Nesting is asymmetric — `$` nests, quote is outermost-only
+
+The construction space is **not** a free `{$, quote}^n` product (probe-pinned
+in `test_deref_probes.py`):
+
+- **`$` nests freely inside `$`** (computed name): `${${foo}}`, `${${${a}}}`
+  all resolve (3-layer → `HELLO`).
+- **quote wraps only the outermost argument**: `"${${foo}}"` is fine.
+- **a quote *inside* `${…}` is a cmake parse error** — `${"${foo}"}` /
+  `if(${"${foo}"})` → *Invalid character (`"`) in a variable name*. A variable
+  name may contain text and nested `${…}` but never a `"`.
+
+```
+varref  ::= "${" name "}"      name ::= ( char | varref )*     ← no quotes
+quoted  ::= "\"" ( char | varref )* "\""                       ← quote outside only
+```
+
+**IR consequence:** `EVarLookup of expr` is *looser* than cmake. Restricted to
+valid source, the operand can only be the name text (`EString`) or a nested
+`EVarLookup` — **never a quoted `EString`**. The extra slack in the type is
+unreachable from a parser, not a representable cmake construction.
 
 ## Methodology
 

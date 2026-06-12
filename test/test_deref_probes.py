@@ -110,6 +110,34 @@ report("mixed.unq" pre${l}post)
 report("mixed.q" "pre${l}post")
 '''
 
+# --- Probe E: $/quote nesting enumeration ------------------------------
+# The construction space is ASYMMETRIC, not a free {$,quote}^n product:
+#   * `$` nests freely inside `$` (computed name): ${x}, ${${x}}, ${${${x}}}
+#   * quote wraps only the OUTERMOST arg: "${...}" / "${${...}}"
+#   * a quote INSIDE ${...} is a cmake PARSE ERROR — a variable name may
+#     contain text and nested ${...} but never a `"`.
+# So EVarLookup's operand (for valid source) is name-text or nested
+# EVarLookup, never a quoted EString. These pin that ground truth.
+NEST_PROBE = r'''
+function(report label)
+  set(vis "")
+  set(i 1)
+  while(i LESS ${ARGC})
+    set(vis "${vis}<${ARGV${i}}>")
+    math(EXPR i "${i} + 1")
+  endwhile()
+  math(EXPR ra "${ARGC} - 1")
+  message("NEST|${label}|argc=${ra}|args=${vis}")
+endfunction()
+set(a b)
+set(b c)
+set(c HELLO)
+report("L1" ${c})
+report("L2" ${${b}})
+report("L3" ${${${a}}})
+report("L3q" "${${${a}}}")
+'''
+
 # --- Probe C: condition position, typed (VERSION_LESS) ----------------
 # Run each (value x form) in isolation so an unquoted-list operand — which
 # splits into too many if() operands and is a *parse error* — doesn't abort
@@ -207,6 +235,21 @@ def main():
           d["mixed.unq"] == ["argc=3", "args=<prea><b><cpost>"])
     check("struct/mixed.q: one arg",
           d["mixed.q"] == ["argc=1", "args=<prea;b;cpost>"])
+
+    # $/quote nesting enumeration
+    _, out = run(NEST_PROBE)
+    e = parse(out, "NEST")
+    # positives: $ nests to any depth; outer quote keeps it one arg
+    check("nest/L1: ${c}", e["L1"] == ["argc=1", "args=<HELLO>"])
+    check("nest/L2: ${${b}}", e["L2"] == ["argc=1", "args=<HELLO>"])
+    check("nest/L3: ${${${a}}}", e["L3"] == ["argc=1", "args=<HELLO>"])
+    check("nest/L3q: \"${${${a}}}\" (1 arg)",
+          e["L3q"] == ["argc=1", "args=<HELLO>"])
+    # negatives: a quote INSIDE ${...} is a parse error, arg + if positions
+    rc_arg, _ = run('set(c HELLO)\nmessage(${"${c}"})\n')
+    check("nest/quote-in-dollar (arg): parse ERROR", rc_arg != 0)
+    check("nest/quote-in-dollar (if): parse ERROR",
+          eval_if('set(c 1)', '${"${c}"}') == "ERR")
 
     if failures:
         print(f"\n{len(failures)} probe(s) DIVERGED from doc/cmake/var_reference_semantics.md")
