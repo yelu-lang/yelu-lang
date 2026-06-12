@@ -210,6 +210,23 @@ let `EVar` go back to meaning only "yc binding".
 
 ## Plan — make `$` first-class as `EVarLookup of expr`
 
+> **Implemented (2026-06-12).** `EVarLookup of expr` shipped across all layers
+> below. Author intent is now preserved: unquoted `${X}` emits `${X}`
+> (splits), quoted `"${X}"` emits `"${X}"`. Verified: 655 unit tests, fmt
+> matrix **24/24** (real cmake), v1 structural checks, deref probes.
+> Two follow-ons the change forced:
+> - **Consumer audit.** Introducing the node silently broke `| _ -> default`
+>   catch-alls that read name/keyword slots (cache-type, target visibility,
+>   property names). Fixed by routing them through `str_of`, which now also
+>   handles `EVarLookup` (and `ETarget`). The compiler can't flag these —
+>   the fmt matrix did. This is the cost of a non-exhaustive open variant.
+> - **Latent printer bug surfaced.** `install(EXPORT … DESTINATION ${d}NAMESPACE …)`
+>   — the cmake pretty-printer glued the destination to the next keyword
+>   (`%a%a`). The closing `"` of the old `"${d}"` had masked it; unquoted, the
+>   keyword got swallowed → configure error. Fixed the separator in the
+>   `Install_export` / `Install_directory` printers (this also recovered a
+>   previously-failing v2 structural case).
+
 **Root cause — a missing operation, not cmake's dynamics.** cmake's `$` is a
 primitive `name → value` lookup; yc never had a node for it, so it leaked
 into `EVar` (the binding) and `EString` (a blob). The fix adds the operation.

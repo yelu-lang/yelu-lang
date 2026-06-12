@@ -465,7 +465,7 @@ let tier6_find_install_y1 = ("t6-find-install-y1", [
   assert_parse_y1_emits "y1: install_files"   "( install_files \"include\" )"
     "install(FILES  DESTINATION include)";
   assert_parse_y1_emits "y1: install_export"  "( install_export EXP \"lib/cmake\" )"
-    "install(EXPORT ${EXP}  DESTINATION lib/cmake)";
+    "install(EXPORT ${EXP}  DESTINATION lib/cmake )";
 ])
 
 let tier8_misc_y1 = ("t8-misc-y1", [

@@ -872,6 +872,14 @@ let expect_target = function
 
 type expr +=
   | EVar of string
+  | EVarLookup of expr
+    (* First-class cmake variable expansion `${...}`. The operand is an
+       expr (not a string) so computed names compose: `${${inner}}` is
+       [EVarLookup (EVarLookup (EString "inner"))]. Distinct from [EVar]
+       (yc's compile-time binding): [EVarLookup] reads the *cmake variable*
+       env at eval and emits *unquoted* `${name}` (the list/split form);
+       the quoted "to-string" form `"${name}"` stays an [EString]. See
+       doc/cmake/var_reference_semantics.md. *)
   | EString of string
   | EBool of bool
   | ECmakeRaw of string  (* verbatim cmake text — codegen-only escape *)
@@ -899,3 +907,31 @@ let bool_literal_of_string (s : string) : expr option =
   | "FALSE" | "OFF" | "NO" | "N" | "0" | "IGNORE" | "NOTFOUND" ->
     Some (EBool false)
   | _ -> None
+
+(* Parse a string that is *exactly* one cmake variable expansion `${...}`
+   (possibly nested) into an [EVarLookup]. Returns [None] when the string is
+   literal, mixed (`pre${x}post`, `${a}${b}`), or a genex (`$<...>`) — those
+   stay [EString] / [ECmakeGenex] (the deferred-corner / quoted forms). This
+   is the single decision point shared by both parsers and the cmake bridge
+   so they route `${...}` identically. See doc/cmake/var_reference_semantics.md. *)
+let rec parse_var_lookup (s : string) : expr option =
+  let n = String.length s in
+  if n < 3 || not (Char.equal s.[0] '$') || not (Char.equal s.[1] '{') then None
+  else
+    (* Find the brace matching the opener at index 1 (depth starts at 1). *)
+    let rec find_close i depth =
+      if i >= n then -1
+      else
+        match s.[i] with
+        | '{' -> find_close (i + 1) (depth + 1)
+        | '}' -> if depth - 1 = 0 then i else find_close (i + 1) (depth - 1)
+        | _ -> find_close (i + 1) depth
+    in
+    let close = find_close 2 1 in
+    if close = n - 1 then
+      let inner = String.sub s ~pos:2 ~len:(close - 2) in
+      let inner_expr =
+        match parse_var_lookup inner with Some e -> e | None -> EString inner
+      in
+      Some (EVarLookup inner_expr)
+    else None (* close brace not at the end → mixed, e.g. ${a}${b} or ${a}x *)

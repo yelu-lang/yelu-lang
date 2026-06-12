@@ -32,7 +32,8 @@ let rec lower_atom (a : Cst.atom) : expr =
   | A_string s -> EString s
   | A_path s   -> EString s
   | A_eval s   ->
-    if String.is_substring s ~substring:"$<" then ECmakeGenex s else EString s
+    if String.is_substring s ~substring:"$<" then ECmakeGenex s
+    else (match parse_var_lookup s with Some e -> e | None -> EString s)
   | A_bool b    -> EBool b
   | A_int n     -> EString (Int.to_string n)
   | A_keyword s -> EString s
@@ -64,7 +65,10 @@ let rec lower_cond (c : Cst.cond) : expr =
     in
     ECmakeTargetExists target
   | C_app (op, args) ->
-    let name_of a = match lower_atom a with EVar s | EString s -> s | _ -> "?" in
+    (* A name slot wants the atom's cmake text — `A_eval "${x}"` → "${x}",
+       consistent with how the legacy parser's str_of reads these slots now
+       that `${...}` lowers to a first-class EVarLookup. *)
+    let name_of a = str_of_atom a in
     (match op, args with
      | "defined", [ a ] -> ECmakeVarDefined (name_of a)
      | "exists", [ a ] -> ECmakeFileExists (lower_atom a)

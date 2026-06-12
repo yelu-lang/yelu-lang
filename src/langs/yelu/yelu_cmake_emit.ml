@@ -57,12 +57,28 @@ let empty_subst : subst = Map.empty (module String)
    would otherwise mis-tokenize (empty / whitespace / genex / backslash);
    keep bare otherwise. EVar resolves through subst lazily; unresolved
    EVar renders as ${name} (cmake deref). *)
+(* Render a [EVarLookup] operand to the text inside `${...}`. The operand is
+   normally an [EString] (the name) or a nested [EVarLookup] (computed name);
+   [EVar] (a compile-time binding used as a name) resolves through subst. *)
+let rec lookup_text ~env (e : expr) : string =
+  match e with
+  | EString s -> s
+  | EVarLookup inner -> "${" ^ lookup_text ~env inner ^ "}"
+  | EVar name ->
+    (match Map.find env name with
+     | Some replacement -> lookup_text ~env replacement
+     | None -> name)
+  | EInt n -> Int.to_string n
+  | EBool b -> if b then "ON" else "OFF"
+  | _ -> fail "emit_ast: cannot render ${...} operand"
+
 let rec arg ?(env = empty_subst) (e : expr) : C.arg =
   match e with
   | EVar name ->
     (match Map.find env name with
      | Some replacement -> arg ~env replacement
      | None -> C.Bare ("${" ^ name ^ "}"))
+  | EVarLookup inner -> C.Bare ("${" ^ lookup_text ~env inner ^ "}")
   | ECmakeGenex s ->
     (* Render genex source verbatim, Quoted. Matches legacy compile's
        erase_arg for Ycs_eval — preserves byte-equality oracle. *)
@@ -94,6 +110,7 @@ let rec target_arg ?(env = empty_subst) (e : expr) : string =
     (match Map.find env name with
      | Some replacement -> target_arg ~env replacement
      | None -> "${" ^ name ^ "}")
+  | EVarLookup inner -> "${" ^ lookup_text ~env inner ^ "}"
   | EString s -> s
   | ETarget name -> name
   | _ -> fail "emit_ast: cannot erase expression to target name"
@@ -122,6 +139,7 @@ let rec cond_text ?(env = empty_subst) (e : expr) : string =
     (match Map.find env name with
      | Some replacement -> cond_text ~env replacement
      | None -> name)
+  | EVarLookup inner -> "${" ^ lookup_text ~env inner ^ "}"
   | EString s -> s
   | EInt n -> Int.to_string n
   | EBool true -> "ON"
@@ -250,6 +268,7 @@ let rec emit_exp ~env (e : expr) : C.exp =
        would break by quoting ${...} strings. *)
     let raw_arg = function
       | EVar n -> C.Bare ("${" ^ n ^ "}")
+      | EVarLookup inner -> C.Bare ("${" ^ lookup_text ~env inner ^ "}")
       | EString s -> C.Bare s
       | EBool true -> C.Bare "ON"
       | EBool false -> C.Bare "OFF"
@@ -1278,6 +1297,9 @@ let rec emit_exp ~env (e : expr) : C.exp =
     emit_exp ~env (Map.find_exn env name)
   | EVar name ->
     C.Message { mode = C.Mm_none; texts = [ "RESULT=${" ^ name ^ "}" ] }
+  | EVarLookup inner ->
+    C.Message
+      { mode = C.Mm_none; texts = [ "RESULT=${" ^ lookup_text ~env inner ^ "}" ] }
   | EString s ->
     C.Message { mode = C.Mm_none; texts = [ "RESULT=" ^ s ] }
   | EInt n ->

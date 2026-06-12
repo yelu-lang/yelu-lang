@@ -1343,13 +1343,13 @@ and pp_project_cmd ff cmd =
           pp_arg destination)
   | Install_export { file; export; destination; namespace; _ } ->
       Fmt.(
-        pf ff "install(EXPORT %a@[<2>@;%a@;DESTINATION %a%a@])" pp_arg export
+        pf ff "install(EXPORT %a@[<2>@;%a@;DESTINATION %a@;%a@])" pp_arg export
           (pp_with_key "FILE" pp_arg)
           file pp_arg destination
           (pp_with_key "NAMESPACE" string) namespace)
   | Install_directory { directory; destination; component; optional; _ } ->
       Fmt.(
-        pf ff "install(DIRECTORY %a@;DESTINATION %a%a%s)" string directory
+        pf ff "install(DIRECTORY %a@;DESTINATION %a@;%a%s)" string directory
           pp_arg destination
           (pp_with_key "COMPONENT" string) component
           (if optional then " OPTIONAL" else ""))

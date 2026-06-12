@@ -33,6 +33,16 @@ let rec eval_expr env = function
         if(NOT CMAKE_BUILD_TYPE) at the top, for example).
         Discovered via the fmt bridge smoke. *)
      | None -> env, VString "")
+  | EVarLookup e ->
+    (* First-class `${...}`: evaluate the operand to a name (computed names
+       compose — ${${inner}}), then read the *cmake variable* env. Undefined
+       → "" (cmake's silent-empty rule, same as EVar). List-splitting on the
+       result is deferred (the relaxed axis — see var_reference_semantics.md). *)
+    let env, name_v = eval_expr env e in
+    let name = string_of_value name_v in
+    (match find_var env name with
+     | Some value -> env, value
+     | None -> env, VString "")
   | EString s ->
     (* cmake-style ${X} interpolation. Strings that came from cmake
        source can contain ${...}; substitute against env at eval

@@ -105,8 +105,13 @@ let rbrack = delim RBRACK
 let eq_tok = delim EQ
 let dotdot = delim DOTDOT
 
-let str_of ?(default = "?") = function
-  | EVar s | EString s -> s
+let rec str_of ?(default = "?") = function
+  | ETarget s | EVar s | EString s -> s
+  (* A first-class `${...}` reconstructs to its cmake text in a *name/keyword*
+     slot (cache type, target name, property, …) — the same text the old
+     EString "${X}" carried, so interpreters that read these slots are
+     unaffected. *)
+  | EVarLookup e -> "${" ^ str_of ~default e ^ "}"
   | _ -> default
 
 (* ============================================================
@@ -128,12 +133,15 @@ let rec p_expr_y1 toks =
   | STRING s :: rest -> Some (EString s, rest)
   | PATH s :: rest -> Some (EString s, rest)
   | EVAL s :: rest ->
-    (* Match the bridge's Ycs_eval-to-yelu_cmake rule: $<...> → ECmakeGenex,
-       everything else (including ${...}) → EString. *)
+    (* $<...> → ECmakeGenex; a pure `${...}` → first-class EVarLookup
+       (shared decision via [parse_var_lookup], so the CST lowering routes
+       identically); mixed/literal → EString. *)
     if String.is_substring s ~substring:"$<" then
       Some (ECmakeGenex s, rest)
     else
-      Some (EString s, rest)
+      (match parse_var_lookup s with
+       | Some e -> Some (e, rest)
+       | None -> Some (EString s, rest))
   | KEYWORD s :: rest -> Some (EString s, rest)
   | BOOL b :: rest -> Some (EBool b, rest)
   | INT n :: rest -> Some (EString (Int.to_string n), rest)
@@ -746,7 +754,10 @@ let target_groups_to_y1 (ctor : visibility:visibility -> expr list -> expr) item
 let p_target_command_y1_inner name args kwargs =
   let kw_str_opt key =
     List.Assoc.find kwargs ~equal:String.equal key
-    |> Option.bind ~f:(function EString s | EVar s -> Some s | _ -> None)
+    |> Option.bind ~f:(function
+      | EString s | EVar s -> Some s
+      | EVarLookup _ as e -> Some (str_of e)
+      | _ -> None)
   in
   let kw_bool key =
     List.Assoc.mem kwargs ~equal:String.equal key
@@ -762,6 +773,10 @@ let p_target_command_y1_inner name args kwargs =
     | EString s :: _ ->
       (not (List.mem static_visibility_keywords s ~equal:String.equal))
       || String.is_prefix s ~prefix:"${"
+    (* A `${...}` visibility is dynamic — unresolvable at parse time, so fall
+       back to yc_raw rather than misread it (this is what kept these target
+       commands flat before EVarLookup existed). *)
+    | EVarLookup _ :: _ -> true
     | ECmakeGenex _ :: _ -> true
     | _ -> false
   in
@@ -779,7 +794,10 @@ let p_target_command_y1_inner name args kwargs =
      expr). *)
   let args =
     if List.mem Yc_cst.target_first_arg_commands name ~equal:String.equal then
-      match args with (EVar s | EString s) :: rest -> ETarget s :: rest | a -> a
+      match args with
+      | (EVar s | EString s) :: rest -> ETarget s :: rest
+      | (EVarLookup _ as e) :: rest -> ETarget (str_of e) :: rest
+      | a -> a
     else args
   in
   match name, args with
@@ -840,7 +858,7 @@ let p_target_command_y1_inner name args kwargs =
       | _ -> EVar "?"
     in
     let alias_of = kw_str_opt "alias_of" in
-    let name = match name_arg with ETarget s | EVar s | EString s -> s | _ -> "?" in
+    let name = str_of name_arg in
     let alias_of = match alias_of with Some s -> s | None -> name in
     Some (add_lib_alias ~alias_of name)
   | "add_custom_target", name_arg :: rest ->
@@ -1035,8 +1053,8 @@ let p_property_command_y1_inner name args kwargs =
   let out = out_var_y1 kwargs in
   match name, args with
   | "get_target_property", [ var; target; property ] ->
-    let var = match var with EVar s | EString s -> s | _ -> "?" in
-    let target = match target with ETarget t | EVar t | EString t -> t | _ -> "?" in
+    let var = str_of var in
+    let target = str_of target in
     let property = str_of property in
     Some (yc_get_target_property var target property)
   | "get_target_property", [ tgt ] ->
@@ -1051,11 +1069,11 @@ let p_property_command_y1_inner name args kwargs =
         if String.equal k "PROPERTY" then
           match items with
           | prop_name :: values ->
-            let name = match prop_name with EVar s | EString s -> s | _ -> "?" in
+            let name = str_of prop_name in
             let value = match values with
               | [ v ] -> v
               | _ -> EString (String.concat ~sep:";" (List.map values ~f:(fun e ->
-                  match e with EVar s | EString s -> s | _ -> "")))
+                  str_of ~default:"" e)))
             in
             Some (name, value)
           | _ -> None
@@ -1076,11 +1094,11 @@ let p_property_command_y1_inner name args kwargs =
         if String.equal k "PROPERTIES" then
           match items with
           | prop_name :: values ->
-            let name = match prop_name with EVar s | EString s -> s | _ -> "?" in
+            let name = str_of prop_name in
             let value = match values with
               | [ v ] -> v
               | _ -> EString (String.concat ~sep:";" (List.map values ~f:(fun e ->
-                  match e with EVar s | EString s -> s | _ -> "")))
+                  str_of ~default:"" e)))
             in
             Some (name, value)
           | _ -> None
@@ -1108,11 +1126,11 @@ let p_property_command_y1_inner name args kwargs =
     let extract_properties sections =
       match List.Assoc.find sections ~equal:String.equal "PROPERTY" with
       | Some (prop_name :: values) ->
-        let name = match prop_name with EVar s | EString s -> s | _ -> "?" in
+        let name = str_of prop_name in
         let value = match values with
           | [ v ] -> v
           | _ -> EString (String.concat ~sep:";" (List.map values ~f:(fun e ->
-              match e with EVar s | EString s -> s | _ -> "")))
+              str_of ~default:"" e)))
         in
         [(name, value)]
       | _ -> []

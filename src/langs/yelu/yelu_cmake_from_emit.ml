@@ -77,6 +77,8 @@ let e_bool b : Yelu_cmake.expr = Yelu_cmake.EBool b
 let e_int i  : Yelu_cmake.expr = Yelu_cmake.EInt i
 let e_str s  : Yelu_cmake.expr = Yelu_cmake.EString s
 let e_var v  : Yelu_cmake.expr = Yelu_cmake.EVar v
+let e_varlookup name : Yelu_cmake.expr =
+  Yelu_cmake.EVarLookup (Yelu_cmake.EString name)
 let e_unit   : Yelu_cmake.expr = Yelu_cmake.EUnit
 let e_seq xs : Yelu_cmake.expr = Yelu_cmake.ESeq xs
 let e_set_var v body : Yelu_cmake.expr = Yelu_cmake.ESetVar (v, body)
@@ -170,24 +172,17 @@ let e_if cond then_ else_ : Yelu_cmake.expr =
    - generator expressions [$<...>] (generate-time, separate phase)
    Each surfaces as a diff entry in the matrix smoke when it
    bites; close in its own commit when it does. *)
-let unwrap_var_ref s : string option =
-  let n = String.length s in
-  if n >= 4
-     && Char.equal s.[0] '$' && Char.equal s.[1] '{'
-     && Char.equal s.[n - 1] '}'
-     (* No nested ${ inside — corner case deferred *)
-     && not (String.is_substring
-              (String.sub s ~pos:2 ~len:(n - 3))
-              ~substring:"${")
-  then Some (String.sub s ~pos:2 ~len:(n - 3))
-  else None
-
 let arg_to_expr (a : C.arg) : Yelu_cmake.expr =
   match a with
-  | C.Bare s | C.Quoted s | C.Bracket (_, s) ->
-    (match unwrap_var_ref s with
-     | Some name -> e_var name
-     | None -> e_str s)
+  (* The cmake quote bit IS the quoted/unquoted distinction: an *unquoted*
+     `${X}` is a first-class expansion (EVarLookup, splits); a *quoted*
+     `"${X}"` is a string value (EString, no split). This is where the bit
+     comes *from* cmake. A bare non-`${...}` token (PUBLIC, a literal) is a
+     string. Mixed/nested `${...}` falls through parse_var_lookup → EString
+     (the deferred corner). *)
+  | C.Bare s ->
+    (match Yelu_cmake.parse_var_lookup s with Some e -> e | None -> e_str s)
+  | C.Quoted s | C.Bracket (_, s) -> e_str s
 
 let args_to_exprs args = List.map args ~f:arg_to_expr
 
@@ -379,20 +374,16 @@ let rec from_emit (e : C.exp) : Yelu_cmake.expr =
     (* Var_exp captures a "${VAR}"-shaped arg OR a bare cmake
        identifier slot — parse_cmd doesn't distinguish them at
        parse time. We recover the intent here:
-       - "${X}" wrapping → variable lookup (e_var "X")
+       - "${X}" (pure, incl. nested) → first-class expansion (EVarLookup)
        - bare cmake bool literal (ON/OFF/TRUE/...) → e_bool
-       - anything else → e_var (treats as variable name; if
-         unbound at eval time, EVar returns VString "" per
-         the cmake-compatible rule). *)
-    let n = String.length s in
-    if n >= 3
-       && Char.equal s.[0] '$' && Char.equal s.[1] '{'
-       && Char.equal s.[n - 1] '}'
-    then e_var (String.sub s ~pos:2 ~len:(n - 3))
-    else
+       - anything else → e_var (a variable *name* slot; if unbound at
+         eval time, EVar returns VString "" per the cmake-compatible rule). *)
+    (match Yelu_cmake.parse_var_lookup s with
+     | Some e -> e
+     | None ->
       (match Yelu_cmake.bool_literal_of_string s with
        | Some e -> e
-       | None -> e_var s)
+       | None -> e_var s))
   | C.Quote s -> e_str s
 
   (* Store *)
