@@ -12,6 +12,7 @@ if not ( defined FMT_MASTER_PROJECT ) then (
 );
 fun join(result_var) (
   result := '';
+  public := 'foo';
   foreach arg in LISTS ARGN (
     result := '${result}${arg}'
   );

@@ -73,7 +73,7 @@ same retirement discipline as the yelu_cmake byte oracle.
 | M1.4  | statement-level error recovery (partial tree while editing) | ⏸ **deferred into M1.5** — only the LSP consumes partial trees; the formatter is already fail-safe (parse error → no overwrite). Do the light top-level version when the LSP needs it. |
 | M1.5a | LSP server (`linol-lwt`): `textDocument/formatting` (via `Yc_driver.format`) + parse diagnostics + fail-safe | ✅ shipped 2026-06-10 (`src/bin/yelu_lsp/`; manually verified over JSON-RPC; built against the yojson-3 linol fork @ lsp 1.26) |
 | M1.5c | VS Code client wiring (`vscode-languageclient`) to launch `yelu-lsp` — deploy locally; enables format-on-save | ✅ shipped 2026-06-10 (`editors/vscode/yc/extension.js`; packages cleanly) |
-| M1.5b | richer diagnostics (parse error spans) + hover / semantic tokens | ⏳ |
+| M1.5b | richer diagnostics (parse error spans) + hover / semantic tokens | ◐ parse-error **spans done** (2026-06-12): `Yc_cst_parse.parse_with_pos` carries the offending token's span + a humanized message; the LSP maps byte offset → line/char and reports at the real range (lex errors fall back to file start). Hover / semantic tokens still ⏳ |
 | —     | retire `parse_ast`; production path is `text → cst → lower → expr` | ⏳ |
 
 ## Testing strategy (target, build out over M1.2–M1.3)

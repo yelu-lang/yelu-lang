@@ -390,26 +390,43 @@ let split_comments (located : ls) : ls * comment list =
   in
   (toks, comments)
 
-let p_stmts (toks : ls) : (stmt list, string) Result.t =
+(* A parse failure carries the source [span] of the offending token (when
+   there is one) so a consumer (the LSP) can place the diagnostic at the real
+   position instead of the start of the file. Lex failures have no token →
+   [at = None]. *)
+type parse_error = { msg : string; at : span option }
+
+let humanize_token (t : token) : string =
+  match t with
+  | IDENT s -> Printf.sprintf "unexpected identifier %S" s
+  | KEYWORD s -> Printf.sprintf "unexpected keyword %S" s
+  | STRING s | PATH s -> Printf.sprintf "unexpected string %S" s
+  | EVAL s -> Printf.sprintf "unexpected %S" s
+  | _ -> Printf.sprintf "unexpected %s" (Sexp.to_string ([%sexp_of: token] t))
+
+let p_stmts (toks : ls) : (stmt list, parse_error) Result.t =
   let rec go acc toks =
     let toks = match toks with (SEMI, _) :: r -> r | _ -> toks in
     match toks with
     | [] -> Ok (List.rev acc)
-    | (t, _) :: _ ->
+    | (t, span) :: _ ->
       (match p_stmt toks with
        | Some (s, rest) -> go (s :: acc) rest
-       | None ->
-         Error
-           (Printf.sprintf "parse error at %s"
-              (Sexp.to_string ([%sexp_of: token] t))))
+       | None -> Error { msg = humanize_token t; at = Some span })
   in
   go [] toks
 
-let parse (input : string) : (program, string) Result.t =
+let parse_with_pos (input : string) : (program, parse_error) Result.t =
   match Yelu_lexer.lex_located input with
-  | Error e -> Error ("lex error: " ^ e)
+  | Error e -> Error { msg = "lex error: " ^ e; at = None }
   | Ok located ->
     let toks, comments = split_comments located in
     (match p_stmts toks with
      | Ok stmts -> Ok { stmts; comments }
      | Error e -> Error e)
+
+(* String-error shim — keeps the existing callers (driver, tests) unchanged. *)
+let parse (input : string) : (program, string) Result.t =
+  match parse_with_pos input with
+  | Ok p -> Ok p
+  | Error e -> Error e.msg

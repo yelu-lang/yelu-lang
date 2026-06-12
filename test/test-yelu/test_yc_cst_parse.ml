@@ -155,11 +155,27 @@ let test_representative =
       Alcotest.(check int) "1 comment captured" 1 (List.length p.comments)
     | Error e -> Alcotest.failf "representative program failed: %s" e)
 
+(* M1.5b: a parse error carries the offending token's span, so the LSP can
+   place the diagnostic at the real position instead of the file start. *)
+let test_error_span =
+  Alcotest.test_case "parse error carries span" `Quick (fun () ->
+    (* `)` opens the 3rd line; bytes: "a := 1;\n"(8) + "b := 2;\n"(8) → 16 *)
+    let src = "a := 1;\nb := 2;\n) oops\n" in
+    match P.parse_with_pos src with
+    | Ok _ -> Alcotest.fail "expected a parse error"
+    | Error { P.msg; at } ->
+      Alcotest.(check bool) "names the token" true
+        (String.is_substring msg ~substring:"RPAREN");
+      (match at with
+       | Some { Yelu_langs.Yelu_lexer.lo; _ } ->
+         Alcotest.(check int) "span points at the `)`" 16 lo
+       | None -> Alcotest.fail "expected a span"))
+
 let () =
   Alcotest.run "yc_cst_parse"
     [ "slice",
       [ test_command; test_comment_sidelist; test_kwargs;
-        test_block; test_multi; test_span ];
+        test_block; test_multi; test_span; test_error_span ];
       "constructs",
       [ test_assign; test_cache_assign; test_if_cond; test_control_forms;
         test_representative ] ]
