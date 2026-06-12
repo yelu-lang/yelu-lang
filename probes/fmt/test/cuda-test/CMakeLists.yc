@@ -16,4 +16,3 @@ message 'cuda_standard: ${IN_USE_CUDA_STANDARD}';
 get_target_property IN_USE_CUDA_STANDARD_REQUIRED target fmt-in-cuda-test CUDA_STANDARD_REQUIRED;
 message 'cuda_standard_required: ${IN_USE_CUDA_STANDARD_REQUIRED}';
 target_link_libraries fmt-in-cuda-test Public 'fmt::fmt'
-

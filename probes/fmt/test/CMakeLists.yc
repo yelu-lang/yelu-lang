@@ -111,4 +111,3 @@ enable_language C;
 add_exe c-test 'c-test.c';
 link_lib c-test Private 'fmt::fmt-c';
 add_test NAME 'c-test' COMMAND 'c-test'
-

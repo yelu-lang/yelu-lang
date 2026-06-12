@@ -14,4 +14,3 @@ if $MSVC then (
     compile_opts gtest Public '-Wno-deprecated-declarations'
   )
 )
-

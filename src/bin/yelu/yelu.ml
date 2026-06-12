@@ -608,7 +608,8 @@ let () =
         (* parse failure → never overwrite; the formatter is fail-safe *)
         | Error e -> Stdlib.Printf.eprintf "fmt: %s: %s\n" file e; Stdlib.exit 1
         | Ok out ->
-          let out = out ^ "\n" in
+          (* [format] already terminates with exactly one newline
+             (print_program's rstrip); do not add a second. *)
           if write then write_all file out else Stdlib.print_string out))
   | "manifest" :: _ -> cmd_manifest ()
   | "tmgrammar" :: rest when List.mem rest "--stdout" ~equal:String.equal ->

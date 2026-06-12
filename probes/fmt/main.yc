@@ -295,4 +295,3 @@ if $FMT_MASTER_PROJECT and exists $gitignore then (
   CPACK_RESOURCE_FILE_README := '${PROJECT_SOURCE_DIR}/README.md';
   include CPack
 )
-

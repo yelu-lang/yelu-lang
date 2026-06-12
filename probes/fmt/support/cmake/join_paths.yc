@@ -11,4 +11,3 @@ fun join_paths(joined_path, first_path_segment) (
   );
   set '${joined_path}' '${temp_path}' PARENT_SCOPE
 )
-
