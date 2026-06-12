@@ -11,3 +11,4 @@ if target target "fmt::fmt-header-only" then (
   compile_opts header-only-test :PRIVATE $PEDANTIC_COMPILE_FLAGS;
   include_dirs header-only-test :PUBLIC "." ~system
 )
+

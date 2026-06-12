@@ -230,4 +230,7 @@ let print_program (p : Cst.program) : string =
   (match !pending with
    | [] -> ()
    | _ -> Buffer.add_char b '\n'; flush_before b "" Int.max_value);
-  Buffer.contents b
+  (* End with exactly one trailing newline (gofmt / prettier / black /
+     POSIX text-file convention); collapses zero-or-many to one and stays
+     idempotent. *)
+  String.rstrip ~drop:(Char.equal '\n') (Buffer.contents b) ^ "\n"

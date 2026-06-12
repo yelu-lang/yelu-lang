@@ -11,3 +11,4 @@ if target target "fmt::fmt-header-only" then (
   compile_opts header-only-test :PRIVATE $PEDANTIC_COMPILE_FLAGS;
   link_lib header-only-test :PUBLIC "fmt::fmt-header-only"
 )
+

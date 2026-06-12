@@ -107,15 +107,15 @@ let test_brace_elision =
       | Error e -> Alcotest.failf "parse %S: %s" s e
     in
     (* value slot: ${X} → $X; already-bare $X stays *)
-    Alcotest.(check string) "value ${X}→$X" "Y := $X" (fmt "Y := ${X}");
-    Alcotest.(check string) "value $X stays"  "Y := $X" (fmt "Y := $X");
+    Alcotest.(check string) "value ${X}→$X" "Y := $X\n" (fmt "Y := ${X}");
+    Alcotest.(check string) "value $X stays"  "Y := $X\n" (fmt "Y := $X");
     (* name slot (assignment LHS) elides too *)
-    Alcotest.(check string) "name ${v}→$v" "$v := $w" (fmt "${v} := ${w}");
+    Alcotest.(check string) "name ${v}→$v" "$v := $w\n" (fmt "${v} := ${w}");
     (* string-internal ${…} keeps braces (verbatim to cmake) *)
     Alcotest.(check string) "in-string keeps braces"
-      "P := \"a${X}b\"" (fmt "P := \"a${X}b\"");
+      "P := \"a${X}b\"\n" (fmt "P := \"a${X}b\"");
     (* idempotent *)
-    Alcotest.(check string) "idempotent" "Y := $X" (fmt (fmt "Y := ${X}")))
+    Alcotest.(check string) "idempotent" "Y := $X\n" (fmt (fmt "Y := ${X}")))
 
 let () =
   Alcotest.run "yc_cst_bridge"

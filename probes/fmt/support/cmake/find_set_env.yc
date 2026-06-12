@@ -2,3 +2,4 @@ find_program WINSDK_SETENV ~names:"SetEnv.cmd" ~paths:"[HKEY_LOCAL_MACHINE\\SOFT
 if $WINSDK_SETENV and $PRINT_PATH then (
   execute_process $CMAKE_COMMAND "-E" "echo" "${WINSDK_SETENV}"
 )
+

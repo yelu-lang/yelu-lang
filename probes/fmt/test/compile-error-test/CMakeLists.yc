@@ -156,3 +156,4 @@ if ver_ge $CMAKE_CXX_STANDARD "20" then (
     " "ERROR"
 );
 run_tests
+

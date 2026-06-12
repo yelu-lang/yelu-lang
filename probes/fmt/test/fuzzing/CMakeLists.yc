@@ -16,3 +16,4 @@ cache FMT_FUZZ_LDFLAGS := "" 'LDFLAGS for the fuzz targets';
 foreach source in [ "chrono-duration.cc" "chrono-timepoint.cc" "float.cc" "named-arg.cc" "one-arg.cc" "two-args.cc" ] (
   add_fuzzer $source
 )
+
