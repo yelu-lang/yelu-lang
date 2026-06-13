@@ -120,6 +120,7 @@ let pr_arg b (arg : Cst.arg) =
 let command_flags name =
   match name with
   | "include_guard" -> [ "GLOBAL" ]
+  | "install_directory" -> [ "OPTIONAL" ]
   | _ -> []
 
 (* Like [pr_arg], but rewrites a positional bare-keyword in the command's flag

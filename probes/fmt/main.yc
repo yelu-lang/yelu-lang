@@ -265,7 +265,7 @@ fun add_doc_target() (
     sources := $sources, 'doc/${source}'
   );
   add_custom_target doc ~all COMMAND $CMAKE_COMMAND '-E' 'env' 'PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/support/python' $MKDOCS 'build' '-f' '${CMAKE_CURRENT_SOURCE_DIR}/support/mkdocs.yml' '--site-dir' '${CMAKE_CURRENT_BINARY_DIR}/doc-html' '--no-directory-urls' SOURCES $sources;
-  install_directory '${CMAKE_CURRENT_BINARY_DIR}/doc-html/' DESTINATION '${CMAKE_INSTALL_DATAROOTDIR}/doc/fmt' COMPONENT 'fmt_doc' OPTIONAL
+  install_directory '${CMAKE_CURRENT_BINARY_DIR}/doc-html/' DESTINATION '${CMAKE_INSTALL_DATAROOTDIR}/doc/fmt' COMPONENT 'fmt_doc' ~optional
 );
 if $FMT_DOC then (
   add_doc_target

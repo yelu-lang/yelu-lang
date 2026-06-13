@@ -1356,8 +1356,12 @@ let p_install_command_y1_inner name args kwargs =
     let component = match List.Assoc.find sections ~equal:String.equal "COMPONENT" with
       | Some [ EString s | EVar s ] -> Some s | _ -> None
     in
-    let optional = List.Assoc.find sections ~equal:String.equal "OPTIONAL"
-                   |> Option.is_some
+    (* Accept both the positional `OPTIONAL` keyword and the canonical
+       `~optional` flag (which arrives as a boolean kwarg, so it is absent
+       from [sections]). *)
+    let optional =
+      Option.is_some (List.Assoc.find sections ~equal:String.equal "OPTIONAL")
+      || kwarg_bool ~key:"optional"
     in
     Some (yc_install_directory ?component ~optional directory destination)
   | "export", args ->

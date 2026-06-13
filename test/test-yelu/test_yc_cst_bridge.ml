@@ -166,7 +166,20 @@ let test_flags =
       "include_guard ~global\n" (fmt "include_guard ~global");
     (* a bare GLOBAL in another command is NOT a flag — left as-is *)
     Alcotest.(check string) "GLOBAL elsewhere untouched"
-      "some_cmd GLOBAL\n" (fmt "some_cmd GLOBAL"))
+      "some_cmd GLOBAL\n" (fmt "some_cmd GLOBAL");
+    (* install_directory OPTIONAL → ~optional (detected via kwarg in the
+       parser, since OPTIONAL is otherwise positional) *)
+    Alcotest.(check string) "install_directory OPTIONAL → ~optional"
+      "install_directory 'd' DESTINATION 'x' ~optional\n"
+      (fmt "install_directory 'd' DESTINATION 'x' OPTIONAL");
+    Alcotest.(check string) "install_directory ~optional stable"
+      "install_directory 'd' DESTINATION 'x' ~optional\n"
+      (fmt "install_directory 'd' DESTINATION 'x' ~optional");
+    (* the parser change must keep emit identical: positional OPTIONAL and the
+       ~optional flag lower to the same cmake (the kwarg sets ~optional:true) *)
+    Alcotest.(check string) "OPTIONAL / ~optional emit identically"
+      (emit_ast "install_directory 'd' DESTINATION 'x' OPTIONAL")
+      (emit_ast "install_directory 'd' DESTINATION 'x' ~optional"))
 
 let () =
   Alcotest.run "yc_cst_bridge"
