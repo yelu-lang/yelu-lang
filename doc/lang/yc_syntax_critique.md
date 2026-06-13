@@ -190,7 +190,7 @@ shapes (corpus-grounded) and their resolutions:
 
 | shape | example | surface | status |
 | --- | --- | --- | --- |
-| 1 flat record | `install(DIRECTORY d DESTINATION x COMPONENT c)` | `~destination=x ~component=c` | the value-label rollout |
+| 1 flat record | `install(DIRECTORY d DESTINATION x COMPONENT c)` | `~destination=x ~component=c` | ✅ pilot done (install_directory); rollout per-command |
 | 2 repeated→list | `add_custom_command(… COMMAND a … COMMAND b)` | a list | later |
 | 3 key→value map | `set_target_properties(t PROPERTIES K v …)` | `~properties={k=v, …}` | later (record literal) |
 | 4 record-list (nested) | `install(TARGETS … LIBRARY DESTINATION d1 ARCHIVE DESTINATION d2)` | **flat dotted label** | see below |
@@ -212,6 +212,12 @@ shapes (corpus-grounded) and their resolutions:
   cross-appearance merge into a single label. Within-list element dup is a
   separate concern, unchecked for now. Stricter-than-cmake but emit-faithful.
 - **`=` not `:` separator**, comma lists — as already settled above.
+  Separator migration shipped 2026-06-13 (`:`→`=`, accept-both); the
+  `install_directory` value-label pilot (`~destination=`/`~component=`)
+  shipped the same day — `command_value_labels` table + `pr_cmd_args`
+  (look-ahead printer: a value-keyword consumes its following positional;
+  flags are the value-less case). Mechanism is the per-command template;
+  order-independence verified (labels in any order → identical cmake).
 
 ### 3. Single string syntax — ✅ **done (2026-06-12)**
 
