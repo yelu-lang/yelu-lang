@@ -99,13 +99,15 @@ reload the window). If the extension is ever reinstalled, re-symlink (or copy).
   manifest (they're the deferred `~`-half), so the highlighter has no class for
   them. Cheap to add a `cmake-keyword` class (→ `keyword.other.yc`) ahead of the
   syntax migration.
-- **Furthest-failure diagnostics** — `p_stmts` reports the *first token of the
-  failing top-level statement*, not the deepest failure point. A bad inner
-  statement (e.g. `Public := 1` inside a `fun …`) lands the diagnostic on the
-  `fun` line, not the offending token. Fix = track the furthest token the parse
-  reached and report there; bonus = a targeted "X is an enum constructor, not a
-  variable name" message (the surface face of Y14, which the lexer pre-empts by
-  tokenizing `Public` as a KEYWORD before wellform runs).
+- **Furthest-failure diagnostics ✅ (2026-06-12).** `p_stmt` now records the
+  deepest token it was attempted on (`furthest` ref, reset per
+  `parse_with_pos`); on failure the error blames *that* token, not the
+  top-level statement's first token. So `Public := 1` inside a `fun …` body
+  reports `unexpected keyword "PUBLIC"` at the actual line, not the `fun`
+  line. Pinned by `test_error_span_nested`. *Still open (bonus):* a targeted
+  "X is an enum constructor, not a variable name" message — the surface face
+  of Y14, which the lexer pre-empts by tokenizing `Public` as a KEYWORD before
+  wellform runs.
 - **Dotted globals — parked, likely reframed.** Corpus check killed the clean
   "all-caps = global" premise: `$ARGN`/`$BMI`/`$MKDOCS` are *local* all-caps
   vars, not globals. So the dotted form can only be *cosmetic* (`_`→`.` +

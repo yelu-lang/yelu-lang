@@ -171,11 +171,29 @@ let test_error_span =
          Alcotest.(check int) "span points at the `)`" 16 lo
        | None -> Alcotest.fail "expected a span"))
 
+(* Furthest-failure: a bad statement *inside* a block blames the inner token,
+   not the enclosing `fun` line (the bug behind "diagnostic on L13 not L18"). *)
+let test_error_span_nested =
+  Alcotest.test_case "error span lands inside the failing block" `Quick (fun () ->
+    (* "fun f() (\n"(10) + "  a := 1;\n"(10) → `Public` at offset 22 *)
+    let src = "fun f() (\n  a := 1;\n  Public := 2\n)\n" in
+    match P.parse_with_pos src with
+    | Ok _ -> Alcotest.fail "expected a parse error"
+    | Error { P.msg; at } ->
+      Alcotest.(check bool) "blames Public, not fun" true
+        (String.is_substring msg ~substring:"PUBLIC");
+      (match at with
+       | Some { Yelu_langs.Yelu_lexer.lo; _ } ->
+         Alcotest.(check bool) "span is inside the body (past the `fun` line)"
+           true (lo > 20)
+       | None -> Alcotest.fail "expected a span"))
+
 let () =
   Alcotest.run "yc_cst_parse"
     [ "slice",
       [ test_command; test_comment_sidelist; test_kwargs;
-        test_block; test_multi; test_span; test_error_span ];
+        test_block; test_multi; test_span; test_error_span;
+        test_error_span_nested ];
       "constructs",
       [ test_assign; test_cache_assign; test_if_cond; test_control_forms;
         test_representative ] ]

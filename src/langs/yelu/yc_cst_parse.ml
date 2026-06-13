@@ -16,6 +16,21 @@ open Yc_cst
 
 type ls = (token * span) list
 
+(* Furthest-failure tracking: the deepest token [p_stmt] was attempted on
+   during a parse. On failure, this is the offending token — far more useful
+   than the *top-level* statement's first token (a bad statement inside a
+   `fun …` body would otherwise blame the `fun` line). Module-level mutable
+   state is fine: parsing is single-threaded and [parse_with_pos] resets it. *)
+let furthest : (token * span) option ref = ref None
+
+let note (ls : ls) : unit =
+  match ls with
+  | (t, span) :: _ ->
+    (match !furthest with
+     | Some (_, s) when s.lo >= span.lo -> ()
+     | _ -> furthest := Some (t, span))
+  | [] -> ()
+
 (* Span of the tokens consumed from [ls] up to [rest]. *)
 let consumed_span (ls : ls) (rest : ls) : span =
   let lo = match ls with (_, s) :: _ -> s.lo | [] -> 0 in
@@ -220,6 +235,7 @@ let p_command (ls : ls) : (stmt_node * ls) option =
    flow, assignment (must precede the IDENT-headed command), block, then
    the uniform command. *)
 let rec p_stmt (ls : ls) : (stmt * ls) option =
+  note ls;  (* record the furthest statement attempted, for diagnostics *)
   let wrap node rest = Some ({ node; span = consumed_span ls rest }, rest) in
   match p_let ls      with Some (n, r) -> wrap n r | None ->
   match p_if ls       with Some (n, r) -> wrap n r | None ->
@@ -417,13 +433,19 @@ let p_stmts (toks : ls) : (stmt list, parse_error) Result.t =
   go [] toks
 
 let parse_with_pos (input : string) : (program, parse_error) Result.t =
+  furthest := None;
   match Yelu_lexer.lex_located input with
   | Error e -> Error { msg = "lex error: " ^ e; at = None }
   | Ok located ->
     let toks, comments = split_comments located in
     (match p_stmts toks with
      | Ok stmts -> Ok { stmts; comments }
-     | Error e -> Error e)
+     (* Prefer the furthest token reached: the offending token, not the
+        top-level statement's first token (p_stmts' Error). *)
+     | Error e ->
+       (match !furthest with
+        | Some (t, span) -> Error { msg = humanize_token t; at = Some span }
+        | None -> Error e))
 
 (* String-error shim — keeps the existing callers (driver, tests) unchanged. *)
 let parse (input : string) : (program, string) Result.t =
