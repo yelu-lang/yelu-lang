@@ -148,10 +148,40 @@ canonicalization. Per-flag progress:
 
 - ✅ **`~parent_scope`** — the easy case (dedicated `bool` field on `S_assign`).
 - ✅ **`include_guard ~global`** (2026-06-13) — first table-driven flag.
-- ⏳ remaining: `OPTIONAL`/`EXCLUDE_FROM_ALL` (install), `REQUIRED`/`QUIET`/
-  `EXACT` (find_package), `COMMAND_EXPAND_LISTS`/`VERBATIM`/`USES_TERMINAL`
-  (add_custom_command/target), `WIN32`/`MACOSX_BUNDLE` (add_exe/add_lib),
-  `APPEND` (set_property). One command at a time, each matrix-verified.
+- ✅ **`install_directory ~optional`** (2026-06-13) — OPTIONAL is detected
+  *positionally*, so the parser also had to learn the `~optional` kwarg (else
+  it is silently dropped). Established the pattern for positional flags.
+- ✅ **`find_package ~required`** (2026-06-13) — same positional→kwarg fix.
+  QUIET/EXACT are not in the find_package IR, so out of scope.
+
+**Stop-and-think finding (2026-06-13): not every flag is IR-modeled.** A
+*surface* migration must be emit-byte-invariant, but a cosmetic `~flag` on a
+keyword the IR **drops** is *worse* than leaving it bare — it makes a no-op
+look first-class. Audited the remaining candidates:
+
+| flag | command | IR models it? | verdict |
+| --- | --- | --- | --- |
+| `APPEND` | `set_property` | ✅ (3 detect sites + raw-scope fallback) | migratable but fiddly; **not in corpus** |
+| `VERBATIM` | `add_custom_command` | ✅ emits | migratable; **not in corpus** |
+| `COMMAND_EXPAND_LISTS` | `add_custom_command` | ❌ **dropped on emit** | **do NOT migrate** — IR gap |
+| `WIN32` / `MACOSX_BUNDLE` / `EXCLUDE_FROM_ALL` | `add_exe`/`add_lib` | ❌ dropped | **do NOT migrate** — IR gap |
+
+⚠️ **Latent correctness gap (independent of this work):**
+`add_custom_command … COMMAND_EXPAND_LISTS` is parsed (consumed by
+`split_by_keywords`) but **never stored in `ECmakeAddCustomCommand`**, so emit
+silently drops it — the corpus's [main.yc](../../probes/fmt/main.yc) line ~197
+`COMMAND_EXPAND_LISTS` is currently a no-op decoration. The matrix can't catch
+it (build-time flag, configure-time oracle). Same shape for `WIN32` /
+`MACOSX_BUNDLE` / `EXCLUDE_FROM_ALL` on the target-creation commands (the
+latter is explicitly accepted-and-dropped, see `yelu_cmake_utils.ml`). Closing
+these is an **IR + emit** change (and would change emitted text), not a surface
+migration — track separately before migrating those flags.
+
+⏳ **Recommendation:** the clean, IR-faithful per-command flags are done.
+`APPEND` / `VERBATIM` are migratable but uncovered (bridge-test only) and lower
+value; the dropped-flag group is blocked on the IR gap above. Resume only after
+deciding whether to (a) model the dropped flags in the IR first, or (b) migrate
+the two uncovered-but-modeled flags as-is.
 
 ### 3. Single string syntax — ✅ **done (2026-06-12)**
 
