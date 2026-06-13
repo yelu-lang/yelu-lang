@@ -12,11 +12,10 @@ if not ( defined FMT_MASTER_PROJECT ) then (
 );
 fun join(result_var) (
   result := '';
-  public := 'foo';
   foreach arg in LISTS ARGN (
     result := '${result}${arg}'
   );
-  $result_var := '${result}' PARENT_SCOPE
+  $result_var := '${result}' ~parent_scope
 );
 fun set_verbose(variable, value, _cache, type) (
   join 'doc' $ARGN;

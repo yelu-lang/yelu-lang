@@ -206,7 +206,10 @@ let p_assign (ls : ls) : (stmt_node * ls) option =
     end
     else begin
       let parent_scope, rest =
-        match rest with (IDENT "PARENT_SCOPE", _) :: r -> (true, r) | _ -> (false, rest)
+        match rest with
+        | (IDENT "PARENT_SCOPE", _) :: r -> (true, r)        (* legacy bare form *)
+        | (TILDE, _) :: (IDENT "parent_scope", _) :: r -> (true, r)  (* ~parent_scope *)
+        | _ -> (false, rest)
       in
       Some (S_assign { cache = false; name; values; kwargs = []; docstring = None;
                        parent_scope }, rest)

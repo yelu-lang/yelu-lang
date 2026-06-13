@@ -10,13 +10,13 @@ fun expect_compile(name, code_fragment) (
       ';
     error_test_names_copy := '${error_test_names}';
     list_append error_test_names_copy '${test_name}';
-    error_test_names := '${error_test_names_copy}' PARENT_SCOPE
+    error_test_names := '${error_test_names_copy}' ~parent_scope
   ) else (
     non_error_test_content := '
         ${non_error_test_content}
         void ${test_name}() {
           ${code_fragment}
-        }' PARENT_SCOPE
+        }' ~parent_scope
   )
 );
 fun run_tests() (

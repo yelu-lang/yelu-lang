@@ -191,7 +191,7 @@ let rec pr_stmt b indent (s : Cst.stmt) =
       Buffer.add_string b " "; pr_atom b (A_string d));
     List.iter kwargs ~f:(fun (k, v) ->
       Buffer.add_string b " ~"; Buffer.add_string b k; Buffer.add_char b ':'; pr_atom b v);
-    if parent_scope then Buffer.add_string b " PARENT_SCOPE"
+    if parent_scope then Buffer.add_string b " ~parent_scope"
   | S_let { var; ty; value; body } ->
     Buffer.add_string b "let "; Buffer.add_string b var;
     Option.iter ty ~f:(fun t -> Buffer.add_string b " : "; Buffer.add_string b t);

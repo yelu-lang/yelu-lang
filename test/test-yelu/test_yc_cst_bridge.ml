@@ -144,10 +144,26 @@ let test_enum_constructor =
       "get_filename_component p ~mode:Name_we $src\n"
       (fmt "get_filename_component p ~mode:Name_we $src"))
 
+(* `~`-half flags slice: the cmake `PARENT_SCOPE` flag canonicalizes to
+   `~parent_scope`; the `~parent_scope` form is accepted and stable. Emit is
+   unchanged (both → cmake `PARENT_SCOPE`), proven by the matrix. *)
+let test_flags =
+  Alcotest.test_case "flag canonicalization (~parent_scope)" `Quick (fun () ->
+    let fmt s =
+      match Cstp.parse s with
+      | Ok c -> Yelu_langs.Yc_cst_print.print_program c
+      | Error e -> Alcotest.failf "parse %S: %s" s e
+    in
+    Alcotest.(check string) "PARENT_SCOPE → ~parent_scope"
+      "X := 1 ~parent_scope\n" (fmt "X := 1 PARENT_SCOPE");
+    Alcotest.(check string) "~parent_scope stable"
+      "X := 1 ~parent_scope\n" (fmt "X := 1 ~parent_scope"))
+
 let () =
   Alcotest.run "yc_cst_bridge"
     [ "bridge", List.map corpus ~f:bridge;
       "roundtrip", List.map corpus ~f:roundtrip;
       "comments", [ test_comment_placement ];
       "elision", [ test_brace_elision ];
-      "enum", [ test_enum_constructor ] ]
+      "enum", [ test_enum_constructor ];
+      "flags", [ test_flags ] ]

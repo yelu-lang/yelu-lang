@@ -242,6 +242,7 @@ let p_assign_y1 toks =
          let parent_scope, rest =
            match rest with
            | IDENT "PARENT_SCOPE" :: r -> true, r
+           | TILDE :: IDENT "parent_scope" :: r -> true, r
            | _ -> false, rest
          in
          Some (yc_set ~parent_scope s values, rest))
@@ -270,6 +271,7 @@ let p_set_command_y1 toks =
       let parent_scope, rest =
         match rest with
         | IDENT "PARENT_SCOPE" :: r -> true, r
+        | TILDE :: IDENT "parent_scope" :: r -> true, r
         | _ -> false, rest
       in
       Some (yc_set ~parent_scope name values, rest)
