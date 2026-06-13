@@ -483,6 +483,58 @@ should mirror them. See [`ir_tiers.md`](../yelu_cmake/ir_tiers.md) §
 
 ---
 
+## 11. Repeated Keyword Args: Silent Last-Wins vs Accumulate
+
+**The cmake problem.**
+Several commands take *grouped* keyword arguments — most prominently
+`install(TARGETS)`, whose per-artifact-kind options form a record that can
+be built up across multiple appearances of the same keyword. Whether a
+repeated field **merges** or **overwrites** depends — silently — on whether
+the field is single-valued or list-valued, and there is no diagnostic either
+way. Probed against cmake 4.3.1 (`install(TARGETS)`, static-lib artifact):
+
+```cmake
+# (a) duplicate single-value field → LAST WINS, silently. lib1 is dropped.
+install(TARGETS foo ARCHIVE DESTINATION lib1
+                    ARCHIVE DESTINATION lib2)   # → installs to lib2 only
+
+# (b) split fields across same-kind groups → ACCUMULATE (merge into one record)
+install(TARGETS foo ARCHIVE DESTINATION lib1
+                    ARCHIVE PERMISSIONS OWNER_READ OWNER_WRITE)
+                    # → lib1/libfoo.a, mode 0600 — both fields applied
+```
+
+So the same surface shape (a keyword appearing twice) means *overwrite* for a
+scalar field and *append* for a list field — a position-and-arity-dependent
+rule with no error, no warning, and no local cue. An author who writes two
+`DESTINATION`s expecting an error (or both) silently gets the second.
+
+**What yelu does (planned — the `~label` design).**
+The `~`-half surface (critique #2) renders each grouped option as a flat
+labeled argument — tableless, cmake-name-lowercased, artifact-kind as the
+dotted prefix:
+
+```
+install_targets $tgts ~component='fmt_core' ~export=$name
+  ~library.destination=$FMT_LIB_DIR
+  ~archive.destination=$FMT_LIB_DIR
+  ~public_header.destination='${FMT_INC_DIR}/fmt'
+```
+
+Because yelu emits **one record per artifact-kind**, a duplicate *single-value*
+label (`~library.destination=A ~library.destination=B`) cannot mean anything
+coherent — cmake would silently pick B. So yelu **rejects** it (the Y14
+pattern: a duplicate is always a mistake, error with "field set twice"). This
+is *stricter than cmake* and safe: any non-duplicate program emits identical
+cmake; only the ambiguous form is refused. **List-valued** fields are written
+as a single list value (`~library.permissions=[Owner_read, Owner_write]`), so
+cmake's cross-appearance accumulation is folded into one label and never needs
+a duplicate. (Within-list element duplication — `[Owner_read, Owner_read]` — is
+a separate concern, left unchecked for now.) A future record literal
+(`~library={destination=…, permissions=[…]}`) is parked.
+
+---
+
 ## Summary
 
 | Pain point                      | cmake behavior                    | Yelu response                                                                       |
@@ -497,3 +549,4 @@ should mirror them. See [`ir_tiers.md`](../yelu_cmake/ir_tiers.md) §
 | Computation and storage fused   | no return values, output vars only | `let` binding for compile-time names; expression compose is future               |
 | Metaprogramming / dynamic args  | `${VAR}` in visibility, property, etc. | 4-tier IR fidelity: typed → `cmake_lang` → `yc_raw` → `yc_apply` (§9)              |
 | String-as-enum in IR            | flat strings lose domain info      | planned: variant types for visibility, mode, compatibility, cache_type (§10)       |
+| Repeated keyword args           | silent last-wins (scalar) vs accumulate (list) | flat `~label`; reject duplicate single-value field; lists as one value (§11) |

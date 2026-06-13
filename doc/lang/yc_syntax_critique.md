@@ -183,6 +183,36 @@ value; the dropped-flag group is blocked on the IR gap above. Resume only after
 deciding whether to (a) model the dropped flags in the IR first, or (b) migrate
 the two uncovered-but-modeled flags as-is.
 
+**Value-labels + nested args — design settled (2026-06-13).** Beyond the
+boolean flags, the *value-carrying* cmake keywords (`DESTINATION`, `COMPONENT`,
+`EXPORT`, `PROPERTY`, …) are also argument labels → `~key=value`. The argument
+shapes (corpus-grounded) and their resolutions:
+
+| shape | example | surface | status |
+| --- | --- | --- | --- |
+| 1 flat record | `install(DIRECTORY d DESTINATION x COMPONENT c)` | `~destination=x ~component=c` | the value-label rollout |
+| 2 repeated→list | `add_custom_command(… COMMAND a … COMMAND b)` | a list | later |
+| 3 key→value map | `set_target_properties(t PROPERTIES K v …)` | `~properties={k=v, …}` | later (record literal) |
+| 4 record-list (nested) | `install(TARGETS … LIBRARY DESTINATION d1 ARCHIVE DESTINATION d2)` | **flat dotted label** | see below |
+
+- **Nested (shape 4) → flat dotted labels, tableless.** Artifact-kind is the
+  label *prefix*, field the *suffix*, both the cmake name lowercased (no
+  abbreviation table — the "tableless to start" stance, [`casing_design.md`](casing_design.md)):
+  `~library.destination=$d`, `~archive.destination=$d`,
+  `~public_header.destination='…'`; unprefixed = top-level (`~component=`,
+  `~export=`). This flattens the record to one level and kills the nested-`()`
+  problem. A future record literal (`~library={destination=…, permissions=[…]}`)
+  is **parked**.
+- **Duplicate single-value field → reject** (Y14 pattern). cmake's real
+  behavior is **silent last-wins** for scalar fields and **accumulate** for
+  list fields (empirically verified, see [painpoints.md §11](../cmake/painpoints.md)).
+  Since yelu emits one record per artifact-kind, a duplicate scalar label is
+  always a mistake → error. List fields are written as one list value
+  (`~library.permissions=[Owner_read, Owner_write]`), folding cmake's
+  cross-appearance merge into a single label. Within-list element dup is a
+  separate concern, unchecked for now. Stricter-than-cmake but emit-faithful.
+- **`=` not `:` separator**, comma lists — as already settled above.
+
 ### 3. Single string syntax — ✅ **done (2026-06-12)**
 
 **Premise corrected.** The doc earlier assumed `'…'` vs `"…"` was a
