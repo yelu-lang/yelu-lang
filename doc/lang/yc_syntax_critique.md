@@ -88,10 +88,41 @@ constructors (`Public`, no colon); cmake globals become dotted lowercase
 (`$cmake.version`); locals stay lowercase; reserved-word shadowing is a hard
 reject (Y14). All surface transforms — emit is exact cmake — fmt-canonicalized.
 
-**`~`-modifier half — still deferred.** Flags (`~system`), named values
-(`~out:`), and especially bracket-groups (`~command:[…]`) — the last needs a
-per-keyword *arity* table in the parser (which keyword is flag / value /
-group), the real work. Status: **design partial; `~`/group deferred.**
+**`~`-modifier half — design settled (2026-06-12), implementation pending.**
+A single *labeled-argument* syntax for cmake keyword args (and, later, yc
+function labeled params). Marker `~` (explicit > context-sensitive; LLM-
+friendly), three forms:
+
+- **flag** — `~before`, `~system`, `~parent_scope` (boolean, present/absent)
+- **value** — `~key=value` (`~out=result`, `~type=Static`)
+- **group** — `~key=[a, b, c]` (one **comma** list form; `~command=[$cc, '-c',
+  $obj]`, Python-`subprocess` style)
+
+Decisions and *why*:
+- **`=` not `:`** for the value separator — `:` reads as type ascription
+  (`x: T`); `=` reads as binding. The parser already accepts `COLON | EQ`, so
+  it's an accept-both, canonicalize-to-`=` migration (`~out:` → `~out=`).
+- **one comma list `[a, b, c]`**, *not* a second space-separated form — the
+  separator is cosmetic (emit is keyword-driven: `COMMAND`→space args, list
+  keyword→`;`-list), so a second form buys no semantics (same reasoning that
+  collapsed `'`/`"`); `|…|` was rejected (reads as a shell pipe, worst on the
+  command-line case it'd serve). A Ruby/Elixir-style `w[…]` word-sigil is the
+  only escape we'd consider, and only if comma proves painful in real use.
+- **emit uppercases the key** (`~before` → `BEFORE`; cmake keyword args are
+  case-sensitive) — same normalize/canonicalize pattern as the enum slices.
+- **`?key=default`** reserved for later *optional-with-default* function
+  params — arrives with `cmake_parse_arguments` codegen, not now.
+
+**Function labeled args (later).** Same syntax (`fun f(~variable, ~value)`,
+call `f ~variable='X'`), but it's a real feature: yc `fun` → cmake
+`function()` (positional + `ARGN`), so labeled params need generated
+`cmake_parse_arguments` — which the corpus already hand-rolls
+(`cmake_parse_arguments(${AML} …)` in `main.yc`). Ties to **Y15**.
+
+**Slicing.** ① flags (`~before`/`~system`/`~parent_scope` — no arity table,
+validates the loop) → ② single values (`~key=value`, migrate `~out:`/`~type:`
+to `=`) → ③ comma-groups (needs the per-keyword arity table: which keyword is
+flag / value / group). Status: **design done; flags slice is next.**
 
 ### 3. Single string syntax — ✅ **done (2026-06-12)**
 
