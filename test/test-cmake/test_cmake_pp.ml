@@ -258,6 +258,11 @@ let install =
            the old Fmt @; pattern produced. *)
         "install(TARGETS Tutorial DESTINATION bin)"
         (install_targets [ "Tutorial" ] (str_ "bin"));
+      check "install_targets COMPONENT"
+        (* COMPONENT is a top-level (default-group) option, emitted before
+           the per-kind clauses; previously it was silently dropped *)
+        "install(TARGETS Tutorial COMPONENT Dev DESTINATION bin)"
+        (install_targets ~component:"Dev" [ "Tutorial" ] (str_ "bin"));
       check "install_files"
         "install(FILES \"MathFunctions.h\" DESTINATION include)"
         (install_files [ quote "MathFunctions.h" ] (str_ "include"));

@@ -1312,7 +1312,7 @@ and pp_project_cmd ff cmd =
   | Export_setup { name } ->
       Fmt.(pf ff "export(SETUP %a)" string name)
   (* install *)
-  | Install_targets { targets; destination; artifact_clauses; export; _ } ->
+  | Install_targets { targets; destination; artifact_clauses; export; component; _ } ->
       let pp_kind ff = function
         | Iak_archive -> Fmt.string ff "ARCHIVE"
         | Iak_library -> Fmt.string ff "LIBRARY"
@@ -1333,9 +1333,12 @@ and pp_project_cmd ff cmd =
       Fmt.pf ff "install(TARGETS %a"
         (list_sp pp_target) targets;
       Option.iter export ~f:(fun e -> Fmt.pf ff " EXPORT %s" e);
-      List.iter artifact_clauses ~f:(pp_clause ff);
+      (* top-level (default-group) options precede the per-kind clauses,
+         matching cmake's grammar order *)
+      Option.iter component ~f:(fun c -> Fmt.pf ff " COMPONENT %s" c);
       Option.iter destination ~f:(fun a ->
         Fmt.pf ff " DESTINATION %a" pp_arg a);
+      List.iter artifact_clauses ~f:(pp_clause ff);
       Fmt.string ff ")"
   | Install_files { files; destination; _ } ->
       Fmt.(
