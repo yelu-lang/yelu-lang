@@ -343,14 +343,23 @@ let rec collect_command_args args kwargs toks =
        parser will read all values via kwarg_list. *)
     let kwargs' = List.map items ~f:(fun e -> (kw, e)) in
     collect_command_args args (kwargs' @ kwargs) rest
-  | TILDE :: IDENT kw :: (COLON | EQ) :: rest ->
-    (match p_expr_y1 rest with
-     | Some (v, r) -> collect_command_args args ((kw, v) :: kwargs) r
-     | None -> (List.rev args, List.rev kwargs, toks))
-  | TILDE :: IDENT kw :: KEYWORD v :: rest ->
-    collect_command_args args ((kw, EVar v) :: kwargs) rest
-  | TILDE :: IDENT kw :: rest ->
-    collect_command_args args ((kw, EBool true) :: kwargs) rest
+  | TILDE :: IDENT kw0 :: rest0 ->
+    (* dotted label `~library.destination=v` flattens a per-artifact record
+       (shape 4); plain keys are the single-IDENT case. *)
+    let rec read_key acc = function
+      | DOT :: IDENT k2 :: r -> read_key (acc ^ "." ^ k2) r
+      | r -> (acc, r)
+    in
+    let key, after = read_key kw0 rest0 in
+    (match after with
+     | (COLON | EQ) :: rest ->
+       (match p_expr_y1 rest with
+        | Some (v, r) -> collect_command_args args ((key, v) :: kwargs) r
+        | None -> (List.rev args, List.rev kwargs, toks))
+     | KEYWORD v :: rest ->
+       collect_command_args args ((key, EVar v) :: kwargs) rest
+     | rest ->
+       collect_command_args args ((key, EBool true) :: kwargs) rest)
   | (RPAREN :: _) | (SEMI :: _) | [] ->
     (List.rev args, List.rev kwargs, toks)
   | _ ->

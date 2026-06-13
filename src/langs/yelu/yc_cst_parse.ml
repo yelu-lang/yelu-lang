@@ -64,28 +64,46 @@ let rec p_atom (ls : ls) : (atom * ls) option =
      | _ -> None)
   | _ -> None
 
+(* A kwarg key after `~` is `IDENT (DOT IDENT)*` — a dotted label
+   (`library.destination`) flattens a per-artifact-kind record (shape 4,
+   critique #2 / painpoint #11). Plain keys are the single-IDENT case. *)
+let read_dotted_key (ls : ls) : (string * ls) option =
+  match ls with
+  | (IDENT k, _) :: rest ->
+    let rec more acc = function
+      | (DOT, _) :: (IDENT k2, _) :: r -> more (acc ^ "." ^ k2) r
+      | r -> (acc, r)
+    in
+    Some (more k rest)
+  | _ -> None
+
 (* ── Command arguments (mirror collect_command_args) ── *)
 let rec p_args (acc : arg list) (ls : ls) : arg list * ls =
   match ls with
-  | (TILDE, _) :: (IDENT kw, _) :: ((COLON | EQ), _) :: (LBRACK, _) :: rest ->
-    let rec items acc = function
-      | (RBRACK, _) :: r -> (List.rev acc, r)
-      | (COMMA, _) :: r  -> items acc r
-      | toks ->
-        (match p_atom toks with
-         | Some (a, r) -> items (a :: acc) r
-         | None -> (List.rev acc, toks))
-    in
-    let its, rest = items [] rest in
-    p_args (Kw_list (kw, its) :: acc) rest
-  | (TILDE, _) :: (IDENT kw, _) :: ((COLON | EQ), _) :: rest ->
-    (match p_atom rest with
-     | Some (a, r) -> p_args (Kw (kw, a) :: acc) r
-     | None -> (List.rev acc, ls))
-  | (TILDE, _) :: (IDENT kw, _) :: (KEYWORD v, _) :: rest ->
-    p_args (Kw (kw, A_name v) :: acc) rest
-  | (TILDE, _) :: (IDENT kw, _) :: rest ->
-    p_args (Kw_flag kw :: acc) rest
+  | (TILDE, _) :: ((IDENT _, _) :: _ as after) ->
+    (match read_dotted_key after with
+     | None -> (List.rev acc, ls)  (* unreachable: starts with IDENT *)
+     | Some (key, after_key) ->
+       (match after_key with
+        | ((COLON | EQ), _) :: (LBRACK, _) :: rest ->
+          let rec items acc = function
+            | (RBRACK, _) :: r -> (List.rev acc, r)
+            | (COMMA, _) :: r  -> items acc r
+            | toks ->
+              (match p_atom toks with
+               | Some (a, r) -> items (a :: acc) r
+               | None -> (List.rev acc, toks))
+          in
+          let its, rest = items [] rest in
+          p_args (Kw_list (key, its) :: acc) rest
+        | ((COLON | EQ), _) :: rest ->
+          (match p_atom rest with
+           | Some (a, r) -> p_args (Kw (key, a) :: acc) r
+           | None -> (List.rev acc, ls))
+        | (KEYWORD v, _) :: rest ->
+          p_args (Kw (key, A_name v) :: acc) rest
+        | rest ->
+          p_args (Kw_flag key :: acc) rest))
   | (RPAREN, _) :: _ | (SEMI, _) :: _ | [] -> (List.rev acc, ls)
   | _ ->
     (match p_atom ls with

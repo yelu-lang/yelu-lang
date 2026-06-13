@@ -16,7 +16,7 @@ type token =
   | BOOL of bool         (* ON/OFF *)
   | INT of int
   | LBRACE | RBRACE | LBRACK | RBRACK | LPAREN | RPAREN
-  | COMMA | SEMI | COLON | DOTDOT | EQ | WALRUS  (* := *) | TILDE  (* ~ *)
+  | COMMA | SEMI | COLON | DOTDOT | DOT | EQ | WALRUS  (* := *) | TILDE  (* ~ *)
   | COMMENT of string    (* # line comment; body excludes '#' and newline.
                             Trivia: only emitted by the lossless located
                             scanner, never by [token_list]. *)
@@ -237,6 +237,7 @@ let semi    = token (char ';' >>| fun _ -> SEMI)
 let tilde     = token (char '~' >>| fun _ -> TILDE)
 let walrus     = token (string ":=" >>| fun _ -> WALRUS)
 let dotdot     = token (string ".." >>| fun _ -> DOTDOT)
+let dot        = token (char '.' >>| fun _ -> DOT)
 let eq      = token (char '=' >>| fun _ -> EQ)
 
 (* ============================================================
@@ -249,7 +250,7 @@ let any_token =
     path_lit; string_lit;
     ident;
     lbrace; rbrace; lbrack; rbrack; lparen; rparen;
-    comma; semi; dotdot; eq;
+    comma; semi; dotdot; dot; eq;
   ]
 
 let token_list =

@@ -246,7 +246,12 @@ let test_value_labels =
       (fmt "install_export $e DESTINATION 'x' NAMESPACE 'ns::' COMPONENT 'c'");
     Alcotest.(check string) "install_export keyword/label emit identically"
       (emit_ast "install_export $e DESTINATION 'x' FILE 'f.cmake' NAMESPACE 'ns::'")
-      (emit_ast "install_export $e ~destination='x' ~file='f.cmake' ~namespace='ns::'"))
+      (emit_ast "install_export $e ~destination='x' ~file='f.cmake' ~namespace='ns::'");
+    (* dotted label key `~library.destination=` (shape-4 foundation): parses
+       and round-trips through the generic kwarg printer *)
+    Alcotest.(check string) "dotted kwarg key round-trips"
+      "some_cmd $t ~library.destination='x'\n"
+      (fmt "some_cmd $t ~library.destination='x'"))
 
 let () =
   Alcotest.run "yc_cst_bridge"
