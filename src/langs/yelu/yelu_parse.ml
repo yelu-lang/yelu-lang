@@ -1274,41 +1274,57 @@ let p_install_command_y1_inner name args kwargs =
   let kwarg_bool ~key = List.Assoc.mem kwargs ~equal:String.equal key in
   match name, args with
   | "install_targets", args ->
-    let top_kw = ["DESTINATION"; "COMPONENT"; "EXPORT"; "FILE_SET"] in
-    let art_kw = ["LIBRARY"; "ARCHIVE"; "RUNTIME"; "PUBLIC_HEADER"; "PRIVATE_HEADER"] in
-    let install_kw = top_kw @ art_kw in
-    let has_kw = List.exists args ~f:(fun e ->
-      match e with EVar s | EString s -> List.mem install_kw s ~equal:String.equal | _ -> false) in
-    if has_kw then
-      let sections = split_by_keywords ~keywords:install_kw args in
-      let targets = match List.Assoc.find sections ~equal:String.equal "_head" with
-        | Some items -> items | None -> [] in
-      let destination = match List.Assoc.find sections ~equal:String.equal "DESTINATION" with
-        | Some (e :: _) -> Some e | _ -> None in
-      let component = match List.Assoc.find sections ~equal:String.equal "COMPONENT" with
-        | Some [ EString s | EVar s ] -> Some s | _ -> None in
-      let export = match List.Assoc.find sections ~equal:String.equal "EXPORT" with
-        | Some (e :: _) -> Some e | _ -> None in
-      let artifact_clauses =
-        List.filter_map sections ~f:(fun (k, items) ->
-          if List.mem art_kw k ~equal:String.equal then
-            (* Artifact clause: items are [DESTINATION, value] or just [value].
-               DESTINATION may appear as a bare keyword or before the value. *)
-            let dest = match items with
-              | EVar "DESTINATION" :: e :: _ | EString "DESTINATION" :: e :: _ -> Some e
-              | [ e ] -> Some e
-              | _ -> None
-            in Option.map dest ~f:(fun d -> (k, d))
-          else if String.is_prefix k ~prefix:"FILE_SET" then
-            match items with e :: _ -> Some (k, e) | _ -> None
-          else None) in
-      Some (yc_install_targets ?export ?component ~artifact_clauses targets destination)
-    else begin
+    (* install(TARGETS) is nested: `<targets> [top-opts] [<KIND> <opts>]*`.
+       A flat split can't handle it because DESTINATION is BOTH a top-level
+       option and a per-artifact option. So split at two levels: level 1 at
+       the artifact KINDs (isolating each kind's region), level 2 within the
+       head and each kind region at the option keywords. The canonical yc
+       surface instead carries clauses as dotted labels (`~library.destination=`),
+       read here straight from kwargs. See painpoints.md §11. *)
+    let art_kw = ["LIBRARY"; "ARCHIVE"; "RUNTIME"; "OBJECTS"; "FRAMEWORK";
+                  "BUNDLE"; "PUBLIC_HEADER"; "PRIVATE_HEADER"; "RESOURCE";
+                  "FILE_SET"; "CXX_MODULES_BMI"] in
+    let opt_kw = ["DESTINATION"; "COMPONENT"; "EXPORT"; "PERMISSIONS";
+                  "CONFIGURATIONS"; "NAMELINK_COMPONENT"] in
+    let arg_is_kw = function
+      | EVar s | EString s -> List.mem (art_kw @ opt_kw) s ~equal:String.equal
+      | _ -> false in
+    let label_kwargs = List.exists kwargs ~f:(fun (k, _) ->
+      String.contains k '.'
+      || List.mem ["component"; "export"; "destination"] k ~equal:String.equal) in
+    if not (List.exists args ~f:arg_is_kw) && not label_kwargs then
       (* Backward-compat positional: install_targets dest targets *)
-      match args with
-      | destination :: targets ->
-        Some (yc_install_targets targets (Some destination))
-      | _ -> None
+      (match args with
+       | destination :: targets -> Some (yc_install_targets targets (Some destination))
+       | _ -> None)
+    else begin
+      let find sec k = Option.value (List.Assoc.find sec ~equal:String.equal k) ~default:[] in
+      let first = function e :: _ -> Some e | [] -> None in
+      let as_str = function Some (EString s | EVar s) -> Some s | _ -> None in
+      (* level 1: split at artifact kinds *)
+      let groups = split_by_keywords ~keywords:art_kw args in
+      (* level 2 on the head: targets + top-level options *)
+      let head_sec = split_by_keywords ~keywords:opt_kw (find groups "_head") in
+      let targets = find head_sec "_head" in
+      let top_dest = first (find head_sec "DESTINATION") in
+      let top_comp = as_str (first (find head_sec "COMPONENT")) in
+      let top_export = first (find head_sec "EXPORT") in
+      (* per-kind clauses (positional): take each kind's DESTINATION *)
+      let pos_clauses = List.filter_map groups ~f:(fun (k, items) ->
+        if List.mem art_kw k ~equal:String.equal then
+          let sec = split_by_keywords ~keywords:opt_kw items in
+          Option.map (first (find sec "DESTINATION")) ~f:(fun d -> (k, d))
+        else None) in
+      (* dotted-label clauses: key "library.destination" -> (LIBRARY, value) *)
+      let dotted_clauses = List.filter_map kwargs ~f:(fun (key, v) ->
+        match String.lsplit2 key ~on:'.' with
+        | Some (kind, "destination") -> Some (String.uppercase kind, v)
+        | _ -> None) in
+      let component = match top_comp with Some _ -> top_comp | None -> as_str (kwarg_opt ~key:"component") in
+      let export = match top_export with Some _ -> top_export | None -> kwarg_opt ~key:"export" in
+      let destination = match top_dest with Some _ -> top_dest | None -> kwarg_opt ~key:"destination" in
+      let artifact_clauses = pos_clauses @ dotted_clauses in
+      Some (yc_install_targets ?export ?component ~artifact_clauses targets destination)
     end
   | "install_files", args ->
     (* keyword form is selected by either a positional DESTINATION/COMPONENT

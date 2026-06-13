@@ -253,9 +253,30 @@ let test_value_labels =
       "some_cmd $t ~library.destination='x'\n"
       (fmt "some_cmd $t ~library.destination='x'"))
 
+(* install_targets shape-4: the nested per-artifact-kind clauses parse
+   correctly (two-level split), and the positional and dotted-label forms
+   emit identical, correct cmake. Real `cmake --install` confirmed the
+   clause shape installs each artifact to its per-kind destination. *)
+let test_install_targets =
+  Alcotest.test_case "install_targets nested clauses" `Quick (fun () ->
+    let positional =
+      "install_targets $t COMPONENT 'c' EXPORT $e \
+       LIBRARY DESTINATION 'lib' ARCHIVE DESTINATION 'ar'" in
+    let dotted =
+      "install_targets $t ~component='c' ~export=$e \
+       ~library.destination='lib' ~archive.destination='ar'" in
+    let expected =
+      "install(TARGETS ${t} EXPORT ${e} COMPONENT c \
+       LIBRARY DESTINATION lib ARCHIVE DESTINATION ar)" in
+    Alcotest.(check string) "positional emits all clauses + COMPONENT"
+      expected (emit_ast positional);
+    Alcotest.(check string) "dotted-label form emits identically"
+      expected (emit_ast dotted))
+
 let () =
   Alcotest.run "yc_cst_bridge"
     [ "bridge", List.map corpus ~f:bridge;
+      "install_targets", [ test_install_targets ];
       "roundtrip", List.map corpus ~f:roundtrip;
       "comments", [ test_comment_placement ];
       "elision", [ test_brace_elision ];
