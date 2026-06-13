@@ -642,7 +642,11 @@ let () =
       in
       find rest
     in
-    let cmake_text = compile file in
+    (* wellform warnings → stderr (the cmake text goes to stdout / -o), so
+       `yelu compile` surfaces them instead of silently dropping them. *)
+    let cmake_text =
+      compile ~warn:(fun s -> Stdlib.Printf.eprintf "%s\n%!" s) file
+    in
     (match out with
      | None -> Stdlib.print_string cmake_text
      | Some path -> write_all path cmake_text)

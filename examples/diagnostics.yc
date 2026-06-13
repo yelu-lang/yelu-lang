@@ -1,0 +1,46 @@
+# yc diagnostics showcase — every diagnostic yc can emit, in one place.
+#
+# WARNINGS (non-fatal, shown by `yelu compile`, printed to stderr):
+#   yelu compile examples/diagnostics.yc 2>&1 >/dev/null
+# The two live statements below each emit a warning; the file still compiles.
+#
+# ERRORS (fatal / parse) abort, so they can't be live alongside the warnings —
+# they're shown commented, with the message each produces. Uncomment one to see
+# it (fatal → `yelu compile`; parse → the editor's LSP, at the offending token).
+
+# ── WARNING  Reserved_name ──────────────────────────────────────────────
+# A function (or variable) named like a cmake command / yc keyword. Here the
+# function is named `message`, which is a built-in command.
+#   [yelu][emit][warning] (Reserved_name (name message) (context function) …)
+fun message(x) (
+  noop := 1
+);
+
+# ── WARNING  Raw_cmake_escape ───────────────────────────────────────────
+# The `yc_raw` escape hatch emits verbatim cmake text the typed API can't
+# express yet. Flagged so every escape stays visible (a coverage gap signal).
+#   [yelu][emit][warning] … [raw cmake text]: set_property(GLOBAL …)
+yc_raw 'set_property(GLOBAL PROPERTY USE_FOLDERS ON)';
+
+# A normal statement, no diagnostic.
+FOO := 'ok';
+
+# ── ERROR (fatal, Y14)  Enum_shadow ─────────────────────────────────────
+# A variable declaration whose name shadows an enum constructor (any case).
+#   yelu compile: variable "public" shadows the Public constructor; rename it
+# public := 1;
+
+# ── PARSE ERROR  enum constructor in a name slot ────────────────────────
+# Capitalized `Public` lexes as the enum KEYWORD, so it can't be an LHS.
+# The LSP reports it at the token:  unexpected keyword "PUBLIC"
+# Public := 1;
+
+# ── PARSE ERROR  unexpected token ───────────────────────────────────────
+# A stray token; the LSP reports at its span (furthest-failure), not the file
+# start.  unexpected RPAREN
+# ) oops
+
+# ── (internal) Apply_shadows_primitive ──────────────────────────────────
+# Not reachable from yc source: the parser routes a known command to its typed
+# handler, so an ECmakeApply never carries a known-command name. It can only
+# arise via the cmake → yc bridge, so there is no source example here.
