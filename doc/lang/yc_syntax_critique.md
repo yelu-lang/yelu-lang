@@ -119,10 +119,24 @@ call `f ~variable='X'`), but it's a real feature: yc `fun` → cmake
 `cmake_parse_arguments` — which the corpus already hand-rolls
 (`cmake_parse_arguments(${AML} …)` in `main.yc`). Ties to **Y15**.
 
-**Slicing.** ① flags (`~before`/`~system`/`~parent_scope` — no arity table,
-validates the loop) → ② single values (`~key=value`, migrate `~out:`/`~type:`
+**Slicing.** ① flags → ② single values (`~key=value`, migrate `~out:`/`~type:`
 to `=`) → ③ comma-groups (needs the per-keyword arity table: which keyword is
-flag / value / group). Status: **design done; flags slice is next.**
+flag / value / group).
+
+**Flags-slice status (2026-06-13).** `~parent_scope` ✅ (shipped) — but it was
+the *easy* case: `parent_scope` is a dedicated `bool` field on `S_assign` with
+its own parse+print. The remaining flags are **generic command args, and the
+clean centralized approach does NOT hold** — commands detect flags
+*inconsistently*: `include_guard GLOBAL` / `install … OPTIONAL` detect
+**positionally**, target `before`/`system` via **`kw_bool` kwargs** (so
+`~before`/`~system`/`~all`/`~force` already work). No uniform `~flag`
+normalization exists (positional ⊥ kwarg), and a bare `GLOBAL` is
+**context-dependent** (the keyword in `include_guard`, but `${GLOBAL}` (a var)
+in a generic/raw command), so the formatter can't canonicalize it
+command-agnostically. ⇒ the bare-keyword flags (`GLOBAL`, `OPTIONAL`,
+`COMMAND_EXPAND_LISTS`, …) need **per-command, command-aware** accept-`~flag` +
+canonicalize work. Status: **`~parent_scope` done; the rest are a deliberate
+per-command pass (not centralizable).**
 
 ### 3. Single string syntax — ✅ **done (2026-06-12)**
 

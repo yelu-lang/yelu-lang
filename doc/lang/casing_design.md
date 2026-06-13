@@ -147,7 +147,10 @@ errored (except the Y14 reserved-word collision, which is a real mistake).
   findings stay warnings). The capitalized `set Public` is already a *parse*
   error (lexer → KEYWORD), so together no variable shadows an enum in any
   case. Reachable case = the lowercase/mixed shadow. Tested in
-  `test_yc_wellform`.
+  `test_yc_wellform`. **Escape hatch (if it proves too aggressive):** the
+  reject can be downgraded to a warning, or made a compiler-toolset toggle —
+  decided 2026-06-13 to keep the hard reject for now and revisit only if real
+  code hits false positives.
 - Next: **dotted globals** (`$cmake.version`, needs `.` in `$`-reads). The
   CamelCase enums (`AnyNewerVersion`) still need the per-theory *table*
   (uppercase ≠ cmake casing), unlike these all-caps ones.
