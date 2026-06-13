@@ -157,7 +157,16 @@ let test_flags =
     Alcotest.(check string) "PARENT_SCOPE → ~parent_scope"
       "X := 1 ~parent_scope\n" (fmt "X := 1 PARENT_SCOPE");
     Alcotest.(check string) "~parent_scope stable"
-      "X := 1 ~parent_scope\n" (fmt "X := 1 ~parent_scope"))
+      "X := 1 ~parent_scope\n" (fmt "X := 1 ~parent_scope");
+    (* include_guard GLOBAL → ~global (per-command, command-aware: only the
+       include_guard flag, not a generic ${GLOBAL} var) *)
+    Alcotest.(check string) "include_guard GLOBAL → ~global"
+      "include_guard ~global\n" (fmt "include_guard GLOBAL");
+    Alcotest.(check string) "include_guard ~global stable"
+      "include_guard ~global\n" (fmt "include_guard ~global");
+    (* a bare GLOBAL in another command is NOT a flag — left as-is *)
+    Alcotest.(check string) "GLOBAL elsewhere untouched"
+      "some_cmd GLOBAL\n" (fmt "some_cmd GLOBAL"))
 
 let () =
   Alcotest.run "yc_cst_bridge"

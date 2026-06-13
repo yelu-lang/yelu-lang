@@ -111,6 +111,25 @@ let pr_arg b (arg : Cst.arg) =
     List.iter items ~f:(fun a -> pr_atom b a; Buffer.add_char b ' ');
     Buffer.add_char b ']'
 
+(* Per-command bare-keyword flags that canonicalize to the lowercase `~flag`
+   form (critique #2, the `~`-half). Command-aware on purpose: a bare `GLOBAL`
+   is the `include_guard` flag here, but `${GLOBAL}` (a variable) elsewhere is
+   left alone — only a *positional bare name* matching THIS command's flag set
+   is rewritten. The list grows one command at a time; the parser already
+   accepts the `~flag` form (it arrives as a Kw_flag → boolean kwarg). *)
+let command_flags name =
+  match name with
+  | "include_guard" -> [ "GLOBAL" ]
+  | _ -> []
+
+(* Like [pr_arg], but rewrites a positional bare-keyword in the command's flag
+   set to `~flag`. Used only for commands with a non-empty [command_flags]. *)
+let pr_arg_flagged flags b (arg : Cst.arg) =
+  match arg with
+  | Pos (A_name s | A_keyword s) when List.mem flags s ~equal:String.equal ->
+    Buffer.add_char b '~'; Buffer.add_string b (String.lowercase s)
+  | _ -> pr_arg b arg
+
 (* The first positional arg of a target command: print the target NAME
    without the `target` tag (syntax #1; lowering re-tags it). *)
 let rec target_name_of (a : Cst.atom) : string =
@@ -171,12 +190,16 @@ let rec pr_stmt b indent (s : Cst.stmt) =
   match s.node with
   | S_command { name; args } ->
     Buffer.add_string b name;
+    let pr = match command_flags name with
+      | [] -> pr_arg
+      | flags -> pr_arg_flagged flags
+    in
     if Cst.is_target_first_arg_command name then
       (match args with
        | first :: rest ->
-         Buffer.add_char b ' '; pr_target_first b first; pr_spaced b ~f:pr_arg rest
+         Buffer.add_char b ' '; pr_target_first b first; pr_spaced b ~f:pr rest
        | [] -> ())
-    else pr_spaced b ~f:pr_arg args
+    else pr_spaced b ~f:pr args
   | S_flow Break -> Buffer.add_string b "break"
   | S_flow Continue -> Buffer.add_string b "continue"
   | S_flow Return -> Buffer.add_string b "return"

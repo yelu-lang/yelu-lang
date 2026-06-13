@@ -1548,6 +1548,10 @@ let p_cmake_op_command_y1_inner name args kwargs =
        cmake include() takes a file/module name, never a var. *)
     let file = match file with EVar s -> EString s | e -> e in
     Some (yc_include ~optional file)
+  (* Accepts bare `include_guard GLOBAL`, the no-arg form, and the
+     canonical `include_guard ~global` (the flag arrives as an empty-args
+     call + a `global` boolean kwarg). All map to the GLOBAL scope — the
+     only include_guard scope yc currently models. *)
   | "include_guard", []
   | "include_guard", [ EVar "GLOBAL" | EString "GLOBAL" ] ->
     Some (yc_include_guard Lang_cmake.Ig_global)
