@@ -94,11 +94,14 @@ reload the window). If the extension is ever reinstalled, re-symlink (or copy).
 
 ## Open surface items (parked 2026-06-12)
 
-- **`PARENT_SCOPE` / cmake-keyword highlighting** — cmake command flags
-  (`PARENT_SCOPE`, `CACHE`, `FORCE`, `BEFORE`, `SYSTEM`, …) aren't in the
-  manifest (they're the deferred `~`-half), so the highlighter has no class for
-  them. Cheap to add a `cmake-keyword` class (→ `keyword.other.yc`) ahead of the
-  syntax migration.
+- **`PARENT_SCOPE` / cmake-keyword highlighting ✅ (2026-06-12).** Added a
+  `Cmake_keyword` manifest class (→ `keyword.other.yc`) with a curated set of
+  bare cmake flags / section markers (`PARENT_SCOPE`, `CACHE`, `FORCE`,
+  `BEFORE`, `SYSTEM`, `COMMAND`, `DESTINATION`, …). Conservative: short
+  english-y words (NAME/OUTPUT/VERSION/TYPE) left out to avoid mis-highlighting
+  var names. Excluded from `word_surfaces` (no enumerable provider — locked
+  only by the grammar freshness `(diff)`). Grammar regenerated; reload to see
+  it. The deferred `~`-half will later restructure most of these into `~kw`.
 - **Furthest-failure diagnostics ✅ (2026-06-12).** `p_stmt` now records the
   deepest token it was attempted on (`furthest` ref, reset per
   `parse_with_pos`); on failure the error blames *that* token, not the

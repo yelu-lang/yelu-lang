@@ -26,6 +26,7 @@ type lexical_class =
   | Bool_literal     (* ON, OFF                               *)
   | Cond_operator    (* not, and, or, str_eq, ver_lt, ...     *)
   | Enum_constructor (* Public, Private, Static, Name_we, ... *)
+  | Cmake_keyword    (* PARENT_SCOPE, CACHE, BEFORE, COMMAND, ... *)
   | Punctuation      (* := = ~ .. ( ) { } [ ] , ; :           *)
 [@@deriving equal, sexp_of]
 
@@ -53,6 +54,7 @@ let default_scope = function
   | Bool_literal    -> "constant.language.boolean.yc"
   | Cond_operator   -> "keyword.operator.word.yc"
   | Enum_constructor -> "constant.language.yc"
+  | Cmake_keyword   -> "keyword.other.yc"
   | Punctuation     -> "punctuation.yc"
 
 let mk ?ctor lexical_class surface =
@@ -89,6 +91,20 @@ let enum_constructors =
   Set.to_list Yelu_lexer.constr_names
   |> List.map ~f:(fun u -> mk Enum_constructor (String.capitalize (String.lowercase u)))
 
+(* cmake command keywords / flags / section markers that appear *bare* in yc
+   today (the deferred `~`-half will restructure most into `~kw`; until then
+   they're plain uppercase tokens). Curated and conservative — clearly-keyword
+   words with low collision against variable names; short english-y words
+   (NAME / OUTPUT / VERSION / TYPE) are left out for now. Not backed by an
+   enumerable provider (cmake's keyword set isn't catalogued here), so this is
+   the manifest's own list, locked only by the grammar freshness `(diff)`. *)
+let cmake_keywords =
+  [ "PARENT_SCOPE"; "CACHE"; "FORCE"; "BEFORE"; "SYSTEM"; "REQUIRED";
+    "GLOBAL"; "OPTIONAL"; "APPEND"; "COMMAND"; "DESTINATION"; "COMPONENT";
+    "NAMESPACE"; "PROPERTY"; "PROPERTIES"; "SOURCES"; "DEPENDS"; "EXPORT";
+    "WORKING_DIRECTORY"; "OUTPUT_VARIABLE"; "COMMAND_EXPAND_LISTS" ]
+  |> List.map ~f:(mk Cmake_keyword)
+
 let cond_operators =
   [ "not"; "and"; "or"; "str_eq"; "str_lt"; "str_gt";
     "eq"; "lt"; "gt"; "ver_lt"; "ver_gt"; "ver_eq";
@@ -118,7 +134,8 @@ let punctuation =
 
 let all : entry list =
   command_entries @ control_keywords @ type_keywords
-  @ bool_literals @ cond_operators @ enum_constructors @ punctuation
+  @ bool_literals @ cond_operators @ enum_constructors @ cmake_keywords
+  @ punctuation
 
 (* ── Accessors for the generator + driver introspection ── *)
 
@@ -136,7 +153,9 @@ let surfaces_of_class cls = List.map (by_class cls) ~f:(fun e -> e.surface)
 let is_word_class = function Punctuation -> false | _ -> true
 
 let is_reserved_backed cls =
-  is_word_class cls && not (equal_lexical_class cls Enum_constructor)
+  is_word_class cls
+  && not (equal_lexical_class cls Enum_constructor)
+  && not (equal_lexical_class cls Cmake_keyword)
 
 let word_surfaces =
   List.filter_map all ~f:(fun e ->

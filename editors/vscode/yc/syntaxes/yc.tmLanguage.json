@@ -24,6 +24,10 @@
       "name": "keyword.operator.word.yc"
     },
     {
+      "match": "\\b(COMMAND_EXPAND_LISTS|WORKING_DIRECTORY|OUTPUT_VARIABLE|PARENT_SCOPE|DESTINATION|PROPERTIES|COMPONENT|NAMESPACE|OPTIONAL|PROPERTY|REQUIRED|COMMAND|DEPENDS|SOURCES|APPEND|BEFORE|EXPORT|GLOBAL|SYSTEM|CACHE|FORCE)\\b",
+      "name": "keyword.other.yc"
+    },
+    {
       "match": "\\b(Target|target|cache|Cvar|cvar)\\b",
       "name": "storage.type.yc"
     },
