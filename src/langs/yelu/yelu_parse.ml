@@ -1215,8 +1215,12 @@ let p_find_command_y1_inner name args kwargs =
   in
   match name, args with
   | "find_package", pkg :: rest ->
-    let required = List.exists rest ~f:(function
-      | EVar "REQUIRED" | EString "REQUIRED" -> true | _ -> false) in
+    (* Accept positional `REQUIRED` and the canonical `~required` flag (a
+       boolean kwarg, so absent from [rest]). *)
+    let required =
+      List.exists rest ~f:(function
+        | EVar "REQUIRED" | EString "REQUIRED" -> true | _ -> false)
+      || List.Assoc.mem kwargs ~equal:String.equal "required" in
     Some (yc_find_package ~required (str_name pkg))
   | "find_library", [ cvar ] ->
     let names = kwarg_list ~key:"name" @ kwarg_list ~key:"names" in

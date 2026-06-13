@@ -179,7 +179,15 @@ let test_flags =
        ~optional flag lower to the same cmake (the kwarg sets ~optional:true) *)
     Alcotest.(check string) "OPTIONAL / ~optional emit identically"
       (emit_ast "install_directory 'd' DESTINATION 'x' OPTIONAL")
-      (emit_ast "install_directory 'd' DESTINATION 'x' ~optional"))
+      (emit_ast "install_directory 'd' DESTINATION 'x' ~optional");
+    (* find_package REQUIRED → ~required (positional flag; parser reads kwarg) *)
+    Alcotest.(check string) "find_package REQUIRED → ~required"
+      "find_package Foo ~required\n" (fmt "find_package Foo REQUIRED");
+    Alcotest.(check string) "find_package ~required stable"
+      "find_package Foo ~required\n" (fmt "find_package Foo ~required");
+    Alcotest.(check string) "REQUIRED / ~required emit identically"
+      (emit_ast "find_package Foo REQUIRED")
+      (emit_ast "find_package Foo ~required"))
 
 let () =
   Alcotest.run "yc_cst_bridge"

@@ -121,6 +121,7 @@ let command_flags name =
   match name with
   | "include_guard" -> [ "GLOBAL" ]
   | "install_directory" -> [ "OPTIONAL" ]
+  | "find_package" -> [ "REQUIRED" ]
   | _ -> []
 
 (* Like [pr_arg], but rewrites a positional bare-keyword in the command's flag
