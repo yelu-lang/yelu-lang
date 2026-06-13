@@ -190,7 +190,7 @@ shapes (corpus-grounded) and their resolutions:
 
 | shape | example | surface | status |
 | --- | --- | --- | --- |
-| 1 flat record | `install(DIRECTORY d DESTINATION x COMPONENT c)` | `~destination=x ~component=c` | ✅ pilot done (install_directory); rollout per-command |
+| 1 flat record | `install(DIRECTORY d DESTINATION x COMPONENT c)` | `~destination=x ~component=c` | ✅ install_directory/files/export done; find/file already label-based — corpus shape-1 complete |
 | 2 repeated→list | `add_custom_command(… COMMAND a … COMMAND b)` | a list | later |
 | 3 key→value map | `set_target_properties(t PROPERTIES K v …)` | `~properties={k=v, …}` | later (record literal) |
 | 4 record-list (nested) | `install(TARGETS … LIBRARY DESTINATION d1 ARCHIVE DESTINATION d2)` | **flat dotted label** | see below |
