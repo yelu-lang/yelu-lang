@@ -76,6 +76,43 @@ same retirement discipline as the yelu_cmake byte oracle.
 | M1.5b | richer diagnostics (parse error spans) + hover / semantic tokens | ◐ parse-error **spans done** (2026-06-12): `Yc_cst_parse.parse_with_pos` carries the offending token's span + a humanized message; the LSP maps byte offset → line/char and reports at the real range (lex errors fall back to file start). Hover / semantic tokens still ⏳ |
 | —     | retire `parse_ast`; production path is `text → cst → lower → expr` | ⏳ |
 
+## Deployment gotcha (local VS Code)
+
+The extension is **installed as a copy** under
+`~/.vscode-server/extensions/yelu-lang.yc-0.1.0/` (WSL). VS Code reads two
+things from *different* places:
+- **LSP binary** — from the *workspace* (`_build/default/src/bin/yelu_lsp/yelu_lsp.exe`
+  per `package.json`'s `yc.server.path` fallback), so a `dune build` + window
+  reload picks up LSP changes.
+- **TextMate grammar** — from the *installed copy*'s `syntaxes/yc.tmLanguage.json`,
+  **not** the workspace. So regenerating `editors/.../yc.tmLanguage.json` does
+  nothing until that copy is updated — no reload or LSP rebuild helps.
+
+Fix applied 2026-06-12: the installed grammar is now a **symlink** to the
+workspace file, so `yelu tmgrammar` / `dune promote` regens are live (just
+reload the window). If the extension is ever reinstalled, re-symlink (or copy).
+
+## Open surface items (parked 2026-06-12)
+
+- **`PARENT_SCOPE` / cmake-keyword highlighting** — cmake command flags
+  (`PARENT_SCOPE`, `CACHE`, `FORCE`, `BEFORE`, `SYSTEM`, …) aren't in the
+  manifest (they're the deferred `~`-half), so the highlighter has no class for
+  them. Cheap to add a `cmake-keyword` class (→ `keyword.other.yc`) ahead of the
+  syntax migration.
+- **Furthest-failure diagnostics** — `p_stmts` reports the *first token of the
+  failing top-level statement*, not the deepest failure point. A bad inner
+  statement (e.g. `Public := 1` inside a `fun …`) lands the diagnostic on the
+  `fun` line, not the offending token. Fix = track the furthest token the parse
+  reached and report there; bonus = a targeted "X is an enum constructor, not a
+  variable name" message (the surface face of Y14, which the lexer pre-empts by
+  tokenizing `Public` as a KEYWORD before wellform runs).
+- **Dotted globals — parked, likely reframed.** Corpus check killed the clean
+  "all-caps = global" premise: `$ARGN`/`$BMI`/`$MKDOCS` are *local* all-caps
+  vars, not globals. So the dotted form can only be *cosmetic* (`_`→`.` +
+  lowercase on multi-segment names), the `sys.` fake-root collides with real
+  `SYS_*` and mislabels locals, and single-word all-caps must stay verbatim
+  (`$MSVC`). Real namespacing belongs in **ycn**. See `casing_design.md`.
+
 ## Testing strategy (target, build out over M1.2–M1.3)
 
 Layered coverage for the parse/lower/print round-trips:
