@@ -131,6 +131,10 @@ let command_flags name =
 let command_value_labels name =
   match name with
   | "install_directory" -> [ ("DESTINATION", "destination"); ("COMPONENT", "component") ]
+  | "install_files" -> [ ("DESTINATION", "destination"); ("COMPONENT", "component") ]
+  | "install_export" ->
+    [ ("DESTINATION", "destination"); ("FILE", "file");
+      ("NAMESPACE", "namespace"); ("COMPONENT", "component") ]
   | _ -> []
 
 (* Print a command's argument list, command-aware: a positional bare keyword

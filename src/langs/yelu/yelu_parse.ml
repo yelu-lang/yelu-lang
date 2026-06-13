@@ -1302,17 +1302,22 @@ let p_install_command_y1_inner name args kwargs =
       | _ -> None
     end
   | "install_files", args ->
+    (* keyword form is selected by either a positional DESTINATION/COMPONENT
+       or the `~destination=`/`~component=` label kwargs *)
     let has_kw = List.exists args ~f:(function
       | EVar "DESTINATION" | EString "DESTINATION"
-      | EVar "COMPONENT" | EString "COMPONENT" -> true | _ -> false) in
+      | EVar "COMPONENT" | EString "COMPONENT" -> true | _ -> false)
+      || kwarg_bool ~key:"destination" || kwarg_bool ~key:"component" in
     if has_kw then
       let sections = split_by_keywords ~keywords:["DESTINATION"; "COMPONENT"] args in
       let files = match List.Assoc.find sections ~equal:String.equal "_head" with
         | Some items -> items | None -> [] in
       let destination = match List.Assoc.find sections ~equal:String.equal "DESTINATION" with
-        | Some (e :: _) -> e | _ -> EString "?" in
+        | Some (e :: _) -> e
+        | _ -> (match kwarg_opt ~key:"destination" with Some e -> e | None -> EString "?") in
       let component = match List.Assoc.find sections ~equal:String.equal "COMPONENT" with
-        | Some [ EString s | EVar s ] -> Some s | _ -> None in
+        | Some [ EString s | EVar s ] -> Some s
+        | _ -> (match kwarg_opt ~key:"component" with Some (EString s | EVar s) -> Some s | _ -> None) in
       Some (yc_install_files ?component files destination)
     else begin
       (* Backward-compat positional: install_files dest files *)
@@ -1326,19 +1331,24 @@ let p_install_command_y1_inner name args kwargs =
       | EVar "DESTINATION" | EString "DESTINATION"
       | EVar "FILE" | EString "FILE"
       | EVar "NAMESPACE" | EString "NAMESPACE"
-      | EVar "COMPONENT" | EString "COMPONENT" -> true | _ -> false) in
+      | EVar "COMPONENT" | EString "COMPONENT" -> true | _ -> false)
+      || kwarg_bool ~key:"destination" || kwarg_bool ~key:"file"
+      || kwarg_bool ~key:"namespace" || kwarg_bool ~key:"component" in
     if has_kw then
       let sections = split_by_keywords ~keywords:["DESTINATION"; "FILE"; "NAMESPACE"; "COMPONENT"] args in
       let export = match List.Assoc.find sections ~equal:String.equal "_head" with
         | Some (e :: _) -> e | _ -> EVar "?" in
       let destination = match List.Assoc.find sections ~equal:String.equal "DESTINATION" with
-        | Some (e :: _) -> e | _ -> EString "?" in
+        | Some (e :: _) -> e
+        | _ -> (match kwarg_opt ~key:"destination" with Some e -> e | None -> EString "?") in
       let file = match List.Assoc.find sections ~equal:String.equal "FILE" with
-        | Some (e :: _) -> Some e | _ -> None in
+        | Some (e :: _) -> Some e | _ -> kwarg_opt ~key:"file" in
       let namespace = match List.Assoc.find sections ~equal:String.equal "NAMESPACE" with
-        | Some [ EString s | EVar s ] -> Some s | _ -> None in
+        | Some [ EString s | EVar s ] -> Some s
+        | _ -> (match kwarg_opt ~key:"namespace" with Some (EString s | EVar s) -> Some s | _ -> None) in
       let component = match List.Assoc.find sections ~equal:String.equal "COMPONENT" with
-        | Some [ EString s | EVar s ] -> Some s | _ -> None in
+        | Some [ EString s | EVar s ] -> Some s
+        | _ -> (match kwarg_opt ~key:"component" with Some (EString s | EVar s) -> Some s | _ -> None) in
       Some (yc_install_export ?file ?namespace ?component export destination)
     else begin
       (* Backward-compat positional: install_export exp dest *)

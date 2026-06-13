@@ -232,7 +232,21 @@ let test_value_labels =
        positional-keyword ordering pain, compiled away) *)
     Alcotest.(check string) "label order-independent on emit"
       (emit_ast "install_directory 'd' ~destination='x' ~component='c'")
-      (emit_ast "install_directory 'd' ~component='c' ~destination='x'"))
+      (emit_ast "install_directory 'd' ~component='c' ~destination='x'");
+    (* install_files: DESTINATION/COMPONENT *)
+    Alcotest.(check string) "install_files → labels"
+      "install_files $f ~destination='x' ~component='c'\n"
+      (fmt "install_files $f DESTINATION 'x' COMPONENT 'c'");
+    Alcotest.(check string) "install_files keyword/label emit identically"
+      (emit_ast "install_files $f DESTINATION 'x' COMPONENT 'c'")
+      (emit_ast "install_files $f ~destination='x' ~component='c'");
+    (* install_export: DESTINATION/FILE/NAMESPACE/COMPONENT *)
+    Alcotest.(check string) "install_export → labels"
+      "install_export $e ~destination='x' ~namespace='ns::' ~component='c'\n"
+      (fmt "install_export $e DESTINATION 'x' NAMESPACE 'ns::' COMPONENT 'c'");
+    Alcotest.(check string) "install_export keyword/label emit identically"
+      (emit_ast "install_export $e DESTINATION 'x' FILE 'f.cmake' NAMESPACE 'ns::'")
+      (emit_ast "install_export $e ~destination='x' ~file='f.cmake' ~namespace='ns::'"))
 
 let () =
   Alcotest.run "yc_cst_bridge"

@@ -245,9 +245,9 @@ if $FMT_INSTALL then (
   );
   install_targets $INSTALL_TARGETS COMPONENT 'fmt_core' EXPORT $targets_export_name LIBRARY DESTINATION $FMT_LIB_DIR ARCHIVE DESTINATION $FMT_LIB_DIR PUBLIC_HEADER DESTINATION '${FMT_INC_DIR}/fmt' RUNTIME DESTINATION $CMAKE_INSTALL_BINDIR $INSTALL_FILE_SET;
   export $targets_export_name ~file='${PROJECT_BINARY_DIR}/${targets_export_name}.cmake';
-  install_files $project_config $version_config DESTINATION $FMT_CMAKE_DIR COMPONENT 'fmt_core';
-  install_export $targets_export_name DESTINATION $FMT_CMAKE_DIR NAMESPACE 'fmt::' COMPONENT 'fmt_core';
-  install_files $pkgconfig DESTINATION $FMT_PKGCONFIG_DIR COMPONENT 'fmt_core'
+  install_files $project_config $version_config ~destination=$FMT_CMAKE_DIR ~component='fmt_core';
+  install_export $targets_export_name ~destination=$FMT_CMAKE_DIR ~namespace='fmt::' ~component='fmt_core';
+  install_files $pkgconfig ~destination=$FMT_PKGCONFIG_DIR ~component='fmt_core'
 );
 fun add_doc_target() (
   find_program ~name='doxygen' ~path='$ENV{ProgramFiles}/doxygen/bin' DOXYGEN;
