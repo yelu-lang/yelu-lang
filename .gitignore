@@ -1,6 +1,8 @@
 _build/
 _out/
 debug.log
+debug.yc        # scratch/playground .yc — keep it at the repo root, NOT under
+                # probes/ (the emit-bridge test walks probes/ on the filesystem)
 *.exe
 __pycache__/
 
