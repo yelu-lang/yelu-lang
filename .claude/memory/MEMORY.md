@@ -21,6 +21,7 @@
 - [Web docs only on explicit ask](feedback_web_docs_explicit.md) — never auto-update docs/ as a side effect of internal work; wait for explicit instruction
 - [No eager push](feedback_no_eager_push.md) — commit freely on local main; user is solo dev and pushes explicitly
 - [Pause on model-unavailable](feedback_pause_on_model_unavailable.md) — surface auto-mode safety-check blocks; don't retry through them
+- [Always --prefix on cmake --install](feedback_cmake_install_prefix.md) — sandbox installs to a /tmp prefix; harness normally stops at configure
 
 ## Quick Reference
 - `open Base` shadows `result`, `prefix`, `id`, `append` — rename in patterns

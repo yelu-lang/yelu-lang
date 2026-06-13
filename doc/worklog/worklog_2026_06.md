@@ -203,3 +203,79 @@ The two 2026-06-09 audit docs that fed the above were also deleted
 - **`code_quality_review_2026_06_09.md`** (maintainability review) — fully
   consumed: it produced `refactoring_plan_2026_06_09.md`, itself retired
   above (P0/P1 shipped in `6a41f96`, P2 → status.md cleanup 8–10).
+
+## 2026-06-13: Handoff — critique #2 `~`-half (flags + value-labels) + install_targets fix
+
+One-time resume note. This session executed critique #2's `~`-modifier half
+(see [doc/lang/yc_syntax_critique.md](../lang/yc_syntax_critique.md) §2 and
+[doc/lang/casing_design.md](../lang/casing_design.md)) and uncovered + fixed a
+pre-existing `install_targets` correctness bug.
+
+### Shipped (all committed, all on origin/main as of `a34a26e`)
+
+**The `~`-modifier surface** — every cmake keyword-arg is an argument label:
+- **Boolean flags** (value-less labels), per-command + command-aware (a bare
+  `GLOBAL` is the `include_guard` flag, but `${GLOBAL}` a variable elsewhere):
+  `~parent_scope`, `include_guard ~global`, `install_directory ~optional`,
+  `find_package ~required`. Mechanism: `command_flags` table + `pr_arg_flagged`
+  in [yc_cst_print.ml](../../src/langs/yelu/yc_cst_print.ml); parser reads the
+  `~flag` boolean kwarg (positional-detected flags also taught the kwarg).
+- **Separator `:` → `=`** (`c21aa41`): accept both, canonicalize to `=`. `=`
+  reads as binding, `:` as ascription. Corpus's ~22 `~key:` migrated.
+- **Value-labels (shape 1)** for the install family: `install_directory`,
+  `install_files`, `install_export` → `~destination=`/`~component=`/
+  `~namespace=`/`~file=`. Mechanism: `command_value_labels` table +
+  `pr_cmd_args` (look-ahead printer; a value-keyword consumes its following
+  positional). Order-independence verified (labels in any order → identical
+  cmake — cmake's keyword-ordering pain compiled away). Corpus shape-1 complete.
+
+**install_targets correctness fix (shape 4)** — surfaced that the command was
+already deeply lossy, independent of surface work:
+- `dbc0b6a` — printer was dropping `COMPONENT` (bug 2). Now emits it, top-level
+  options before per-kind clauses (cmake grammar order).
+- `a34a26e` — nested-clause parse (bug 1). Flat `split_by_keywords` couldn't
+  handle `DESTINATION`'s dual role (top-level AND per-artifact); replaced with a
+  **two-level split** (level 1 at artifact KINDs, level 2 at options) + dotted-
+  label kwarg reading (`~library.destination=` → `(LIBRARY, value)`). Positional
+  and dotted forms emit identically. **Verified with real `cmake --install`**:
+  LIBRARY→libdir, ARCHIVE→archdir.
+- `fefe80e` — foundation: lexer `DOT` token + dotted kwarg keys.
+
+**cmake ground truth** (`175a524`, painpoints.md §11): probed
+`install(TARGETS)` repeated-keyword semantics — duplicate scalar field =
+silent last-wins; split fields across same-kind groups = accumulate.
+
+### Remaining — resume points
+
+Within install_targets (a), in priority order:
+1. **Formatter canonicalization** positional `LIBRARY DESTINATION v` →
+   `~library.destination=v`, then re-fmt corpus to the dotted surface. Sugar,
+   not correctness — the corpus compiles correctly either way today (it's still
+   positional). Needs a dedicated install_targets CST walk (re-do the two-level
+   recognition on `Cst.arg`).
+2. **Duplicate single-value field → reject** (Y14 pattern, painpoints.md §11).
+   Needs the wellform/error channel. List fields stay one list value.
+3. **`$INSTALL_FILE_SET` dynamic clause** — still dropped (a `FILE_SET`-in-a-
+   variable). **Tier-3**: needs a raw-passthrough slot in the install IR. The
+   one item needing an IR design decision, not more of the same.
+
+Broader `~`-half (other shapes), tracked in critique §2:
+- **Shape 3** — `set_target_properties PROPERTY` → `~properties={k=v}` map
+  literal (new `{…}` surface form). 6× in corpus.
+- **Shape 2** — `add_custom_command COMMAND` repeated-list, AND blocked on the
+  COMMAND_EXPAND_LISTS IR-gap (parsed but dropped on emit — same blindness class
+  as install_targets; matrix can't see build-time flags).
+- **IR-gap flags** (do NOT cosmetically migrate): COMMAND_EXPAND_LISTS, WIN32,
+  MACOSX_BUNDLE, EXCLUDE_FROM_ALL — dropped on emit; need IR fields first.
+
+Two orthogonal pre-existing yc gaps noticed (not on the critique path):
+`SHARED` not in the lib-type enum set (lexes as `${SHARED}` var); install_targets
+literal target names emit as `${name}` instead of bare.
+
+### Verify on resume
+- `dune test` (full suite, was green) · `dune build @runtest`
+- `dune exec src/bin/yelu/yelu.exe -- matrix probes/fmt` (24/24, configure-blind)
+- emit-bridge + corpus tests in `test/test-yelu/test_yc_cst_bridge.ml`
+  (`flags`, `separator`, `value_labels`, `install_targets`)
+- For install/build-stage checks: `cmake --install <build> --prefix <tmp>` only
+  (never bare — see [.claude/memory/feedback_cmake_install_prefix.md](../../.claude/memory/feedback_cmake_install_prefix.md)).
