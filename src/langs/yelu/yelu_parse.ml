@@ -326,7 +326,7 @@ let rec collect_command_args args kwargs toks =
      kind-scoped lists. Items are parsed and stored as an EList value.
      The target parser currently reads positional visibility groups,
      not kwarg payloads; this preserves the items for future plumbing. *)
-  | TILDE :: IDENT kw :: COLON :: LBRACK :: rest
+  | TILDE :: IDENT kw :: (COLON | EQ) :: LBRACK :: rest
     when String.equal kw "public"
       || String.equal kw "private"
       || String.equal kw "interface" ->
@@ -343,7 +343,7 @@ let rec collect_command_args args kwargs toks =
        parser will read all values via kwarg_list. *)
     let kwargs' = List.map items ~f:(fun e -> (kw, e)) in
     collect_command_args args (kwargs' @ kwargs) rest
-  | TILDE :: IDENT kw :: COLON :: rest ->
+  | TILDE :: IDENT kw :: (COLON | EQ) :: rest ->
     (match p_expr_y1 rest with
      | Some (v, r) -> collect_command_args args ((kw, v) :: kwargs) r
      | None -> (List.rev args, List.rev kwargs, toks))

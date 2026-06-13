@@ -19,7 +19,7 @@ fun join(result_var) (
 );
 fun set_verbose(variable, value, _cache, type) (
   join 'doc' $ARGN;
-  cache $variable := $value '${doc}' ~type:$type
+  cache $variable := $value '${doc}' ~type=$type
 );
 if $FMT_MASTER_PROJECT and not $CMAKE_BUILD_TYPE then (
   set_verbose 'CMAKE_BUILD_TYPE' 'Release' 'CACHE' 'STRING' 'Choose the type of build, options are: None(CMAKE_CXX_FLAGS or ' 'CMAKE_C_FLAGS used) Debug Release RelWithDebInfo MinSizeRel.'
@@ -57,14 +57,14 @@ if $FMT_SYSTEM_HEADERS then (
 );
 include GNUInstallDirs;
 set_verbose 'FMT_INC_DIR' $CMAKE_INSTALL_INCLUDEDIR 'CACHE' 'STRING' 'Installation directory for include files, a relative path that ' 'will be joined with ${CMAKE_INSTALL_PREFIX} or an absolute path.';
-cache FMT_DEBUG_POSTFIX := 'd' 'Debug library postfix.' ~type:String;
-file_read 'include/fmt/base.h' ~out:base_h;
+cache FMT_DEBUG_POSTFIX := 'd' 'Debug library postfix.' ~type=String;
+file_read 'include/fmt/base.h' ~out=base_h;
 if not ( match $base_h 'FMT_VERSION ([0-9]+)([0-9][0-9])([0-9][0-9])' ) then (
   message FATAL_ERROR 'Cannot get FMT_VERSION from base.h.'
 );
-math '${CMAKE_MATCH_1}' ~out:CPACK_PACKAGE_VERSION_MAJOR;
-math '${CMAKE_MATCH_2}' ~out:CPACK_PACKAGE_VERSION_MINOR;
-math '${CMAKE_MATCH_3}' ~out:CPACK_PACKAGE_VERSION_PATCH;
+math '${CMAKE_MATCH_1}' ~out=CPACK_PACKAGE_VERSION_MAJOR;
+math '${CMAKE_MATCH_2}' ~out=CPACK_PACKAGE_VERSION_MINOR;
+math '${CMAKE_MATCH_3}' ~out=CPACK_PACKAGE_VERSION_PATCH;
 join 'FMT_VERSION' '${CPACK_PACKAGE_VERSION_MAJOR}.${CPACK_PACKAGE_VERSION_MINOR}.' '${CPACK_PACKAGE_VERSION_PATCH}';
 message '{fmt} version: ${FMT_VERSION}';
 message 'Build type: ${CMAKE_BUILD_TYPE}';
@@ -119,7 +119,7 @@ if $FMT_MASTER_PROJECT and match $CMAKE_GENERATOR 'Visual Studio' then (
   ${CMAKE_MAKE_PROGRAM} -p:FrameworkPathOverride="${netfxpath}" %*'
 );
 fun setup_target(tgt, kind) (
-  add_lib_alias "fmt::${tgt}" ~alias_of:'${tgt}';
+  add_lib_alias "fmt::${tgt}" ~alias_of='${tgt}';
   include_dirs $tgt $FMT_SYSTEM_HEADERS_ATTRIBUTE BEFORE $kind '$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>' '$<INSTALL_INTERFACE:${FMT_INC_DIR}>';
   if not $MSVC then (  ) else (
     if $FMT_UNICODE then (
@@ -173,7 +173,7 @@ fun add_module_library(name) (
   if $MSVC then (
     if not ( str_eq $CMAKE_GENERATOR 'Ninja' ) then (
       BMI_DIR := '${CMAKE_CURRENT_BINARY_DIR}';
-      path_convert_to_native '${BMI_DIR}/${name}.ifc' ~out:BMI;
+      path_convert_to_native '${BMI_DIR}/${name}.ifc' ~out=BMI;
       compile_opts $name Private '/interface' '/ifcOutput' $BMI Interface '/reference' 'fmt=${BMI}';
       set_target_properties $name PROPERTY ADDITIONAL_CLEAN_FILES $BMI;
       set_source_files_properties $BMI PROPERTIES GENERATED ON
@@ -190,7 +190,7 @@ fun add_module_library(name) (
   if match $CMAKE_CXX_COMPILER_ID 'Clang' then (
     pcms := '';
     foreach src in LISTS sources (
-      get_filename_component pcm ~mode:Name_we $src;
+      get_filename_component pcm ~mode=Name_we $src;
       pcm := '${pcm}.pcm';
       compile_opts $name Public '-fmodule-file=${CMAKE_CURRENT_BINARY_DIR}/${pcm}';
       pcms := $pcms, '${CMAKE_CURRENT_BINARY_DIR}/${pcm}';
@@ -198,7 +198,7 @@ fun add_module_library(name) (
     );
     sources := '';
     foreach pcm in LISTS pcms (
-      get_filename_component pcm_we ~mode:Name_we $pcm;
+      get_filename_component pcm_we ~mode=Name_we $pcm;
       obj := '${pcm_we}.o';
       sources := $sources, $pcm, '${CMAKE_CURRENT_BINARY_DIR}/${obj}';
       add_custom_command OUTPUT $obj COMMAND $CMAKE_CXX_COMPILER '$<TARGET_PROPERTY:${name},COMPILE_OPTIONS>' '-c' '-o' $obj $pcm DEPENDS $pcm
@@ -210,17 +210,17 @@ if $FMT_MODULE then (
   add_module_library 'fmt-module' 'src/fmt.cc' USE_CMAKE_MODULES $FMT_USE_CMAKE_MODULES;
   setup_target 'fmt-module' 'PUBLIC'
 );
-add_lib fmt-header-only ~type:Interface;
+add_lib fmt-header-only ~type=Interface;
 compile_defs fmt-header-only Interface 'FMT_HEADER_ONLY=1';
 compile_feats fmt-header-only Interface 'cxx_std_11';
 setup_target 'fmt-header-only' 'INTERFACE';
-add_lib fmt-c 'src/fmt-c.cc' ~type:Static;
+add_lib fmt-c 'src/fmt-c.cc' ~type=Static;
 compile_feats fmt-c Interface 'c_std_11';
 if $MSVC then (
   compile_opts fmt-c Public '/Zc:preprocessor'
 );
 link_lib fmt-c Public 'fmt::fmt';
-add_lib_alias "fmt::fmt-c" ~alias_of:'fmt-c';
+add_lib_alias "fmt::fmt-c" ~alias_of='fmt-c';
 set_target_properties fmt-c PROPERTY PUBLIC_HEADER 'include/fmt/fmt-c.h';
 if $FMT_INSTALL then (
   include CMakePackageConfigHelpers;
@@ -231,7 +231,7 @@ if $FMT_INSTALL then (
   targets_export_name := 'fmt-targets';
   set_verbose 'FMT_LIB_DIR' $CMAKE_INSTALL_LIBDIR 'CACHE' 'STRING' 'Installation directory for libraries, a relative path that ' 'will be joined to ${CMAKE_INSTALL_PREFIX} or an absolute path.';
   set_verbose 'FMT_PKGCONFIG_DIR' '${CMAKE_INSTALL_LIBDIR}/pkgconfig' 'CACHE' 'STRING' 'Installation directory for pkgconfig (.pc) files, a relative ' 'path that will be joined with ${CMAKE_INSTALL_PREFIX} or an ' 'absolute path.';
-  write_basic_package_version_file $version_config ~compatibility:AnyNewerVersion ~version:$FMT_VERSION;
+  write_basic_package_version_file $version_config ~compatibility=AnyNewerVersion ~version=$FMT_VERSION;
   join_paths 'libdir_for_pc_file' '\${exec_prefix}' '${FMT_LIB_DIR}';
   join_paths 'includedir_for_pc_file' '\${prefix}' '${FMT_INC_DIR}';
   configure_file '${PROJECT_SOURCE_DIR}/support/cmake/fmt.pc.in' '${pkgconfig}' '@ONLY';
@@ -244,18 +244,18 @@ if $FMT_INSTALL then (
     )
   );
   install_targets $INSTALL_TARGETS COMPONENT 'fmt_core' EXPORT $targets_export_name LIBRARY DESTINATION $FMT_LIB_DIR ARCHIVE DESTINATION $FMT_LIB_DIR PUBLIC_HEADER DESTINATION '${FMT_INC_DIR}/fmt' RUNTIME DESTINATION $CMAKE_INSTALL_BINDIR $INSTALL_FILE_SET;
-  export $targets_export_name ~file:'${PROJECT_BINARY_DIR}/${targets_export_name}.cmake';
+  export $targets_export_name ~file='${PROJECT_BINARY_DIR}/${targets_export_name}.cmake';
   install_files $project_config $version_config DESTINATION $FMT_CMAKE_DIR COMPONENT 'fmt_core';
   install_export $targets_export_name DESTINATION $FMT_CMAKE_DIR NAMESPACE 'fmt::' COMPONENT 'fmt_core';
   install_files $pkgconfig DESTINATION $FMT_PKGCONFIG_DIR COMPONENT 'fmt_core'
 );
 fun add_doc_target() (
-  find_program ~name:'doxygen' ~path:'$ENV{ProgramFiles}/doxygen/bin' DOXYGEN;
+  find_program ~name='doxygen' ~path='$ENV{ProgramFiles}/doxygen/bin' DOXYGEN;
   if not $DOXYGEN then (
     message "Target 'doc' disabled because doxygen not found";
     return
   );
-  find_program ~name:'mkdocs' MKDOCS;
+  find_program ~name='mkdocs' MKDOCS;
   if not $MKDOCS then (
     message "Target 'doc' disabled because mkdocs not found";
     return
@@ -280,11 +280,11 @@ if $FMT_FUZZ then (
 );
 gitignore := '${PROJECT_SOURCE_DIR}/.gitignore';
 if $FMT_MASTER_PROJECT and exists $gitignore then (
-  file_strings $gitignore ~out:lines;
+  file_strings $gitignore ~out=lines;
   list_remove_item lines '/doc/html';
   foreach line in LISTS lines (
-    string_replace '.' '[.]' '${line}' ~out:line;
-    string_replace '*' '.*' '${line}' ~out:line;
+    string_replace '.' '[.]' '${line}' ~out=line;
+    string_replace '*' '.*' '${line}' ~out=line;
     ignored_files := $ignored_files, '${line}$', '${line}/'
   );
   ignored_files := $ignored_files, '/.git', '/build/doxyxml', '.vagrant';

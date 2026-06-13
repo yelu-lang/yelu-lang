@@ -104,10 +104,10 @@ let pr_arg b (arg : Cst.arg) =
   match arg with
   | Pos a -> pr_atom b a
   | Kw (k, v) ->
-    Buffer.add_char b '~'; Buffer.add_string b k; Buffer.add_char b ':'; pr_atom b v
+    Buffer.add_char b '~'; Buffer.add_string b k; Buffer.add_char b '='; pr_atom b v
   | Kw_flag k -> Buffer.add_char b '~'; Buffer.add_string b k
   | Kw_list (k, items) ->
-    Buffer.add_char b '~'; Buffer.add_string b k; Buffer.add_string b ":[ ";
+    Buffer.add_char b '~'; Buffer.add_string b k; Buffer.add_string b "=[ ";
     List.iter items ~f:(fun a -> pr_atom b a; Buffer.add_char b ' ');
     Buffer.add_char b ']'
 
@@ -215,7 +215,7 @@ let rec pr_stmt b indent (s : Cst.stmt) =
     Option.iter docstring ~f:(fun d ->
       Buffer.add_string b " "; pr_atom b (A_string d));
     List.iter kwargs ~f:(fun (k, v) ->
-      Buffer.add_string b " ~"; Buffer.add_string b k; Buffer.add_char b ':'; pr_atom b v);
+      Buffer.add_string b " ~"; Buffer.add_string b k; Buffer.add_char b '='; pr_atom b v);
     if parent_scope then Buffer.add_string b " ~parent_scope"
   | S_let { var; ty; value; body } ->
     Buffer.add_string b "let "; Buffer.add_string b var;

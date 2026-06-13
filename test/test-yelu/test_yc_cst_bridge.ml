@@ -132,16 +132,17 @@ let test_enum_constructor =
       "compile_opts fmt Private $flags\n" (fmt "compile_opts fmt :PRIVATE $flags");
     Alcotest.(check string) "Public stays Public"
       "compile_opts fmt Public $x\n" (fmt "compile_opts fmt Public $x");
-    (* the ~public: kwarg key is a lowercase identifier, not the enum *)
-    Alcotest.(check string) "~public: key untouched"
-      "compile_feats fmt ~public:[ cxx_std_11 ]\n"
+    (* the ~public kwarg key is a lowercase identifier, not the enum; the
+       separator canonicalizes to `=` (the `:` form is still accepted) *)
+    Alcotest.(check string) "~public key untouched, `:`→`=`"
+      "compile_feats fmt ~public=[ cxx_std_11 ]\n"
       (fmt "compile_feats fmt ~public:[cxx_std_11]");
-    (* slice 2: enum VALUES inside ~type:/~mode: canonicalize, key kept; a
-       `:Constructor`-cased input emits unchanged (matrix proves it) *)
-    Alcotest.(check string) "~type:STRING value → String"
-      "cache X := 'v' ~type:String\n" (fmt "cache X := 'v' ~type:STRING");
+    (* slice 2: enum VALUES inside ~type/~mode canonicalize, key kept; the
+       separator is `=`. A `:Constructor`-cased input emits unchanged. *)
+    Alcotest.(check string) "~type:STRING value → ~type=String"
+      "cache X := 'v' ~type=String\n" (fmt "cache X := 'v' ~type:STRING");
     Alcotest.(check string) "~mode value, input already leading-cap"
-      "get_filename_component p ~mode:Name_we $src\n"
+      "get_filename_component p ~mode=Name_we $src\n"
       (fmt "get_filename_component p ~mode:Name_we $src"))
 
 (* `~`-half flags slice: the cmake `PARENT_SCOPE` flag canonicalizes to
@@ -189,6 +190,24 @@ let test_flags =
       (emit_ast "find_package Foo REQUIRED")
       (emit_ast "find_package Foo ~required"))
 
+(* `~key:value` and `~key=value` are both accepted; the formatter
+   canonicalizes the separator to `=` (critique #2). *)
+let test_separator =
+  Alcotest.test_case "kwarg separator `:`/`=` → `=`" `Quick (fun () ->
+    let fmt s =
+      match Cstp.parse s with
+      | Ok c -> Yelu_langs.Yc_cst_print.print_program c
+      | Error e -> Alcotest.failf "parse %S: %s" s e
+    in
+    Alcotest.(check string) "`:` value → `=`"
+      "string_toupper 'a' ~out=U\n" (fmt "string_toupper 'a' ~out:U");
+    Alcotest.(check string) "`=` value accepted + stable"
+      "string_toupper 'a' ~out=U\n" (fmt "string_toupper 'a' ~out=U");
+    Alcotest.(check string) "`:` list → `=`"
+      "compile_feats fmt ~public=[ a b ]\n" (fmt "compile_feats fmt ~public:[a b]");
+    Alcotest.(check string) "`=` list accepted"
+      "compile_feats fmt ~public=[ a b ]\n" (fmt "compile_feats fmt ~public=[a b]"))
+
 let () =
   Alcotest.run "yc_cst_bridge"
     [ "bridge", List.map corpus ~f:bridge;
@@ -196,4 +215,5 @@ let () =
       "comments", [ test_comment_placement ];
       "elision", [ test_brace_elision ];
       "enum", [ test_enum_constructor ];
+      "separator", [ test_separator ];
       "flags", [ test_flags ] ]

@@ -67,7 +67,7 @@ let rec p_atom (ls : ls) : (atom * ls) option =
 (* ── Command arguments (mirror collect_command_args) ── *)
 let rec p_args (acc : arg list) (ls : ls) : arg list * ls =
   match ls with
-  | (TILDE, _) :: (IDENT kw, _) :: (COLON, _) :: (LBRACK, _) :: rest ->
+  | (TILDE, _) :: (IDENT kw, _) :: ((COLON | EQ), _) :: (LBRACK, _) :: rest ->
     let rec items acc = function
       | (RBRACK, _) :: r -> (List.rev acc, r)
       | (COMMA, _) :: r  -> items acc r
@@ -78,7 +78,7 @@ let rec p_args (acc : arg list) (ls : ls) : arg list * ls =
     in
     let its, rest = items [] rest in
     p_args (Kw_list (kw, its) :: acc) rest
-  | (TILDE, _) :: (IDENT kw, _) :: (COLON, _) :: rest ->
+  | (TILDE, _) :: (IDENT kw, _) :: ((COLON | EQ), _) :: rest ->
     (match p_atom rest with
      | Some (a, r) -> p_args (Kw (kw, a) :: acc) r
      | None -> (List.rev acc, ls))
