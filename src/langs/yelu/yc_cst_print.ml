@@ -124,13 +124,37 @@ let command_flags name =
   | "find_package" -> [ "REQUIRED" ]
   | _ -> []
 
-(* Like [pr_arg], but rewrites a positional bare-keyword in the command's flag
-   set to `~flag`. Used only for commands with a non-empty [command_flags]. *)
-let pr_arg_flagged flags b (arg : Cst.arg) =
-  match arg with
-  | Pos (A_name s | A_keyword s) when List.mem flags s ~equal:String.equal ->
-    Buffer.add_char b '~'; Buffer.add_string b (String.lowercase s)
-  | _ -> pr_arg b arg
+(* Per-command value-carrying keywords that canonicalize to `~label=value`
+   (critique #2 value-labels). Each entry maps the cmake keyword → the yc
+   label. The keyword consumes the following positional as its value; the
+   parser accepts the `~label=` kwarg form. Command-aware, grows per command. *)
+let command_value_labels name =
+  match name with
+  | "install_directory" -> [ ("DESTINATION", "destination"); ("COMPONENT", "component") ]
+  | _ -> []
+
+(* Print a command's argument list, command-aware: a positional bare keyword
+   in the command's flag set → `~flag`; a value-keyword → `~label=<next>`
+   (consuming the following positional); everything else via [pr_arg]. Each
+   emitted unit gets a leading space (matching the old pr_spaced behaviour). *)
+let pr_cmd_args b name (args : Cst.arg list) =
+  let flags = command_flags name in
+  let vlabels = command_value_labels name in
+  let is_flag s = List.mem flags s ~equal:String.equal in
+  let label_of s = List.Assoc.find vlabels s ~equal:String.equal in
+  let rec go = function
+    | [] -> ()
+    | Cst.Pos (A_name kw | A_keyword kw) :: rest when is_flag kw ->
+      Buffer.add_string b " ~"; Buffer.add_string b (String.lowercase kw); go rest
+    | Cst.Pos (A_name kw | A_keyword kw) :: (Cst.Pos _ as v) :: rest
+      when Option.is_some (label_of kw) ->
+      let l = Option.value_exn (label_of kw) in
+      Buffer.add_string b " ~"; Buffer.add_string b l; Buffer.add_char b '=';
+      (match v with Cst.Pos a -> pr_atom b a | _ -> ());
+      go rest
+    | a :: rest -> Buffer.add_char b ' '; pr_arg b a; go rest
+  in
+  go args
 
 (* The first positional arg of a target command: print the target NAME
    without the `target` tag (syntax #1; lowering re-tags it). *)
@@ -192,16 +216,12 @@ let rec pr_stmt b indent (s : Cst.stmt) =
   match s.node with
   | S_command { name; args } ->
     Buffer.add_string b name;
-    let pr = match command_flags name with
-      | [] -> pr_arg
-      | flags -> pr_arg_flagged flags
-    in
     if Cst.is_target_first_arg_command name then
       (match args with
        | first :: rest ->
-         Buffer.add_char b ' '; pr_target_first b first; pr_spaced b ~f:pr rest
+         Buffer.add_char b ' '; pr_target_first b first; pr_cmd_args b name rest
        | [] -> ())
-    else pr_spaced b ~f:pr args
+    else pr_cmd_args b name args
   | S_flow Break -> Buffer.add_string b "break"
   | S_flow Continue -> Buffer.add_string b "continue"
   | S_flow Return -> Buffer.add_string b "return"

@@ -1354,11 +1354,15 @@ let p_install_command_y1_inner name args kwargs =
     let directory = match List.Assoc.find sections ~equal:String.equal "_head" with
       | Some (e :: _) -> e | _ -> EVar "?"
     in
+    (* Each value-keyword is also accepted as a `~destination=`/`~component=`
+       label (arrives as a kwarg, so absent from [sections]). *)
     let destination = match List.Assoc.find sections ~equal:String.equal "DESTINATION" with
-      | Some (e :: _) -> e | _ -> EString "?"
+      | Some (e :: _) -> e
+      | _ -> (match kwarg_opt ~key:"destination" with Some e -> e | None -> EString "?")
     in
     let component = match List.Assoc.find sections ~equal:String.equal "COMPONENT" with
-      | Some [ EString s | EVar s ] -> Some s | _ -> None
+      | Some [ EString s | EVar s ] -> Some s
+      | _ -> (match kwarg_opt ~key:"component" with Some (EString s | EVar s) -> Some s | _ -> None)
     in
     (* Accept both the positional `OPTIONAL` keyword and the canonical
        `~optional` flag (which arrives as a boolean kwarg, so it is absent

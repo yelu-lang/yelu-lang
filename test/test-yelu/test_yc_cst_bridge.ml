@@ -171,11 +171,11 @@ let test_flags =
     (* install_directory OPTIONAL → ~optional (detected via kwarg in the
        parser, since OPTIONAL is otherwise positional) *)
     Alcotest.(check string) "install_directory OPTIONAL → ~optional"
-      "install_directory 'd' DESTINATION 'x' ~optional\n"
+      "install_directory 'd' ~destination='x' ~optional\n"
       (fmt "install_directory 'd' DESTINATION 'x' OPTIONAL");
     Alcotest.(check string) "install_directory ~optional stable"
-      "install_directory 'd' DESTINATION 'x' ~optional\n"
-      (fmt "install_directory 'd' DESTINATION 'x' ~optional");
+      "install_directory 'd' ~destination='x' ~optional\n"
+      (fmt "install_directory 'd' ~destination='x' ~optional");
     (* the parser change must keep emit identical: positional OPTIONAL and the
        ~optional flag lower to the same cmake (the kwarg sets ~optional:true) *)
     Alcotest.(check string) "OPTIONAL / ~optional emit identically"
@@ -208,6 +208,32 @@ let test_separator =
     Alcotest.(check string) "`=` list accepted"
       "compile_feats fmt ~public=[ a b ]\n" (fmt "compile_feats fmt ~public=[a b]"))
 
+(* Value-labels (critique #2): the value-carrying cmake keywords
+   DESTINATION/COMPONENT canonicalize to `~destination=`/`~component=` for
+   install_directory, and the parser reads them back identically. *)
+let test_value_labels =
+  Alcotest.test_case "value-labels (install_directory)" `Quick (fun () ->
+    let fmt s =
+      match Cstp.parse s with
+      | Ok c -> Yelu_langs.Yc_cst_print.print_program c
+      | Error e -> Alcotest.failf "parse %S: %s" s e
+    in
+    Alcotest.(check string) "DESTINATION/COMPONENT → labels"
+      "install_directory 'd' ~destination='x' ~component='c'\n"
+      (fmt "install_directory 'd' DESTINATION 'x' COMPONENT 'c'");
+    Alcotest.(check string) "label form stable"
+      "install_directory 'd' ~destination='x' ~component='c'\n"
+      (fmt "install_directory 'd' ~destination='x' ~component='c'");
+    (* parser change must keep emit identical (keyword vs label) *)
+    Alcotest.(check string) "keyword / label emit identically"
+      (emit_ast "install_directory 'd' DESTINATION 'x' COMPONENT 'c'")
+      (emit_ast "install_directory 'd' ~destination='x' ~component='c'");
+    (* order-independence: labels in any order emit the same cmake (cmake's
+       positional-keyword ordering pain, compiled away) *)
+    Alcotest.(check string) "label order-independent on emit"
+      (emit_ast "install_directory 'd' ~destination='x' ~component='c'")
+      (emit_ast "install_directory 'd' ~component='c' ~destination='x'"))
+
 let () =
   Alcotest.run "yc_cst_bridge"
     [ "bridge", List.map corpus ~f:bridge;
@@ -216,4 +242,5 @@ let () =
       "elision", [ test_brace_elision ];
       "enum", [ test_enum_constructor ];
       "separator", [ test_separator ];
+      "value_labels", [ test_value_labels ];
       "flags", [ test_flags ] ]
