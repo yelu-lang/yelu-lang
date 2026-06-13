@@ -135,8 +135,23 @@ normalization exists (positional ⊥ kwarg), and a bare `GLOBAL` is
 in a generic/raw command), so the formatter can't canonicalize it
 command-agnostically. ⇒ the bare-keyword flags (`GLOBAL`, `OPTIONAL`,
 `COMMAND_EXPAND_LISTS`, …) need **per-command, command-aware** accept-`~flag` +
-canonicalize work. Status: **`~parent_scope` done; the rest are a deliberate
-per-command pass (not centralizable).**
+canonicalize work. Status: **per-command pass in progress (not centralizable).**
+
+The per-command mechanism (shipped with `include_guard`):
+[`yc_cst_print.ml`](../../src/langs/yelu/yc_cst_print.ml) carries a
+`command_flags name → [keyword]` table + `pr_arg_flagged`; the formatter
+rewrites a *positional bare keyword* in that command's set to `~flag` (so a
+generic `${GLOBAL}` var is untouched). The parser already accepts `~flag`
+(arrives as a `Kw_flag` → boolean kwarg). Regression tests live in
+`test_yc_cst_bridge` (`test_flags`) — the emit oracle is blind to surface
+canonicalization. Per-flag progress:
+
+- ✅ **`~parent_scope`** — the easy case (dedicated `bool` field on `S_assign`).
+- ✅ **`include_guard ~global`** (2026-06-13) — first table-driven flag.
+- ⏳ remaining: `OPTIONAL`/`EXCLUDE_FROM_ALL` (install), `REQUIRED`/`QUIET`/
+  `EXACT` (find_package), `COMMAND_EXPAND_LISTS`/`VERBATIM`/`USES_TERMINAL`
+  (add_custom_command/target), `WIN32`/`MACOSX_BUNDLE` (add_exe/add_lib),
+  `APPEND` (set_property). One command at a time, each matrix-verified.
 
 ### 3. Single string syntax — ✅ **done (2026-06-12)**
 
