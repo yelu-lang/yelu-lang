@@ -153,6 +153,10 @@ canonicalization. Per-flag progress:
   it is silently dropped). Established the pattern for positional flags.
 - ✅ **`find_package ~required`** (2026-06-13) — same positional→kwarg fix.
   QUIET/EXACT are not in the find_package IR, so out of scope.
+- ✅ **`set_property ~append` + `~append_string`** (2026-06-14) — shipped
+  alongside the property family unification (set_property 4 ctors → 1, plus
+  get_property unification). Closed the `cache_entry = Cache_entry` placeholder
+  drop in `Lang_cmake` so CACHE-scope entry names now flow through emit.
 
 **Stop-and-think finding (2026-06-13): not every flag is IR-modeled.** A
 *surface* migration must be emit-byte-invariant, but a cosmetic `~flag` on a
@@ -161,7 +165,7 @@ look first-class. Audited the remaining candidates:
 
 | flag | command | IR models it? | verdict |
 | --- | --- | --- | --- |
-| `APPEND` | `set_property` | ✅ (3 detect sites + raw-scope fallback) | migratable but fiddly; **not in corpus** |
+| `APPEND` / `APPEND_STRING` | `set_property` | ✅ | ✅ **shipped 2026-06-14** — `~append` / `~append_string` flags landed alongside the set_property IR unification |
 | `VERBATIM` | `add_custom_command` | ✅ emits | migratable; **not in corpus** |
 | `COMMAND_EXPAND_LISTS` | `add_custom_command` | ❌ **dropped on emit** | **do NOT migrate** — IR gap |
 | `WIN32` / `MACOSX_BUNDLE` / `EXCLUDE_FROM_ALL` | `add_exe`/`add_lib` | ❌ dropped | **do NOT migrate** — IR gap |

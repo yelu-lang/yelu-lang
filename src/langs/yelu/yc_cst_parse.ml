@@ -173,6 +173,25 @@ let p_assign (ls : ls) : (stmt_node * ls) option =
   let cache, ls0 = match ls with (CACHE, _) :: r -> (true, r) | _ -> (false, ls) in
   match ls0 with
   | ((IDENT name | STRING name | EVAL name), _) :: (WALRUS, _) :: rest ->
+    (* Command-call RHS — `:=` low-priority parses the rest as a command call
+       expression when the next IDENT is a known command followed by command-
+       shape tokens. Lowering desugars to `cmd args ~out=name`. Cache form
+       (`cache FOO := cmd ...`) keeps the legacy value-list path for now. *)
+    (match rest with
+     | (IDENT cmd, _) :: after
+       when (not cache)
+         && Yc_primitives.is_known_command cmd
+         && (match after with
+             | (TILDE, _) :: _ -> true
+             | [] | (SEMI, _) :: _ | (RPAREN, _) :: _ -> false
+             | _ ->
+               (* any other token = potential positional arg = command-shape *)
+               true) ->
+       let args, rest' = p_args [] after in
+       Some (S_assign_call
+               { cache = false; name; cmd_name = cmd; cmd_args = args },
+             rest')
+     | _ ->
     let rec collect_vals ~only_one acc toks =
       match toks with
       | (TILDE, _) :: _ when not (List.is_empty acc) -> (List.rev acc, toks)
@@ -231,7 +250,7 @@ let p_assign (ls : ls) : (stmt_node * ls) option =
       in
       Some (S_assign { cache = false; name; values; kwargs = []; docstring = None;
                        parent_scope }, rest)
-    end
+    end)
   | _ -> None
 
 (* ── Statement nodes ── *)

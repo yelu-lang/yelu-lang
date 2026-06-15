@@ -166,6 +166,25 @@ let rec p_expr_y1 toks =
    local [pack_set_value]; removed in F refactor. *)
 
 (* `IDENT := v1, v2, v3` or `cache IDENT := v ; 'msg'` *)
+(* Forward references — populated at the bottom of the file once
+   [collect_command_args] and the family `_inner` parsers are defined.
+   Used by p_assign_y1's command-call sugar (`var := cmd args ~kw=v`),
+   which lives before its dependencies due to call-chain order
+   (p_var_stmt_y1 → p_assign_y1 happens at line 311). *)
+let collect_command_args_fwd :
+  (expr list -> (string * expr) list -> token list ->
+   expr list * (string * expr) list * token list) ref =
+  ref (fun _ _ _ -> ([], [], []))
+
+let dispatch_command_fwd :
+  (string -> expr list -> (string * expr) list -> expr option) ref =
+  ref (fun _ _ _ -> None)
+
+let fallback_to_raw_fwd :
+  (string -> expr list -> token list -> expr option ->
+   (expr * token list) option) ref =
+  ref (fun _ _ _ _ -> None)
+
 let p_assign_y1 toks =
   let is_cache, toks =
     match toks with
@@ -174,6 +193,25 @@ let p_assign_y1 toks =
     | _ -> (false, toks)
   in
   match toks with
+  (* Low-priority `:=` — if the RHS starts with a known command name followed
+     by command-shape tokens (TILDE kwarg or further positionals), parse the
+     rest as a full command call, inject `~out=var`, and dispatch to the
+     matching family `_inner`. This makes `var := get_property Target foo
+     ~property=NAME` desugar to `get_property Target foo ~property=NAME
+     ~out=var`. Single bare value (e.g. `var := foo` or empty) falls through
+     to the legacy value-list path. *)
+  | (IDENT s | STRING s | EVAL s) :: WALRUS :: IDENT cmd :: after_cmd
+    when (not is_cache)
+      && Yc_primitives.is_known_command cmd
+      && (match after_cmd with
+          | TILDE :: _ -> true
+          | [] | SEMI :: _ | RPAREN :: _ -> false
+          | _ -> true) ->
+    let args, kwargs, rest =
+      !collect_command_args_fwd [] [] after_cmd
+    in
+    let kwargs = kwargs @ [ ("out", EVar s) ] in
+    !fallback_to_raw_fwd cmd args rest (!dispatch_command_fwd cmd args kwargs)
   | (IDENT s | STRING s | EVAL s) :: WALRUS :: rest ->
     let rec collect_vals ?(only_one = false) acc toks =
       match toks with
@@ -322,14 +360,13 @@ let p_var_stmt_y1 toks =
 
 let rec collect_command_args args kwargs toks =
   match toks with
-  (* `~public:[items]`, `~private:[items]`, `~interface:[items]` —
-     kind-scoped lists. Items are parsed and stored as an EList value.
-     The target parser currently reads positional visibility groups,
-     not kwarg payloads; this preserves the items for future plumbing. *)
-  | TILDE :: IDENT kw :: (COLON | EQ) :: LBRACK :: rest
-    when String.equal kw "public"
-      || String.equal kw "private"
-      || String.equal kw "interface" ->
+  (* `~key=[items]` — list-valued kwarg. Items flatten to N kwarg entries
+     with the same key (per-command handlers recover the list via
+     filter_map / find_all). Used by visibility kind-scoped groups
+     (`~public=[...]`) and by value-list labels (`~property=[NAME, vals...]`
+     in set_property). General mechanism; future shape-2/3 commands plug in
+     without parser changes — just per-command kwarg-list extraction. *)
+  | TILDE :: IDENT kw :: (COLON | EQ) :: LBRACK :: rest ->
     let rec collect_items acc = function
       | RBRACK :: r -> (List.rev acc, r)
       | COMMA :: r -> collect_items acc r
@@ -339,9 +376,11 @@ let rec collect_command_args args kwargs toks =
          | None -> (List.rev acc, toks'))
     in
     let items, rest = collect_items [] rest in
-    (* Store items as multiple kwargs with the same key. The target
-       parser will read all values via kwarg_list. *)
-    let kwargs' = List.map items ~f:(fun e -> (kw, e)) in
+    (* Prepend reversed so that the final List.rev kwargs at the end of
+       collection restores source order. Per-command handlers that care
+       about order (e.g. property_kwarg in set_property) get [name; vals...]
+       matching the [NAME, vals...] surface order. *)
+    let kwargs' = List.rev_map items ~f:(fun e -> (kw, e)) in
     collect_command_args args (kwargs' @ kwargs) rest
   | TILDE :: IDENT kw0 :: rest0 ->
     (* dotted label `~library.destination=v` flattens a per-artifact record
@@ -1060,9 +1099,211 @@ let p_test_command_y1 toks =
    parsed; mirror this for byte-equality.
    ============================================================ *)
 
+(* ============================================================
+   First-class cmake entity (Pos3 prototype, 2026-06-14)
+
+   A kinded named cmake object — `Target foo`, `Source 'main.c'`,
+   `Cache FOO`, `Test 'mytest'`, `Install 'lib.so'`, `Directory ['sub']`,
+   `Global`. The surface form is "leading-cap constructor [+ name]"; the
+   typed value is the constructor + payload.
+
+   Today this is a parser-local type used by set_property's scope reader.
+   When get_property / install / etc. start sharing it, promote to an IR
+   value class (likely as an extensible-expr ctor in a new fragment) and
+   give it concrete syntax for free anywhere an expr is allowed —
+   enabling the future object-method form
+   `target_foo.set_property(k=v, ~append)`.
+
+   ── parsing ────────────────────────────────────────────────
+
+   Both surface forms accepted (Pos3 sits on top of Pos2 / Lane A):
+
+   - leading-cap KEYWORD form, via [Yelu_lexer.constr_names]:
+       Source 'main.c'   → EString "SOURCE" :: EString "main.c"
+       Cache FOO         → EString "CACHE"  :: EVar "FOO"
+       Global            → EString "GLOBAL"
+   - legacy bare ALLCAPS:
+       SOURCE 'main.c'   → EVar/EString "SOURCE" :: EString "main.c"
+   - first-class TARGET prototype (existing reserved-word path):
+       Target foo        → ETarget "foo"
+
+   The reader recognizes any of these and dispatches to the matching
+   [cmake_entity] constructor. ============================================================ *)
+
+type cmake_entity =
+  | Ent_target of expr
+  | Ent_source of expr
+  | Ent_cache of expr
+  | Ent_test of expr
+  | Ent_install of expr
+  | Ent_directory of expr option   (* DIRECTORY [<dir>] — optional name *)
+  | Ent_global                     (* GLOBAL — no payload *)
+  | Ent_variable                   (* VARIABLE — no payload (get_property only) *)
+
+(* Recognize a scope keyword at args[0]. Returns the entity kind tag (as a
+   first-class function consuming the rest) plus the remaining args. *)
+let entity_kind_of_expr = function
+  | EVar "GLOBAL"    | EString "GLOBAL"    -> Some `Global
+  | EVar "DIRECTORY" | EString "DIRECTORY" -> Some `Directory
+  | EVar "SOURCE"    | EString "SOURCE"    -> Some `Source
+  | EVar "INSTALL"   | EString "INSTALL"   -> Some `Install
+  | EVar "TEST"      | EString "TEST"      -> Some `Test
+  | EVar "CACHE"     | EString "CACHE"     -> Some `Cache
+  | EVar "VARIABLE"  | EString "VARIABLE"  -> Some `Variable
+  | EVar "TARGET"    | EString "TARGET"    -> Some `Target_keyword
+  | _ -> None
+
+(* Read one cmake entity from the front of the args list. Returns
+   [Some (entity, rest)] when the leading args form an entity, else [None].
+
+   - `Target foo` (ETarget) — single-positional form, name carried in ctor
+   - `Source 'p'` / `Cache FOO` / `Test t` / `Install f` — keyword + name
+   - `Global` — no name
+   - `Directory ['d']` — optional name (peek next positional; if absent,
+     payload is None). The current set_property dispatch doesn't enter the
+     Directory branch, so this is here for symmetry with future use sites. *)
+let p_cmake_entity (args : expr list) : (cmake_entity * expr list) option =
+  match args with
+  | ETarget name :: rest -> Some (Ent_target (EString name), rest)
+  | e :: rest ->
+    (match entity_kind_of_expr e with
+     | None -> None
+     | Some `Global       -> Some (Ent_global,                 rest)
+     | Some `Variable     -> Some (Ent_variable,               rest)
+     | Some `Target_keyword ->
+       (match rest with
+        | name :: rest' -> Some (Ent_target name, rest')
+        | []            -> None)
+     | Some `Source ->
+       (match rest with
+        | name :: rest' -> Some (Ent_source name, rest')
+        | []            -> None)
+     | Some `Cache ->
+       (match rest with
+        | name :: rest' -> Some (Ent_cache name, rest')
+        | []            -> None)
+     | Some `Test ->
+       (match rest with
+        | name :: rest' -> Some (Ent_test name, rest')
+        | []            -> None)
+     | Some `Install ->
+       (match rest with
+        | name :: rest' -> Some (Ent_install name, rest')
+        | []            -> None)
+     | Some `Directory ->
+       (match rest with
+        | name :: rest' -> Some (Ent_directory (Some name), rest')
+        | []            -> Some (Ent_directory None, [])))
+  | [] -> None
+
+(* Lower a cmake_entity into the set_property_scope variant. Multi-entity
+   forms (`TARGET t1 t2 ...`) are not entity-readable today — for now those
+   stay positional and are read by the existing split-by-keywords flow.
+   This lifts the SINGLE-entity case, which covers the common forms. *)
+let entity_to_sps = function
+  | Ent_target e    -> Yelu_cmake_property.Sps_target [ e ]
+  | Ent_source e    ->
+    Yelu_cmake_property.Sps_source
+      { sources = [ e ]; directories = []; target_directories = [] }
+  | Ent_cache e     -> Yelu_cmake_property.Sps_cache [ e ]
+  | Ent_test e      ->
+    Yelu_cmake_property.Sps_test { tests = [ e ]; directories = [] }
+  | Ent_install e   -> Yelu_cmake_property.Sps_install [ e ]
+  | Ent_directory d -> Yelu_cmake_property.Sps_directory d
+  | Ent_global      -> Yelu_cmake_property.Sps_global
+  | Ent_variable    ->
+    (* VARIABLE scope only exists in get_property. Caller should reject this
+       at the set_property dispatch; treat as Global as a defensive fallback. *)
+    Yelu_cmake_property.Sps_global
+
+(* Mirror lowering for get_property — single-name per scope (vs set_property's
+   list); plus the unique VARIABLE scope. *)
+let entity_to_gps = function
+  | Ent_target e     -> Some (Yelu_cmake_property.Gps_target e)
+  | Ent_source e     ->
+    Some (Yelu_cmake_property.Gps_source
+            { source = e; directory = None; target_directory = None })
+  | Ent_cache e      -> Some (Yelu_cmake_property.Gps_cache e)
+  | Ent_test e       ->
+    Some (Yelu_cmake_property.Gps_test { test = e; directory = None })
+  | Ent_install e    -> Some (Yelu_cmake_property.Gps_install e)
+  | Ent_directory d  -> Some (Yelu_cmake_property.Gps_directory d)
+  | Ent_global       -> Some Yelu_cmake_property.Gps_global
+  | Ent_variable     -> Some Yelu_cmake_property.Gps_variable
+
 let p_property_command_y1_inner name args kwargs =
   let out = out_var_y1 kwargs in
+  let kwarg_bool ~key = List.Assoc.mem kwargs ~equal:String.equal key in
+  (* `~property=[NAME, val1, val2, ...]` arrives flattened by convert_args as
+     N entries with the same key. Filtering preserves source order. Returns
+     [Some (name, values)] when the kwarg is present, else None. *)
+  let property_kwarg () =
+    match List.filter_map kwargs ~f:(fun (k, v) ->
+      if String.equal k "property" then Some v else None)
+    with
+    | [] -> None
+    | name :: values -> Some (str_of name, values)
+  in
   match name, args with
+  | "get_property", args ->
+    (* Pos3 entity-driven dispatch — parallel to set_property. The output
+       var arrives via `~out=var` kwarg or as a leading positional (legacy
+       form `get_property myvar Target foo PROPERTY name ...`).
+       Trailing mode selector: positional `SET`/`DEFINED`/`BRIEF_DOCS`/
+       `FULL_DOCS` (now leading-cap KEYWORD tokens) or `~mode=Set/Defined/...`
+       kwarg. Property name from `~property=NAME` or positional PROPERTY name.
+       VARIABLE is supported via [Ent_variable] (unique to get_property). *)
+    let var_pos, args = match args with
+      | leading :: rest
+        when Option.is_none (entity_kind_of_expr leading)
+          && (match leading with ETarget _ -> false | _ -> true) ->
+        (* leading non-entity, non-Target → treat as the var positional *)
+        Some leading, rest
+      | _ -> None, args
+    in
+    let var = match var_pos with
+      | Some e -> str_of e
+      | None -> out
+    in
+    (match p_cmake_entity args with
+     | None -> None       (* no scope keyword found → fall through to raw *)
+     | Some (entity, rest) ->
+       match entity_to_gps entity with
+       | None -> None
+       | Some scope ->
+         let sections = split_by_keywords
+           ~keywords:["PROPERTY"; "SET"; "DEFINED"; "BRIEF_DOCS"; "FULL_DOCS"]
+           rest in
+         let property_name =
+           match property_kwarg () with
+           | Some (name, _) -> name
+           | None ->
+             (match List.Assoc.find sections ~equal:String.equal "PROPERTY" with
+              | Some (e :: _) -> str_of e
+              | _ -> "PROP")
+         in
+         let positional_has key =
+           Option.is_some (List.Assoc.find sections ~equal:String.equal key)
+         in
+         let mode : Yelu_cmake_property.get_property_mode =
+           (* Canonical surface: `~mode=Set`/`~mode=Defined` kwarg, with the
+              value an enum constructor that the lexer uppercases to a KEYWORD
+              (EString form). *)
+           match List.Assoc.find kwargs ~equal:String.equal "mode" with
+           | Some (EString "SET")        -> Gpm_set
+           | Some (EString "DEFINED")    -> Gpm_defined
+           | Some (EString "BRIEF_DOCS") -> Gpm_brief_docs
+           | Some (EString "FULL_DOCS")  -> Gpm_full_docs
+           | Some (EString "VALUE")      -> Gpm_value
+           | _ ->
+             if positional_has "SET" then Gpm_set
+             else if positional_has "DEFINED" then Gpm_defined
+             else if positional_has "BRIEF_DOCS" then Gpm_brief_docs
+             else if positional_has "FULL_DOCS" then Gpm_full_docs
+             else Gpm_value
+         in
+         Some (Yelu_cmake_property.ECmakeGetProperty
+                 { var; scope; property = property_name; mode }))
   | "get_target_property", [ var; target; property ] ->
     let var = str_of var in
     let target = str_of target in
@@ -1117,61 +1358,71 @@ let p_property_command_y1_inner name args kwargs =
     in
     Some (yc_set_source_files_properties files properties)
   | "set_property", args ->
-    (* GLOBAL, DIRECTORY, TEST, INSTALL scopes fall back to yc_raw.
-       SOURCE and CACHE are handled as typed IR. *)
-    let is_other_scope = function
-      | EVar "GLOBAL" | EString "GLOBAL"
-      | EVar "DIRECTORY" | EString "DIRECTORY"
-      | EVar "TEST" | EString "TEST"
-      | EVar "INSTALL" | EString "INSTALL" -> true
-      | _ -> false
+    (* Pos3-driven scope dispatch (2026-06-14). [p_cmake_entity] reads
+       a leading entity (Target / Source / Cache / Global / Test / Install
+       / Directory) from the args. The remaining "head" positionals from
+       the body fold into the same-kind scope list (e.g. multi-target
+       `TARGET t1 t2 ...` → Sps_target [t1; t2; ...]). No leading entity
+       → implicit TARGET scope (the default; matches the bare
+       `set_property foo PROPERTY ...` form). *)
+    let scope_opt, body_args = match p_cmake_entity args with
+      | Some (ent, rest) -> (Some ent, rest)
+      | None -> (None, args)
     in
-    let is_source = function
-      | EVar "SOURCE" | EString "SOURCE" -> true
-      | _ -> false
-    in
-    let is_cache = function
-      | EVar "CACHE" | EString "CACHE" -> true
-      | _ -> false
-    in
-    let extract_properties sections =
-      match List.Assoc.find sections ~equal:String.equal "PROPERTY" with
-      | Some (prop_name :: values) ->
-        let name = str_of prop_name in
-        let value = match values with
-          | [ v ] -> v
-          | _ -> EString (String.concat ~sep:";" (List.map values ~f:(fun e ->
-              str_of ~default:"" e)))
-        in
-        [(name, value)]
-      | _ -> []
-    in
-    (match args with
-     | e :: _ when is_other_scope e -> None
-     | e :: rest when is_source e ->
-       let sections = split_by_keywords ~keywords:["APPEND"; "PROPERTY"] rest in
-       let files = match List.Assoc.find sections ~equal:String.equal "_head" with
-         | Some items -> items | None -> []
-       in
-       let append = List.Assoc.find sections ~equal:String.equal "APPEND"
-                    |> Option.is_some in
-       Some (yc_set_property_source ~append ~files (extract_properties sections))
-     | e :: rest when is_cache e ->
-       let sections = split_by_keywords ~keywords:["APPEND"; "PROPERTY"] rest in
-       let entries = match List.Assoc.find sections ~equal:String.equal "_head" with
-         | Some items -> items | None -> []
-       in
-       let append = List.Assoc.find sections ~equal:String.equal "APPEND"
-                    |> Option.is_some in
-       Some (yc_set_property_cache ~append ~entries (extract_properties sections))
-     | _ ->
-    let sections = split_by_keywords ~keywords:["APPEND"; "PROPERTY"] args in
-    let targets = match List.Assoc.find sections ~equal:String.equal "_head" with
+    let sections = split_by_keywords
+      ~keywords:["APPEND"; "APPEND_STRING"; "PROPERTY"] body_args in
+    let head = match List.Assoc.find sections ~equal:String.equal "_head" with
       | Some items -> items | None -> []
     in
-    let append = List.Assoc.find sections ~equal:String.equal "APPEND"
-                 |> Option.is_some in
-    Some (yc_set_property ~append ~targets (extract_properties sections)))
+    let append =
+      Option.is_some (List.Assoc.find sections ~equal:String.equal "APPEND")
+      || kwarg_bool ~key:"append"
+    in
+    let append_string =
+      Option.is_some (List.Assoc.find sections ~equal:String.equal "APPEND_STRING")
+      || kwarg_bool ~key:"append_string"
+    in
+    let collapse_values values =
+      match values with
+      | [ v ] -> v
+      | _ -> EString (String.concat ~sep:";" (List.map values ~f:(fun e ->
+          str_of ~default:"" e)))
+    in
+    (* Canonical surface (Lane C value-list): `~property=[NAME, val1, val2]`
+       arrives as repeated [property] kwargs. Falls back to the positional
+       `PROPERTY NAME val1 val2` section split for byte-equality with the
+       legacy form. Both lower to the same (name, ;-joined-value) IR. *)
+    let properties =
+      match property_kwarg () with
+      | Some (name, values) -> [(name, collapse_values values)]
+      | None ->
+        (match List.Assoc.find sections ~equal:String.equal "PROPERTY" with
+         | Some (prop_name :: values) ->
+           [(str_of prop_name, collapse_values values)]
+         | _ -> [])
+    in
+    (* Build the scope sum from the entity (+ trailing same-kind names from
+       the head, for multi-target / multi-source / multi-cache calls).
+       [Ent_variable] is rejected — VARIABLE scope exists only in get_property
+       per the cmake spec; using it here would be a semantic error. *)
+    let scope : Yelu_cmake_property.set_property_scope option = match scope_opt with
+      | Some Ent_global       -> Some Sps_global
+      | Some (Ent_target e)   -> Some (Sps_target (e :: head))
+      | Some (Ent_source e)   ->
+        Some (Sps_source
+                { sources = e :: head; directories = []; target_directories = [] })
+      | Some (Ent_cache e)    -> Some (Sps_cache (e :: head))
+      | Some (Ent_test e)     -> Some (Sps_test { tests = e :: head; directories = [] })
+      | Some (Ent_install e)  -> Some (Sps_install (e :: head))
+      | Some (Ent_directory d) -> Some (Sps_directory d)
+      | Some Ent_variable     -> None       (* VARIABLE not valid in set_property *)
+      | None                  -> Some (Sps_target head)    (* implicit TARGET *)
+    in
+    (match scope with
+     | None -> None
+     | Some scope ->
+       Some (Yelu_cmake_property.ECmakeSetProperty
+               { scope; append; append_string; properties }))
   | "get_directory_property", [] ->
     Some (yc_get_directory_property "PROP" out)
   | "set_directory_property", [] ->
@@ -1191,7 +1442,7 @@ let p_property_command_y1 toks =
   | IDENT name :: rest
       when (match name with
             | "get_target_property" | "set_target_properties"
-            | "set_property"
+            | "set_property" | "get_property"
             | "get_directory_property" | "set_directory_property"
             | "set_test_properties"
             | "set_source_property" | "set_source_files_properties"
@@ -2162,6 +2413,45 @@ and p_block_y1 toks =
      | _ -> None)
 
 let p_stmt_y1 = p_stmt_inner_y1
+
+(* Populate forward refs declared near p_assign_y1 — needed for the
+   `var := cmd args ~kw=v` command-call sugar to reach the family
+   `_inner` parsers that live further down in the file. *)
+let () =
+  collect_command_args_fwd := collect_command_args;
+  fallback_to_raw_fwd := fallback_to_raw;
+  dispatch_command_fwd := fun cmd args kwargs ->
+    if String.is_prefix cmd ~prefix:"string_" then
+      p_string_command_y1_inner cmd args kwargs
+    else if String.is_prefix cmd ~prefix:"list_" then
+      p_list_command_y1_inner cmd args kwargs
+    else if String.is_prefix cmd ~prefix:"path_"
+         || String.equal cmd "get_filename_component" then
+      p_path_command_y1_inner cmd args kwargs
+    else if String.is_prefix cmd ~prefix:"file_"
+         || String.equal cmd "configure_file" then
+      p_file_command_y1_inner cmd args kwargs
+    else
+      (* Some inners (notably target/dir/cmake_op) have a catch-all returning
+         ECmakeRawCmd for any unknown command. That makes the family `_inner`
+         always succeed when called out-of-family, which would shadow the
+         genuine handler for other families. Strip such "fallback" Somes so
+         the real handler downstream gets a chance. *)
+      let drop_raw = function
+        | Some (Yelu_cmake.ECmakeRawCmd _) -> None
+        | other -> other
+      in
+      let tries = [
+        (fun () -> drop_raw (p_target_command_y1_inner cmd args kwargs));
+        (fun () -> drop_raw (p_dir_command_y1_inner cmd args kwargs));
+        (fun () -> drop_raw (p_test_command_y1_inner cmd args kwargs));
+        (fun () -> drop_raw (p_property_command_y1_inner cmd args kwargs));
+        (fun () -> drop_raw (p_find_command_y1_inner cmd args kwargs));
+        (fun () -> drop_raw (p_install_command_y1_inner cmd args kwargs));
+        (fun () -> drop_raw (p_try_command_y1_inner cmd args kwargs));
+        (fun () -> drop_raw (p_cmake_op_command_y1_inner cmd args kwargs));
+      ] in
+      List.find_map tries ~f:(fun f -> f ())
 
 (* ============================================================
    Entry points

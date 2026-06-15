@@ -61,6 +61,7 @@ let command_names : Set.M(String).t =
     "enable_testing"; "add_test";
     (* property *)
     "get_target_property"; "set_target_properties"; "set_property";
+    "get_property";
     "get_directory_property"; "set_directory_property";
     "set_test_properties"; "set_source_property";
     "set_source_files_properties";

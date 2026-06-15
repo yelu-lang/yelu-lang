@@ -279,3 +279,134 @@ literal target names emit as `${name}` instead of bare.
   (`flags`, `separator`, `value_labels`, `install_targets`)
 - For install/build-stage checks: `cmake --install <build> --prefix <tmp>` only
   (never bare — see [.claude/memory/feedback_cmake_install_prefix.md](../../.claude/memory/feedback_cmake_install_prefix.md)).
+
+---
+
+## 2026-06-13/14: per-command syntax — property family unified + `:=` low-priority command-call sugar
+
+Single multi-step session, ~20 source files. Four logical chunks, all
+emit byte-equality preserved (oracle stays green).
+
+**1. set_property: 4-ctor IR → 1, plus all surface lanes.**
+
+- IR refactor: `ECmakeSetProperty` / `ECmakeSetPropertySource` /
+  `ECmakeSetPropertyCache` / `ECmakeSetGlobalProperty` collapsed into
+  one unified `ECmakeSetProperty { scope : set_property_scope; append;
+  append_string; properties }` mirroring `Lang_cmake.Set_property` 1:1.
+  `set_property_scope` is a 7-variant sum (Global/Directory/Target/
+  Source/Install/Test/Cache). Compatibility helpers
+  (`yc_set_property` / `yc_set_property_source` / `yc_set_property_cache`
+  / `yc_set_global_property`) kept stable so the 21+ external test
+  callers don't break.
+- `cache_entry = Cache_entry` placeholder lifted to `cache_entry =
+  string` in `Lang_cmake` — CACHE-scope entry names (e.g. `FOO` in
+  `set_property(CACHE FOO …)`) were being silently dropped in emit;
+  now flow through (printer + text-parser + yc emit all wired).
+- `append_string : bool` field added (was missing from the yc IR
+  entirely; cmake AST had it). Parser + emit + per-command flag table.
+- Lane B flags: `~append` / `~append_string` via `command_flags
+  set_property` table.
+- Lane C shape-3 value-list label: `~property=[name, vals...]` via the
+  new `command_value_list_labels` table + `pr_cmd_args` look-ahead
+  printer that consumes the keyword + all trailing positionals. Mirror
+  parser support: `~property` kwarg recovered via `filter_map` (with
+  source-order preservation — kwargs accumulator gets a `List.rev_map`
+  for list-valued kwargs to survive the final `List.rev`).
+
+**2. Pos3 entity prototype.**
+
+- Parser-local `cmake_entity` value: `Ent_target | Ent_source | Ent_cache
+  | Ent_test | Ent_install | Ent_directory of expr option | Ent_global
+  | Ent_variable`. Two lowering helpers (`entity_to_sps`, `entity_to_gps`).
+  `Yelu_lexer.constr_names` slice 3 adds `GLOBAL`/`DIRECTORY`/`SOURCE`/
+  `INSTALL`/`TEST`/`CACHE` so the leading-cap form (`Cache FOO`) flows
+  through the existing constr_names canonicalization. TARGET stays on
+  its existing reserved-word path. Replaces the ad-hoc `is_source` /
+  `is_cache` / `is_other_scope` predicates with one entity-driven
+  dispatch.
+- set_property's parser branch rewritten as: read entity → build scope
+  → split body → collect properties. Folds extra same-kind positionals
+  from the body head into the scope's name list (multi-target case).
+
+**3. get_property: same unification + first typed parser branch.**
+
+- `ECmakeGetProperty` collapsed from TARGET-only `{ var; target;
+  property; set_form : bool }` to unified `{ var; scope :
+  get_property_scope; property; mode : get_property_mode }`. Mode is a
+  5-variant enum (Value default / Set / Defined / Brief_docs /
+  Full_docs) replacing the bool. Scope is 8-variant (same as set_property
+  + the unique VARIABLE scope).
+- Parser dispatch added for `"get_property"` (was missing — every
+  get_property in source text fell to yc_raw pre-session). Pos3 entity
+  drives scope. `~property=NAME` (Lane C shape-1) + `~mode=Set` kwargs.
+  Legacy positional `PROPERTY NAME` + trailing mode flag still
+  accepted.
+- `constr_names` slice 4: VARIABLE + SET / DEFINED / BRIEF_DOCS /
+  FULL_DOCS. The mode-flag-as-kwarg-enum canonicalization (positional
+  `DEFINED` → `~mode=Defined`) is **not** in this slice — needs a new
+  per-command rewriter; tracked as future micro-slice in
+  `yc_cst_print.ml`'s `command_value_labels` comment.
+
+**4. `:=` low-priority command-call expression.**
+
+User framing: `:=` should be low priority so its RHS parses as a
+complete expression — including command calls — without inventing
+parens. Implemented in both parsers:
+
+- CST (`yc_cst_parse.ml`): new `S_assign_call of { cache; name;
+  cmd_name; cmd_args }` CST variant. `p_assign` peeks the post-`:=`
+  IDENT; if it's in `Yc_primitives.command_names` and followed by
+  command-shape tokens (TILDE kwarg or another positional), parse via
+  `p_args` and emit `S_assign_call`. Bare `var := foo` falls through
+  to the legacy value-list path.
+- Legacy (`yelu_parse.ml`): `p_assign_y1` extended with same
+  detection; dispatches to the matching family `_inner` via three
+  forward refs (`collect_command_args_fwd` / `dispatch_command_fwd` /
+  `fallback_to_raw_fwd`) populated at file bottom. The dispatcher uses
+  prefix routing for homogeneous families (`string_` / `list_` /
+  `path_` / `file_`) and a "try-each, drop the `ECmakeRawCmd`
+  fallback" walk for the per-command families — needed because
+  `p_target_command_y1_inner` and a couple of others have a catch-all
+  raw fallback that would otherwise shadow the real handler.
+- Lowering: `S_assign_call` desugars to `cmd_name + cmd_args +
+  Kw("out", A_name name)` and routes through the regular command
+  lowerer. `out` is the standard ~out kwarg the typed handlers already
+  read via `out_var_y1`.
+- Surface examples that now work end-to-end:
+
+  ```text
+  var   := get_property Target foo ~property=NAME
+  var   := get_property Cache FOO ~property=STRINGS ~mode=Defined
+  upper := string_toupper 'hello'
+  joined := list_join MYLIST ','
+  ```
+
+- `get_property` added to `Yc_primitives.command_names` (was missing
+  — surfaced by the `is_known_command "get_property"` check in this
+  session's CST sugar).
+
+**Y18 recorded — first-class object value.** The Pos3 prototype is
+parser-local. Open questions for promoting to a real value class are
+in [`../lang/object_value_design.md`](../lang/object_value_design.md):
+operations per kind (`target_foo.set_property(…)`), value flow
+(let-bind / args / iterands), eval semantics (forward refs, lazy vs
+eager), wellform integration, yc vs ycn placement, multi-entity calls.
+The CST `DOT` token (added in `fefe80e`) is already the syntactic
+groundwork for the future object-method `entity.method(args)` form.
+
+**Verification.**
+- `dune runtest --force` — **935 tests / 0 failures** throughout.
+- Byte-equality oracle (`covered=194`) stays green — every IR
+  refactor preserved emit byte-identical.
+- tm-grammar regenerated and committed; co-truth lock satisfied.
+
+**Files touched.** Production: `lang_cmake.ml`, `lang_cmake_pp.ml`,
+`cmake_text_parse.ml`, `yelu_cmake_property.ml` (fragment),
+`yelu_cmake_emit.ml`, `yelu_cmake_convert.ml`, `yelu_cmake_utils.ml`,
+`yelu_lexer.ml`, `yc_primitives.ml`, `yc_cst.ml`, `yc_cst_parse.ml`,
+`yc_cst_print.ml`, `yc_cst_lower.ml`, `yelu_parse.ml`. Legacy:
+`yelu_cmake_legacy_bridge.ml`, `yelu_cmake_emit_debug.ml`. Tests:
+`test_yc_cst_bridge.ml` (+25 assertions across all four chunks).
+Docs: new `doc/lang/object_value_design.md`,
+`doc/lang/yc_syntax_critique.md` (APPEND row updated to shipped),
+this worklog entry, CLAUDE.md (Y18 + test count 923→935).

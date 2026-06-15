@@ -565,20 +565,33 @@ let yc_set_target_properties target properties =
 let yc_get_target_property var target property =
   ECmakeGetTargetProperty { var; target = ETarget target; property }
 
-let yc_set_property ?(append = false) ~targets properties =
-  ECmakeSetProperty { targets; append; properties }
+(* set_property — one unified ctor under the hood (collapsed 2026-06-13);
+   per-scope helpers stay so call sites continue to read intentfully. Each
+   helper builds the matching [set_property_scope] variant. *)
+let yc_set_property ?(append = false) ?(append_string = false) ~targets properties =
+  ECmakeSetProperty
+    { scope = Sps_target targets; append; append_string; properties }
 
-let yc_set_property_source ?(append = false) ~files properties =
-  ECmakeSetPropertySource { files; append; properties }
+let yc_set_property_source ?(append = false) ?(append_string = false) ~files properties =
+  ECmakeSetProperty
+    { scope = Sps_source { sources = files; directories = []; target_directories = [] };
+      append; append_string; properties }
 
-let yc_set_property_cache ?(append = false) ~entries properties =
-  ECmakeSetPropertyCache { entries; append; properties }
+let yc_set_property_cache ?(append = false) ?(append_string = false) ~entries properties =
+  ECmakeSetProperty
+    { scope = Sps_cache entries; append; append_string; properties }
 
-let yc_set_global_property properties =
-  ECmakeSetGlobalProperty { properties }
+let yc_set_global_property ?(append_string = false) properties =
+  ECmakeSetProperty
+    { scope = Sps_global; append = false; append_string; properties }
 
+(* Compatibility helper — keeps the old `?(set = false) ~target` API stable
+   for the ~3 external test callers. Always TARGET-scope; the new unified
+   ctor uses the scope sum + mode enum. *)
 let yc_get_property ?(set = false) ~target property var =
-  ECmakeGetProperty { var; target; property; set_form = set }
+  let mode = if set then Yelu_cmake_property.Gpm_set else Yelu_cmake_property.Gpm_value in
+  ECmakeGetProperty
+    { var; scope = Yelu_cmake_property.Gps_target target; property; mode }
 
 let yc_get_directory_property property var =
   ECmakeGetDirectoryProperty { var; property }

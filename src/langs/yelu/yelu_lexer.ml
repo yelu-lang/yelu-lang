@@ -99,7 +99,19 @@ let constr_names =
   Set.of_list (module String)
     [ (* slice 1: visibility *) "PUBLIC"; "PRIVATE"; "INTERFACE";
       (* slice 2: library/cache type, fc mode, language *)
-      "STATIC"; "STRING"; "NAME_WE"; "CXX" ]
+      "STATIC"; "STRING"; "NAME_WE"; "CXX";
+      (* slice 3 (Pos3 entity prototype): set_property / get_property scope
+         discriminators. Each pairs with an optional name positional to form a
+         first-class kinded cmake entity (Source 'main.c', Cache FOO, Global,
+         Test 'mytest', Install 'lib.so', Directory 'sub'). VARIABLE is
+         unique to get_property (no payload).
+         TARGET already has its own reserved-word path (target / Target → TARGET
+         token, parses to ETarget); see [p_cmake_entity] in yelu_parse.ml for
+         the unified entity reader. *)
+      "GLOBAL"; "DIRECTORY"; "SOURCE"; "INSTALL"; "TEST"; "CACHE"; "VARIABLE";
+      (* slice 4 (get_property mode): SET/DEFINED/BRIEF_DOCS/FULL_DOCS as the
+         trailing flag of get_property. Value (the default) has no surface form. *)
+      "SET"; "DEFINED"; "BRIEF_DOCS"; "FULL_DOCS" ]
 
 let is_known_constr s = Set.mem constr_names (String.uppercase s)
 

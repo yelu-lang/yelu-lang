@@ -677,10 +677,8 @@ let rec pp ff e =
             Fmt.pf ff "TEST %a" (list_sp Fmt.string) tests;
             if not (List.is_empty directories) then
               Fmt.pf ff " DIRECTORY %a" (list_sp Fmt.string) directories
-        | Sps_cache _entries ->
-            (* cache_entry is currently the placeholder type Cache_entry
-               with no names; emit just the keyword. *)
-            Fmt.string ff "CACHE"
+        | Sps_cache entries ->
+            Fmt.pf ff "CACHE %a" (list_sp Fmt.string) entries
       in
       let pp_values ff = function
         | [] -> ()

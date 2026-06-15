@@ -232,6 +232,13 @@ let rec lower_stmt (s : Cst.stmt) : expr =
         { name; values = vals; cache_type;
           docstring = Option.value docstring ~default:""; force }
     else yc_set ~parent_scope name vals
+  (* `var := cmd args` desugars to `cmd args ~out=var`. The CST printer
+     re-derives the := form at fmt time. The injection appends `~out=name`
+     as a new Kw; the command's typed dispatcher then reads it via the
+     standard out_var_y1 path. *)
+  | S_assign_call { cache = _; name; cmd_name; cmd_args } ->
+    let cmd_args = cmd_args @ [ Cst.Kw ("out", A_name name) ] in
+    lower_command cmd_name cmd_args
 
 and lower_block (b : Cst.block) : expr =
   match b with

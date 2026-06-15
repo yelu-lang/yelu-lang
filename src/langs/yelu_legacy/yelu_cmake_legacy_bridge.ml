@@ -560,16 +560,22 @@ let property_statement : Old.yelu_property_stmt -> Yelu_cmake.expr = function
   | Yprop_set { targets; append; properties } ->
     ECmakeSetProperty
       {
-        targets = List.map targets ~f:target_name;
+        scope = Sps_target (List.map targets ~f:target_name);
         append;
+        append_string = false;
         properties = List.map properties ~f:(fun (p, v) -> p, expr v);
       }
   | Yprop_set_global { properties } ->
-    ECmakeSetGlobalProperty
-      { properties = List.map properties ~f:(fun (p, v) -> p, expr v) }
+    ECmakeSetProperty
+      { scope = Sps_global; append = false; append_string = false;
+        properties = List.map properties ~f:(fun (p, v) -> p, expr v) }
   | Yprop_get { var; target; property; set } ->
+    let mode = if set then Gpm_set else Gpm_value in
     ECmakeGetProperty
-      { var = cvar_name var; target = expr target; property; set_form = set }
+      { var = cvar_name var;
+        scope = Gps_target (expr target);
+        property;
+        mode }
   | Yprop_get_directory { var; property } ->
     ECmakeGetDirectoryProperty { var = cvar_name var; property }
   | Yprop_set_directory { property; append; values } ->

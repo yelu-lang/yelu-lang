@@ -1988,12 +1988,12 @@ let parse_set_property args : L.exp option =
           | _ -> [], rest
         in
         Some (L.Sps_test { tests; directories }, rest)
-    | "CACHE" :: _ ->
-      (* cache_entry IR is the placeholder type Cache_entry with no
-         per-entry data — round-tripping via Apply preserves the source
-         exactly, which is the safer option until cache_entry carries
-         names. *)
-      None
+    | "CACHE" :: rest ->
+      let entries, rest =
+        split_at ["APPEND"; "APPEND_STRING"; "PROPERTY"] rest
+      in
+      if List.is_empty entries then None
+      else Some (L.Sps_cache entries, rest)
     | _ -> None
   in
   match parse_scope args with

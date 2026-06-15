@@ -245,10 +245,10 @@ let cmake_path_compare_op_of_string s : C.cmake_path_compare_op =
 
 (* Shared helper for Set_property scopes. Each scope variant computes
    its own C.set_property_scope; the property fan-out is identical. *)
-let emit_set_properties ~env ~scope ~append properties =
+let emit_set_properties ~env ~scope ~append ~append_string properties =
   let arg = arg ~env in
   let one (prop, value) =
-    C.Set_property { scope; append; append_string = false;
+    C.Set_property { scope; append; append_string;
                      property = prop; values = [ arg value ] }
   in
   match properties with
@@ -619,27 +619,64 @@ let rec emit_exp ~env (e : expr) : C.exp =
            compatibility;
            arch_independent })
 
-  (* Property scopes share a common emit pattern. *)
-  | Yelu_cmake_property.ECmakeSetProperty { targets; append; properties } ->
-    emit_set_properties ~env
-      ~scope:(C.Sps_target (List.map targets ~f:(target_arg ~env)))
-      ~append properties
-  | Yelu_cmake_property.ECmakeSetPropertySource { files; append; properties } ->
-    emit_set_properties ~env
-      ~scope:(C.Sps_source
-                { sources = List.map files ~f:(target_arg ~env);
-                  directories = []; target_directories = [] })
-      ~append properties
-  | Yelu_cmake_property.ECmakeSetPropertyCache { entries = _; append; properties } ->
-    emit_set_properties ~env ~scope:(C.Sps_cache []) ~append properties
-  | Yelu_cmake_property.ECmakeSetGlobalProperty { properties } ->
-    emit_set_properties ~env ~scope:C.Sps_global ~append:false properties
-  | Yelu_cmake_property.ECmakeGetProperty { var; target; property; set_form } ->
-    C.Get_property
-      { var;
-        scope = C.Gps_target (target_arg ~env target);
-        property_name = property;
-        mode = if set_form then C.Gpm_set else C.Gpm_value }
+  (* set_property — unified ctor; dispatch the scope sum 1:1 against
+     Lang_cmake.set_property_scope. *)
+  | Yelu_cmake_property.ECmakeSetProperty
+      { scope; append; append_string; properties } ->
+    let scope : C.set_property_scope =
+      match scope with
+      | Yelu_cmake_property.Sps_global -> C.Sps_global
+      | Yelu_cmake_property.Sps_directory d ->
+        C.Sps_directory (Option.map d ~f:(target_arg ~env))
+      | Yelu_cmake_property.Sps_target ts ->
+        C.Sps_target (List.map ts ~f:(target_arg ~env))
+      | Yelu_cmake_property.Sps_source { sources; directories; target_directories } ->
+        C.Sps_source
+          { sources = List.map sources ~f:(target_arg ~env);
+            directories = List.map directories ~f:(target_arg ~env);
+            target_directories = List.map target_directories ~f:(target_arg ~env) }
+      | Yelu_cmake_property.Sps_install fs ->
+        C.Sps_install (List.map fs ~f:(target_arg ~env))
+      | Yelu_cmake_property.Sps_test { tests; directories } ->
+        C.Sps_test
+          { tests = List.map tests ~f:(target_arg ~env);
+            directories = List.map directories ~f:(target_arg ~env) }
+      | Yelu_cmake_property.Sps_cache es ->
+        C.Sps_cache (List.map es ~f:(target_arg ~env))
+    in
+    emit_set_properties ~env ~scope ~append ~append_string properties
+  | Yelu_cmake_property.ECmakeGetProperty { var; scope; property; mode } ->
+    let scope : C.get_property_scope =
+      match scope with
+      | Yelu_cmake_property.Gps_global -> C.Gps_global
+      | Yelu_cmake_property.Gps_directory d ->
+        C.Gps_directory (Option.map d ~f:(target_arg ~env))
+      | Yelu_cmake_property.Gps_target t ->
+        C.Gps_target (target_arg ~env t)
+      | Yelu_cmake_property.Gps_source { source; directory; target_directory } ->
+        C.Gps_source
+          { source = target_arg ~env source;
+            directory = Option.map directory ~f:(target_arg ~env);
+            target_directory = Option.map target_directory ~f:(target_arg ~env) }
+      | Yelu_cmake_property.Gps_install f ->
+        C.Gps_install (target_arg ~env f)
+      | Yelu_cmake_property.Gps_test { test; directory } ->
+        C.Gps_test
+          { test = target_arg ~env test;
+            directory = Option.map directory ~f:(target_arg ~env) }
+      | Yelu_cmake_property.Gps_cache e ->
+        C.Gps_cache (target_arg ~env e)
+      | Yelu_cmake_property.Gps_variable -> C.Gps_variable
+    in
+    let mode : C.get_property_mode =
+      match mode with
+      | Yelu_cmake_property.Gpm_value      -> C.Gpm_value
+      | Yelu_cmake_property.Gpm_set        -> C.Gpm_set
+      | Yelu_cmake_property.Gpm_defined    -> C.Gpm_defined
+      | Yelu_cmake_property.Gpm_brief_docs -> C.Gpm_brief_docs
+      | Yelu_cmake_property.Gpm_full_docs  -> C.Gpm_full_docs
+    in
+    C.Get_property { var; scope; property_name = property; mode }
   | Yelu_cmake_property.ECmakeGetDirectoryProperty { var; property } ->
     C.Get_directory_property { var; directory = ""; property }
   | Yelu_cmake_property.ECmakeSetSourceProperty { file; property; values } ->

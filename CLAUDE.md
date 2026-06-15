@@ -325,7 +325,7 @@ Key milestones: wellform pass (Y1), parser + concrete syntax (in progress), 408 
 
 ### Test infrastructure
 
-- **923 unit tests** (`dune test`) — incl. the surface track (lexer, parser,
+- **935 unit tests** (`dune test`) — incl. the surface track (lexer, parser,
   emit-bridge oracle, co-truth locks, grammar freshness) and the per-theory
   check/compile suites
 - **108 equivalence/semantic checks** (35 structural + 12 CMakeOnly + 61 RunCMake)
@@ -360,6 +360,7 @@ Numbers are stable (never renumbered). Priority order tracks `doc/project_overvi
 | Y15 | Binding feature library       | Design space of binding mechanisms — lexical vs global, immutable vs mutable, expression vs statement, name-as-syntax vs name-as-data. Current: `let` (lexical/immutable/expression) + `set` (global/mutable/statement). Future: named choices selectable per pack |
 | Y16 | Real-world cmake rewrite      | Rewrite z3/llvm/torch build in yelu, prove structural equivalence. Reframed 2026-06-04 as gradual hybrid adoption — see [doc/yelu_cmake/hybrid_strategy.md](doc/yelu_cmake/hybrid_strategy.md). |
 | Y17 | Types on yelu_cmake           | Post-retirement: retrofit a fresh typing pass once `yelu_cmake ↔ Lang_cmake` and `yelu_cmake ↔ yelu_cmake_normal` are stable. Replaces the abandoned R7 "carry production checker over" plan — the theory split gives type design real semantic ground (namespace separation, set-once vs mutable, identity per theory) instead of the shallow per-fragment Stage_typecheck. |
+| Y18 | First-class object value      | Promote Pos3's parser-local `cmake_entity` (`Target`/`Source`/`Cache`/`Test`/`Install`/`Directory`/`Global`) to a real value class — operations per kind, value flow (let/args/iterands), eval semantics, wellform integration, multi-entity calls, UFCS `x.f y` ≡ `f x y` for object-method syntax, yc vs ycn placement. Full design: [doc/lang/object_value_design.md](doc/lang/object_value_design.md). Tied to Y15 / Y17 / record literal. |
 
 ### Research (likely papers/material)
 

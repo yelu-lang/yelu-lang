@@ -904,18 +904,59 @@ let rec to_normal = function
           List.map properties ~f:(fun (property, value) ->
             property, to_normal value);
       }
-  | ECmakeSetProperty { targets; append; properties } ->
-    ESetProperty
-      { targets = List.map targets ~f:to_normal;
-        append;
-        properties = List.map properties ~f:(fun (p, v) -> p, to_normal v) }
-  | ECmakeSetGlobalProperty { properties } ->
-    ECmakeSetGlobalProperty
-      { properties = List.map properties ~f:(fun (p, v) -> p, to_normal v) }
-  (* Additional property subcommands — surface-only passthrough. *)
-  | ECmakeGetProperty { var; target; property; set_form } ->
-    ECmakeGetProperty
-      { var; target = to_normal target; property; set_form }
+  (* Unified [set_property] — TARGET scope normalizes to the typed
+     ESetProperty; the other scopes (cmake configure-time metadata) have no
+     normal-side analogue and stay in yc form. The normal-side ESetProperty
+     IR is TARGET-only by design. *)
+  | ECmakeSetProperty { scope; append; append_string; properties } ->
+    let properties' = List.map properties ~f:(fun (p, v) -> p, to_normal v) in
+    (match scope with
+     | Sps_target ts ->
+       ESetProperty
+         { targets = List.map ts ~f:to_normal;
+           append;
+           properties = properties' }
+     | _ ->
+       let scope' = (match scope with
+         | Sps_global -> Sps_global
+         | Sps_directory d -> Sps_directory (Option.map d ~f:to_normal)
+         | Sps_target ts -> Sps_target (List.map ts ~f:to_normal)
+         | Sps_source { sources; directories; target_directories } ->
+           Sps_source
+             { sources = List.map sources ~f:to_normal;
+               directories = List.map directories ~f:to_normal;
+               target_directories = List.map target_directories ~f:to_normal }
+         | Sps_install fs -> Sps_install (List.map fs ~f:to_normal)
+         | Sps_test { tests; directories } ->
+           Sps_test
+             { tests = List.map tests ~f:to_normal;
+               directories = List.map directories ~f:to_normal }
+         | Sps_cache es -> Sps_cache (List.map es ~f:to_normal))
+       in
+       ECmakeSetProperty
+         { scope = scope'; append; append_string; properties = properties' })
+  (* Additional property subcommands — surface-only passthrough.
+     [get_property] threads to_normal over the scope payloads (same shape
+     dance as set_property's non-TARGET fallthrough). *)
+  | ECmakeGetProperty { var; scope; property; mode } ->
+    let scope' = (match scope with
+      | Gps_global -> Gps_global
+      | Gps_directory d -> Gps_directory (Option.map d ~f:to_normal)
+      | Gps_target t -> Gps_target (to_normal t)
+      | Gps_source { source; directory; target_directory } ->
+        Gps_source
+          { source = to_normal source;
+            directory = Option.map directory ~f:to_normal;
+            target_directory = Option.map target_directory ~f:to_normal }
+      | Gps_install f -> Gps_install (to_normal f)
+      | Gps_test { test; directory } ->
+        Gps_test
+          { test = to_normal test;
+            directory = Option.map directory ~f:to_normal }
+      | Gps_cache e -> Gps_cache (to_normal e)
+      | Gps_variable -> Gps_variable)
+    in
+    ECmakeGetProperty { var; scope = scope'; property; mode }
   | ECmakeGetDirectoryProperty _ | ECmakeGetGlobalProperty _
   | ECmakeDefineProperty _ as e -> e
   | ECmakeSetDirectoryProperty { property; append; values } ->
@@ -925,10 +966,6 @@ let rec to_normal = function
     ECmakeSetSourceProperty
       { file = to_normal file; property;
         values = List.map values ~f:to_normal }
-  | ECmakeSetPropertySource { files; append; properties } ->
-    ECmakeSetPropertySource
-      { files = List.map files ~f:to_normal; append;
-        properties = List.map properties ~f:(fun (p, v) -> p, to_normal v) }
 
   (* CMake find surface -> Yelu find theory. The cmake-specific
      attributes (version / exact / quiet / config_mode / components /
@@ -1720,16 +1757,51 @@ let rec from_normal = function
       }
   | ESetProperty { targets; append; properties } ->
     ECmakeSetProperty
-      { targets = List.map targets ~f:from_normal;
-        append;
+      { scope = Sps_target (List.map targets ~f:from_normal);
+        append; append_string = false;
         properties = List.map properties ~f:(fun (p, v) -> p, from_normal v) }
-  | ECmakeSetGlobalProperty { properties } ->
-    ECmakeSetGlobalProperty
-      { properties = List.map properties ~f:(fun (p, v) -> p, from_normal v) }
+  (* Non-TARGET yc-side set_property (GLOBAL / SOURCE / CACHE / …) round-trips
+     through normal as the same yc ctor — recurse into scope payloads. *)
+  | ECmakeSetProperty { scope; append; append_string; properties } ->
+    let scope' = (match scope with
+      | Sps_global -> Sps_global
+      | Sps_directory d -> Sps_directory (Option.map d ~f:from_normal)
+      | Sps_target ts -> Sps_target (List.map ts ~f:from_normal)
+      | Sps_source { sources; directories; target_directories } ->
+        Sps_source
+          { sources = List.map sources ~f:from_normal;
+            directories = List.map directories ~f:from_normal;
+            target_directories = List.map target_directories ~f:from_normal }
+      | Sps_install fs -> Sps_install (List.map fs ~f:from_normal)
+      | Sps_test { tests; directories } ->
+        Sps_test
+          { tests = List.map tests ~f:from_normal;
+            directories = List.map directories ~f:from_normal }
+      | Sps_cache es -> Sps_cache (List.map es ~f:from_normal))
+    in
+    ECmakeSetProperty
+      { scope = scope'; append; append_string;
+        properties = List.map properties ~f:(fun (p, v) -> p, from_normal v) }
   (* Additional property subcommands — surface-only passthrough. *)
-  | ECmakeGetProperty { var; target; property; set_form } ->
-    ECmakeGetProperty
-      { var; target = from_normal target; property; set_form }
+  | ECmakeGetProperty { var; scope; property; mode } ->
+    let scope' = (match scope with
+      | Gps_global -> Gps_global
+      | Gps_directory d -> Gps_directory (Option.map d ~f:from_normal)
+      | Gps_target t -> Gps_target (from_normal t)
+      | Gps_source { source; directory; target_directory } ->
+        Gps_source
+          { source = from_normal source;
+            directory = Option.map directory ~f:from_normal;
+            target_directory = Option.map target_directory ~f:from_normal }
+      | Gps_install f -> Gps_install (from_normal f)
+      | Gps_test { test; directory } ->
+        Gps_test
+          { test = from_normal test;
+            directory = Option.map directory ~f:from_normal }
+      | Gps_cache e -> Gps_cache (from_normal e)
+      | Gps_variable -> Gps_variable)
+    in
+    ECmakeGetProperty { var; scope = scope'; property; mode }
   | ECmakeGetDirectoryProperty _ | ECmakeGetGlobalProperty _
   | ECmakeDefineProperty _ as e -> e
   | ECmakeSetDirectoryProperty { property; append; values } ->
@@ -1739,10 +1811,6 @@ let rec from_normal = function
     ECmakeSetSourceProperty
       { file = from_normal file; property;
         values = List.map values ~f:from_normal }
-  | ECmakeSetPropertySource { files; append; properties } ->
-    ECmakeSetPropertySource
-      { files = List.map files ~f:from_normal; append;
-        properties = List.map properties ~f:(fun (p, v) -> p, from_normal v) }
 
   (* Yelu find theory -> CMake find surface. *)
   | EFindPackage { package_name; required } ->

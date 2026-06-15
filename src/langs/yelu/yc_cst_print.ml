@@ -122,6 +122,7 @@ let command_flags name =
   | "include_guard" -> [ "GLOBAL" ]
   | "install_directory" -> [ "OPTIONAL" ]
   | "find_package" -> [ "REQUIRED" ]
+  | "set_property" -> [ "APPEND"; "APPEND_STRING" ]
   | _ -> []
 
 (* Per-command value-carrying keywords that canonicalize to `~label=value`
@@ -135,6 +136,25 @@ let command_value_labels name =
   | "install_export" ->
     [ ("DESTINATION", "destination"); ("FILE", "file");
       ("NAMESPACE", "namespace"); ("COMPONENT", "component") ]
+  (* get_property's PROPERTY is a single name (shape-1 — unlike set_property
+     which is shape-3 (name, multi-values) and uses command_value_list_labels).
+     The optional trailing mode flag (`SET`/`DEFINED`/...) stays as a positional
+     enum constructor for now — future micro-slice: surface as `~mode=Defined`
+     via a per-command "flag-as-kwarg-enum" rewriter. *)
+  | "get_property" -> [ ("PROPERTY", "property") ]
+  | _ -> []
+
+(* Per-command value-LIST-carrying keywords that canonicalize to
+   `~label=[key, vals...]` (list-kwarg form). Used for cmake constructs where a
+   keyword introduces a (key, multi-value) pair — set_property's
+   `PROPERTY <name> <values...>` is the canonical case. The printer consumes
+   the keyword plus the remaining trailing positionals into one Kw_list;
+   the parser recovers them via List.Assoc.find_all on the kwargs.
+   Future-compatible with the shape-3 record-literal landing — until then,
+   the leading list element plays the "key" role. *)
+let command_value_list_labels name =
+  match name with
+  | "set_property" -> [ ("PROPERTY", "property") ]
   | _ -> []
 
 (* Print a command's argument list, command-aware: a positional bare keyword
@@ -144,12 +164,31 @@ let command_value_labels name =
 let pr_cmd_args b name (args : Cst.arg list) =
   let flags = command_flags name in
   let vlabels = command_value_labels name in
+  let vlists = command_value_list_labels name in
   let is_flag s = List.mem flags s ~equal:String.equal in
   let label_of s = List.Assoc.find vlabels s ~equal:String.equal in
+  let list_label_of s = List.Assoc.find vlists s ~equal:String.equal in
+  (* Take a leading run of positional atoms (stops at the first non-positional
+     or end-of-list). Used by the value-list label which consumes the key
+     atom + all subsequent positionals as one ~label=[ ... ] list. *)
+  let rec take_positionals acc = function
+    | (Cst.Pos a) :: rest -> take_positionals (a :: acc) rest
+    | rest -> (List.rev acc, rest)
+  in
   let rec go = function
     | [] -> ()
     | Cst.Pos (A_name kw | A_keyword kw) :: rest when is_flag kw ->
       Buffer.add_string b " ~"; Buffer.add_string b (String.lowercase kw); go rest
+    (* Value-list label: PROPERTY <name> <val>... → ~property=[name, val...].
+       Consumes the keyword + all remaining positionals (until a kwarg or end). *)
+    | Cst.Pos (A_name kw | A_keyword kw) :: rest
+      when Option.is_some (list_label_of kw) ->
+      let l = Option.value_exn (list_label_of kw) in
+      let items, rest' = take_positionals [] rest in
+      Buffer.add_string b " ~"; Buffer.add_string b l; Buffer.add_string b "=[ ";
+      List.iter items ~f:(fun a -> pr_atom b a; Buffer.add_char b ' ');
+      Buffer.add_char b ']';
+      go rest'
     | Cst.Pos (A_name kw | A_keyword kw) :: (Cst.Pos _ as v) :: rest
       when Option.is_some (label_of kw) ->
       let l = Option.value_exn (label_of kw) in
@@ -241,6 +280,14 @@ let rec pr_stmt b indent (s : Cst.stmt) =
     List.iter kwargs ~f:(fun (k, v) ->
       Buffer.add_string b " ~"; Buffer.add_string b k; Buffer.add_char b '='; pr_atom b v);
     if parent_scope then Buffer.add_string b " ~parent_scope"
+  (* `var := cmd args...` — round-trips back to the source-text form. The
+     trailing `~out=var` kwarg is not emitted (it's implicit in the := LHS). *)
+  | S_assign_call { cache; name; cmd_name; cmd_args } ->
+    if cache then Buffer.add_string b "cache ";
+    pr_name_or b name ~otherwise:(fun () -> Buffer.add_string b name);
+    Buffer.add_string b " := ";
+    Buffer.add_string b cmd_name;
+    pr_cmd_args b cmd_name cmd_args
   | S_let { var; ty; value; body } ->
     Buffer.add_string b "let "; Buffer.add_string b var;
     Option.iter ty ~f:(fun t -> Buffer.add_string b " : "; Buffer.add_string b t);

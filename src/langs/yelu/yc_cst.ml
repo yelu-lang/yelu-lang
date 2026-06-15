@@ -62,6 +62,15 @@ and stmt_node =
   | S_assign   of { cache : bool; name : string; values : atom list;
                     kwargs : (string * atom) list; docstring : string option;
                     parent_scope : bool }
+  (* `var := cmd args ~kw=v` — `:=` as a low-priority operator whose RHS is
+     a command call expression. Lowering desugars to `cmd args ~kw=v ~out=var`
+     so any command with ~out semantics (get_property, find_*, string_*, etc.)
+     becomes assignable. Recognized at parse-time when the first IDENT after
+     `:=` is in [Yc_primitives.command_names] AND is followed by command-shape
+     tokens (positional arg or TILDE). Plain `var := atom` keeps the legacy
+     value-list path. *)
+  | S_assign_call of { cache : bool; name : string;
+                       cmd_name : string; cmd_args : arg list }
   | S_let      of { var : string; ty : string option; value : atom; body : stmt }
   | S_if       of { cond : cond; then_ : block; else_ : else_branch option }
   | S_while    of { cond : cond; body : block }

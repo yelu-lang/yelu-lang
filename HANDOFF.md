@@ -1,154 +1,122 @@
-# Handoff — 2026-06-07
+# Handoff — 2026-06-14
 
-## What we did
+> Per-command syntax track for the property family. Worklog entry with
+> full detail in [`doc/worklog/worklog_2026_06.md`](doc/worklog/worklog_2026_06.md)
+> § "2026-06-13/14"; design questions for the next track in
+> [`doc/lang/object_value_design.md`](doc/lang/object_value_design.md).
 
-**fmT probe migration** — converting `.ml` → `.yc` for the fmt project probe.
-7 of 11 helpers are `.yc` files. The remaining 4 `.ml` files have ~67 `yc_apply`
-calls that are fully diagnosed.
+## What landed
 
-**10 typed-API gaps closed**. Every cmake builtin used by fmt now has a proper
-yc API: `message` modes, `export ~file`, `find` kwargs, `execute_process`,
-`add_custom_command`, `set_target_properties`, `add_custom_target`,
-`set_source_files_properties`, `install_files`/`install_targets`.
+### Property family unified + entity-driven
 
-**4-tier IR fidelity model**: typed IR → `cmake_lang` → `yc_raw` → `yc_apply`.
-Documented in [`ir_tiers.md`](doc/yelu_cmake/ir_tiers.md).
+- `set_property` IR: 4 ctors → 1 (`ECmakeSetProperty { scope; append;
+  append_string; properties }`) mirroring `Lang_cmake.Set_property` 1:1.
+- `get_property` IR: TARGET-only `{ var; target; property; set_form :
+  bool }` → 1 unified `{ var; scope; property; mode : get_property_mode }`
+  mirroring `Lang_cmake.Get_property` 1:1.
+- `cache_entry = Cache_entry` placeholder (in `Lang_cmake`) lifted to
+  `cache_entry = string` — CACHE-scope entry names were being silently
+  dropped on emit. Now flow through end-to-end.
+- `append_string` field — was missing from the yc IR; cmake AST had it.
+- Parser-local `cmake_entity` value + `p_cmake_entity` reading group —
+  parallel for `entity_to_sps` / `entity_to_gps`. First-class kinded
+  cmake object as a parser concept (`Target foo`, `Source 'main.c'`,
+  `Cache FOO`, `Test t`, `Install f`, `Directory ['d']`, `Global`,
+  `Variable`). Pos3 prototype — see Y18 / object_value_design.md for
+  the value-class promotion design.
 
-**Parser infrastructure**: `split_by_keywords` splits positional args by keyword
-markers (used by `add_custom_command`, `execute_process`, `set_property`,
-`set_target_properties`). `args_to_cmake_text` helper for `yc_raw` fallback.
+### Lane B / Lane C complete for the property family
 
-**Wellform**: `Yc_primitives` (90 command names), `Yc_wellform` (3 checks:
-reserved names, apply shadowing, raw tainted). Wired into `Yc_driver`.
-CLI warns on violations, doesn't block compilation.
+- `set_property → ["APPEND"; "APPEND_STRING"]` in `command_flags`.
+- `get_property → [("PROPERTY", "property")]` in `command_value_labels`
+  (Lane C shape-1 — single property name).
+- `set_property → [("PROPERTY", "property")]` in the new
+  `command_value_list_labels` (Lane C shape-3 — name + multi-value list
+  via `~property=[NAME, val1, val2, …]`). The list-kwarg parser
+  generalized in `yelu_parse.ml` (was hard-coded to
+  `public`/`private`/`interface`); per-command handlers recover the
+  list via `filter_map` with source-order preservation.
 
-**`ECmakeRaw`**: moved from fragment to core `Yelu_cmake.expr`. Single
-verbatim-text escape hatch. Parser: `yc_raw <expr>`.
+### `Yelu_lexer.constr_names` — slice 3 + slice 4
 
-**String-as-enum plan**: `visibility`, `mode`, `compatibility`, `cache_type`
-should be variants, not strings. Documented in `ir_tiers.md`.
+- Slice 3: `GLOBAL` / `DIRECTORY` / `SOURCE` / `INSTALL` / `TEST` /
+  `CACHE` (set_property + get_property scope discriminators).
+- Slice 4: `VARIABLE` + the get_property mode constructors `SET` /
+  `DEFINED` / `BRIEF_DOCS` / `FULL_DOCS`.
 
-## Remaining work
+### `:=` low-priority command-call sugar
 
-### Probes/fmt — 67 `yc_apply` calls remaining
-
-| Category | Count | What |
-|---|---|---|
-| Project functions | 23 | Legitimate — cmake functions from original fmt |
-| Restructuring | 22 | Raw→typed arg conversion (export, install, configure_file, etc.) |
-| Dynamic visibility | 7 | `EVar "kind"` in target_* — needs visibility variant |
-| Other design gaps | 15 | set_property SOURCE, cmake_parse_arguments, string/file subcommands |
-
-### Design-level TODOs
-
-1. **Visibility variant** — `type visibility = Public | Private | Interface`.
-   Replace `string` in all 7 target commands. Dynamic `${kind}` falls to `yc_raw`.
-
-2. **Recursive parse↔meta-eval loop** — for `${kind}` resolution at configure-time.
-   `yc_raw` is the placeholder.
-
-3. **Cross-module enums** — `supported_lang_of_string`, `compatibility_of_string`
-   for `yc_project`, `yc_write_basic_package_version_file`.
-
-4. **`cmake_parse_arguments`** — no typed API. cmake builtin for parsing function
-   kwargs. Used by `add_fmt_test`, `expect_compile`.
-
-### Remaining .ml files in probes/fmt
-
-| File | yc_apply count | Primary blockers |
-|---|---|---|
-| `main.ml` | 42 | Project functions + restructuring (export, install, configure_file) |
-| `test_main.ml` | 11 | Project functions + add_test with list concat + cmake_parse_arguments |
-| `cuda_test.ml` | 3 | set_property SOURCE APPEND, cuda_add_executable (project func) |
-| `compile_error_test.ml` | 13 | expect_compile/run_tests (project funcs), file/list/string subcommands |
-
-## Key files changed
-
-- `src/langs/yelu/yelu_parse.ml` — `split_by_keywords`, `args_to_cmake_text`, `yc_raw` fallback, family dispatch aliases, target/install/property handler fixes
-- `src/langs/yelu/yc_primitives.ml` — 90 command names
-- `src/langs/yelu/yc_wellform.ml` — 3 check functions
-- `src/langs/drivers/yc_driver.ml` — wellform wired in
-- `src/langs/yelu/yelu_cmake.ml` — `ECmakeRaw` in core type
-- `probes/fmt/*.yc` — 7 converted files
-- `probes/fmt/*.ml` — cleaned up yc_apply escapes
-- `doc/yelu_cmake/ir_tiers.md` — new doc
-- `doc/cmake/painpoints.md` — §9 (metaprogramming) + §10 (string-as-enum)
-
-## Session state (2026-06-07)
-
-### Test baseline
-```
-dune test → 291 OK, 6 FAIL (3 pre-existing × 2)
-  - include optional (PP trailing space)
-  - snapshot loads with comments
-  - ylet chain (variable resolution)
+```text
+var   := get_property Target foo ~property=NAME      # → get_property(var TARGET foo PROPERTY NAME)
+var   := get_property Cache FOO ~property=STRINGS    # → get_property(var CACHE ${FOO} PROPERTY STRINGS)
+upper := string_toupper 'hello'                       # → string(TOUPPER hello upper)
+joined := list_join MYLIST ','                        # → list(JOIN MYLIST , joined)
+var   := "hello"                                      # legacy value-assign — unchanged
 ```
 
-### Extension scheme
-| Extension | Language | Status |
-|---|---|---|
-| `.yc` | yelu_cmake (cmake-faithful) | Production |
-| `.ycn` | yelu_cmake_normal | Research (parser/printer stubs) |
-| `.ye` | Reserved for future non-cmake packs | — |
+Both parsers (CST + legacy) detect "next IDENT after `:=` is a known
+command followed by command-shape tokens" and parse the rest as a full
+command call. CST emits a new `S_assign_call` variant; lowering
+injects `~out=lhs` and routes through the regular command lowerer.
+Legacy parser dispatches via three forward refs populated at file
+bottom (call-chain order makes `p_assign_y1` precede its dependencies).
 
-### Probes/fmt converted (.yc)
-```
-probes/fmt/join_paths.yc
-probes/fmt/find_setenv.yc
-probes/fmt/gtest.yc
-probes/fmt/add_subdirectory_test.yc
-probes/fmt/find_package_test.yc
-probes/fmt/static_export_test.yc
-probes/fmt/fuzzing.yc
-```
+## State of the world
 
-### Probes/fmt remaining (.ml)
-```
-probes/fmt/main.ml           — 42 yc_apply (project funcs + restructuring)
-probes/fmt/test_main.ml       — 11 yc_apply (project funcs + add_test concat)
-probes/fmt/cuda_test.ml       —  3 yc_apply (set_property SOURCE)
-probes/fmt/compile_error_test.ml — 13 yc_apply (expect_compile/run_tests funcs)
-```
+- `dune runtest --force` — **935 tests / 0 failures**.
+- Byte-equality oracle (`covered=194`) green throughout.
+- tm-grammar regenerated; co-truth lock satisfied.
+- `Yc_primitives.command_names` gained `get_property` (was missing —
+  surfaced by `is_known_command "get_property"` in the `:=` sugar).
 
-### Original cmake reference
-```
-/home/red/code/contrib/fmt-all/fmt/
-  CMakeLists.txt              → main.ml
-  test/CMakeLists.txt         → test_main.ml
-  test/cuda-test/CMakeLists.txt → cuda_test.ml
-  test/compile-error-test/CMakeLists.txt → compile_error_test.ml
-  support/cmake/JoinPaths.cmake → join_paths.yc
-  support/cmake/FindSetEnv.cmake → find_setenv.yc
-```
+## What's next (handed off open)
 
-Original fmt defines cmake functions: `join`, `set_verbose`, `setup_target`,
-`add_module_library`, `add_doc_target` (root), `add_fmt_test` (test/),
-`expect_compile`, `run_tests` (compile-error-test/), `join_paths` (JoinPaths.cmake).
+- **Y18 — first-class object value.** Promote `cmake_entity` from
+  parser-local to an IR value class. Whole design needed; questions
+  collected in [`doc/lang/object_value_design.md`](doc/lang/object_value_design.md).
+  Tied to the long-term object-method form `target_foo.set_property(…)`
+  the user flagged.
+- **get_property mode-flag-as-kwarg-enum micro-slice.** Trailing
+  positional `SET`/`DEFINED`/`BRIEF_DOCS`/`FULL_DOCS` canonicalizes to
+  leading-cap (`Defined`) today but does not become `~mode=Defined`.
+  Needs a per-command "flag-as-kwarg-enum" rewriter — ~30 lines, only
+  get_property genuinely benefits.
+- **`set_target_properties PROPERTIES K v K v …`** — shape-3 record
+  literal territory. Surface migration parked in
+  [`doc/lang/yc_syntax_critique.md`](doc/lang/yc_syntax_critique.md)
+  pending record-literal grammar.
+- **Three specialized cmake getters yc doesn't have:**
+  `get_source_file_property` / `get_test_property` / `get_cmake_property`.
+  Mostly cosmetic — generic `get_property Source/Test` now covers two.
+- **Property cache-semantics combination test** — exercising Value vs
+  SET vs DEFINED. Defer until a weird bug surfaces.
 
-### Fresh docs to review
-- [`doc/yelu_cmake/ir_tiers.md`](doc/yelu_cmake/ir_tiers.md) — 4-tier IR fidelity
-- [`doc/yelu_cmake/driver.md`](doc/yelu_cmake/driver.md) — pipelines + tool interface
-- [`doc/cmake/painpoints.md`](doc/cmake/painpoints.md) — updated §9-10
-- [`doc/yelu_cmake/status.md`](doc/yelu_cmake/status.md) — parser coverage summary
-
-### Fresh code to review
-- [`src/langs/yelu/yc_primitives.ml`](src/langs/yelu/yc_primitives.ml) — 90 commands
-- [`src/langs/yelu/yc_wellform.ml`](src/langs/yelu/yc_wellform.ml) — wellform checks
-- [`src/langs/yelu/yelu_parse.ml`](src/langs/yelu/yelu_parse.ml) — `split_by_keywords` (~L285), `args_to_cmake_text` (~L296), target family `_ ->` fallback (~L805), cmake-name aliases (~L732-738)
-- [`src/langs/drivers/yc_driver.ml`](src/langs/drivers/yc_driver.ml) — wellform wired in (~L49)
-- [`src/langs/yelu/yelu_cmake.ml`](src/langs/yelu/yelu_cmake.ml) — `ECmakeRaw` in core type (~L847)
-- [`probes/fmt/fuzzing.yc`](probes/fmt/fuzzing.yc) — example of a converted .yc with function definition
-
-### Tool directories
-```
-src/langs/drivers/           — per-language driver modules + cross-lang utils
-tool/cmake_text/              — cmake text tools (parse, reprint, scan, index, oracle)
-```
-
-## Quick start
+## Build & run
 
 ```sh
-dune build                    # build everything
-dune test                     # 291 OK, 6 FAIL (3 pre-existing × 2)
-dune exec src/bin/yelu/yelu.exe -- compile probes/fmt/fuzzing.yc  # test a .yc
+dune build
+dune test                    # 935/935
+
+# Smoke
+dune exec src/bin/yelu/yelu.exe -- fmt probes/fmt/main.yc
+dune exec src/bin/yelu/yelu.exe -- compile probes/fmt/main.yc
+
+# Grammar co-truth
+make tmgrammar-check         # or: dune exec src/bin/yelu/yelu.exe -- tmgrammar -o …
 ```
+
+## Macros for the next Claude
+
+- LSP exe (`src/bin/yelu_lsp/`) needs the `linol` / `linol-lwt`
+  yojson-3 fork pinned at a path that's Linux-only today; on a fresh
+  macOS clone, the LSP exe fails to build but every other target
+  works. Excluding `src/bin/yelu_lsp/` from the build target list (or
+  using `dune build src/langs src/bin/{yelu,cmake,cmake_only,debug}
+  test`) is the workaround. Not in scope for the current syntax work.
+- Vendor symlinks (`vendor/cmake`, `vendor/fmt`, `vendor/llvm`,
+  `vendor/z3`) point at Linux paths (`/home/red/code/contrib/…`). Mac
+  equivalents under `/Users/ex/code/contrib/…`. Only matters for the
+  cmake-backed targets (`make cmake-check`, file-api, Bar #3-lite
+  oracle) — not for `dune test`.
+- Markdown lint warnings about table-column alignment in CLAUDE.md
+  are pre-existing and not from this session.

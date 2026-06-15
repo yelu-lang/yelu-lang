@@ -875,25 +875,75 @@ let rec emit_expr_impl ~env e =
         (target_arg target) property (arg value) ]
   | ECmakeGetTargetProperty { var; target; property } ->
     [ Fmt.str "get_target_property(%s %s %s)" var (target_arg target) property ]
-  | ECmakeSetProperty { targets; append; properties } ->
-    let ts = String.concat ~sep:" " (List.map targets ~f:target_arg) in
+  | ECmakeSetProperty { scope; append; append_string; properties } ->
     let ap = if append then " APPEND" else "" in
+    let aps = if append_string then " APPEND_STRING" else "" in
+    let scope_text = match scope with
+      | Sps_global -> "GLOBAL"
+      | Sps_directory None -> "DIRECTORY"
+      | Sps_directory (Some d) -> "DIRECTORY " ^ target_arg d
+      | Sps_target ts ->
+        "TARGET " ^ String.concat ~sep:" " (List.map ts ~f:target_arg)
+      | Sps_source { sources; directories; target_directories } ->
+        let main = "SOURCE " ^
+          String.concat ~sep:" " (List.map sources ~f:target_arg) in
+        let dirs =
+          if List.is_empty directories then ""
+          else " DIRECTORY " ^
+            String.concat ~sep:" " (List.map directories ~f:target_arg) in
+        let tdirs =
+          if List.is_empty target_directories then ""
+          else " TARGET_DIRECTORY " ^
+            String.concat ~sep:" "
+              (List.map target_directories ~f:target_arg) in
+        main ^ dirs ^ tdirs
+      | Sps_install fs ->
+        "INSTALL " ^ String.concat ~sep:" " (List.map fs ~f:target_arg)
+      | Sps_test { tests; directories } ->
+        let main = "TEST " ^
+          String.concat ~sep:" " (List.map tests ~f:target_arg) in
+        let dirs =
+          if List.is_empty directories then ""
+          else " DIRECTORY " ^
+            String.concat ~sep:" " (List.map directories ~f:target_arg) in
+        main ^ dirs
+      | Sps_cache es ->
+        "CACHE " ^ String.concat ~sep:" " (List.map es ~f:target_arg)
+    in
     List.map properties ~f:(fun (property, value) ->
-      Fmt.str "set_property(TARGET %s%s PROPERTY %s %s)"
-        ts ap property (arg value))
-  | ECmakeSetPropertySource { files; append; properties } ->
-    let fs = String.concat ~sep:" " (List.map files ~f:target_arg) in
-    let ap = if append then " APPEND" else "" in
-    List.map properties ~f:(fun (property, value) ->
-      Fmt.str "set_property(SOURCE %s%s PROPERTY %s %s)"
-        fs ap property (arg value))
-  | ECmakeSetGlobalProperty { properties } ->
-    List.map properties ~f:(fun (property, value) ->
-      Fmt.str "set_property(GLOBAL PROPERTY %s %s)" property (arg value))
-  | ECmakeGetProperty { var; target; property; set_form } ->
-    let suffix = if set_form then " SET" else "" in
-    [ Fmt.str "get_property(%s TARGET %s PROPERTY %s%s)"
-        var (arg target) property suffix ]
+      Fmt.str "set_property(%s%s%s PROPERTY %s %s)"
+        scope_text ap aps property (arg value))
+  | ECmakeGetProperty { var; scope; property; mode } ->
+    let scope_text = match scope with
+      | Gps_global -> "GLOBAL"
+      | Gps_directory None -> "DIRECTORY"
+      | Gps_directory (Some d) -> "DIRECTORY " ^ target_arg d
+      | Gps_target t -> "TARGET " ^ target_arg t
+      | Gps_source { source; directory; target_directory } ->
+        let main = "SOURCE " ^ target_arg source in
+        let dir = match directory with
+          | None -> "" | Some d -> " DIRECTORY " ^ target_arg d in
+        let tdir = match target_directory with
+          | None -> "" | Some t -> " TARGET_DIRECTORY " ^ target_arg t in
+        main ^ dir ^ tdir
+      | Gps_install f -> "INSTALL " ^ target_arg f
+      | Gps_test { test; directory } ->
+        let main = "TEST " ^ target_arg test in
+        let dir = match directory with
+          | None -> "" | Some d -> " DIRECTORY " ^ target_arg d in
+        main ^ dir
+      | Gps_cache e -> "CACHE " ^ target_arg e
+      | Gps_variable -> "VARIABLE"
+    in
+    let mode_suffix = match mode with
+      | Gpm_value      -> ""
+      | Gpm_set        -> " SET"
+      | Gpm_defined    -> " DEFINED"
+      | Gpm_brief_docs -> " BRIEF_DOCS"
+      | Gpm_full_docs  -> " FULL_DOCS"
+    in
+    [ Fmt.str "get_property(%s %s PROPERTY %s%s)"
+        var scope_text property mode_suffix ]
   | ECmakeGetDirectoryProperty { var; property } ->
     [ Fmt.str "get_directory_property(%s %s)" var property ]
   | ECmakeSetDirectoryProperty { property; append; values } ->
