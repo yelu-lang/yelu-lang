@@ -194,10 +194,10 @@ shapes (corpus-grounded) and their resolutions:
 
 | shape | example | surface | status |
 | --- | --- | --- | --- |
-| 1 flat record | `install(DIRECTORY d DESTINATION x COMPONENT c)` | `~destination=x ~component=c` | ✅ install_directory/files/export done; find/file already label-based — corpus shape-1 complete |
-| 2 repeated→list | `add_custom_command(… COMMAND a … COMMAND b)` | a list | later |
-| 3 key→value map | `set_target_properties(t PROPERTIES K v …)` | `~properties={k=v, …}` | later (record literal) |
-| 4 record-list (nested) | `install(TARGETS … LIBRARY DESTINATION d1 ARCHIVE DESTINATION d2)` | **flat dotted label** | ⛔ blocked — install_targets parse/emit pre-broken (see below) |
+| 1 flat record | `install(DIRECTORY d DESTINATION x COMPONENT c)` | `~destination=x ~component=c` | ✅ install_directory/files/export + get_property + set_property(via list) done; find/file already label-based |
+| 2 repeated→list | `add_custom_command(… COMMAND a … COMMAND b)` | a list | ⏳ remaining (add_custom_command/target, execute_process) |
+| 3 key→value map | `set_target_properties(t PROPERTIES K v …)` | `~properties={k=v, …}` | ⏳ remaining — needs the `{…}` record-literal grammar (set_target_properties) |
+| 4 record-list (nested) | `install(TARGETS … LIBRARY DESTINATION d1 ARCHIVE DESTINATION d2)` | **flat dotted label** | ⏳ parse/emit ✅ done; **formatter (surface) canonicalization remains** (see below) |
 
 - **Nested (shape 4) → flat dotted labels, tableless.** Artifact-kind is the
   label *prefix*, field the *suffix*, both the cmake name lowercased (no
@@ -223,34 +223,59 @@ shapes (corpus-grounded) and their resolutions:
   flags are the value-less case). Mechanism is the per-command template;
   order-independence verified (labels in any order → identical cmake).
 
-**⛔ Shape-4 / `install_targets` is BLOCKED on a pre-existing parse+emit bug
-(found 2026-06-13).** Attempting the shape-4 pilot surfaced that
-`install_targets` is *already* deeply lossy — independent of any surface work:
+## Remaining work — the no-ALL_CAPS lifting pass (status 2026-06-15)
 
-```
-install_targets foo COMPONENT 'c' LIBRARY DESTINATION 'lib' ARCHIVE DESTINATION 'ar'
-emits →  install(TARGETS ${foo} DESTINATION lib)        # ← COMPONENT, both
-                                                        #   artifact kinds, gone
-```
+The per-command `~`-lifting is well advanced. **Done:** the enum-casing lanes
+(visibility, type/mode/lang, property scopes `Global/Cache/Source/Test/Install/
+Directory/Variable`, get_property modes); the `:`→`=` separator; the flags
+(`~global`/`~optional`/`~required`/`~parent_scope`/`~append`/`~append_string`);
+the shape-1 value-labels (install_directory/files/export, get_property); the
+shape-3-via-list `set_property ~property=[…]`; and the **install_targets
+parse+emit correctness fix** (was lossy — COMPONENT dropped, nested clauses
+collapsed; fixed `dbc0b6a`/`a34a26e`/`f1296a4`, real `cmake --install` verified,
+matrix 24/24).
 
-Two distinct bugs: (1) **the nesting is unparseable** — `DESTINATION` is both a
-top-level keyword *and* a per-artifact keyword, so the flat `split_by_keywords`
-splits `LIBRARY DESTINATION 'lib'` into an empty `LIBRARY` section + a stray
-top-level `DESTINATION`; artifact clauses collapse/drop and the trailing
-`$INSTALL_FILE_SET` is lost; (2) **`COMPONENT` is dropped at emit** even with no
-artifact kinds. The fmt matrix is blind (install rules are configure-time-
-registered, not validated in detail) — same blindness as the COMMAND_EXPAND_LISTS
-gap. The shape-4 lexer `DOT` + dotted-key parsing **foundation** shipped
-(`fefe80e`) and is sound; but the surface migration cannot proceed over a broken
-pipeline — a `~library.destination=` that silently vanishes would *lie*.
+**Remaining commands** (the corpus still shows bare ALL_CAPS for these):
 
-⇒ `install_targets` shape-4 is a **parse+emit correctness FIX**, not a surface
-migration: it rewrites the parse to build `artifact_clauses` from the
-unambiguous dotted labels (the positional nested form can't be parsed
-correctly anyway), fixes COMPONENT/FILE_SET emit, and **changes emitted text**
-(lossy → correct), so it must be verified against a real `cmake --install`
-(not just the configure matrix). Tracked as open work; deferred pending that
-decision.
+1. **`install_targets` — shape-4 *formatter* canonicalization.** Parse/emit are
+   done; the surface is still positional (`LIBRARY DESTINATION $d`). Needs the
+   formatter to recognize the artifact structure on `Cst.arg` and emit
+   `~library.destination=$d` (the two-level recognition, re-done on the CST
+   side), plus the **duplicate single-value field → reject** (painpoints.md §11).
+   Then re-fmt the corpus. *Most ready — no design open.*
+2. **`set_target_properties` — shape 3 (record literal).** `PROPERTY K v
+   PROPERTY K v …` → `~properties={k=v, …}`. The most common un-lifted command
+   (~5× in corpus). Needs the new `{…}` record-literal grammar. *Also: a latent
+   emit gap — `set_target_properties fmt …` derefs a literal target to `${fmt}`
+   (it does NOT go through `p_cmake_entity`), and multi-`PROPERTY` keeps only the
+   FIRST clause. Matrix-invisible today (the literal-target use sits in an
+   unconfigured branch); same `EVar→EString` remedy as the property entity fix.*
+3. **`add_custom_command` / `add_custom_target` — shape 2 (repeated→list).**
+   `COMMAND a … COMMAND b` → a list; plus `OUTPUT`/`DEPENDS`/`SOURCES` labels.
+   **Blocked sub-part:** the `COMMAND_EXPAND_LISTS` / `VERBATIM` flags are an
+   IR gap (parsed but dropped on emit — model them in `ECmakeAddCustomCommand`
+   first; do NOT cosmetically migrate a dropped flag).
+4. **`execute_process` — shape 1 value-labels.** `COMMAND`, `OUTPUT_VARIABLE`,
+   `RESULT_VARIABLE`, `WORKING_DIRECTORY`, etc. → `~…=`. Mechanical but many keys.
+5. **`target_sources` — `FILE_SET` clause.** Nested-ish; relates to shape 4.
+
+**Smaller follow-ups** (folded in from the retired HANDOFF.md):
+- **get_property mode-flag-as-kwarg-enum micro-slice** — the trailing
+  `SET`/`DEFINED`/`BRIEF_DOCS`/`FULL_DOCS` canonicalizes to leading-cap
+  (`Defined`) but not to `~mode=Defined`; needs a per-command "flag-as-kwarg-
+  enum" rewriter (~30 lines, only get_property benefits).
+- **Y18 — first-class object value** (promote the Pos3 `cmake_entity` to a real
+  value class) — whole design in [`object_value_design.md`](object_value_design.md).
+- Specialized getters yc lacks (`get_source_file_property` /
+  `get_test_property` / `get_cmake_property`) — mostly covered by generic
+  `get_property Source/Test`; cosmetic.
+- A property cache-semantics combination test (Value vs SET vs DEFINED).
+
+**Verification reminder:** `yelu matrix probes/fmt` (real cmake configure) is the
+only oracle that catches emit-invalid cmake — it is **NOT** part of `dune test`
+(which compares parse paths to each other). Run it after any emit-touching
+change. (A property-family regression — entity names derefed — shipped 0/24 and
+green-on-`dune test` because the matrix wasn't run; fixed `f1296a4`.)
 
 ### 3. Single string syntax — ✅ **done (2026-06-12)**
 
