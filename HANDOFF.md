@@ -68,40 +68,30 @@ bottom (call-chain order makes `p_assign_y1` precede its dependencies).
 - tm-grammar regenerated; co-truth lock satisfied.
 - `Yc_primitives.command_names` gained `get_property` (was missing —
   surfaced by `is_known_command "get_property"` in the `:=` sugar).
-- ⛔ **REGRESSION — fmt matrix 24/24 → 0/24** (found 2026-06-14 by the
-  verifying session). The unit `dune test` + byte-equality oracle compare
-  yc-AST↔legacy and the two parse paths to **each other** — they do NOT
-  configure the generated cmake with real cmake. The **matrix does**
-  (`yelu matrix probes/fmt`), and it was **not run** this session. See the
-  P0 item below; this must be green before the property family is "done".
+- ✅ **fmt matrix 24/24** (regression fixed `f1296a4`). It had gone 0/24:
+  the property rewrite emitted entity names derefed (`CACHE ${FOO}`); fixed
+  by normalizing bare `EVar` → `EString` (literal) in `p_cmake_entity`.
+  The unit `dune test` + byte-equality oracle compare yc-AST↔legacy and the
+  two parse paths to **each other** — they do NOT configure the generated
+  cmake. The **matrix does** (`yelu matrix probes/fmt`) and is the only
+  oracle that caught it; **it was not run** the session that introduced the
+  bug. Add it to the verification checklist (it is NOT part of `dune test`).
 
 ## What's next (handed off open)
 
-- **P0 ⛔ — fix the property-family emit regression (matrix 0/24).** The
-  property-family rewrite emits entity/target **names** through
-  `target_arg`, which *derefs* a literal name to `${name}`. cmake then
-  sees an empty/wrong entity and the configure fails:
-  - `set_property CACHE CMAKE_CXX_VISIBILITY_PRESET …` →
-    `set_property(CACHE ${CMAKE_CXX_VISIBILITY_PRESET} …)` — cache entry
-    name must be the **literal** `CMAKE_CXX_VISIBILITY_PRESET` (corpus
-    main.yc:79 → generated CMakeLists.txt:106, the first hard error).
-  - `set_target_properties fmt …` → `set_target_properties(${fmt} …)` —
-    literal target `fmt` derefed to empty (corpus main.yc:139).
-  - Root cause: [`yelu_cmake_emit.ml`](src/langs/yelu/yelu_cmake_emit.ml)
-    `Sps_*`/`Gps_*` arms map names with `target_arg` (line ~644 `Sps_cache`,
-    ~631 `Sps_target`, etc.). **But the deeper fix is in the entity
-    lowering** — a bare `fmt`/`CMAKE_…` (literal) and a `$tgt` (var ref)
-    must lower to *different* exprs so emit keeps `fmt` literal yet derefs
-    `${tgt}`. The corpus uses both, so a blanket s/target_arg/literal/
-    would break the `$tgt` lines. Semantically-loaded (touches the Pos3
-    entity design) — confirm approach before editing.
-  - Separately observed (likely matrix-invisible, pre-existing): multi-
-    `PROPERTY` in `set_target_properties` keeps only the FIRST clause
-    (`PROPERTY VERSION … PROPERTY SOVERSION …` drops SOVERSION). Verify
-    whether new or pre-existing once the matrix is unblocked.
-  - **Gate:** `dune exec src/bin/yelu/yelu.exe -- matrix probes/fmt`
-    must return `24/24` before this family is considered done. Add it to
-    the per-session verification checklist (it is NOT part of `dune test`).
+- ✅ **(done `f1296a4`) property-family entity-name deref regression.** Bare
+  entity names now lower to literals (`EVar → EString` in `p_cmake_entity`);
+  `$var` still derefs. Matrix back to 24/24. The bug-encoding unit assertions
+  (`CACHE ${FOO}`) were corrected to the literal form.
+- **`set_target_properties` literal target + multi-PROPERTY (latent, NOT a
+  matrix-breaker today).** `set_target_properties fmt …` still emits
+  `set_target_properties(${fmt} …)` — it's a separate command that does NOT
+  go through `p_cmake_entity`, so the entity fix didn't reach it. The corpus's
+  only literal-target use (main.yc:139) sits in a branch the matrix doesn't
+  configure, so it stays green; but the emit is wrong for a literal target and
+  should get the same EVar→EString treatment. Also: multi-`PROPERTY`
+  (`PROPERTY VERSION … PROPERTY SOVERSION …`) keeps only the FIRST clause —
+  matrix-invisible (properties don't affect configure), needs its own fix.
 - **Y18 — first-class object value.** Promote `cmake_entity` from
   parser-local to an IR value class. Whole design needed; questions
   collected in [`doc/lang/object_value_design.md`](doc/lang/object_value_design.md).
