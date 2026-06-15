@@ -236,8 +236,11 @@ let test_flags =
       (emit_ast canon_cache);
     Alcotest.(check bool) "set_property CACHE keeps the entry name on emit"
       true
+      (* the entry name is a LITERAL (cmake derefs ${} — a bare `FOO` is the
+         entry name, not a var). Earlier this asserted the derefed `CACHE
+         ${FOO}`, which was the regression that broke the matrix. *)
       (String.is_substring
-         ~substring:"CACHE ${FOO}"
+         ~substring:"CACHE FOO"
          (emit_ast "set_property CACHE FOO APPEND PROPERTY STRINGS 'a' 'b' 'c'"));
     Alcotest.(check bool) "set_property CACHE multi-value list survives emit"
       true
@@ -306,7 +309,7 @@ let test_flags =
       "get_property(myvar GLOBAL PROPERTY USE_FOLDERS DEFINED)"
       (emit_ast "get_property Global ~property=USE_FOLDERS ~mode=Defined ~out=myvar");
     Alcotest.(check string) "Pos3 get_property: Cache scope"
-      "get_property(myvar CACHE ${FOO} PROPERTY STRINGS)"
+      "get_property(myvar CACHE FOO PROPERTY STRINGS)"
       (emit_ast "get_property Cache FOO ~property=STRINGS ~out=myvar");
     (* VARIABLE scope — unique to get_property, no payload (like Global). *)
     Alcotest.(check string) "Pos3 get_property: Variable scope (newly typed)"
@@ -334,7 +337,7 @@ let test_flags =
       "myvar := get_property target foo ~property=NAME\n"
       (fmt "myvar := get_property Target foo ~property=NAME");
     Alcotest.(check string) "`:=` command-call: Cache scope"
-      "get_property(myvar CACHE ${FOO} PROPERTY STRINGS)"
+      "get_property(myvar CACHE FOO PROPERTY STRINGS)"
       (emit_ast "myvar := get_property Cache FOO ~property=STRINGS");
     (* Works for multi-family — string_/list_/path_/etc. all have ~out
        semantics and become assignable via the same mechanism. *)

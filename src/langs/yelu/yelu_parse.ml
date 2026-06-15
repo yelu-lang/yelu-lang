@@ -1162,6 +1162,15 @@ let entity_kind_of_expr = function
    - `Directory ['d']` — optional name (peek next positional; if absent,
      payload is None). The current set_property dispatch doesn't enter the
      Directory branch, so this is here for symmetry with future use sites. *)
+(* In a cmake entity-NAME slot a bare identifier is the *literal* name
+   (`set_property(CACHE FOO …)` — FOO is the entry name, not a var deref).
+   [p_expr_y1] lowers a bare ident to [EVar], a deref position; normalize it
+   to [EString] (literal) here, mirroring the [ETarget] branch's [EString].
+   A `$x` (EVarLookup) stays a deref — `set_property(CACHE ${x} …)`. *)
+let entity_name = function
+  | EVar n -> EString n
+  | e -> e
+
 let p_cmake_entity (args : expr list) : (cmake_entity * expr list) option =
   match args with
   | ETarget name :: rest -> Some (Ent_target (EString name), rest)
@@ -1172,27 +1181,27 @@ let p_cmake_entity (args : expr list) : (cmake_entity * expr list) option =
      | Some `Variable     -> Some (Ent_variable,               rest)
      | Some `Target_keyword ->
        (match rest with
-        | name :: rest' -> Some (Ent_target name, rest')
+        | name :: rest' -> Some (Ent_target (entity_name name), rest')
         | []            -> None)
      | Some `Source ->
        (match rest with
-        | name :: rest' -> Some (Ent_source name, rest')
+        | name :: rest' -> Some (Ent_source (entity_name name), rest')
         | []            -> None)
      | Some `Cache ->
        (match rest with
-        | name :: rest' -> Some (Ent_cache name, rest')
+        | name :: rest' -> Some (Ent_cache (entity_name name), rest')
         | []            -> None)
      | Some `Test ->
        (match rest with
-        | name :: rest' -> Some (Ent_test name, rest')
+        | name :: rest' -> Some (Ent_test (entity_name name), rest')
         | []            -> None)
      | Some `Install ->
        (match rest with
-        | name :: rest' -> Some (Ent_install name, rest')
+        | name :: rest' -> Some (Ent_install (entity_name name), rest')
         | []            -> None)
      | Some `Directory ->
        (match rest with
-        | name :: rest' -> Some (Ent_directory (Some name), rest')
+        | name :: rest' -> Some (Ent_directory (Some (entity_name name)), rest')
         | []            -> Some (Ent_directory None, [])))
   | [] -> None
 
