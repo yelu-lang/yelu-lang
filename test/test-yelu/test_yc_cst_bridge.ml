@@ -431,7 +431,28 @@ let test_install_targets =
     Alcotest.(check string) "positional emits all clauses + COMPONENT"
       expected (emit_ast positional);
     Alcotest.(check string) "dotted-label form emits identically"
-      expected (emit_ast dotted))
+      expected (emit_ast dotted);
+    (* formatter: a clean positional line canonicalizes to the dotted labels,
+       and fmt is emit-invariant (parser reads both forms to the same IR) *)
+    let fmt s =
+      match Cstp.parse s with
+      | Ok c -> Yelu_langs.Yc_cst_print.print_program c
+      | Error e -> Alcotest.failf "parse %S: %s" s e in
+    Alcotest.(check string) "fmt canonicalizes clean line → dotted labels"
+      "install_targets $t ~component='c' ~export=$e \
+       ~library.destination='lib' ~archive.destination='ar'\n"
+      (fmt positional);
+    Alcotest.(check string) "fmt emit-invariant (clean line)"
+      (emit_ast positional) (emit_ast (fmt positional));
+    (* guard: a trailing positional after the clauses (e.g. a dynamic FILE_SET
+       clause held in a var) is NOT representable as dotted labels — the dotted
+       (kwarg) form loses the post-clause position. Such a line is left
+       positional so fmt stays emit-invariant. *)
+    let with_trailing = "install_targets $t LIBRARY DESTINATION 'lib' $fileset" in
+    Alcotest.(check bool) "trailing positional → left positional (no ~label)"
+      false (String.is_substring (fmt with_trailing) ~substring:"~library");
+    Alcotest.(check string) "fmt emit-invariant (trailing-positional line)"
+      (emit_ast with_trailing) (emit_ast (fmt with_trailing)))
 
 let () =
   Alcotest.run "yc_cst_bridge"

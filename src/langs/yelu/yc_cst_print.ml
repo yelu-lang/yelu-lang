@@ -157,11 +157,83 @@ let command_value_list_labels name =
   | "set_property" -> [ ("PROPERTY", "property") ]
   | _ -> []
 
+(* install_targets is nested (critique #2 shape 4): `<targets> [top-opts]
+   [<KIND> DESTINATION <v>]* [trailing]`. DESTINATION is dual-role (top-level
+   AND per-artifact), so the generic value-label table can't express it.
+   Canonicalize each `<KIND> DESTINATION v` triple to the flat dotted label
+   `~kind.destination=v`, and the top-level COMPONENT/EXPORT/DESTINATION to
+   `~component=`/`~export=`/`~destination=`. The parser reads both the
+   positional and dotted forms back to the same artifact_clauses (two-level
+   split / dotted-kwarg in p_install_command_y1_inner), so emit is unchanged.
+   Trailing positionals (the targets list, a `$INSTALL_FILE_SET` clause-var)
+   print as-is. *)
+let install_artifact_kinds =
+  [ "LIBRARY"; "ARCHIVE"; "RUNTIME"; "OBJECTS"; "FRAMEWORK"; "BUNDLE";
+    "PUBLIC_HEADER"; "PRIVATE_HEADER"; "RESOURCE"; "FILE_SET"; "CXX_MODULES_BMI" ]
+
+let install_top_kw = [ "COMPONENT"; "EXPORT"; "DESTINATION" ]
+
+(* Emit-safety guard. Canonicalizing to dotted labels is only emit-invariant
+   when every positional is either a leading target or a clause/label value —
+   i.e. nothing stray is left after the keyword region. A trailing dynamic
+   clause-var (`$INSTALL_FILE_SET`, a FILE_SET clause held in a variable) is a
+   positional AFTER the clauses; the positional parse absorbs/drops it while
+   the dotted parse would read it as another target, so the two forms would
+   emit differently. The dotted (kwarg) surface structurally can't carry a
+   post-clause positional — so when one is present, leave the line positional
+   (a future `~raw=`/FILE_SET-clause escape is the way to lift it). *)
+let install_targets_emit_safe (args : Cst.arg list) =
+  let is_art s = List.mem install_artifact_kinds s ~equal:String.equal in
+  let is_top s = List.mem install_top_kw s ~equal:String.equal in
+  let rec drop_targets = function
+    | (Cst.Pos (A_name s | A_keyword s) :: _) as l when is_art s || is_top s -> l
+    | Cst.Pos _ :: rest -> drop_targets rest
+    | l -> l
+  in
+  let rec consume = function
+    | [] -> true
+    | Cst.Pos (A_name kw | A_keyword kw)
+      :: Cst.Pos (A_name "DESTINATION" | A_keyword "DESTINATION")
+      :: Cst.Pos _ :: rest when is_art kw -> consume rest
+    | Cst.Pos (A_name kw | A_keyword kw) :: Cst.Pos _ :: rest when is_top kw -> consume rest
+    | _ -> false
+  in
+  consume (drop_targets args)
+
+let pr_install_targets_args b (args : Cst.arg list) =
+  if not (install_targets_emit_safe args) then
+    (* not safely representable as dotted labels — print positional as-is *)
+    List.iter args ~f:(fun a -> Buffer.add_char b ' '; pr_arg b a)
+  else
+  let is_art s = List.mem install_artifact_kinds s ~equal:String.equal in
+  let top_label = function
+    | "COMPONENT" -> Some "component" | "EXPORT" -> Some "export"
+    | "DESTINATION" -> Some "destination" | _ -> None in
+  let rec go = function
+    | [] -> ()
+    (* per-artifact clause: KIND DESTINATION value → ~kind.destination=value *)
+    | Cst.Pos (A_name kw | A_keyword kw)
+      :: Cst.Pos (A_name "DESTINATION" | A_keyword "DESTINATION")
+      :: Cst.Pos v :: rest
+      when is_art kw ->
+      Buffer.add_string b " ~"; Buffer.add_string b (String.lowercase kw);
+      Buffer.add_string b ".destination="; pr_atom b v; go rest
+    (* top-level value-label: COMPONENT/EXPORT/DESTINATION value → ~label=value *)
+    | Cst.Pos (A_name kw | A_keyword kw) :: Cst.Pos v :: rest
+      when Option.is_some (top_label kw) ->
+      Buffer.add_string b " ~"; Buffer.add_string b (Option.value_exn (top_label kw));
+      Buffer.add_char b '='; pr_atom b v; go rest
+    (* targets / trailing clause-var: print as-is *)
+    | a :: rest -> Buffer.add_char b ' '; pr_arg b a; go rest
+  in
+  go args
+
 (* Print a command's argument list, command-aware: a positional bare keyword
    in the command's flag set → `~flag`; a value-keyword → `~label=<next>`
    (consuming the following positional); everything else via [pr_arg]. Each
    emitted unit gets a leading space (matching the old pr_spaced behaviour). *)
 let pr_cmd_args b name (args : Cst.arg list) =
+  if String.equal name "install_targets" then pr_install_targets_args b args else
   let flags = command_flags name in
   let vlabels = command_value_labels name in
   let vlists = command_value_list_labels name in
