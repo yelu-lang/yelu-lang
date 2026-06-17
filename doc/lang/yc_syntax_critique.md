@@ -237,12 +237,19 @@ matrix 24/24).
 
 **Remaining commands** (the corpus still shows bare ALL_CAPS for these):
 
-1. **`install_targets` — shape-4 *formatter* canonicalization.** Parse/emit are
-   done; the surface is still positional (`LIBRARY DESTINATION $d`). Needs the
-   formatter to recognize the artifact structure on `Cst.arg` and emit
-   `~library.destination=$d` (the two-level recognition, re-done on the CST
-   side), plus the **duplicate single-value field → reject** (painpoints.md §11).
-   Then re-fmt the corpus. *Most ready — no design open.*
+1. **`install_targets` — shape-4 formatter ✅ done (guarded) `49e32fa`.** The
+   formatter canonicalizes the nested form to dotted labels
+   (`LIBRARY DESTINATION $d` → `~library.destination=$d`, top-level
+   `~component=`/`~export=`/`~destination=`). **Guarded by emit-safety:** it
+   only canonicalizes when every positional is a leading target or a clause
+   value. **Residual — a trailing dynamic clause-var** (`$INSTALL_FILE_SET`, a
+   FILE_SET clause held in a variable, which the corpus's install_targets uses):
+   the dotted (kwarg) surface structurally can't carry a *post-clause*
+   positional (the positional parse absorbs/drops it; the dotted parse would
+   read it as another target), so such a line is **left positional**. Lifting
+   it needs a `~raw=`-style escape or modeling the FILE_SET clause (the Tier-3
+   item). Still open here: the **duplicate single-value field → reject**
+   (painpoints.md §11).
 2. **`set_target_properties` — shape 3 (record literal).** `PROPERTY K v
    PROPERTY K v …` → `~properties={k=v, …}`. The most common un-lifted command
    (~5× in corpus). Needs the new `{…}` record-literal grammar. *Also: a latent
