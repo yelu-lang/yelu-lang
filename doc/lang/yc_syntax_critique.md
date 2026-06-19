@@ -117,6 +117,38 @@ Decisions and *why*:
 - **`?key=default`** reserved for later *optional-with-default* function
   params — arrives with `cmake_parse_arguments` codegen, not now.
 
+**Recursive value grammar — designed 2026-06-17 (shapes 2 & 3).** The value
+after `~label=` becomes recursive (JSON-flavoured), which is the single change
+that unblocks the remaining structured shapes:
+
+```
+value := scalar                  -- $x, 'str', Foo, 42
+       | [ value, value, … ]     -- list (elements are values → nesting)
+       | { key=value, … }        -- record
+```
+
+- **Shape-2 (repeated→list)** via singular/plural: `~command=[…]` is one
+  command (a token list); `~commands=[[…], […]]` is a list of commands. The
+  formatter picks by arity (1 → `~command`, >1 → `~commands`). This carries the
+  per-COMMAND grouping the flat kwarg form lost, so it **retires the
+  multi-COMMAND emit-safety guard** (execute_process, add_custom_command).
+- **Shape-3 (record)** `set_target_properties t ~properties={version=1.0,
+  soversion=2, sources=[a, b]}` — values nest (`sources=[a, b]`). Maps 1:1 to
+  the IR's existing `properties : (string*expr) list`; fixes the
+  "multi-PROPERTY keeps only the first" bug.
+- **Decisions:** record separator is **`=`** (one rule — `key=value` binds
+  everywhere, matching `~label=` and the dotted `~library.destination=`; `:`
+  was the LLM-familiarity alternative, deferred to a future eval). Record
+  **keys lowercase** (emit uppercases — same lane as labels, tableless).
+- **Shape-4** (install_targets artifact records, `~library={destination=…}`)
+  is **postponed** — the dotted-label stopgap stays; the grammar makes the
+  record form available when we return to it.
+- **Implementation (phased):** (1) value-grammar core — add `A_list` /
+  `A_record` CST atoms + `EList` / `ERecord` exprs; `p_atom` / `p_expr_y1`
+  parse `[…]` / `{…}`; `pr_atom` prints them. (2) wire shape-2 (`~commands`,
+  drop the guard). (3) wire shape-3 (`~properties`). Emit-bridge + matrix +
+  the existing guards are the safety net throughout.
+
 **Function labeled args (later).** Same syntax (`fun f(~variable, ~value)`,
 call `f ~variable='X'`), but it's a real feature: yc `fun` → cmake
 `function()` (positional + `ARGN`), so labeled params need generated
