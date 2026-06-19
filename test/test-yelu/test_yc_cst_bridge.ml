@@ -482,11 +482,35 @@ let test_execute_process =
     Alcotest.(check string) "fmt emit-invariant (multi-COMMAND)"
       (emit_ast piped) (emit_ast (fmt piped)))
 
+(* Recursive value grammar (shapes 2 & 3 core): nested lists `[[…], […]]`
+   and records `{k=v, …}` parse and round-trip at the CST level (no command is
+   wired to consume them yet — that's the per-command phases). Space/comma both
+   accepted; canonical output is comma. *)
+let test_value_grammar =
+  Alcotest.test_case "recursive value grammar (list/record core)" `Quick (fun () ->
+    let fmt s =
+      match Cstp.parse s with
+      | Ok c -> Yelu_langs.Yc_cst_print.print_program c
+      | Error e -> Alcotest.failf "parse %S: %s" s e in
+    Alcotest.(check string) "nested list canonicalizes (space → comma)"
+      "somecmd ~commands=[[a, b], [c, d]]\n"
+      (fmt "somecmd ~commands=[[a b] [c d]]");
+    Alcotest.(check string) "nested list idempotent"
+      "somecmd ~commands=[[a, b], [c, d]]\n"
+      (fmt "somecmd ~commands=[[a, b], [c, d]]");
+    Alcotest.(check string) "record with a nested list value"
+      "somecmd ~properties={version='1.0', sources=[a, b]}\n"
+      (fmt "somecmd ~properties={version='1.0', sources=[a, b]}");
+    Alcotest.(check string) "record accepts `:` separator, canonicalizes to `=`"
+      "somecmd ~properties={version='1.0'}\n"
+      (fmt "somecmd ~properties={version:'1.0'}"))
+
 let () =
   Alcotest.run "yc_cst_bridge"
     [ "bridge", List.map corpus ~f:bridge;
       "install_targets", [ test_install_targets ];
       "execute_process", [ test_execute_process ];
+      "value_grammar", [ test_value_grammar ];
       "roundtrip", List.map corpus ~f:roundtrip;
       "comments", [ test_comment_placement ];
       "elision", [ test_brace_elision ];

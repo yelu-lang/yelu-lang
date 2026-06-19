@@ -896,6 +896,12 @@ type expr +=
      evaluated the binding is gone. Distinct from ESetVar, which models
      cmake's global/mutable [set()] and persists across the program. *)
   | ELet of { var : string; value : expr; body : expr }
+  (* Structured surface values (critique #2 shapes 2 & 3): a recursive list
+     and a record. They carry the `~commands=[[…]]` / `~properties={k=v}`
+     structure from parse to the per-command lower, which unpacks them into
+     the relevant typed IR field; they are not themselves an emit target. *)
+  | EList of expr list
+  | ERecord of (string * expr) list
 
 (* Parse-time cmake bool-literal recognition. Case-insensitive; returns
    [None] on non-bool so the caller decides the fallback. Related to

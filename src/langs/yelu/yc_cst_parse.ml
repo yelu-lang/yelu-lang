@@ -62,6 +62,30 @@ let rec p_atom (ls : ls) : (atom * ls) option =
     (match p_atom rest with
      | Some (a, (RPAREN, _) :: rest') -> Some (A_paren a, rest')
      | _ -> None)
+  (* recursive value list `[ v, v, … ]` (comma or space separated); elements
+     are atoms, so lists nest and may hold records *)
+  | (LBRACK, _) :: rest ->
+    let rec items acc = function
+      | (RBRACK, _) :: r -> Some (A_list (List.rev acc), r)
+      | (COMMA, _)  :: r -> items acc r
+      | toks ->
+        (match p_atom toks with
+         | Some (a, r) -> items (a :: acc) r
+         | None -> None)
+    in
+    items [] rest
+  (* record `{ key=v, … }` — keys are bare identifiers, `=` (or `:`) binds *)
+  | (LBRACE, _) :: rest ->
+    let rec fields acc = function
+      | (RBRACE, _) :: r -> Some (A_record (List.rev acc), r)
+      | (COMMA, _)  :: r -> fields acc r
+      | (IDENT k, _) :: ((COLON | EQ), _) :: r ->
+        (match p_atom r with
+         | Some (v, r') -> fields ((k, v) :: acc) r'
+         | None -> None)
+      | _ -> None
+    in
+    fields [] rest
   | _ -> None
 
 (* A kwarg key after `~` is `IDENT (DOT IDENT)*` — a dotted label

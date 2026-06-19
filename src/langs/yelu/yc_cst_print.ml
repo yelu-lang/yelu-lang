@@ -99,16 +99,28 @@ let rec pr_atom b (a : Cst.atom) =
       if is_bare_name n then Buffer.add_string b n
       else (Buffer.add_char b '"'; Buffer.add_string b (esc_double n); Buffer.add_char b '"'))
   | A_paren a -> Buffer.add_string b "( "; pr_atom b a; Buffer.add_string b " )"
+  | A_list items -> pr_comma_list b items
+  | A_record fields -> pr_record b fields
 
 (* Canonical bracketed list — comma-separated, no inner padding: `[a, b, c]`
    (critique #2's settled list form; the parser also accepts space-separated
-   items and a trailing comma, so this is an emit-only canonicalization). *)
-let pr_comma_list b items =
+   items and a trailing comma, so this is an emit-only canonicalization).
+   Mutually recursive with [pr_atom] so lists/records nest. *)
+and pr_comma_list b items =
   Buffer.add_char b '[';
   List.iteri items ~f:(fun i a ->
     if i > 0 then Buffer.add_string b ", ";
     pr_atom b a);
   Buffer.add_char b ']'
+
+(* Record literal `{key=value, …}` — keys verbatim (lowercase lane), `=` binds
+   (matching `~label=`). *)
+and pr_record b fields =
+  Buffer.add_char b '{';
+  List.iteri fields ~f:(fun i (k, v) ->
+    if i > 0 then Buffer.add_string b ", ";
+    Buffer.add_string b k; Buffer.add_char b '='; pr_atom b v);
+  Buffer.add_char b '}'
 
 let pr_arg b (arg : Cst.arg) =
   match arg with
@@ -313,6 +325,7 @@ let rec target_name_of (a : Cst.atom) : string =
   | A_bool true -> "ON"
   | A_bool false -> "OFF"
   | A_paren a -> target_name_of a
+  | A_list _ | A_record _ -> ""  (* not a name position *)
 
 let pr_target_first b (arg : Cst.arg) =
   match arg with

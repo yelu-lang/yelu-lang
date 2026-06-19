@@ -39,6 +39,8 @@ let rec lower_atom (a : Cst.atom) : expr =
   | A_keyword s -> EString s
   | A_target n  -> ETarget n
   | A_paren a   -> lower_atom a
+  | A_list items -> EList (List.map items ~f:lower_atom)
+  | A_record fields -> ERecord (List.map fields ~f:(fun (k, v) -> (k, lower_atom v)))
 
 let rec str_of_atom (a : Cst.atom) : string =
   match a with
@@ -47,6 +49,7 @@ let rec str_of_atom (a : Cst.atom) : string =
   | A_bool false -> "OFF"
   | A_int n -> Int.to_string n
   | A_paren a -> str_of_atom a
+  | A_list _ | A_record _ -> ""  (* not a name/string position *)
 
 (* ── conditions (mirror p_cond_atom_y1's typed construction) ── *)
 let rec lower_cond (c : Cst.cond) : expr =

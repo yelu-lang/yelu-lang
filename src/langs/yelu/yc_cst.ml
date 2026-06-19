@@ -33,6 +33,8 @@ type atom =
   | A_keyword of string   (* :PUBLIC *)
   | A_target  of string   (* target NAME *)
   | A_paren   of atom     (* ( atom ) *)
+  | A_list    of atom list            (* [ v, v, … ] — recursive value list *)
+  | A_record  of (string * atom) list (* { key=v, … } — record/map *)
 [@@deriving sexp_of]
 
 (* Command arguments — the uniform shape collected for every family. *)
