@@ -194,14 +194,14 @@ fun add_module_library(name) (
       pcm := '${pcm}.pcm';
       compile_opts $name Public '-fmodule-file=${CMAKE_CURRENT_BINARY_DIR}/${pcm}';
       pcms := $pcms, '${CMAKE_CURRENT_BINARY_DIR}/${pcm}';
-      add_custom_command OUTPUT $pcm COMMAND $CMAKE_CXX_COMPILER '-std=c++${std}' '-x' 'c++-module' '--precompile' '-c' '-o' $pcm '${CMAKE_CURRENT_SOURCE_DIR}/${src}' '-I$<JOIN:$<TARGET_PROPERTY:${name},INCLUDE_DIRECTORIES>,;-I>' COMMAND_EXPAND_LISTS DEPENDS $src
+      add_custom_command ~output=[$pcm] ~command=[$CMAKE_CXX_COMPILER, '-std=c++${std}', '-x', 'c++-module', '--precompile', '-c', '-o', $pcm, '${CMAKE_CURRENT_SOURCE_DIR}/${src}', '-I$<JOIN:$<TARGET_PROPERTY:${name},INCLUDE_DIRECTORIES>,;-I>'] ~command_expand_lists ~depends=[$src]
     );
     sources := '';
     foreach pcm in LISTS pcms (
       get_filename_component pcm_we ~mode=Name_we $pcm;
       obj := '${pcm_we}.o';
       sources := $sources, $pcm, '${CMAKE_CURRENT_BINARY_DIR}/${obj}';
-      add_custom_command OUTPUT $obj COMMAND $CMAKE_CXX_COMPILER '$<TARGET_PROPERTY:${name},COMPILE_OPTIONS>' '-c' '-o' $obj $pcm DEPENDS $pcm
+      add_custom_command ~output=[$obj] ~command=[$CMAKE_CXX_COMPILER, '$<TARGET_PROPERTY:${name},COMPILE_OPTIONS>', '-c', '-o', $obj, $pcm] ~depends=[$pcm]
     )
   );
   target_sources $name Private $sources
@@ -264,7 +264,7 @@ fun add_doc_target() (
   foreach source in [ 'api.md' 'index.md' 'syntax.md' 'get-started.md' 'fmt.css' 'fmt.js' ] (
     sources := $sources, 'doc/${source}'
   );
-  add_custom_target doc ~all COMMAND $CMAKE_COMMAND '-E' 'env' 'PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/support/python' $MKDOCS 'build' '-f' '${CMAKE_CURRENT_SOURCE_DIR}/support/mkdocs.yml' '--site-dir' '${CMAKE_CURRENT_BINARY_DIR}/doc-html' '--no-directory-urls' SOURCES $sources;
+  add_custom_target doc ~all ~command=[$CMAKE_COMMAND, '-E', 'env', 'PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/support/python', $MKDOCS, 'build', '-f', '${CMAKE_CURRENT_SOURCE_DIR}/support/mkdocs.yml', '--site-dir', '${CMAKE_CURRENT_BINARY_DIR}/doc-html', '--no-directory-urls'] ~sources=[$sources];
   install_directory '${CMAKE_CURRENT_BINARY_DIR}/doc-html/' ~destination='${CMAKE_INSTALL_DATAROOTDIR}/doc/fmt' ~component='fmt_doc' ~optional
 );
 if $FMT_DOC then (

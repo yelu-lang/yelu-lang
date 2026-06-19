@@ -146,6 +146,8 @@ let command_flags name =
   | "execute_process" ->
     [ "OUTPUT_QUIET"; "ERROR_QUIET";
       "OUTPUT_STRIP_TRAILING_WHITESPACE"; "ERROR_STRIP_TRAILING_WHITESPACE" ]
+  | "add_custom_command" -> [ "VERBATIM"; "COMMAND_EXPAND_LISTS"; "USES_TERMINAL" ]
+  | "add_custom_target" -> [ "ALL"; "VERBATIM"; "USES_TERMINAL" ]
   | _ -> []
 
 (* Per-command value-carrying keywords that canonicalize to `~label=value`
@@ -171,6 +173,9 @@ let command_value_labels name =
       ("ERROR_VARIABLE", "error_variable"); ("INPUT_FILE", "input_file");
       ("OUTPUT_FILE", "output_file"); ("ERROR_FILE", "error_file");
       ("COMMAND_ERROR_IS_FATAL", "command_error_is_fatal") ]
+  | "add_custom_command" ->
+    [ ("COMMENT", "comment"); ("WORKING_DIRECTORY", "working_directory") ]
+  | "add_custom_target" -> [ ("COMMENT", "comment") ]
   | _ -> []
 
 (* Per-command value-LIST-carrying keywords that canonicalize to
@@ -184,6 +189,8 @@ let command_value_labels name =
 let command_value_list_labels name =
   match name with
   | "set_property" -> [ ("PROPERTY", "property") ]
+  | "add_custom_command" -> [ ("OUTPUT", "output"); ("DEPENDS", "depends") ]
+  | "add_custom_target" -> [ ("DEPENDS", "depends"); ("SOURCES", "sources") ]
   | _ -> []
 
 (* install_targets is nested (critique #2 shape 4): `<targets> [top-opts]
@@ -262,14 +269,17 @@ let pr_install_targets_args b (args : Cst.arg list) =
    parser reads both back to the same `commands` list, so the per-COMMAND
    grouping survives — retiring the old multi-COMMAND positional guard. Other
    keywords are the scalar value-labels / flags. *)
-let pr_execute_process_args b (args : Cst.arg list) =
-  let vlabels = command_value_labels "execute_process" in
-  let flags = command_flags "execute_process" in
+let pr_command_groups_args b name (args : Cst.arg list) =
+  let vlabels = command_value_labels name in
+  let vlists = command_value_list_labels name in
+  let flags = command_flags name in
   let label_of s = List.Assoc.find vlabels s ~equal:String.equal in
+  let list_label_of s = List.Assoc.find vlists s ~equal:String.equal in
   let is_flag s = List.mem flags s ~equal:String.equal in
   let is_kw (a : Cst.atom) = match a with
     | A_name s | A_keyword s ->
-      String.equal s "COMMAND" || is_flag s || Option.is_some (label_of s)
+      String.equal s "COMMAND" || is_flag s
+      || Option.is_some (label_of s) || Option.is_some (list_label_of s)
     | _ -> false in
   let rec take_pos acc = function
     | (Cst.Pos a) :: rest when not (is_kw a) -> take_pos (a :: acc) rest
@@ -293,6 +303,14 @@ let pr_execute_process_args b (args : Cst.arg list) =
       let groups, rest = collect_cmds [] l in emit_cmds groups; go rest
     | Cst.Pos (A_name kw | A_keyword kw) :: rest when is_flag kw ->
       Buffer.add_string b " ~"; Buffer.add_string b (String.lowercase kw); go rest
+    (* value-list keyword (OUTPUT/DEPENDS/SOURCES): take all positionals to
+       the next keyword → ~label=[…] *)
+    | Cst.Pos (A_name kw | A_keyword kw) :: rest
+      when Option.is_some (list_label_of kw) ->
+      let l = Option.value_exn (list_label_of kw) in
+      let items, rest' = take_pos [] rest in
+      Buffer.add_string b " ~"; Buffer.add_string b l; Buffer.add_char b '=';
+      pr_comma_list b items; go rest'
     | Cst.Pos (A_name kw | A_keyword kw) :: Cst.Pos v :: rest
       when Option.is_some (label_of kw) ->
       Buffer.add_string b " ~"; Buffer.add_string b (Option.value_exn (label_of kw));
@@ -339,9 +357,12 @@ let pr_set_target_properties_args b (args : Cst.arg list) =
    emitted unit gets a leading space (matching the old pr_spaced behaviour). *)
 let pr_cmd_args b name (args : Cst.arg list) =
   if String.equal name "install_targets" then pr_install_targets_args b args
-  else if String.equal name "execute_process" then pr_execute_process_args b args
   else if String.equal name "set_target_properties" then
     pr_set_target_properties_args b args
+  (* the COMMAND-bearing commands (repeated COMMAND → ~command/~commands) *)
+  else if List.mem [ "execute_process"; "add_custom_command"; "add_custom_target" ]
+            name ~equal:String.equal then
+    pr_command_groups_args b name args
   else
   let flags = command_flags name in
   let vlabels = command_value_labels name in

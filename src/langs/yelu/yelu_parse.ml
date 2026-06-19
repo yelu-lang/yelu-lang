@@ -835,6 +835,16 @@ let p_target_command_y1_inner name args kwargs =
   let kw_bool key =
     List.Assoc.mem kwargs ~equal:String.equal key
   in
+  let kw_all key =
+    List.filter_map kwargs ~f:(fun (k, v) -> Option.some_if (String.equal k key) v)
+  in
+  (* Command-lines from the label forms: `~commands=[[…],[…]]` (each item an
+     EList → one command-line) takes priority; else `~command=[…]` is one. *)
+  let kw_commands () =
+    match kw_all "commands" with
+    | (_ :: _) as cmds -> List.map cmds ~f:(function EList items -> items | e -> [ e ])
+    | [] -> (match kw_all "command" with [] -> [] | items -> [ items ])
+  in
   (* If the first positional arg after the target is a dynamic expression
      (not a known visibility keyword), the visibility is unresolvable at
      parse time. Fall back to yc_raw instead of misinterpreting ${kind}
@@ -935,13 +945,19 @@ let p_target_command_y1_inner name args kwargs =
     let alias_of = match alias_of with Some s -> s | None -> name in
     Some (add_lib_alias ~alias_of name)
   | "add_custom_target", name_arg :: rest ->
-    (* Check for keyword form: if rest contains COMMAND/SOURCES/DEPENDS,
-       parse via split_by_keywords. Otherwise use the simple form. *)
+    (* ALL accepted both as the positional keyword and the `~all` flag *)
+    let all = kw_bool "all"
+              || List.exists rest ~f:(function
+                   | EVar "ALL" | EString "ALL" -> true | _ -> false) in
+    (* keyword form is selected by a positional COMMAND/SOURCES/DEPENDS or by
+       the `~command`/`~commands`/`~depends`/`~sources` label kwargs *)
     let has_kw = List.exists rest ~f:(function
       | EVar "COMMAND" | EString "COMMAND"
       | EVar "SOURCES" | EString "SOURCES"
       | EVar "DEPENDS" | EString "DEPENDS" -> true
       | _ -> false)
+      || kw_bool "command" || kw_bool "commands"
+      || kw_bool "depends" || kw_bool "sources"
     in
     if has_kw then
       let sections = split_by_keywords
@@ -952,10 +968,11 @@ let p_target_command_y1_inner name args kwargs =
         | Some (n :: _) -> (str_of n)
         | _ -> "?"
       in
-      let all = kw_bool "all" in
-      let commands = sections
+      let commands = match sections
         |> List.filter_map ~f:(fun (k, items) ->
-          if String.equal k "COMMAND" then Some items else None)
+          if String.equal k "COMMAND" then Some items else None) with
+        | (_ :: _) as pos -> pos
+        | [] -> kw_commands ()
       in
       let cc_list =
         List.map commands ~f:(fun cmd_args ->
@@ -967,19 +984,18 @@ let p_target_command_y1_inner name args kwargs =
                 str_of ~default:"" e) })
       in
       let depends = match List.Assoc.find sections ~equal:String.equal "DEPENDS" with
-        | Some items -> items | None -> []
+        | Some (_ :: _ as items) -> items | _ -> kw_all "depends"
       in
       let sources = match List.Assoc.find sections ~equal:String.equal "SOURCES" with
-        | Some items -> items | None -> []
+        | Some (_ :: _ as items) -> items | _ -> kw_all "sources"
       in
       let comment = match List.Assoc.find sections ~equal:String.equal "COMMENT" with
         | Some [ EString s | EVar s ] -> Some s
-        | _ -> None
+        | _ -> kw_str_opt "comment"
       in
       Some (yc_add_custom_target ~all ~commands:cc_list
               ~depends ~comment ~sources name)
     else
-      let all = kw_bool "all" in
       let name = str_of name_arg in
       Some (yc_add_custom_target ~all name)
   | "add_custom_command", args ->
@@ -988,27 +1004,33 @@ let p_target_command_y1_inner name args kwargs =
                  "COMMAND_EXPAND_LISTS"; "IMPLICIT_DEPENDS"; "WORKING_DIRECTORY"]
       args
     in
+    (* Each cmake keyword is also accepted as its `~label=` form (in kwargs):
+       OUTPUT/DEPENDS as value-lists, COMMAND via the singular/plural command
+       forms, COMMENT scalar, VERBATIM/COMMAND_EXPAND_LISTS flags. *)
     let outputs = match List.Assoc.find sections ~equal:String.equal "_head" with
       | Some (_ :: _ as items) -> items
       | _ -> (match List.Assoc.find sections ~equal:String.equal "OUTPUT" with
-              | Some items -> items | None -> [])
+              | Some (_ :: _ as items) -> items | _ -> kw_all "output")
     in
     let verbatim = List.Assoc.find sections ~equal:String.equal "VERBATIM"
-                   |> Option.is_some in
+                   |> Option.is_some || kw_bool "verbatim" in
     let command_expand_lists =
-      Option.is_some (List.Assoc.find sections ~equal:String.equal "COMMAND_EXPAND_LISTS") in
+      Option.is_some (List.Assoc.find sections ~equal:String.equal "COMMAND_EXPAND_LISTS")
+      || kw_bool "command_expand_lists" in
     let comment = match List.Assoc.find sections ~equal:String.equal "COMMENT" with
       | Some [ EString s | EVar s ] -> Some s
-      | _ -> None
+      | _ -> kw_str_opt "comment"
     in
     let depends = match List.Assoc.find sections ~equal:String.equal "DEPENDS" with
-      | Some items -> items
-      | None -> []
+      | Some (_ :: _ as items) -> items
+      | _ -> kw_all "depends"
     in
-    (* Collect all COMMAND sections as separate command lines *)
-    let commands = sections
+    (* Collect all COMMAND sections as separate command lines; else label form *)
+    let commands = match sections
       |> List.filter_map ~f:(fun (k, items) ->
-        if String.equal k "COMMAND" then Some items else None) in
+        if String.equal k "COMMAND" then Some items else None) with
+      | (_ :: _) as pos -> pos
+      | [] -> kw_commands () in
     let build_commands = List.map commands ~f:(fun cmd_args ->
       match cmd_args with
       | [] -> { command = ""; args = [] }
