@@ -123,6 +123,9 @@ let command_flags name =
   | "install_directory" -> [ "OPTIONAL" ]
   | "find_package" -> [ "REQUIRED" ]
   | "set_property" -> [ "APPEND"; "APPEND_STRING" ]
+  | "execute_process" ->
+    [ "OUTPUT_QUIET"; "ERROR_QUIET";
+      "OUTPUT_STRIP_TRAILING_WHITESPACE"; "ERROR_STRIP_TRAILING_WHITESPACE" ]
   | _ -> []
 
 (* Per-command value-carrying keywords that canonicalize to `~label=value`
@@ -142,6 +145,12 @@ let command_value_labels name =
      enum constructor for now — future micro-slice: surface as `~mode=Defined`
      via a per-command "flag-as-kwarg-enum" rewriter. *)
   | "get_property" -> [ ("PROPERTY", "property") ]
+  | "execute_process" ->
+    [ ("WORKING_DIRECTORY", "working_directory"); ("TIMEOUT", "timeout");
+      ("RESULT_VARIABLE", "result_variable"); ("OUTPUT_VARIABLE", "output_variable");
+      ("ERROR_VARIABLE", "error_variable"); ("INPUT_FILE", "input_file");
+      ("OUTPUT_FILE", "output_file"); ("ERROR_FILE", "error_file");
+      ("COMMAND_ERROR_IS_FATAL", "command_error_is_fatal") ]
   | _ -> []
 
 (* Per-command value-LIST-carrying keywords that canonicalize to
@@ -155,6 +164,7 @@ let command_value_labels name =
 let command_value_list_labels name =
   match name with
   | "set_property" -> [ ("PROPERTY", "property") ]
+  | "execute_process" -> [ ("COMMAND", "command") ]
   | _ -> []
 
 (* install_targets is nested (critique #2 shape 4): `<targets> [top-opts]
@@ -233,18 +243,34 @@ let pr_install_targets_args b (args : Cst.arg list) =
    (consuming the following positional); everything else via [pr_arg]. Each
    emitted unit gets a leading space (matching the old pr_spaced behaviour). *)
 let pr_cmd_args b name (args : Cst.arg list) =
-  if String.equal name "install_targets" then pr_install_targets_args b args else
+  let is_command_kw (a : Cst.arg) = match a with
+    | Cst.Pos (A_name "COMMAND" | A_keyword "COMMAND") -> true | _ -> false in
+  if String.equal name "install_targets" then pr_install_targets_args b args
+  (* execute_process with a piped multi-COMMAND can't canonicalize: the flat
+     `~command=[…]` kwarg encoding loses the per-COMMAND grouping (the parser
+     would merge them), so emit would change. Leave such a line positional. *)
+  else if String.equal name "execute_process"
+          && List.count args ~f:is_command_kw > 1 then
+    List.iter args ~f:(fun a -> Buffer.add_char b ' '; pr_arg b a)
+  else
   let flags = command_flags name in
   let vlabels = command_value_labels name in
   let vlists = command_value_list_labels name in
   let is_flag s = List.mem flags s ~equal:String.equal in
   let label_of s = List.Assoc.find vlabels s ~equal:String.equal in
   let list_label_of s = List.Assoc.find vlists s ~equal:String.equal in
-  (* Take a leading run of positional atoms (stops at the first non-positional
-     or end-of-list). Used by the value-list label which consumes the key
-     atom + all subsequent positionals as one ~label=[ ... ] list. *)
+  (* A value-list (`~command=[…]`) runs until the next non-positional OR the
+     next positional that is itself a keyword of THIS command — so a list
+     followed by another keyword (execute_process: `COMMAND … OUTPUT_VARIABLE`)
+     terminates correctly, while a terminal list (set_property `PROPERTY …`)
+     still consumes all its trailing values. *)
+  let is_cmd_kw (a : Cst.atom) = match a with
+    | A_name s | A_keyword s ->
+      is_flag s || Option.is_some (label_of s) || Option.is_some (list_label_of s)
+    | _ -> false
+  in
   let rec take_positionals acc = function
-    | (Cst.Pos a) :: rest -> take_positionals (a :: acc) rest
+    | (Cst.Pos a) :: rest when not (is_cmd_kw a) -> take_positionals (a :: acc) rest
     | rest -> (List.rev acc, rest)
   in
   let rec go = function

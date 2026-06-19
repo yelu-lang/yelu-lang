@@ -454,10 +454,39 @@ let test_install_targets =
     Alcotest.(check string) "fmt emit-invariant (trailing-positional line)"
       (emit_ast with_trailing) (emit_ast (fmt with_trailing)))
 
+(* execute_process: a mix of a keyword-terminated value-list (COMMAND), value
+   labels (OUTPUT_VARIABLE, …) and flags (OUTPUT_QUIET, …). The COMMAND list
+   stops at the next keyword; a piped multi-COMMAND can't be encoded (flat
+   kwargs merge the groups) so it is left positional. *)
+let test_execute_process =
+  Alcotest.test_case "execute_process value-labels + COMMAND list" `Quick (fun () ->
+    let fmt s =
+      match Cstp.parse s with
+      | Ok c -> Yelu_langs.Yc_cst_print.print_program c
+      | Error e -> Alcotest.failf "parse %S: %s" s e in
+    (* COMMAND list terminates at OUTPUT_VARIABLE; both forms emit identically *)
+    let pos = "execute_process COMMAND $prog '--version' OUTPUT_VARIABLE NINJA_VERSION" in
+    Alcotest.(check string) "COMMAND list + ~output_variable"
+      "execute_process ~command=[ $prog '--version' ] ~output_variable=NINJA_VERSION\n"
+      (fmt pos);
+    Alcotest.(check string) "fmt emit-invariant"
+      (emit_ast pos) (emit_ast (fmt pos));
+    (* flag (OUTPUT_QUIET) + a scalar value-label *)
+    Alcotest.(check string) "flag + value-label"
+      "execute_process ~command=[ $p ] ~working_directory='/tmp' ~output_quiet\n"
+      (fmt "execute_process COMMAND $p WORKING_DIRECTORY '/tmp' OUTPUT_QUIET");
+    (* multi-COMMAND guard: left positional, emit unchanged *)
+    let piped = "execute_process COMMAND $a 'x' COMMAND $b 'y' OUTPUT_VARIABLE o" in
+    Alcotest.(check bool) "piped multi-COMMAND → left positional (no ~command)"
+      false (String.is_substring (fmt piped) ~substring:"~command");
+    Alcotest.(check string) "fmt emit-invariant (multi-COMMAND)"
+      (emit_ast piped) (emit_ast (fmt piped)))
+
 let () =
   Alcotest.run "yc_cst_bridge"
     [ "bridge", List.map corpus ~f:bridge;
       "install_targets", [ test_install_targets ];
+      "execute_process", [ test_execute_process ];
       "roundtrip", List.map corpus ~f:roundtrip;
       "comments", [ test_comment_placement ];
       "elision", [ test_brace_elision ];

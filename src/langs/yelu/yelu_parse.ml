@@ -1885,20 +1885,32 @@ let p_cmake_op_command_y1_inner name args kwargs =
                  "COMMAND_ERROR_IS_FATAL"]
       args
     in
-    let commands = sections
-      |> List.filter_map ~f:(fun (k, items) ->
-        if String.equal k "COMMAND" then Some items else None)
+    (* Each cmake keyword is also accepted as its `~label=` form (lowercased),
+       arriving in [kwargs]: a `~command=[…]` list flattens to repeated
+       `command` kwargs (recovered by find_all); the rest are scalar. *)
+    let kwarg_all key =
+      List.filter_map kwargs ~f:(fun (k, v) -> Option.some_if (String.equal k key) v) in
+    let kwarg_opt key = List.Assoc.find kwargs ~equal:String.equal key in
+    let kwarg_mem key = List.Assoc.mem kwargs ~equal:String.equal key in
+    let commands =
+      match sections
+            |> List.filter_map ~f:(fun (k, items) ->
+              if String.equal k "COMMAND" then Some items else None) with
+      | [] -> (match kwarg_all "command" with [] -> [] | items -> [ items ])
+      | pos -> pos
     in
     let str_opt key = match List.Assoc.find sections ~equal:String.equal key with
       | Some [ EString s | EVar s ] -> Some s
-      | _ -> None
+      | _ -> (match kwarg_opt (String.lowercase key) with
+              | Some (EString s | EVar s) -> Some s | _ -> None)
     in
     let expr_opt key = match List.Assoc.find sections ~equal:String.equal key with
       | Some [ e ] -> Some e
-      | _ -> None
+      | _ -> kwarg_opt (String.lowercase key)
     in
-    let has_flag key = List.Assoc.find sections ~equal:String.equal key
-                       |> Option.is_some in
+    let has_flag key =
+      Option.is_some (List.Assoc.find sections ~equal:String.equal key)
+      || kwarg_mem (String.lowercase key) in
     let timeout = Option.map (expr_opt "TIMEOUT") ~f:(fun e ->
       match e with EString s -> Float.of_string s | _ -> 0.0) in
     Some (ECmakeExecuteProcess
