@@ -28,7 +28,7 @@ project FMT Cxx;
 FMT_USE_CMAKE_MODULES := 'FALSE';
 if ver_ge $CMAKE_VERSION '3.28' and ver_ge $CMAKE_CXX_STANDARD '20' then (
   if str_eq $CMAKE_GENERATOR 'Ninja' then (
-    execute_process ~command=[ $CMAKE_MAKE_PROGRAM '--version' ] ~output_variable=NINJA_VERSION;
+    execute_process ~command=[$CMAKE_MAKE_PROGRAM, '--version'] ~output_variable=NINJA_VERSION;
     if ver_ge $NINJA_VERSION '1.11' then (
       if ( str_eq $CMAKE_CXX_COMPILER_ID 'GNU' and ver_ge $CMAKE_CXX_COMPILER_VERSION '15' ) or ( str_eq $CMAKE_CXX_COMPILER_ID 'Clang' and ver_ge $CMAKE_CXX_COMPILER_VERSION '16' ) or ( str_eq $CMAKE_CXX_COMPILER_ID 'MSVC' and ver_ge $MSVC_VERSION '1934' ) then (
         FMT_USE_CMAKE_MODULES := 'TRUE'
@@ -76,7 +76,7 @@ include CheckCXXCompilerFlag;
 include JoinPaths;
 if $FMT_MASTER_PROJECT and not ( defined CMAKE_CXX_VISIBILITY_PRESET ) then (
   set_verbose 'CMAKE_CXX_VISIBILITY_PRESET' 'hidden' 'CACHE' 'STRING' 'Preset for the export of private symbols.';
-  set_property Cache CMAKE_CXX_VISIBILITY_PRESET ~property=[ STRINGS hidden default ]
+  set_property Cache CMAKE_CXX_VISIBILITY_PRESET ~property=[STRINGS, hidden, default]
 );
 if $FMT_MASTER_PROJECT and not ( defined CMAKE_VISIBILITY_INLINES_HIDDEN ) then (
   set_verbose 'CMAKE_VISIBILITY_INLINES_HIDDEN' 'ON' 'CACHE' 'BOOL' 'Whether to add a compile flag to hide symbols of inline ' 'functions.'

@@ -135,7 +135,7 @@ let test_enum_constructor =
     (* the ~public kwarg key is a lowercase identifier, not the enum; the
        separator canonicalizes to `=` (the `:` form is still accepted) *)
     Alcotest.(check string) "~public key untouched, `:`→`=`"
-      "compile_feats fmt ~public=[ cxx_std_11 ]\n"
+      "compile_feats fmt ~public=[cxx_std_11]\n"
       (fmt "compile_feats fmt ~public:[cxx_std_11]");
     (* slice 2: enum VALUES inside ~type/~mode canonicalize, key kept; the
        separator is `=`. A `:Constructor`-cased input emits unchanged. *)
@@ -201,18 +201,18 @@ let test_flags =
          record literal lands)
        Both directions: byte-identical cmake emit. *)
     let canon_target =
-      "set_property foo ~append ~property=[ LINK_LIBRARIES 'bar' ]\n" in
+      "set_property foo ~append ~property=[LINK_LIBRARIES, 'bar']\n" in
     Alcotest.(check string) "set_property TARGET: positional → canon"
       canon_target
       (fmt "set_property foo APPEND PROPERTY LINK_LIBRARIES 'bar'");
     Alcotest.(check string) "set_property TARGET canon stable"
       canon_target
-      (fmt "set_property foo ~append ~property=[ LINK_LIBRARIES 'bar' ]");
+      (fmt "set_property foo ~append ~property=[LINK_LIBRARIES, 'bar']");
     Alcotest.(check string) "set_property TARGET: positional / canon emit identically"
       (emit_ast "set_property foo APPEND PROPERTY LINK_LIBRARIES 'bar'")
-      (emit_ast "set_property foo ~append ~property=[ LINK_LIBRARIES 'bar' ]");
+      (emit_ast "set_property foo ~append ~property=[LINK_LIBRARIES, 'bar']");
     let canon_source =
-      "set_property Source 'main.c' ~append ~property=[ COMPILE_FLAGS '-Wall' ]\n" in
+      "set_property Source 'main.c' ~append ~property=[COMPILE_FLAGS, '-Wall']\n" in
     Alcotest.(check string) "set_property SOURCE → Source: positional → canon"
       canon_source
       (fmt "set_property SOURCE 'main.c' APPEND PROPERTY COMPILE_FLAGS '-Wall'");
@@ -224,13 +224,13 @@ let test_flags =
        string list 2026-06-13). Verify canon round-trip and that the entry
        name + all three STRINGS values survive to cmake. *)
     let canon_cache =
-      "set_property Cache FOO ~append ~property=[ STRINGS 'a' 'b' 'c' ]\n" in
+      "set_property Cache FOO ~append ~property=[STRINGS, 'a', 'b', 'c']\n" in
     Alcotest.(check string) "set_property CACHE → Cache: positional → canon"
       canon_cache
       (fmt "set_property CACHE FOO APPEND PROPERTY STRINGS 'a' 'b' 'c'");
     Alcotest.(check string) "set_property Cache canon stable"
       canon_cache
-      (fmt "set_property Cache FOO ~append ~property=[ STRINGS 'a' 'b' 'c' ]");
+      (fmt "set_property Cache FOO ~append ~property=[STRINGS, 'a', 'b', 'c']");
     Alcotest.(check string) "set_property CACHE: positional / canon emit identically"
       (emit_ast "set_property CACHE FOO APPEND PROPERTY STRINGS 'a' 'b' 'c'")
       (emit_ast canon_cache);
@@ -249,7 +249,7 @@ let test_flags =
          (emit_ast canon_cache));
     (* APPEND_STRING — second flag, independent of APPEND. *)
     let canon_aps =
-      "set_property foo ~append_string ~property=[ COMPILE_FLAGS '-Wall' ]\n" in
+      "set_property foo ~append_string ~property=[COMPILE_FLAGS, '-Wall']\n" in
     Alcotest.(check string) "set_property APPEND_STRING: positional → canon"
       canon_aps
       (fmt "set_property foo APPEND_STRING PROPERTY COMPILE_FLAGS '-Wall'");
@@ -257,7 +257,7 @@ let test_flags =
       (emit_ast "set_property foo APPEND_STRING PROPERTY COMPILE_FLAGS '-Wall'")
       (emit_ast canon_aps);
     Alcotest.(check string) "set_property: both flags + value-list preserved"
-      "set_property foo ~append ~append_string ~property=[ COMPILE_FLAGS '-Wall' ]\n"
+      "set_property foo ~append ~append_string ~property=[COMPILE_FLAGS, '-Wall']\n"
       (fmt "set_property foo APPEND APPEND_STRING PROPERTY COMPILE_FLAGS '-Wall'");
     (* Pos3 entity surface — scope discriminators (`Source`, `Cache`, `Global`,
        `Test`, `Install`) canonicalize to leading-cap and parse as first-class
@@ -265,31 +265,31 @@ let test_flags =
        scopes fell back to yc_raw; Pos3 routes them through the unified
        ECmakeSetProperty IR (one ctor, scope sum). *)
     Alcotest.(check string) "Pos3: SOURCE → Source (leading-cap)"
-      "set_property Source 'main.c' ~property=[ COMPILE_FLAGS '-Wall' ]\n"
+      "set_property Source 'main.c' ~property=[COMPILE_FLAGS, '-Wall']\n"
       (fmt "set_property SOURCE 'main.c' PROPERTY COMPILE_FLAGS '-Wall'");
     Alcotest.(check string) "Pos3: CACHE → Cache (leading-cap)"
-      "set_property Cache FOO ~property=[ STRINGS 'a' 'b' ]\n"
+      "set_property Cache FOO ~property=[STRINGS, 'a', 'b']\n"
       (fmt "set_property CACHE FOO PROPERTY STRINGS 'a' 'b'");
     Alcotest.(check string) "Pos3 stable: Cache FOO round-trips"
-      "set_property Cache FOO ~property=[ STRINGS 'a' 'b' ]\n"
-      (fmt "set_property Cache FOO ~property=[ STRINGS 'a' 'b' ]");
+      "set_property Cache FOO ~property=[STRINGS, 'a', 'b']\n"
+      (fmt "set_property Cache FOO ~property=[STRINGS, 'a', 'b']");
     (* GLOBAL scope: previously yc_raw fallback, now typed via Pos3 *)
     Alcotest.(check string) "Pos3: Global scope (newly typed)"
-      "set_property Global ~property=[ USE_FOLDERS ON ]\n"
+      "set_property Global ~property=[USE_FOLDERS, ON]\n"
       (fmt "set_property Global PROPERTY USE_FOLDERS ON");
     Alcotest.(check string) "Pos3: Global emits set_property(GLOBAL ...)"
       "set_property(GLOBAL PROPERTY USE_FOLDERS ON)"
       (emit_ast "set_property Global PROPERTY USE_FOLDERS ON");
     (* TEST scope: previously yc_raw, now typed *)
     Alcotest.(check string) "Pos3: Test scope (newly typed)"
-      "set_property Test 'mytest' ~property=[ ENVIRONMENT 'V=1' ]\n"
+      "set_property Test 'mytest' ~property=[ENVIRONMENT, 'V=1']\n"
       (fmt "set_property TEST 'mytest' PROPERTY ENVIRONMENT 'V=1'");
     Alcotest.(check string) "Pos3: Test emits set_property(TEST ...)"
       "set_property(TEST mytest PROPERTY ENVIRONMENT V=1)"
       (emit_ast "set_property Test 'mytest' PROPERTY ENVIRONMENT 'V=1'");
     (* INSTALL scope: previously yc_raw, now typed *)
     Alcotest.(check string) "Pos3: Install scope (newly typed)"
-      "set_property Install 'lib.so' ~property=[ CPACK_NEVER 'TRUE' ]\n"
+      "set_property Install 'lib.so' ~property=[CPACK_NEVER, 'TRUE']\n"
       (fmt "set_property INSTALL 'lib.so' PROPERTY CPACK_NEVER 'TRUE'");
     Alcotest.(check string) "Pos3: Install emits set_property(INSTALL ...)"
       "set_property(INSTALL lib.so PROPERTY CPACK_NEVER TRUE)"
@@ -364,9 +364,9 @@ let test_separator =
     Alcotest.(check string) "`=` value accepted + stable"
       "string_toupper 'a' ~out=U\n" (fmt "string_toupper 'a' ~out=U");
     Alcotest.(check string) "`:` list → `=`"
-      "compile_feats fmt ~public=[ a b ]\n" (fmt "compile_feats fmt ~public:[a b]");
+      "compile_feats fmt ~public=[a, b]\n" (fmt "compile_feats fmt ~public:[a b]");
     Alcotest.(check string) "`=` list accepted"
-      "compile_feats fmt ~public=[ a b ]\n" (fmt "compile_feats fmt ~public=[a b]"))
+      "compile_feats fmt ~public=[a, b]\n" (fmt "compile_feats fmt ~public=[a b]"))
 
 (* Value-labels (critique #2): the value-carrying cmake keywords
    DESTINATION/COMPONENT canonicalize to `~destination=`/`~component=` for
@@ -467,13 +467,13 @@ let test_execute_process =
     (* COMMAND list terminates at OUTPUT_VARIABLE; both forms emit identically *)
     let pos = "execute_process COMMAND $prog '--version' OUTPUT_VARIABLE NINJA_VERSION" in
     Alcotest.(check string) "COMMAND list + ~output_variable"
-      "execute_process ~command=[ $prog '--version' ] ~output_variable=NINJA_VERSION\n"
+      "execute_process ~command=[$prog, '--version'] ~output_variable=NINJA_VERSION\n"
       (fmt pos);
     Alcotest.(check string) "fmt emit-invariant"
       (emit_ast pos) (emit_ast (fmt pos));
     (* flag (OUTPUT_QUIET) + a scalar value-label *)
     Alcotest.(check string) "flag + value-label"
-      "execute_process ~command=[ $p ] ~working_directory='/tmp' ~output_quiet\n"
+      "execute_process ~command=[$p] ~working_directory='/tmp' ~output_quiet\n"
       (fmt "execute_process COMMAND $p WORKING_DIRECTORY '/tmp' OUTPUT_QUIET");
     (* multi-COMMAND guard: left positional, emit unchanged *)
     let piped = "execute_process COMMAND $a 'x' COMMAND $b 'y' OUTPUT_VARIABLE o" in

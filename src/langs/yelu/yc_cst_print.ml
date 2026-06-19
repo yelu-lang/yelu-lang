@@ -100,6 +100,16 @@ let rec pr_atom b (a : Cst.atom) =
       else (Buffer.add_char b '"'; Buffer.add_string b (esc_double n); Buffer.add_char b '"'))
   | A_paren a -> Buffer.add_string b "( "; pr_atom b a; Buffer.add_string b " )"
 
+(* Canonical bracketed list — comma-separated, no inner padding: `[a, b, c]`
+   (critique #2's settled list form; the parser also accepts space-separated
+   items and a trailing comma, so this is an emit-only canonicalization). *)
+let pr_comma_list b items =
+  Buffer.add_char b '[';
+  List.iteri items ~f:(fun i a ->
+    if i > 0 then Buffer.add_string b ", ";
+    pr_atom b a);
+  Buffer.add_char b ']'
+
 let pr_arg b (arg : Cst.arg) =
   match arg with
   | Pos a -> pr_atom b a
@@ -107,9 +117,7 @@ let pr_arg b (arg : Cst.arg) =
     Buffer.add_char b '~'; Buffer.add_string b k; Buffer.add_char b '='; pr_atom b v
   | Kw_flag k -> Buffer.add_char b '~'; Buffer.add_string b k
   | Kw_list (k, items) ->
-    Buffer.add_char b '~'; Buffer.add_string b k; Buffer.add_string b "=[ ";
-    List.iter items ~f:(fun a -> pr_atom b a; Buffer.add_char b ' ');
-    Buffer.add_char b ']'
+    Buffer.add_char b '~'; Buffer.add_string b k; Buffer.add_char b '='; pr_comma_list b items
 
 (* Per-command bare-keyword flags that canonicalize to the lowercase `~flag`
    form (critique #2, the `~`-half). Command-aware on purpose: a bare `GLOBAL`
@@ -283,9 +291,8 @@ let pr_cmd_args b name (args : Cst.arg list) =
       when Option.is_some (list_label_of kw) ->
       let l = Option.value_exn (list_label_of kw) in
       let items, rest' = take_positionals [] rest in
-      Buffer.add_string b " ~"; Buffer.add_string b l; Buffer.add_string b "=[ ";
-      List.iter items ~f:(fun a -> pr_atom b a; Buffer.add_char b ' ');
-      Buffer.add_char b ']';
+      Buffer.add_string b " ~"; Buffer.add_string b l; Buffer.add_char b '=';
+      pr_comma_list b items;
       go rest'
     | Cst.Pos (A_name kw | A_keyword kw) :: (Cst.Pos _ as v) :: rest
       when Option.is_some (label_of kw) ->
