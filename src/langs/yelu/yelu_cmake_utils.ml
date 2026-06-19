@@ -475,11 +475,12 @@ let to_build_command (cc : Lang_cmake.custom_command) : build_command =
 
 let yc_add_custom_command
     ~outputs ?(depends = []) ?(verbatim = false)
+    ?(command_expand_lists = false)
     ?(comment : string option = None) commands =
   ECmakeAddCustomCommand
     { outputs;
       commands = List.map commands ~f:to_build_command;
-      depends; verbatim; comment }
+      depends; verbatim; comment; command_expand_lists }
 
 let yc_add_custom_target
     ?(all = false) ?(commands = []) ?(depends = [])

@@ -164,7 +164,7 @@ let add_custom_command ~outputs ?main_dependency ?(depends = [])
     ?(byproducts = []) ?(implicit_depends = []) ?working_directory ?comment
     ?depfile ?job_pool ?(job_server_aware = false) ?(verbatim = false)
     ?(append = false) ?(uses_terminal = false) ?(codegen = false)
-    ?(command_expand_list = []) ?(depends_explicit_only = false) commands =
+    ?(command_expand_lists = false) ?(depends_explicit_only = false) commands =
   Project_cmd
     (Add_custom_command
        {
@@ -183,7 +183,7 @@ let add_custom_command ~outputs ?main_dependency ?(depends = [])
          append;
          uses_terminal;
          codegen;
-         command_expand_list;
+         command_expand_lists;
          depends_explicit_only;
        })
 
@@ -401,4 +401,4 @@ let add_custom_target name ?(all = false) ?(commands = []) ?(depends = [])
   Project_cmd (Add_custom_target {
     name; all; commands; depends; byproducts; working_directory; comment;
     job_pool = []; job_server_aware = false; verbatim; uses_terminal;
-    command_expand_list = []; sources })
+    command_expand_lists = false; sources })

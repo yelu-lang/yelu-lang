@@ -569,7 +569,7 @@ let rec emit_expr_impl ~env e =
     @ sources
     @ comment
     @ [ "  VERBATIM"; ")" ]
-  | ECmakeAddCustomCommand { outputs; commands; depends; comment; verbatim } ->
+  | ECmakeAddCustomCommand { outputs; commands; depends; comment; verbatim; _ } ->
     let outputs_line =
       Fmt.str "  OUTPUT %s" (String.concat ~sep:" " (List.map outputs ~f:arg))
     in

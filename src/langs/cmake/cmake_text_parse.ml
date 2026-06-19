@@ -845,6 +845,7 @@ let parse_add_custom_target args : L.exp option =
     let comment = ref None in
     let verbatim = ref false in
     let uses_terminal = ref false in
+    let command_expand_lists = ref false in
     let sources = ref [] in
     let ok = ref true in
     (* Printer canonical order: ALL, COMMAND..., DEPENDS, WORKING_DIRECTORY,
@@ -905,6 +906,7 @@ let parse_add_custom_target args : L.exp option =
          | _ -> ok := false)
       | "VERBATIM" :: r -> verbatim := true; go r
       | "USES_TERMINAL" :: r -> uses_terminal := true; go r
+      | "COMMAND_EXPAND_LISTS" :: r -> command_expand_lists := true; go r
       | "SOURCES" :: r ->
         let ss, r = take_until_kw r in
         if List.is_empty ss then ok := false
@@ -925,7 +927,7 @@ let parse_add_custom_target args : L.exp option =
                    job_pool = []; job_server_aware = false;
                    verbatim = !verbatim;
                    uses_terminal = !uses_terminal;
-                   command_expand_list = [];
+                   command_expand_lists = !command_expand_lists;
                    sources = !sources }))
   | _ -> None
 

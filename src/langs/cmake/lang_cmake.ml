@@ -836,7 +836,7 @@ and project_cmd =
       append : bool;
       uses_terminal : bool;
       codegen : bool;
-      command_expand_list : string list;
+      command_expand_lists : bool;
       depends_explicit_only : bool;
     }
   | Add_custom_command_target of {
@@ -859,7 +859,7 @@ and project_cmd =
       job_server_aware : bool;
       verbatim : bool;
       uses_terminal : bool;
-      command_expand_list : string list;
+      command_expand_lists : bool;
       sources : file list;
     }
   (* Include *)

@@ -829,7 +829,7 @@ let compile_target_stmt env : yelu_target_stmt -> env * Lang_cmake.exp = functio
         working_directory = None; comment; depfile = None;
         job_pool = None; job_server_aware = false; verbatim;
         append = false; uses_terminal = false; codegen = false;
-        command_expand_list = []; depends_explicit_only = false }))
+        command_expand_lists = false; depends_explicit_only = false }))
   | Ytgt_add_custom_command_target { target; when_; commands; comment; verbatim } ->
       (env, Project_cmd (Add_custom_command_target {
         target; when_; commands; comment; verbatim; uses_terminal = false }))
@@ -840,7 +840,7 @@ let compile_target_stmt env : yelu_target_stmt -> env * Lang_cmake.exp = functio
         depends = List.map ~f:(erase_arg_s env) depends;
         byproducts = []; working_directory = None; comment; job_pool = [];
         job_server_aware = false; verbatim = false; uses_terminal = false;
-        command_expand_list = []; sources = [] }))
+        command_expand_lists = false; sources = [] }))
   | Ytgt_add_dependencies { target; dep } ->
       (env, Project_cmd (Add_dependencies { target; dep }))
 

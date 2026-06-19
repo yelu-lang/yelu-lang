@@ -1150,15 +1150,17 @@ and pp_project_cmd ff cmd =
   (* custom *)
   | Add_custom_command { outputs; commands; depends; main_dependency;
                          working_directory; comment; verbatim;
-                         uses_terminal; append = is_append; _ } ->
+                         uses_terminal; append = is_append;
+                         command_expand_lists; _ } ->
       Fmt.(
-        pf ff "add_custom_command(OUTPUT %a@;COMMAND %a@.%a%a%a%a%a%a%a)@."
+        pf ff "add_custom_command(OUTPUT %a@;COMMAND %a@.%a%a%a%a%a%a%a%a)@."
           (list_sp string) outputs
           (list_sp pp_custom_command) commands
           (pp_list_with_key "DEPENDS" string) depends
           (pp_with_key "MAIN_DEPENDENCY" string) main_dependency
           (pp_with_key "WORKING_DIRECTORY" string) working_directory
           (pp_with_key "COMMENT" pp_string_quoted) comment
+          (pp_flag "COMMAND_EXPAND_LISTS") command_expand_lists
           (pp_flag "VERBATIM") verbatim
           (pp_flag "USES_TERMINAL") uses_terminal
           (pp_flag "APPEND") is_append)
@@ -1175,7 +1177,7 @@ and pp_project_cmd ff cmd =
           (pp_flag "USES_TERMINAL") uses_terminal)
   | Add_custom_target
       { name; all; commands; depends; working_directory; comment;
-        verbatim; uses_terminal; sources; _ } ->
+        verbatim; uses_terminal; sources; command_expand_lists; _ } ->
       (* cmake's add_custom_target allows multiple COMMAND blocks; each
          must be emitted with its own COMMAND keyword. Using
          pp_list_with_key here would merge them all under a single
@@ -1185,7 +1187,7 @@ and pp_project_cmd ff cmd =
           Fmt.pf ff " COMMAND %a" pp_custom_command c)
       in
       Fmt.(
-        pf ff "add_custom_target(%s%a%a%a%a%a%a%a%a)" name
+        pf ff "add_custom_target(%s%a%a%a%a%a%a%a%a%a)" name
           (pp_flag "ALL") all
           pp_commands commands
           (pp_list_with_key " DEPENDS" string) depends
@@ -1195,6 +1197,7 @@ and pp_project_cmd ff cmd =
           (pp_with_key " COMMENT" pp_string_quoted) comment
           (pp_flag "VERBATIM") verbatim
           (pp_flag "USES_TERMINAL") uses_terminal
+          (pp_flag "COMMAND_EXPAND_LISTS") command_expand_lists
           (pp_list_with_key " SOURCES" string) sources)
   (* property *)
   | Get_source_file_property { var; file; property } ->

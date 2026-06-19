@@ -1120,7 +1120,8 @@ let rec emit_exp ~env (e : expr) : C.exp =
            items = items_with_kind ~env ~visibility headers })
 
   (* Custom target / command *)
-  | ECmakeAddCustomCommand { outputs; commands; depends; comment; verbatim } ->
+  | ECmakeAddCustomCommand
+      { outputs; commands; depends; comment; verbatim; command_expand_lists } ->
     let cc_list =
       List.map commands ~f:(fun (bc : build_command) ->
         ({ command = bc.command; args = bc.args } : C.custom_command))
@@ -1134,7 +1135,7 @@ let rec emit_exp ~env (e : expr) : C.exp =
            working_directory = None; depfile = None; job_pool = None;
            job_server_aware = false; verbatim; append = false;
            uses_terminal = false; codegen = false;
-           command_expand_list = []; depends_explicit_only = false })
+           command_expand_lists; depends_explicit_only = false })
   | ECmakeAddCustomTarget { name; all; commands; depends; comment; sources } ->
     let cc_list =
       List.map commands ~f:(fun (bc : build_command) ->
@@ -1153,7 +1154,7 @@ let rec emit_exp ~env (e : expr) : C.exp =
            job_server_aware = false;
            verbatim = false;
            uses_terminal = false;
-           command_expand_list = [];
+           command_expand_lists = false;
            sources = List.map sources ~f:(target_arg ~env) })
 
   (* Add dependencies *)

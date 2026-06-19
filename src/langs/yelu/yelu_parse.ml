@@ -995,6 +995,8 @@ let p_target_command_y1_inner name args kwargs =
     in
     let verbatim = List.Assoc.find sections ~equal:String.equal "VERBATIM"
                    |> Option.is_some in
+    let command_expand_lists =
+      Option.is_some (List.Assoc.find sections ~equal:String.equal "COMMAND_EXPAND_LISTS") in
     let comment = match List.Assoc.find sections ~equal:String.equal "COMMENT" with
       | Some [ EString s | EVar s ] -> Some s
       | _ -> None
@@ -1016,7 +1018,8 @@ let p_target_command_y1_inner name args kwargs =
             str_of ~default:"" e) })
     in
     Some (ECmakeAddCustomCommand
-            { outputs; commands = build_commands; depends; comment; verbatim })
+            { outputs; commands = build_commands; depends; comment; verbatim;
+              command_expand_lists })
   | _ ->
     (* Known command but args don't match typed patterns
        (e.g. dynamic visibility ${kind}). Fall back to yc_raw. *)

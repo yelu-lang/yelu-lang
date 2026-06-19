@@ -344,6 +344,7 @@ let yelu1_to_yelu2 =
              depends = [ EString "input.txt" ];
              comment = Some "generating generated.txt";
              verbatim = true;
+             command_expand_lists = false;
            })
         ~expected_value:VUnit
         ~expected_env:

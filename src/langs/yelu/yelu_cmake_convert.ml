@@ -674,7 +674,7 @@ let rec to_normal = function
             sources = List.map sources ~f:to_normal };
         EUnit;
       ]
-  | ECmakeAddCustomCommand { outputs; commands; depends; comment; verbatim } ->
+  | ECmakeAddCustomCommand { outputs; commands; depends; comment; verbatim; _ } ->
     ESeq
       [
         ECustomCommand
@@ -1303,6 +1303,7 @@ let rec from_normal = function
         depends = List.map depends ~f:from_normal;
         comment;
         verbatim;
+        command_expand_lists = false;  (* not modelled in the normal form *)
       }
   | ELibraryAlias { name; target } ->
     ECmakeAddLibraryAlias { name; target }

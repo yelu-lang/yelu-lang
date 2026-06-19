@@ -66,6 +66,7 @@ type expr +=
       depends : expr list;
       comment : string option;
       verbatim : bool;
+      command_expand_lists : bool;
     }
   | ECmakeTargetExists of expr
   (* [add_library(<name> ALIAS <target>)] and the executable sibling.
@@ -157,7 +158,7 @@ let eval_case ~eval env = function
       ( set_custom_target env
           { name; all; commands; depends; comment; sources },
         VUnit )
-  | ECmakeAddCustomCommand { outputs; commands; depends; comment; verbatim } ->
+  | ECmakeAddCustomCommand { outputs; commands; depends; comment; verbatim; _ } ->
     let env, outputs = eval_string_list ~eval env outputs in
     let env, depends = eval_string_list ~eval env depends in
     Some
