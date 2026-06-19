@@ -242,14 +242,18 @@ matrix 24/24).
    (`LIBRARY DESTINATION $d` → `~library.destination=$d`, top-level
    `~component=`/`~export=`/`~destination=`). **Guarded by emit-safety:** it
    only canonicalizes when every positional is a leading target or a clause
-   value. **Residual — a trailing dynamic clause-var** (`$INSTALL_FILE_SET`, a
-   FILE_SET clause held in a variable, which the corpus's install_targets uses):
-   the dotted (kwarg) surface structurally can't carry a *post-clause*
-   positional (the positional parse absorbs/drops it; the dotted parse would
-   read it as another target), so such a line is **left positional**. Lifting
-   it needs a `~raw=`-style escape or modeling the FILE_SET clause (the Tier-3
-   item). Still open here: the **duplicate single-value field → reject**
-   (painpoints.md §11).
+   value. **Residual — a trailing *term-valued* variable** (`$INSTALL_FILE_SET`):
+   the corpus assigns it a clause *fragment*
+   (`INSTALL_FILE_SET := FILE_SET, fmt, DESTINATION, '${FMT_INC_DIR}/fmt'`) and
+   splices it in, so it is **metaprogramming** — a variable that evaluates to
+   argument *terms* (keywords + names), not a value. The dotted (kwarg) surface
+   structurally can't carry it (it isn't one `~key=value`, and its post-clause
+   position is meaning the kwarg form discards), so the guard leaves the line
+   positional. **Decision (2026-06-17): such a line belongs in the cmake-raw
+   escape bucket** (existing `yc_raw '…'` / `ECmakeRaw`), **not** a bespoke
+   `~raw=` syntax. We do NOT solve it piecemeal now — see the parked
+   metaprogramming/raw redesign below. Still open here: the **duplicate
+   single-value field → reject** (painpoints.md §11).
 2. **`set_target_properties` — shape 3 (record literal).** `PROPERTY K v
    PROPERTY K v …` → `~properties={k=v, …}`. The most common un-lifted command
    (~5× in corpus). Needs the new `{…}` record-literal grammar. *Also: a latent
@@ -277,6 +281,17 @@ matrix 24/24).
   `get_test_property` / `get_cmake_property`) — mostly covered by generic
   `get_property Source/Test`; cosmetic.
 - A property cache-semantics combination test (Value vs SET vs DEFINED).
+
+**Parked — uniform metaprogramming / raw-escape redesign (after the syntax
+pass).** cmake lets a `$var` hold *code* (argument terms), spliced before
+parsing — `$INSTALL_FILE_SET` above is the live example. yc has several raw
+touchpoints today that grew ad hoc: explicit `yc_raw '…'` (`ECmakeRaw`), the
+auto `ECmakeRawCmd` fallback for un-parseable commands, and the hybrid
+`raw_cmake` splice. Once the no-ALL_CAPS pass is done, revisit these together
+(grep `cmake_raw` / `ECmakeRaw` / `ECmakeRawCmd` / `yc_raw`) for one coherent
+"this is opaque cmake code" story — how a term-valued splice is marked, typed
+(it isn't), and round-tripped. Until then, metaprogramming lines stay
+raw/un-lifted; do NOT invent per-command escapes (`~raw=`) for them.
 
 **Verification reminder:** `yelu matrix probes/fmt` (real cmake configure) is the
 only oracle that catches emit-invalid cmake — it is **NOT** part of `dune test`
