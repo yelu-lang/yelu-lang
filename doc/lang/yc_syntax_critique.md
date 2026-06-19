@@ -231,7 +231,7 @@ shapes (corpus-grounded) and their resolutions:
 | shape | example | surface | status |
 | --- | --- | --- | --- |
 | 1 flat record | `install(DIRECTORY d DESTINATION x COMPONENT c)` | `~destination=x ~component=c` | ✅ install_directory/files/export + get_property + set_property(via list) done; find/file already label-based |
-| 2 repeated→list | `add_custom_command(… COMMAND a … COMMAND b)` | a list | ✅ recursive value grammar + `~commands` plural (execute_process `25f9e19`); add_custom_command/target can now adopt the same mechanism |
+| 2 repeated→list | `add_custom_command(… COMMAND a … COMMAND b)` | a list | ✅ done — execute_process `25f9e19`, add_custom_command/target `b101aba` (shared `pr_command_groups_args`, `~command`/`~commands` by arity) |
 | 3 key→value map | `set_target_properties(t PROPERTIES K v …)` | `~properties={k=v, …}` | ✅ done `a87f9a8` — record literal `{k=v}` on the recursive value grammar |
 | 4 record-list (nested) | `install(TARGETS … LIBRARY DESTINATION d1 ARCHIVE DESTINATION d2)` | **flat dotted label** | ⏳ parse/emit ✅ done; **formatter (surface) canonicalization remains** (see below) |
 
@@ -297,15 +297,12 @@ matrix 24/24).
    (it does NOT go through `p_cmake_entity`), and multi-`PROPERTY` keeps only the
    FIRST clause. Matrix-invisible today (the literal-target use sits in an
    unconfigured branch); same `EVar→EString` remedy as the property entity fix.*
-3. **`add_custom_command` / `add_custom_target` — shape 2 (now unblocked).**
-   The recursive value grammar + `~command`/`~commands` mechanism exists (built
-   for execute_process); adopt it for `COMMAND`, plus `OUTPUT`/`DEPENDS`/
-   `SOURCES` value-labels and the `~verbatim`/`~command_expand_lists` flags.
-   **IR gap closed `591f261`:** `COMMAND_EXPAND_LISTS` was silently dropped on
-   emit (parsed-but-not-modelled); now threaded end to end as a real `bool`
-   (`VERBATIM` was already modelled). So the surface migration is no longer
-   blocked — it's the remaining step (a dedicated per-command formatter walk
-   like execute_process / set_target_properties, + parser kwarg reading).
+3. **`add_custom_command` / `add_custom_target` ✅ done `b101aba`.**
+   `~output=`/`~depends=`/`~sources=` (value-lists), `~command`/`~commands`,
+   `~comment=`, and `~verbatim`/`~command_expand_lists`/`~all` flags — on the
+   shared `pr_command_groups_args` walk. (`COMMAND_EXPAND_LISTS` IR gap closed
+   first in `591f261`; positional `ALL` capture gap also fixed so `ALL`→`~all`
+   is emit-safe.)
 4. **`execute_process` ✅ done.** `~command=[…]` / `~commands=[[…],…]`
    (singular/plural by arity — `25f9e19`, retired the old guard), scalar
    value-labels (`~output_variable=`, …), `*_QUIET`/`*_STRIP_…` flags.
@@ -314,6 +311,15 @@ matrix 24/24).
    literal target derefs to `${fmt}`; same `EVar→EString` remedy as the
    property entity fix.*
 6. **`target_sources` — `FILE_SET` clause.** Nested-ish; relates to shape 4.
+   **The last migratable command** — after this only the postponed shape-4
+   (install_targets artifact records) and the metaprogramming/raw line remain.
+
+**Status (2026-06-19): the no-ALL_CAPS pass is essentially complete.** The fmt
+corpus has only three non-`~` lines left: `target_sources` (FILE_SET, item 6
+above), `install_targets` (guarded-positional — its trailing dynamic
+`$INSTALL_FILE_SET` is metaprogramming, postponed shape-4), and the
+`INSTALL_FILE_SET := FILE_SET, …` list-literal (the metaprogramming splice
+itself — raw/parked). Every other command in the corpus now reads as `~label`.
 
 **Smaller follow-ups** (folded in from the retired HANDOFF.md):
 - **get_property mode-flag-as-kwarg-enum micro-slice** — the trailing
