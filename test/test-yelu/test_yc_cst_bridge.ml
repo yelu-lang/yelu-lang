@@ -507,11 +507,32 @@ let test_value_grammar =
       "somecmd ~properties={version='1.0'}\n"
       (fmt "somecmd ~properties={version:'1.0'}"))
 
+(* shape-3 record: set_target_properties PROPERTY name v… → ~properties={…}.
+   A multi-value property becomes a list value; positional and record forms
+   emit identically (each property → its own set_target_properties call). *)
+let test_set_target_properties =
+  Alcotest.test_case "set_target_properties record (shape 3)" `Quick (fun () ->
+    let fmt s =
+      match Cstp.parse s with
+      | Ok c -> Yelu_langs.Yc_cst_print.print_program c
+      | Error e -> Alcotest.failf "parse %S: %s" s e in
+    let pos =
+      "set_target_properties $t PROPERTY VERSION $V PROPERTY SOURCES a b" in
+    Alcotest.(check string) "PROPERTY triples → ~properties record"
+      "set_target_properties $t ~properties={version=$V, sources=[a, b]}\n"
+      (fmt pos);
+    Alcotest.(check string) "fmt emit-invariant"
+      (emit_ast pos) (emit_ast (fmt pos));
+    Alcotest.(check string) "record form stable"
+      "set_target_properties $t ~properties={version=$V, sources=[a, b]}\n"
+      (fmt "set_target_properties $t ~properties={version=$V, sources=[a, b]}"))
+
 let () =
   Alcotest.run "yc_cst_bridge"
     [ "bridge", List.map corpus ~f:bridge;
       "install_targets", [ test_install_targets ];
       "execute_process", [ test_execute_process ];
+      "set_target_properties", [ test_set_target_properties ];
       "value_grammar", [ test_value_grammar ];
       "roundtrip", List.map corpus ~f:roundtrip;
       "comments", [ test_comment_placement ];

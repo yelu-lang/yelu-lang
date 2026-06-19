@@ -1348,7 +1348,7 @@ let p_property_command_y1_inner name args kwargs =
     let targets = match List.Assoc.find sections ~equal:String.equal "_head" with
       | Some items -> items | None -> []
     in
-    let properties = sections
+    let positional_props = sections
       |> List.filter_map ~f:(fun (k, items) ->
         if String.equal k "PROPERTY" then
           match items with
@@ -1363,6 +1363,21 @@ let p_property_command_y1_inner name args kwargs =
           | _ -> None
         else None)
     in
+    (* shape-3 record: `~properties={version=…, sources=[a, b]}`. Keys
+       uppercase to the cmake property name; a list value `;`-joins (matching
+       the positional `PROPERTY SOURCES a b` form). *)
+    let record_props =
+      match List.Assoc.find kwargs ~equal:String.equal "properties" with
+      | Some (ERecord fields) ->
+        List.map fields ~f:(fun (k, v) ->
+          let value = match v with
+            | EList items ->
+              EString (String.concat ~sep:";" (List.map items ~f:(str_of ~default:"")))
+            | _ -> v in
+          (String.uppercase k, value))
+      | _ -> []
+    in
+    let properties = positional_props @ record_props in
     let target = match targets with
       | [ t ] -> t | t :: _ -> t | _ -> EString "?"
     in

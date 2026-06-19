@@ -301,6 +301,38 @@ let pr_execute_process_args b (args : Cst.arg list) =
   in
   go args
 
+(* set_target_properties: `<targets> PROPERTY name v… PROPERTY name v…` →
+   `<targets> ~properties={name=v, name=[v, v], …}` (shape-3 record). Keys
+   lowercase (emit re-uppercases); a multi-value property becomes a list. *)
+let pr_set_target_properties_args b (args : Cst.arg list) =
+  let is_prop_atom (a : Cst.atom) = match a with
+    | A_name "PROPERTY" | A_keyword "PROPERTY" -> true | _ -> false in
+  let is_prop = function Cst.Pos a -> is_prop_atom a | _ -> false in
+  let rec split_targets acc = function
+    | a :: rest when not (is_prop a) -> split_targets (a :: acc) rest
+    | rest -> (List.rev acc, rest) in
+  let rec take_vals acc = function
+    | (Cst.Pos a) :: rest when not (is_prop_atom a) -> take_vals (a :: acc) rest
+    | rest -> (List.rev acc, rest) in
+  let rec groups acc = function
+    | Cst.Pos (A_name "PROPERTY" | A_keyword "PROPERTY") :: Cst.Pos name :: rest ->
+      let vals, rest' = take_vals [] rest in groups ((name, vals) :: acc) rest'
+    | rest -> (List.rev acc, rest) in
+  let targets, after = split_targets [] args in
+  let gs, leftover = groups [] after in
+  List.iter targets ~f:(fun a -> Buffer.add_char b ' '; pr_arg b a);
+  if not (List.is_empty gs) then begin
+    Buffer.add_string b " ~properties={";
+    List.iteri gs ~f:(fun i (name, vals) ->
+      if i > 0 then Buffer.add_string b ", ";
+      let key = match (name : Cst.atom) with
+        | A_name s | A_keyword s -> String.lowercase s | _ -> "" in
+      Buffer.add_string b key; Buffer.add_char b '=';
+      (match vals with [ v ] -> pr_atom b v | _ -> pr_comma_list b vals));
+    Buffer.add_char b '}'
+  end;
+  List.iter leftover ~f:(fun a -> Buffer.add_char b ' '; pr_arg b a)
+
 (* Print a command's argument list, command-aware: a positional bare keyword
    in the command's flag set → `~flag`; a value-keyword → `~label=<next>`
    (consuming the following positional); everything else via [pr_arg]. Each
@@ -308,6 +340,8 @@ let pr_execute_process_args b (args : Cst.arg list) =
 let pr_cmd_args b name (args : Cst.arg list) =
   if String.equal name "install_targets" then pr_install_targets_args b args
   else if String.equal name "execute_process" then pr_execute_process_args b args
+  else if String.equal name "set_target_properties" then
+    pr_set_target_properties_args b args
   else
   let flags = command_flags name in
   let vlabels = command_value_labels name in

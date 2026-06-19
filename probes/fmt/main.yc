@@ -128,7 +128,7 @@ fun setup_target(tgt, kind) (
       compile_defs $tgt $kind 'FMT_UNICODE=0'
     )
   );
-  set_target_properties $tgt PROPERTY VERSION $FMT_VERSION PROPERTY SOVERSION $CPACK_PACKAGE_VERSION_MAJOR PROPERTY DEBUG_POSTFIX '${FMT_DEBUG_POSTFIX}'
+  set_target_properties $tgt ~properties={version=$FMT_VERSION, soversion=$CPACK_PACKAGE_VERSION_MAJOR, debug_postfix='${FMT_DEBUG_POSTFIX}'}
 );
 FMT_HEADERS := '';
 foreach header in [ 'args.h' 'base.h' 'chrono.h' 'color.h' 'compile.h' 'core.h' 'format.h' 'format-inl.h' 'os.h' 'ostream.h' 'printf.h' 'ranges.h' 'std.h' 'xchar.h' ] (
@@ -136,7 +136,7 @@ foreach header in [ 'args.h' 'base.h' 'chrono.h' 'color.h' 'compile.h' 'core.h' 
 );
 add_lib fmt 'src/format.cc' $FMT_HEADERS 'README.md' 'ChangeLog.md';
 setup_target 'fmt' 'PUBLIC';
-set_target_properties fmt PROPERTY PUBLIC_HEADER '${FMT_HEADERS}';
+set_target_properties fmt ~properties={public_header='${FMT_HEADERS}'};
 if $FMT_OS then (
   target_sources fmt Private 'src/os.cc'
 ) else (
@@ -168,14 +168,14 @@ fun add_module_library(name) (
   cmake_parse_arguments AML '' 'USE_CMAKE_MODULES' '' $ARGN;
   sources := $AML_UNPARSED_ARGUMENTS;
   add_lib $name $sources;
-  set_target_properties $name PROPERTY LINKER_LANGUAGE Cxx;
+  set_target_properties $name ~properties={linker_language=Cxx};
   compile_feats $name Public 'cxx_std_20';
   if $MSVC then (
     if not ( str_eq $CMAKE_GENERATOR 'Ninja' ) then (
       BMI_DIR := '${CMAKE_CURRENT_BINARY_DIR}';
       path_convert_to_native '${BMI_DIR}/${name}.ifc' ~out=BMI;
       compile_opts $name Private '/interface' '/ifcOutput' $BMI Interface '/reference' 'fmt=${BMI}';
-      set_target_properties $name PROPERTY ADDITIONAL_CLEAN_FILES $BMI;
+      set_target_properties $name ~properties={additional_clean_files=$BMI};
       set_source_files_properties $BMI PROPERTIES GENERATED ON
     )
   );
@@ -221,7 +221,7 @@ if $MSVC then (
 );
 link_lib fmt-c Public 'fmt::fmt';
 add_lib_alias "fmt::fmt-c" ~alias_of='fmt-c';
-set_target_properties fmt-c PROPERTY PUBLIC_HEADER 'include/fmt/fmt-c.h';
+set_target_properties fmt-c ~properties={public_header='include/fmt/fmt-c.h'};
 if $FMT_INSTALL then (
   include CMakePackageConfigHelpers;
   set_verbose 'FMT_CMAKE_DIR' '${CMAKE_INSTALL_LIBDIR}/cmake/fmt' 'CACHE' 'STRING' 'Installation directory for cmake files, a relative path that ' 'will be joined with ${CMAKE_INSTALL_PREFIX} or an absolute ' 'path.';
