@@ -180,7 +180,7 @@ fun add_module_library(name) (
     )
   );
   if $AML_USE_CMAKE_MODULES then (
-    target_sources $name Public FILE_SET fmt TYPE CXX_MODULES FILES $sources;
+    yc_raw 'target_sources(${name} PUBLIC FILE_SET fmt TYPE CXX_MODULES FILES ${sources})';
     return
   );
   if $CMAKE_COMPILER_IS_GNUCXX then (
@@ -243,7 +243,7 @@ if $FMT_INSTALL then (
       INSTALL_FILE_SET := FILE_SET, fmt, DESTINATION, '${FMT_INC_DIR}/fmt'
     )
   );
-  install_targets $INSTALL_TARGETS COMPONENT 'fmt_core' EXPORT $targets_export_name LIBRARY DESTINATION $FMT_LIB_DIR ARCHIVE DESTINATION $FMT_LIB_DIR PUBLIC_HEADER DESTINATION '${FMT_INC_DIR}/fmt' RUNTIME DESTINATION $CMAKE_INSTALL_BINDIR $INSTALL_FILE_SET;
+  yc_raw 'install(TARGETS ${INSTALL_TARGETS} COMPONENT fmt_core EXPORT ${targets_export_name} LIBRARY DESTINATION ${FMT_LIB_DIR} ARCHIVE DESTINATION ${FMT_LIB_DIR} PUBLIC_HEADER DESTINATION ${FMT_INC_DIR}/fmt RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} ${INSTALL_FILE_SET})';
   export $targets_export_name ~file='${PROJECT_BINARY_DIR}/${targets_export_name}.cmake';
   install_files $project_config $version_config ~destination=$FMT_CMAKE_DIR ~component='fmt_core';
   install_export $targets_export_name ~destination=$FMT_CMAKE_DIR ~namespace='fmt::' ~component='fmt_core';
