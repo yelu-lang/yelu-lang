@@ -108,6 +108,10 @@ Decisions and *why*:
   collapsed `'`/`"`); `|…|` was rejected (reads as a shell pipe, worst on the
   command-line case it'd serve). A Ruby/Elixir-style `w[…]` word-sigil is the
   only escape we'd consider, and only if comma proves painful in real use.
+  **✅ Implemented `5020f6c` (2026-06-17).** The formatter emits comma
+  (`pr_comma_list`); it had drifted to the space-padded `[ a b c ]` (inherited
+  from the pre-comma `~public:[items]` printer) — the parser still accepts
+  comma / space / trailing comma, so the fix was emit-only.
 - **emit uppercases the key** (`~before` → `BEFORE`; cmake keyword args are
   case-sensitive) — same normalize/canonicalize pattern as the enum slices.
 - **`?key=default`** reserved for later *optional-with-default* function
