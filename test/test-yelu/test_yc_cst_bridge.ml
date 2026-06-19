@@ -475,10 +475,12 @@ let test_execute_process =
     Alcotest.(check string) "flag + value-label"
       "execute_process ~command=[$p] ~working_directory='/tmp' ~output_quiet\n"
       (fmt "execute_process COMMAND $p WORKING_DIRECTORY '/tmp' OUTPUT_QUIET");
-    (* multi-COMMAND guard: left positional, emit unchanged *)
+    (* multi-COMMAND (pipe) → plural ~commands=[[…], […]] (shape-2); the
+       nested lists carry the per-COMMAND grouping, so emit is unchanged *)
     let piped = "execute_process COMMAND $a 'x' COMMAND $b 'y' OUTPUT_VARIABLE o" in
-    Alcotest.(check bool) "piped multi-COMMAND → left positional (no ~command)"
-      false (String.is_substring (fmt piped) ~substring:"~command");
+    Alcotest.(check string) "piped multi-COMMAND → ~commands plural"
+      "execute_process ~commands=[[$a, 'x'], [$b, 'y']] ~output_variable=o\n"
+      (fmt piped);
     Alcotest.(check string) "fmt emit-invariant (multi-COMMAND)"
       (emit_ast piped) (emit_ast (fmt piped)))
 

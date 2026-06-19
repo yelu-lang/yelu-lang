@@ -151,6 +151,29 @@ let rec p_expr_y1 toks =
     (match p_expr_y1 rest with
      | Some (e, RPAREN :: rest') -> Some (e, rest')
      | _ -> None)
+  (* recursive value list `[ v, v, … ]` (mirror CST p_atom) *)
+  | LBRACK :: rest ->
+    let rec items acc = function
+      | RBRACK :: r -> Some (EList (List.rev acc), r)
+      | COMMA :: r  -> items acc r
+      | toks ->
+        (match p_expr_y1 toks with
+         | Some (e, r) -> items (e :: acc) r
+         | None -> None)
+    in
+    items [] rest
+  (* record `{ key=v, … }` — keys bare idents, `=` (or `:`) binds *)
+  | LBRACE :: rest ->
+    let rec fields acc = function
+      | RBRACE :: r -> Some (ERecord (List.rev acc), r)
+      | COMMA :: r  -> fields acc r
+      | IDENT k :: (COLON | EQ) :: r ->
+        (match p_expr_y1 r with
+         | Some (v, r') -> fields ((k, v) :: acc) r'
+         | None -> None)
+      | _ -> None
+    in
+    fields [] rest
   | _ -> None
 
 (* ============================================================
@@ -1896,8 +1919,14 @@ let p_cmake_op_command_y1_inner name args kwargs =
       match sections
             |> List.filter_map ~f:(fun (k, items) ->
               if String.equal k "COMMAND" then Some items else None) with
-      | [] -> (match kwarg_all "command" with [] -> [] | items -> [ items ])
-      | pos -> pos
+      | (_ :: _) as pos -> pos                       (* positional COMMAND groups *)
+      | [] ->
+        (* label forms: `~commands=[[…],[…]]` (each item an EList → one
+           command-line) takes priority; else `~command=[…]` is one line. *)
+        match kwarg_all "commands" with
+        | (_ :: _) as cmds ->
+          List.map cmds ~f:(function EList items -> items | e -> [ e ])
+        | [] -> (match kwarg_all "command" with [] -> [] | items -> [ items ])
     in
     let str_opt key = match List.Assoc.find sections ~equal:String.equal key with
       | Some [ EString s | EVar s ] -> Some s

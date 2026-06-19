@@ -184,7 +184,6 @@ let command_value_labels name =
 let command_value_list_labels name =
   match name with
   | "set_property" -> [ ("PROPERTY", "property") ]
-  | "execute_process" -> [ ("COMMAND", "command") ]
   | _ -> []
 
 (* install_targets is nested (critique #2 shape 4): `<targets> [top-opts]
@@ -258,20 +257,57 @@ let pr_install_targets_args b (args : Cst.arg list) =
   in
   go args
 
+(* execute_process: COMMAND is a repeated value-list. One COMMAND →
+   `~command=[…]`; a pipe (>1) → `~commands=[[…], …]` (shape-2 plural). The
+   parser reads both back to the same `commands` list, so the per-COMMAND
+   grouping survives — retiring the old multi-COMMAND positional guard. Other
+   keywords are the scalar value-labels / flags. *)
+let pr_execute_process_args b (args : Cst.arg list) =
+  let vlabels = command_value_labels "execute_process" in
+  let flags = command_flags "execute_process" in
+  let label_of s = List.Assoc.find vlabels s ~equal:String.equal in
+  let is_flag s = List.mem flags s ~equal:String.equal in
+  let is_kw (a : Cst.atom) = match a with
+    | A_name s | A_keyword s ->
+      String.equal s "COMMAND" || is_flag s || Option.is_some (label_of s)
+    | _ -> false in
+  let rec take_pos acc = function
+    | (Cst.Pos a) :: rest when not (is_kw a) -> take_pos (a :: acc) rest
+    | rest -> (List.rev acc, rest) in
+  let rec collect_cmds acc = function
+    | Cst.Pos (A_name "COMMAND" | A_keyword "COMMAND") :: rest ->
+      let items, rest' = take_pos [] rest in collect_cmds (items :: acc) rest'
+    | rest -> (List.rev acc, rest) in
+  let emit_cmds groups =
+    match groups with
+    | [ items ] -> Buffer.add_string b " ~command="; pr_comma_list b items
+    | _ ->
+      Buffer.add_string b " ~commands=[";
+      List.iteri groups ~f:(fun i items ->
+        if i > 0 then Buffer.add_string b ", ";
+        pr_comma_list b items);
+      Buffer.add_char b ']' in
+  let rec go = function
+    | [] -> ()
+    | (Cst.Pos (A_name "COMMAND" | A_keyword "COMMAND") :: _) as l ->
+      let groups, rest = collect_cmds [] l in emit_cmds groups; go rest
+    | Cst.Pos (A_name kw | A_keyword kw) :: rest when is_flag kw ->
+      Buffer.add_string b " ~"; Buffer.add_string b (String.lowercase kw); go rest
+    | Cst.Pos (A_name kw | A_keyword kw) :: Cst.Pos v :: rest
+      when Option.is_some (label_of kw) ->
+      Buffer.add_string b " ~"; Buffer.add_string b (Option.value_exn (label_of kw));
+      Buffer.add_char b '='; pr_atom b v; go rest
+    | a :: rest -> Buffer.add_char b ' '; pr_arg b a; go rest
+  in
+  go args
+
 (* Print a command's argument list, command-aware: a positional bare keyword
    in the command's flag set → `~flag`; a value-keyword → `~label=<next>`
    (consuming the following positional); everything else via [pr_arg]. Each
    emitted unit gets a leading space (matching the old pr_spaced behaviour). *)
 let pr_cmd_args b name (args : Cst.arg list) =
-  let is_command_kw (a : Cst.arg) = match a with
-    | Cst.Pos (A_name "COMMAND" | A_keyword "COMMAND") -> true | _ -> false in
   if String.equal name "install_targets" then pr_install_targets_args b args
-  (* execute_process with a piped multi-COMMAND can't canonicalize: the flat
-     `~command=[…]` kwarg encoding loses the per-COMMAND grouping (the parser
-     would merge them), so emit would change. Leave such a line positional. *)
-  else if String.equal name "execute_process"
-          && List.count args ~f:is_command_kw > 1 then
-    List.iter args ~f:(fun a -> Buffer.add_char b ' '; pr_arg b a)
+  else if String.equal name "execute_process" then pr_execute_process_args b args
   else
   let flags = command_flags name in
   let vlabels = command_value_labels name in
