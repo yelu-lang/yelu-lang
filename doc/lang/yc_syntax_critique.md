@@ -195,7 +195,7 @@ shapes (corpus-grounded) and their resolutions:
 | shape | example | surface | status |
 | --- | --- | --- | --- |
 | 1 flat record | `install(DIRECTORY d DESTINATION x COMPONENT c)` | `~destination=x ~component=c` | ✅ install_directory/files/export + get_property + set_property(via list) done; find/file already label-based |
-| 2 repeated→list | `add_custom_command(… COMMAND a … COMMAND b)` | a list | ⏳ remaining (add_custom_command/target, execute_process) |
+| 2 repeated→list | `add_custom_command(… COMMAND a … COMMAND b)` | a list | ⏳ remaining (add_custom_command/target); execute_process ✅ (single-COMMAND; multi left positional) |
 | 3 key→value map | `set_target_properties(t PROPERTIES K v …)` | `~properties={k=v, …}` | ⏳ remaining — needs the `{…}` record-literal grammar (set_target_properties) |
 | 4 record-list (nested) | `install(TARGETS … LIBRARY DESTINATION d1 ARCHIVE DESTINATION d2)` | **flat dotted label** | ⏳ parse/emit ✅ done; **formatter (surface) canonicalization remains** (see below) |
 
@@ -266,8 +266,13 @@ matrix 24/24).
    **Blocked sub-part:** the `COMMAND_EXPAND_LISTS` / `VERBATIM` flags are an
    IR gap (parsed but dropped on emit — model them in `ECmakeAddCustomCommand`
    first; do NOT cosmetically migrate a dropped flag).
-4. **`execute_process` — shape 1 value-labels.** `COMMAND`, `OUTPUT_VARIABLE`,
-   `RESULT_VARIABLE`, `WORKING_DIRECTORY`, etc. → `~…=`. Mechanical but many keys.
+4. **`execute_process` ✅ done (guarded) `838fe80`.** `~command=[…]` (a
+   keyword-terminated value-list), scalar value-labels (`~output_variable=`,
+   `~working_directory=`, …), and the `*_QUIET`/`*_STRIP_…` flags. Introduced
+   keyword-aware `take_positionals` (a list runs until the next keyword). A
+   **piped multi-COMMAND is left positional** (the flat `~command=[…]` kwargs
+   can't carry the per-COMMAND grouping) — same emit-safety guard pattern as
+   install_targets' trailing clause-var.
 5. **`target_sources` — `FILE_SET` clause.** Nested-ish; relates to shape 4.
 
 **Smaller follow-ups** (folded in from the retired HANDOFF.md):
