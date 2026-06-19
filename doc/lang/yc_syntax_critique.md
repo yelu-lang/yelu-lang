@@ -231,8 +231,8 @@ shapes (corpus-grounded) and their resolutions:
 | shape | example | surface | status |
 | --- | --- | --- | --- |
 | 1 flat record | `install(DIRECTORY d DESTINATION x COMPONENT c)` | `~destination=x ~component=c` | ✅ install_directory/files/export + get_property + set_property(via list) done; find/file already label-based |
-| 2 repeated→list | `add_custom_command(… COMMAND a … COMMAND b)` | a list | ⏳ remaining (add_custom_command/target); execute_process ✅ (single-COMMAND; multi left positional) |
-| 3 key→value map | `set_target_properties(t PROPERTIES K v …)` | `~properties={k=v, …}` | ⏳ remaining — needs the `{…}` record-literal grammar (set_target_properties) |
+| 2 repeated→list | `add_custom_command(… COMMAND a … COMMAND b)` | a list | ✅ recursive value grammar + `~commands` plural (execute_process `25f9e19`); add_custom_command/target can now adopt the same mechanism |
+| 3 key→value map | `set_target_properties(t PROPERTIES K v …)` | `~properties={k=v, …}` | ✅ done `a87f9a8` — record literal `{k=v}` on the recursive value grammar |
 | 4 record-list (nested) | `install(TARGETS … LIBRARY DESTINATION d1 ARCHIVE DESTINATION d2)` | **flat dotted label** | ⏳ parse/emit ✅ done; **formatter (surface) canonicalization remains** (see below) |
 
 - **Nested (shape 4) → flat dotted labels, tableless.** Artifact-kind is the
@@ -297,19 +297,20 @@ matrix 24/24).
    (it does NOT go through `p_cmake_entity`), and multi-`PROPERTY` keeps only the
    FIRST clause. Matrix-invisible today (the literal-target use sits in an
    unconfigured branch); same `EVar→EString` remedy as the property entity fix.*
-3. **`add_custom_command` / `add_custom_target` — shape 2 (repeated→list).**
-   `COMMAND a … COMMAND b` → a list; plus `OUTPUT`/`DEPENDS`/`SOURCES` labels.
-   **Blocked sub-part:** the `COMMAND_EXPAND_LISTS` / `VERBATIM` flags are an
-   IR gap (parsed but dropped on emit — model them in `ECmakeAddCustomCommand`
-   first; do NOT cosmetically migrate a dropped flag).
-4. **`execute_process` ✅ done (guarded) `838fe80`.** `~command=[…]` (a
-   keyword-terminated value-list), scalar value-labels (`~output_variable=`,
-   `~working_directory=`, …), and the `*_QUIET`/`*_STRIP_…` flags. Introduced
-   keyword-aware `take_positionals` (a list runs until the next keyword). A
-   **piped multi-COMMAND is left positional** (the flat `~command=[…]` kwargs
-   can't carry the per-COMMAND grouping) — same emit-safety guard pattern as
-   install_targets' trailing clause-var.
-5. **`target_sources` — `FILE_SET` clause.** Nested-ish; relates to shape 4.
+3. **`add_custom_command` / `add_custom_target` — shape 2.** The recursive
+   value grammar + `~command`/`~commands` mechanism now **exists** (built for
+   execute_process); these can adopt it for `COMMAND`, plus `OUTPUT`/`DEPENDS`/
+   `SOURCES` labels. **Still blocked sub-part:** `COMMAND_EXPAND_LISTS` /
+   `VERBATIM` are an IR gap (parsed but dropped on emit — model them in
+   `ECmakeAddCustomCommand` first; do NOT cosmetically migrate a dropped flag).
+4. **`execute_process` ✅ done.** `~command=[…]` / `~commands=[[…],…]`
+   (singular/plural by arity — `25f9e19`, retired the old guard), scalar
+   value-labels (`~output_variable=`, …), `*_QUIET`/`*_STRIP_…` flags.
+5. **`set_target_properties` ✅ done `a87f9a8`** — `~properties={k=v}` record
+   (shape 3); multi-value property → list value. *Latent (matrix-invisible):
+   literal target derefs to `${fmt}`; same `EVar→EString` remedy as the
+   property entity fix.*
+6. **`target_sources` — `FILE_SET` clause.** Nested-ish; relates to shape 4.
 
 **Smaller follow-ups** (folded in from the retired HANDOFF.md):
 - **get_property mode-flag-as-kwarg-enum micro-slice** — the trailing
