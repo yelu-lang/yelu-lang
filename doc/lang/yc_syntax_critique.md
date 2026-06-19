@@ -297,12 +297,15 @@ matrix 24/24).
    (it does NOT go through `p_cmake_entity`), and multi-`PROPERTY` keeps only the
    FIRST clause. Matrix-invisible today (the literal-target use sits in an
    unconfigured branch); same `EVar→EString` remedy as the property entity fix.*
-3. **`add_custom_command` / `add_custom_target` — shape 2.** The recursive
-   value grammar + `~command`/`~commands` mechanism now **exists** (built for
-   execute_process); these can adopt it for `COMMAND`, plus `OUTPUT`/`DEPENDS`/
-   `SOURCES` labels. **Still blocked sub-part:** `COMMAND_EXPAND_LISTS` /
-   `VERBATIM` are an IR gap (parsed but dropped on emit — model them in
-   `ECmakeAddCustomCommand` first; do NOT cosmetically migrate a dropped flag).
+3. **`add_custom_command` / `add_custom_target` — shape 2 (now unblocked).**
+   The recursive value grammar + `~command`/`~commands` mechanism exists (built
+   for execute_process); adopt it for `COMMAND`, plus `OUTPUT`/`DEPENDS`/
+   `SOURCES` value-labels and the `~verbatim`/`~command_expand_lists` flags.
+   **IR gap closed `591f261`:** `COMMAND_EXPAND_LISTS` was silently dropped on
+   emit (parsed-but-not-modelled); now threaded end to end as a real `bool`
+   (`VERBATIM` was already modelled). So the surface migration is no longer
+   blocked — it's the remaining step (a dedicated per-command formatter walk
+   like execute_process / set_target_properties, + parser kwarg reading).
 4. **`execute_process` ✅ done.** `~command=[…]` / `~commands=[[…],…]`
    (singular/plural by arity — `25f9e19`, retired the old guard), scalar
    value-labels (`~output_variable=`, …), `*_QUIET`/`*_STRIP_…` flags.
