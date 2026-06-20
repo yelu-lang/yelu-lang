@@ -1,3 +1,0 @@
-(executables
- (names compile_error_test test_main main)
- (libraries yelu_langs))
