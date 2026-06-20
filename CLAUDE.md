@@ -329,6 +329,12 @@ Key milestones: wellform pass (Y1), parser + concrete syntax (in progress), 408 
   emit-bridge oracle, co-truth locks, grammar freshness) and the per-theory
   check/compile suites
 - **108 equivalence/semantic checks** (35 structural + 12 CMakeOnly + 61 RunCMake)
+- **corpus compile gate** (`probes/fmt/dune`, in `dune test`) — `yelu
+  compile-corpus probes/fmt` compiles every `.yc` (parse + wellform + emit) and
+  fails the build on a positional cmake-keyword form / enum-shadow / parse error
+  / emit crash. No cmake needed. Closes the gap where the **discovered helpers**
+  (`probes/fmt/test/*/CMakeLists.yc`) were only checked by the *manual* matrix —
+  `compile main.yc` alone used to hide their regressions.
 - **cmake ground-truth probes** — `python3 test/test_deref_probes.py` (deref
   semantics, not in `dune test`)
 - **12 end-to-end tutorial steps** (generate → configure → build → run)

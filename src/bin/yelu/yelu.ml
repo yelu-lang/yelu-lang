@@ -656,6 +656,42 @@ let () =
     (match out with
      | None -> Stdlib.print_string cmake_text
      | Some path -> write_all path cmake_text)
+  | "compile-corpus" :: probe_dir :: _ ->
+    (* Build-time gate: compile every .yc under [probe_dir] (parse + wellform +
+       emit) and fail if any does not compile. Catches the regressions the
+       matrix only sees at configure time — positional cmake-keyword forms,
+       enum-shadow declarations, parse errors, emit crashes — without needing
+       cmake. Wired into `dune test` via probes/fmt/dune. *)
+    let helpers = discover_helpers probe_dir in
+    let check file =
+      let src = read_all file in
+      match Yelu_langs.Yelu_parse.parse_program_y1 src with
+      | Error e -> Error (Printf.sprintf "parse error: %s" e)
+      | Ok expr ->
+        let fatals =
+          List.filter_map (Yelu_langs.Yc_wellform.check_all expr) ~f:(function
+            | Yelu_langs.Yc_wellform.Positional_form { command } ->
+              Some (Printf.sprintf "%s in positional cmake-keyword form" command)
+            | Yelu_langs.Yc_wellform.Enum_shadow { name; constructor } ->
+              Some (Printf.sprintf "%S shadows the %s constructor" name constructor)
+            | _ -> None)
+        in
+        if not (List.is_empty fatals) then Error (String.concat ~sep:"; " fatals)
+        else
+          (try ignore (Yelu_langs.Yelu_cmake_emit.emit_script expr); Ok ()
+           with e -> Error ("emit: " ^ Exn.to_string e))
+    in
+    let results = List.map helpers ~f:(fun h -> (h.source, check h.source)) in
+    let failures =
+      List.filter_map results ~f:(fun (f, r) ->
+        match r with Error e -> Some (f, e) | Ok () -> None)
+    in
+    let total = List.length results in
+    Stdlib.Printf.printf "[yelu] compile-corpus %s: %d/%d ok\n%!"
+      probe_dir (total - List.length failures) total;
+    List.iter failures ~f:(fun (f, e) ->
+      Stdlib.Printf.printf "  FAIL %s: %s\n%!" f e);
+    if not (List.is_empty failures) then Stdlib.exit 1
   | "hybrid" :: probe_dir :: rest ->
     let manifest_path = Stdlib.Filename.concat probe_dir "main.json" in
     let source_dir_override, d_flags =

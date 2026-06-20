@@ -1,0 +1,11 @@
+; Build-time corpus gate: compile every .yc here (parse + wellform + emit) as
+; part of `dune test`. Fails on positional cmake-keyword forms, enum-shadow
+; declarations, parse errors, or emit crashes — the regression class the matrix
+; only catches at configure time. No cmake required.
+(rule
+ (alias runtest)
+ (deps
+  (glob_files_rec *.yc)
+  %{exe:../../src/bin/yelu/yelu.exe})
+ (action
+  (run %{exe:../../src/bin/yelu/yelu.exe} compile-corpus .)))
