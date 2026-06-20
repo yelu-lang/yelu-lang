@@ -198,12 +198,27 @@ Layered coverage for the parse/lower/print round-trips:
       because the **discovered helpers** (`probes/fmt/test/*/CMakeLists.yc`) are
       compiled through the fatal `compile_yc` path; `compile main.yc` alone was
       byte-identical and hid them.
-    (4) **collapse the dead `split_by_keywords` + remaining formatter walks**
-    (`pr_command_groups_args` / `pr_set_target_properties_args` / the rewriting
-    half of `pr_cmd_args`) — *next*. The formatter still canonicalizes
-    positional → labeled (a migration aid); phase 4 removes those walks so
-    fmt-of-positional becomes a pass-through consistent with the compile reject.
-    Multi-session. Full analysis in the 2026-06-19 session.
+    (4) **cleanup** ✅ **done** — two parts, both decided this session:
+    - *Parser* (commit 1c0ffed): dropped the now-vestigial `split_by_keywords`
+      calls in `set_property` / `get_property` / `set_target_properties` (the
+      reject fires upstream, so the split could never find a section there).
+      `split_by_keywords` itself **stays** — still load-bearing for the deferred
+      commands (`set_source_files_properties` / `export` /
+      `configure_package_config_file`) and the test family. It is an active
+      helper, not dead legacy.
+    - *Formatter* (commit 5c9b92d): `fmt` is now **pass-through** — the
+      positional→labeled walks (`pr_command_groups_args` /
+      `pr_set_target_properties_args` / the rewriting half of `pr_cmd_args`, +
+      the `command_flags`/`command_value_labels`/`command_value_list_labels`
+      tables) are **deleted**. **Decision (2026-06-19): no codemod in `fmt`.**
+      `fmt` should only bless good (labeled) code; a positional→labeled codemod
+      belongs in a separate 2to3-style migration tool, not in the formatter. At
+      this design-implementation stage the corpus is small enough to just update
+      old input files. Consequence: non-rejected commands keep their positional
+      surface as good code (`find_package Foo REQUIRED`, `include_guard GLOBAL`)
+      and fmt leaves them be; the `~required`/`~global` kwarg aliases stay
+      parser-accepted. Verified: corpus fmt idempotent + emit-stable.
+    Step 2 is **complete**. Full analysis in the 2026-06-19 session.
 - **Driver interface — CST as a first-class form.** *Tier (a) done
   (2026-06-10):* `Yc_driver` now exposes `parse_cst` / `lower_cst` /
   `print_cst` / `format`, and [`../yelu_cmake/driver.md`](../yelu_cmake/driver.md)
