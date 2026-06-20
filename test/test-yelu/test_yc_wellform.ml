@@ -80,6 +80,10 @@ let () =
             "set_target_properties $t PROPERTY VERSION $V" ~expect:true;
           pcase "set_target_properties labeled ok"
             "set_target_properties $t ~properties={version=$V}" ~expect:false;
+          pcase "execute_process positional → reject"
+            "execute_process COMMAND $prog '--version' OUTPUT_VARIABLE v" ~expect:true;
+          pcase "execute_process labeled ok"
+            "execute_process ~command=[$prog, '--version'] ~output_variable=v" ~expect:false;
           (* a genuinely unknown/external command stays a plain raw — no reject *)
           pcase "unknown command not flagged"
             "some_external_macro 'a' 'b'" ~expect:false ] ) ]

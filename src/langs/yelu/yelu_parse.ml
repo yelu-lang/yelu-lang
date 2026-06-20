@@ -1895,49 +1895,40 @@ let p_cmake_op_command_y1_inner name args kwargs =
       | _ -> None)
     in
     Some (ECmakeEnableLanguage { langs; optional })
+  | "execute_process", args
+    when (let kw = [ "COMMAND"; "WORKING_DIRECTORY"; "TIMEOUT";
+                     "RESULT_VARIABLE"; "RESULTS_VARIABLE"; "OUTPUT_VARIABLE";
+                     "ERROR_VARIABLE"; "INPUT_FILE"; "OUTPUT_FILE"; "ERROR_FILE";
+                     "OUTPUT_QUIET"; "ERROR_QUIET"; "ENCODING"; "ECHO_OUTPUT_VARIABLE";
+                     "ECHO_ERROR_VARIABLE"; "OUTPUT_STRIP_TRAILING_WHITESPACE";
+                     "ERROR_STRIP_TRAILING_WHITESPACE"; "COMMAND_ERROR_IS_FATAL";
+                     "COMMAND_ECHO" ] in
+          List.exists args ~f:(function
+            | EVar s | EString s -> List.mem kw s ~equal:String.equal
+            | _ -> false)) ->
+    (* Labeled-only (Step 2): a positional cmake keyword (COMMAND / *_VARIABLE /
+       OUTPUT_QUIET / …) is a fatal reject — use the ~command / ~commands /
+       ~working_directory / ~output_variable / … labels. *)
+    Some (ECmakeRawCmd { name = cmake_name_of_yelu name; args;
+                         from_positional = Some "execute_process" })
   | "execute_process", _ ->
-    let sections = split_by_keywords
-      ~keywords:["COMMAND"; "WORKING_DIRECTORY"; "TIMEOUT";
-                 "RESULT_VARIABLE"; "OUTPUT_VARIABLE"; "ERROR_VARIABLE";
-                 "INPUT_FILE"; "OUTPUT_FILE"; "ERROR_FILE";
-                 "OUTPUT_QUIET"; "ERROR_QUIET";
-                 "OUTPUT_STRIP_TRAILING_WHITESPACE";
-                 "ERROR_STRIP_TRAILING_WHITESPACE";
-                 "COMMAND_ERROR_IS_FATAL"]
-      args
-    in
-    (* Each cmake keyword is also accepted as its `~label=` form (lowercased),
-       arriving in [kwargs]: a `~command=[…]` list flattens to repeated
-       `command` kwargs (recovered by find_all); the rest are scalar. *)
+    (* Each cmake keyword is accepted as its `~label=` form (lowercased): a
+       `~command=[…]` list flattens to repeated `command` kwargs; the rest are
+       scalar. `~commands=[[…],[…]]` carries multiple command-lines. *)
     let kwarg_all key =
       List.filter_map kwargs ~f:(fun (k, v) -> Option.some_if (String.equal k key) v) in
     let kwarg_opt key = List.Assoc.find kwargs ~equal:String.equal key in
     let kwarg_mem key = List.Assoc.mem kwargs ~equal:String.equal key in
     let commands =
-      match sections
-            |> List.filter_map ~f:(fun (k, items) ->
-              if String.equal k "COMMAND" then Some items else None) with
-      | (_ :: _) as pos -> pos                       (* positional COMMAND groups *)
-      | [] ->
-        (* label forms: `~commands=[[…],[…]]` (each item an EList → one
-           command-line) takes priority; else `~command=[…]` is one line. *)
-        match kwarg_all "commands" with
-        | (_ :: _) as cmds ->
-          List.map cmds ~f:(function EList items -> items | e -> [ e ])
-        | [] -> (match kwarg_all "command" with [] -> [] | items -> [ items ])
+      match kwarg_all "commands" with
+      | (_ :: _) as cmds ->
+        List.map cmds ~f:(function EList items -> items | e -> [ e ])
+      | [] -> (match kwarg_all "command" with [] -> [] | items -> [ items ])
     in
-    let str_opt key = match List.Assoc.find sections ~equal:String.equal key with
-      | Some [ EString s | EVar s ] -> Some s
-      | _ -> (match kwarg_opt (String.lowercase key) with
-              | Some (EString s | EVar s) -> Some s | _ -> None)
-    in
-    let expr_opt key = match List.Assoc.find sections ~equal:String.equal key with
-      | Some [ e ] -> Some e
-      | _ -> kwarg_opt (String.lowercase key)
-    in
-    let has_flag key =
-      Option.is_some (List.Assoc.find sections ~equal:String.equal key)
-      || kwarg_mem (String.lowercase key) in
+    let str_opt key = match kwarg_opt (String.lowercase key) with
+      | Some (EString s | EVar s) -> Some s | _ -> None in
+    let expr_opt key = kwarg_opt (String.lowercase key) in
+    let has_flag key = kwarg_mem (String.lowercase key) in
     let timeout = Option.map (expr_opt "TIMEOUT") ~f:(fun e ->
       match e with EString s -> Float.of_string s | _ -> 0.0) in
     Some (ECmakeExecuteProcess

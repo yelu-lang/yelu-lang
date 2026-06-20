@@ -45,17 +45,17 @@ fun run_tests() (
     ';
   build_directory := '${CMAKE_CURRENT_BINARY_DIR}/test/build';
   file_make_directory '${build_directory}';
-  execute_process COMMAND $CMAKE_COMMAND '-DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}' '-DCMAKE_CXX_FLAGS=${CMAKE_CXX_FLAGS}' '-DCMAKE_CXX_STANDARD=${CMAKE_CXX_STANDARD}' '-DCMAKE_GENERATOR=${CMAKE_GENERATOR}' '-DCMAKE_MAKE_PROGRAM=${CMAKE_MAKE_PROGRAM}' '-DFMT_DIR=${FMT_DIR}' '${CMAKE_CURRENT_BINARY_DIR}/test' WORKING_DIRECTORY '${build_directory}' RESULT_VARIABLE result_var OUTPUT_VARIABLE output_var ERROR_VARIABLE output_var;
+  execute_process ~command=[$CMAKE_COMMAND, '-DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}', '-DCMAKE_CXX_FLAGS=${CMAKE_CXX_FLAGS}', '-DCMAKE_CXX_STANDARD=${CMAKE_CXX_STANDARD}', '-DCMAKE_GENERATOR=${CMAKE_GENERATOR}', '-DCMAKE_MAKE_PROGRAM=${CMAKE_MAKE_PROGRAM}', '-DFMT_DIR=${FMT_DIR}', '${CMAKE_CURRENT_BINARY_DIR}/test'] ~working_directory='${build_directory}' ~result_variable=result_var ~output_variable=output_var ~error_variable=output_var;
   if not ( eq $result_var 0 ) then (
     message FATAL_ERROR 'Unable to configure:\n${output_var}'
   );
   foreach test_name in LISTS error_test_names (
-    execute_process COMMAND $CMAKE_COMMAND '--build' '${build_directory}' '--target' 'test-${test_name}' WORKING_DIRECTORY '${build_directory}' RESULT_VARIABLE result_var OUTPUT_VARIABLE output_var ERROR_QUIET;
+    execute_process ~command=[$CMAKE_COMMAND, '--build', '${build_directory}', '--target', 'test-${test_name}'] ~working_directory='${build_directory}' ~result_variable=result_var ~output_variable=output_var ~error_quiet;
     if eq $result_var 0 then (
       message SEND_ERROR 'No compile error for "${test_name}":\n${output_var}'
     )
   );
-  execute_process COMMAND $CMAKE_COMMAND '--build' '${build_directory}' '--target' 'non-error-test' WORKING_DIRECTORY '${build_directory}' RESULT_VARIABLE result_var OUTPUT_VARIABLE output_var ERROR_VARIABLE output_var;
+  execute_process ~command=[$CMAKE_COMMAND, '--build', '${build_directory}', '--target', 'non-error-test'] ~working_directory='${build_directory}' ~result_variable=result_var ~output_variable=output_var ~error_variable=output_var;
   if not ( eq $result_var 0 ) then (
     message SEND_ERROR 'Compile error for combined non-error test:\n${output_var}'
   )
