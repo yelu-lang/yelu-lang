@@ -5,11 +5,11 @@ if $MSVC then (
   list_append 'CUDA_NVCC_FLAGS' '-Xcompiler' '/Zc:__cplusplus'
 );
 cuda_add_executable fmt-in-cuda-test 'cuda-cpp14.cu' 'cpp14.cc';
-set_target_properties target fmt-in-cuda-test PROPERTIES CUDA_SEPARABLE_COMPILATION ON;
+set_target_properties fmt-in-cuda-test ~properties={cuda_separable_compilation=ON};
 compile_feats fmt-in-cuda-test Private 'cxx_std_14';
 if $MSVC then (
-  set_property SOURCE 'cuda-cpp14.cu' APPEND PROPERTY COMPILE_OPTIONS '-Xcompiler' '/std:c++14' '-Xcompiler' '/Zc:__cplusplus';
-  set_property SOURCE 'cpp14.cc' APPEND PROPERTY COMPILE_OPTIONS '/std:c++14' '/Zc:__cplusplus'
+  set_property Source 'cuda-cpp14.cu' ~append ~property=[COMPILE_OPTIONS, '-Xcompiler', '/std:c++14', '-Xcompiler', '/Zc:__cplusplus'];
+  set_property Source 'cpp14.cc' ~append ~property=[COMPILE_OPTIONS, '/std:c++14', '/Zc:__cplusplus']
 );
 get_target_property IN_USE_CUDA_STANDARD target fmt-in-cuda-test CUDA_STANDARD;
 message 'cuda_standard: ${IN_USE_CUDA_STANDARD}';

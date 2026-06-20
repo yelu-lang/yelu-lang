@@ -189,112 +189,60 @@ let test_flags =
     Alcotest.(check string) "REQUIRED / ~required emit identically"
       (emit_ast "find_package Foo REQUIRED")
       (emit_ast "find_package Foo ~required");
-    (* set_property:
-       - APPEND / APPEND_STRING → ~append / ~append_string (Lane B flags)
-       - PROPERTY name vals → ~property=[name, vals...] (Lane C value-list label,
-         the multi-value shape — cmake's PROPERTY introduces a (name, vals...)
-         pair; the leading list element plays the "key" role until the shape-3
-         record literal lands)
-       Both directions: byte-identical cmake emit. *)
+    (* set_property — labeled-only (Step 2): APPEND/APPEND_STRING → ~append/
+       ~append_string flags; PROPERTY name vals → ~property=[name, vals…] value
+       list. The positional cmake-keyword form is rejected (see
+       test_yc_wellform). The entity scope (Target/Source/Cache/Global/Test/
+       Install) stays positional — it is the enum-constructor surface. *)
     let canon_target =
       "set_property foo ~append ~property=[LINK_LIBRARIES, 'bar']\n" in
-    Alcotest.(check string) "set_property TARGET: positional → canon"
-      canon_target
-      (fmt "set_property foo APPEND PROPERTY LINK_LIBRARIES 'bar'");
     Alcotest.(check string) "set_property TARGET canon stable"
       canon_target
       (fmt "set_property foo ~append ~property=[LINK_LIBRARIES, 'bar']");
-    Alcotest.(check string) "set_property TARGET: positional / canon emit identically"
-      (emit_ast "set_property foo APPEND PROPERTY LINK_LIBRARIES 'bar'")
-      (emit_ast "set_property foo ~append ~property=[LINK_LIBRARIES, 'bar']");
     let canon_source =
       "set_property Source 'main.c' ~append ~property=[COMPILE_FLAGS, '-Wall']\n" in
-    Alcotest.(check string) "set_property SOURCE → Source: positional → canon"
+    Alcotest.(check string) "set_property Source canon stable"
       canon_source
-      (fmt "set_property SOURCE 'main.c' APPEND PROPERTY COMPILE_FLAGS '-Wall'");
-    Alcotest.(check string) "set_property SOURCE: positional / canon emit identically"
-      (emit_ast "set_property SOURCE 'main.c' APPEND PROPERTY COMPILE_FLAGS '-Wall'")
-      (emit_ast canon_source);
-    (* set_property CACHE — the entry name now flows through emit (cache_entry
-       was a placeholder Cache_entry singleton that dropped names; lifted to
-       string list 2026-06-13). Verify canon round-trip and that the entry
-       name + all three STRINGS values survive to cmake. *)
+      (fmt canon_source);
+    (* set_property CACHE — the entry name flows through emit (a bare `FOO` is
+       the entry name literal, not a var; the derefed `CACHE ${FOO}` was the
+       regression that broke the matrix). Entry name + all three STRINGS values
+       survive to cmake. *)
     let canon_cache =
       "set_property Cache FOO ~append ~property=[STRINGS, 'a', 'b', 'c']\n" in
-    Alcotest.(check string) "set_property CACHE → Cache: positional → canon"
-      canon_cache
-      (fmt "set_property CACHE FOO APPEND PROPERTY STRINGS 'a' 'b' 'c'");
     Alcotest.(check string) "set_property Cache canon stable"
       canon_cache
-      (fmt "set_property Cache FOO ~append ~property=[STRINGS, 'a', 'b', 'c']");
-    Alcotest.(check string) "set_property CACHE: positional / canon emit identically"
-      (emit_ast "set_property CACHE FOO APPEND PROPERTY STRINGS 'a' 'b' 'c'")
-      (emit_ast canon_cache);
+      (fmt canon_cache);
     Alcotest.(check bool) "set_property CACHE keeps the entry name on emit"
       true
-      (* the entry name is a LITERAL (cmake derefs ${} — a bare `FOO` is the
-         entry name, not a var). Earlier this asserted the derefed `CACHE
-         ${FOO}`, which was the regression that broke the matrix. *)
-      (String.is_substring
-         ~substring:"CACHE FOO"
-         (emit_ast "set_property CACHE FOO APPEND PROPERTY STRINGS 'a' 'b' 'c'"));
+      (String.is_substring ~substring:"CACHE FOO" (emit_ast canon_cache));
     Alcotest.(check bool) "set_property CACHE multi-value list survives emit"
       true
-      (String.is_substring
-         ~substring:"STRINGS a;b;c"
-         (emit_ast canon_cache));
+      (String.is_substring ~substring:"STRINGS a;b;c" (emit_ast canon_cache));
     (* APPEND_STRING — second flag, independent of APPEND. *)
     let canon_aps =
       "set_property foo ~append_string ~property=[COMPILE_FLAGS, '-Wall']\n" in
-    Alcotest.(check string) "set_property APPEND_STRING: positional → canon"
+    Alcotest.(check string) "set_property ~append_string stable"
       canon_aps
-      (fmt "set_property foo APPEND_STRING PROPERTY COMPILE_FLAGS '-Wall'");
-    Alcotest.(check string) "set_property APPEND_STRING: positional / canon emit identically"
-      (emit_ast "set_property foo APPEND_STRING PROPERTY COMPILE_FLAGS '-Wall'")
-      (emit_ast canon_aps);
+      (fmt canon_aps);
     Alcotest.(check string) "set_property: both flags + value-list preserved"
       "set_property foo ~append ~append_string ~property=[COMPILE_FLAGS, '-Wall']\n"
-      (fmt "set_property foo APPEND APPEND_STRING PROPERTY COMPILE_FLAGS '-Wall'");
+      (fmt "set_property foo ~append ~append_string ~property=[COMPILE_FLAGS, '-Wall']");
     (* Pos3 entity surface — scope discriminators (`Source`, `Cache`, `Global`,
-       `Test`, `Install`) canonicalize to leading-cap and parse as first-class
-       kinded entities via [p_cmake_entity]. Previously GLOBAL/TEST/INSTALL
-       scopes fell back to yc_raw; Pos3 routes them through the unified
-       ECmakeSetProperty IR (one ctor, scope sum). *)
-    Alcotest.(check string) "Pos3: SOURCE → Source (leading-cap)"
-      "set_property Source 'main.c' ~property=[COMPILE_FLAGS, '-Wall']\n"
-      (fmt "set_property SOURCE 'main.c' PROPERTY COMPILE_FLAGS '-Wall'");
-    Alcotest.(check string) "Pos3: CACHE → Cache (leading-cap)"
-      "set_property Cache FOO ~property=[STRINGS, 'a', 'b']\n"
-      (fmt "set_property CACHE FOO PROPERTY STRINGS 'a' 'b'");
-    Alcotest.(check string) "Pos3 stable: Cache FOO round-trips"
-      "set_property Cache FOO ~property=[STRINGS, 'a', 'b']\n"
-      (fmt "set_property Cache FOO ~property=[STRINGS, 'a', 'b']");
-    (* GLOBAL scope: previously yc_raw fallback, now typed via Pos3 *)
-    Alcotest.(check string) "Pos3: Global scope (newly typed)"
-      "set_property Global ~property=[USE_FOLDERS, ON]\n"
-      (fmt "set_property Global PROPERTY USE_FOLDERS ON");
+       `Test`, `Install`) are first-class kinded entities via [p_cmake_entity],
+       routed through the unified ECmakeSetProperty IR (one ctor, scope sum). *)
     Alcotest.(check string) "Pos3: Global emits set_property(GLOBAL ...)"
       "set_property(GLOBAL PROPERTY USE_FOLDERS ON)"
-      (emit_ast "set_property Global PROPERTY USE_FOLDERS ON");
-    (* TEST scope: previously yc_raw, now typed *)
-    Alcotest.(check string) "Pos3: Test scope (newly typed)"
-      "set_property Test 'mytest' ~property=[ENVIRONMENT, 'V=1']\n"
-      (fmt "set_property TEST 'mytest' PROPERTY ENVIRONMENT 'V=1'");
+      (emit_ast "set_property Global ~property=[USE_FOLDERS, ON]");
     Alcotest.(check string) "Pos3: Test emits set_property(TEST ...)"
       "set_property(TEST mytest PROPERTY ENVIRONMENT V=1)"
-      (emit_ast "set_property Test 'mytest' PROPERTY ENVIRONMENT 'V=1'");
-    (* INSTALL scope: previously yc_raw, now typed *)
-    Alcotest.(check string) "Pos3: Install scope (newly typed)"
-      "set_property Install 'lib.so' ~property=[CPACK_NEVER, 'TRUE']\n"
-      (fmt "set_property INSTALL 'lib.so' PROPERTY CPACK_NEVER 'TRUE'");
+      (emit_ast "set_property Test 'mytest' ~property=[ENVIRONMENT, 'V=1']");
     Alcotest.(check string) "Pos3: Install emits set_property(INSTALL ...)"
       "set_property(INSTALL lib.so PROPERTY CPACK_NEVER TRUE)"
-      (emit_ast "set_property Install 'lib.so' PROPERTY CPACK_NEVER 'TRUE'");
-    (* get_property — unified Pos3 dispatch parallel to set_property. The 4-way
-       legacy shape collapsed 2026-06-14: ECmakeGetProperty now carries
+      (emit_ast "set_property Install 'lib.so' ~property=[CPACK_NEVER, 'TRUE']");
+    (* get_property — unified Pos3 dispatch parallel to set_property:
        { var; scope; property; mode } mirroring Lang_cmake.Get_property 1:1.
-       VARIABLE scope is unique to get and now supported. Mode enum (Value,
-       Set, Defined, Brief_docs, Full_docs) replaces the prior [set_form : bool]. *)
+       VARIABLE scope is unique to get; mode via ~mode=Value/Set/Defined/…. *)
     Alcotest.(check string) "Pos3 get_property: Target scope, default mode"
       "get_property(myvar TARGET foo PROPERTY ALIASED_TARGET)"
       (emit_ast "get_property Target foo ~property=ALIASED_TARGET ~out=myvar");
@@ -311,16 +259,6 @@ let test_flags =
     Alcotest.(check string) "Pos3 get_property: Variable scope (newly typed)"
       "get_property(myvar VARIABLE PROPERTY CMAKE_VERSION DEFINED)"
       (emit_ast "get_property Variable ~property=CMAKE_VERSION ~mode=Defined ~out=myvar");
-    (* mode flag canonicalization on input: positional `DEFINED` → ~mode=Defined *)
-    Alcotest.(check string) "Pos3 get_property: positional DEFINED → typed mode"
-      "get_property(myvar GLOBAL PROPERTY USE_FOLDERS DEFINED)"
-      (emit_ast "get_property Global PROPERTY USE_FOLDERS DEFINED ~out=myvar");
-    (* fmt canonicalization: PROPERTY → ~property= (Lane C shape-1), scope
-       keyword leading-cap'd, mode flag stays positional (mode-as-kwarg is a
-       future micro-slice; the lexer at least canonicalizes DEFINED → Defined). *)
-    Alcotest.(check string) "Pos3 get_property: fmt canonicalizes positional form"
-      "get_property Cache FOO ~property=STRINGS Defined ~out=myvar\n"
-      (fmt "get_property CACHE FOO PROPERTY STRINGS DEFINED ~out=myvar");
     (* `:=` low-priority command-call sugar (2026-06-14). When the RHS of
        `:=` starts with a known command name + command-shape tokens, parse
        the rest as a full command and inject `~out=lhs` so any command with
@@ -472,25 +410,21 @@ let test_value_grammar =
       "somecmd ~properties={version='1.0'}\n"
       (fmt "somecmd ~properties={version:'1.0'}"))
 
-(* shape-3 record: set_target_properties PROPERTY name v… → ~properties={…}.
-   A multi-value property becomes a list value; positional and record forms
-   emit identically (each property → its own set_target_properties call). *)
+(* shape-3 record: set_target_properties ~properties={…} — labeled-only
+   (Step 2). A multi-value property becomes a list value; each property emits
+   its own set_target_properties call. The positional PROPERTY/PROPERTIES form
+   is rejected (see test_yc_wellform). *)
 let test_set_target_properties =
   Alcotest.test_case "set_target_properties record (shape 3)" `Quick (fun () ->
     let fmt s =
       match Cstp.parse s with
       | Ok c -> Yelu_langs.Yc_cst_print.print_program c
       | Error e -> Alcotest.failf "parse %S: %s" s e in
-    let pos =
-      "set_target_properties $t PROPERTY VERSION $V PROPERTY SOURCES a b" in
-    Alcotest.(check string) "PROPERTY triples → ~properties record"
-      "set_target_properties $t ~properties={version=$V, sources=[a, b]}\n"
-      (fmt pos);
-    Alcotest.(check string) "fmt emit-invariant"
-      (emit_ast pos) (emit_ast (fmt pos));
+    let rec_ = "set_target_properties $t ~properties={version=$V, sources=[a, b]}" in
     Alcotest.(check string) "record form stable"
-      "set_target_properties $t ~properties={version=$V, sources=[a, b]}\n"
-      (fmt "set_target_properties $t ~properties={version=$V, sources=[a, b]}"))
+      (rec_ ^ "\n") (fmt rec_);
+    Alcotest.(check string) "record emit-invariant"
+      (emit_ast rec_) (emit_ast (fmt rec_)))
 
 (* add_custom_command / add_custom_target — labeled-only (Step 2). OUTPUT/
    DEPENDS/SOURCES → ~output/~depends/~sources value-lists; COMMAND →

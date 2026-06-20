@@ -66,6 +66,20 @@ let () =
             "install_export $e DESTINATION 'x' NAMESPACE 'ns::'" ~expect:true;
           pcase "install_export labeled ok"
             "install_export $e ~destination='x' ~namespace='ns::'" ~expect:false;
+          pcase "set_property positional → reject"
+            "set_property foo APPEND PROPERTY LINK_LIBRARIES 'bar'" ~expect:true;
+          pcase "set_property labeled ok"
+            "set_property foo ~append ~property=[LINK_LIBRARIES, 'bar']" ~expect:false;
+          pcase "set_property Source entity stays (labeled)"
+            "set_property Source 'main.c' ~property=[COMPILE_FLAGS, '-Wall']" ~expect:false;
+          pcase "get_property positional → reject"
+            "get_property Global PROPERTY USE_FOLDERS DEFINED ~out=v" ~expect:true;
+          pcase "get_property labeled ok"
+            "get_property Global ~property=USE_FOLDERS ~mode=Defined ~out=v" ~expect:false;
+          pcase "set_target_properties positional → reject"
+            "set_target_properties $t PROPERTY VERSION $V" ~expect:true;
+          pcase "set_target_properties labeled ok"
+            "set_target_properties $t ~properties={version=$V}" ~expect:false;
           (* a genuinely unknown/external command stays a plain raw — no reject *)
           pcase "unknown command not flagged"
             "some_external_macro 'a' 'b'" ~expect:false ] ) ]

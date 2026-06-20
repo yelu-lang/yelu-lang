@@ -1267,6 +1267,15 @@ let p_property_command_y1_inner name args kwargs =
     | name :: values -> Some (str_of name, values)
   in
   match name, args with
+  | "get_property", args
+    when (let kw = [ "PROPERTY"; "SET"; "DEFINED"; "BRIEF_DOCS"; "FULL_DOCS" ] in
+          List.exists args ~f:(function
+            | EVar s | EString s -> List.mem kw s ~equal:String.equal
+            | _ -> false)) ->
+    (* Labeled-only (Step 2): a positional PROPERTY / mode (SET/DEFINED/…)
+       keyword is a fatal reject — use ~property= / ~mode= / ~out=. *)
+    Some (ECmakeRawCmd { name = cmake_name_of_yelu name; args;
+                         from_positional = Some "get_property" })
   | "get_property", args ->
     (* Pos3 entity-driven dispatch — parallel to set_property. The output
        var arrives via `~out=var` kwarg or as a leading positional (legacy
@@ -1333,6 +1342,14 @@ let p_property_command_y1_inner name args kwargs =
     Some (yc_get_target_property var target property)
   | "get_target_property", [ tgt ] ->
     Some (yc_get_property ~target:tgt "PROP" out)
+  | "set_target_properties", _ :: rest
+    when List.exists rest ~f:(function
+           | EVar ("PROPERTY" | "PROPERTIES")
+           | EString ("PROPERTY" | "PROPERTIES") -> true | _ -> false) ->
+    (* Labeled-only (Step 2): the positional PROPERTY/PROPERTIES form is a fatal
+       reject — use the `~properties={…}` record. *)
+    Some (ECmakeRawCmd { name = cmake_name_of_yelu name; args;
+                         from_positional = Some "set_target_properties" })
   | "set_target_properties", target :: rest ->
     let sections = split_by_keywords ~keywords:["PROPERTY"] (target :: rest) in
     let targets = match List.Assoc.find sections ~equal:String.equal "_head" with
@@ -1394,6 +1411,17 @@ let p_property_command_y1_inner name args kwargs =
         else None)
     in
     Some (yc_set_source_files_properties files properties)
+  | "set_property", args
+    when (let kw = [ "PROPERTY"; "APPEND"; "APPEND_STRING" ] in
+          List.exists args ~f:(function
+            | EVar s | EString s -> List.mem kw s ~equal:String.equal
+            | _ -> false)) ->
+    (* Labeled-only (Step 2): the positional PROPERTY / APPEND / APPEND_STRING
+       form is a fatal reject — use ~property= / ~append / ~append_string. The
+       entity scope (Target/Source/Cache/Global/Test/Install) stays positional;
+       it is the enum-constructor surface, not a cmake keyword. *)
+    Some (ECmakeRawCmd { name = cmake_name_of_yelu name; args;
+                         from_positional = Some "set_property" })
   | "set_property", args ->
     (* Pos3-driven scope dispatch (2026-06-14). [p_cmake_entity] reads
        a leading entity (Target / Source / Cache / Global / Test / Install
