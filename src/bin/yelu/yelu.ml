@@ -140,11 +140,41 @@ let compile_yc ?(wellform = true) ?(warn = fun _ -> ()) file =
                yc surface; use the ~label= form or yc_raw '…'\n"
               file command;
             Stdlib.exit 1
+          | Yelu_langs.Yc_wellform.Unknown_command { name; closed_world = true } ->
+            (* Fatal: file has no opening construct (include / find_package /
+               add_subdirectory / dynamic cmake_call / non-literal fun name),
+               so the command set is statically closed → the unknown name
+               MUST be a typo. *)
+            Stdlib.Printf.eprintf
+              "yelu compile: %s: unknown command %S — no in-file function/macro \
+               by that name and no opening construct (include / find_package / \
+               add_subdirectory / cmake_call / dynamic fun-name) that would \
+               introduce one. Did you mean `fun`/`function`/`macro` to define it?\n"
+              file name;
+            Stdlib.exit 1
+          | Yelu_langs.Yc_wellform.Unknown_command { name; closed_world = false } ->
+            (* Warning: file has at least one opening construct, so the
+               command set is genuinely open. Could be cross-file user
+               functions, cmake-stdlib (cmake_parse_arguments,
+               check_language, …), or a dynamic call. Hint the user. *)
+            warn (Printf.sprintf
+                    "[yelu][unknown-command] %s: %S is not a typed yc primitive \
+                     and is not declared as a function/macro in this file. \
+                     If this is a cmake-stdlib or cross-file call (this file \
+                     has an opening construct, so unknown names cannot be \
+                     statically resolved), wrap it in `yc_raw '…'` to silence."
+                    file name)
           | _ -> ());
         let raw_escapes, others =
           List.partition_tf errors ~f:(function
             | Yelu_langs.Yc_wellform.Raw_cmake_escape _ -> true
             | _ -> false)
+        in
+        (* Unknown_command warnings are already surfaced above with a
+           dedicated message; skip the generic Sexp dump for them. *)
+        let others = List.filter others ~f:(function
+          | Yelu_langs.Yc_wellform.Unknown_command _ -> false
+          | _ -> true)
         in
         List.iteri others ~f:(fun i e ->
           warn (Printf.sprintf "[yelu][emit][warning][%d] %s"
@@ -674,6 +704,13 @@ let () =
               Some (Printf.sprintf "%s in positional cmake-keyword form" command)
             | Yelu_langs.Yc_wellform.Enum_shadow { name; constructor } ->
               Some (Printf.sprintf "%S shadows the %s constructor" name constructor)
+            (* Note: Unknown_command (even closed-world) is NOT promoted to
+               fatal here. The corpus gate's job is to catch positional-form
+               and enum-shadow regressions; the closed-world escalation lives
+               in the per-file [compile] path (and through it, the LSP). This
+               preserves the gate's behaviour while the corpus migrates external
+               calls (`cmake_parse_arguments`, `cuda_add_executable`, …) to
+               `yc_raw '…'`. *)
             | _ -> None)
         in
         if not (List.is_empty fatals) then Error (String.concat ~sep:"; " fatals)

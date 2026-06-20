@@ -113,6 +113,62 @@ let () =
           (* a quoted text that reads like a mode is fine (EString, not bare) *)
           pcase "message quoted mode-like text ok"
             "message 'STATUS report'" ~expect:false;
-          (* a genuinely unknown/external command stays a plain raw — no reject *)
-          pcase "unknown command not flagged"
-            "some_external_macro 'a' 'b'" ~expect:false ] ) ]
+          (* a genuinely unknown/external command stays a plain raw — no reject
+             (Positional_form is for the *labeled-only* family; unknown commands
+             are flagged separately by Unknown_command below) *)
+          pcase "unknown command not Positional_form"
+            "some_external_macro 'a' 'b'" ~expect:false ] );
+      ( "unknown-command (closed/open world)",
+        let has_unknown src =
+          List.exists (W.check_all (parse src)) ~f:(function
+            | W.Unknown_command _ -> true
+            | _ -> false)
+        in
+        let has_closed_unknown src =
+          List.exists (W.check_all (parse src)) ~f:(function
+            | W.Unknown_command { closed_world = true; _ } -> true
+            | _ -> false)
+        in
+        let ucase name src ~expect =
+          Alcotest.test_case name `Quick (fun () ->
+            Alcotest.(check bool) name expect (has_unknown src))
+        in
+        let fcase name src ~expect =
+          Alcotest.test_case name `Quick (fun () ->
+            Alcotest.(check bool) name expect (has_closed_unknown src))
+        in
+        [ (* The fun→funnn typo case from the user report — closed world. *)
+          ucase "fun typo (funnn) is flagged"
+            "funnn join(result_var) ( $result_var := 'foo' )" ~expect:true;
+          fcase "fun typo (funnn) is FATAL in closed world"
+            "funnn join(result_var) ( $result_var := 'foo' )" ~expect:true;
+          (* A typed yc primitive — no warning. *)
+          ucase "typed primitive ok (project)"
+            "project 'fmt' Cxx" ~expect:false;
+          (* In-file function declaration — calls to it should NOT warn. *)
+          ucase "self-call ok (function then call)"
+            "fun helper(x) ( $x := 'v' ); helper 'OUT'" ~expect:false;
+          (* Forward reference: cmake resolves function calls at call-time, so
+             defining later in the file should also be OK (collect is whole-program). *)
+          ucase "forward-ref ok (call then function)"
+            "helper 'OUT'; fun helper(x) ( $x := 'v' )" ~expect:false;
+          (* Genuinely unknown external (cmake-stdlib, etc.) — IS flagged. *)
+          ucase "external command flagged"
+            "cmake_parse_arguments 'P' '' '' '' $ARGN" ~expect:true;
+          (* …and FATAL because there's no opening construct in this snippet. *)
+          fcase "external command FATAL in closed world"
+            "cmake_parse_arguments 'P' '' '' '' $ARGN" ~expect:true;
+          (* But an [include] opens the world → warning class (not fatal),
+             since the unknown command might come from the included module. *)
+          fcase "include opens world → unknown is NOT fatal"
+            "include 'Helpers.cmake'; cmake_parse_arguments 'P' '' '' '' $ARGN"
+            ~expect:false;
+          (* Same for [find_package]. *)
+          fcase "find_package opens world → unknown is NOT fatal"
+            "find_package Foo; some_foo_command 'a' 'b'" ~expect:false;
+          (* Same for [add_subdirectory]. *)
+          fcase "add_subdirectory opens world → unknown is NOT fatal"
+            "add_subdirectory 'sub'; sub_helper 'x'" ~expect:false;
+          (* …but the warning still fires (we just don't escalate). *)
+          ucase "open-world unknown still warns"
+            "include 'Helpers.cmake'; mystery_command 'x'" ~expect:true ] ) ]

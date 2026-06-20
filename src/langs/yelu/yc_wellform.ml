@@ -19,6 +19,8 @@ open Yelu_cmake
 open Yelu_cmake_if
 open Yelu_cmake_store
 open Yelu_cmake_cmake_op
+open Yelu_cmake_find
+open Yelu_cmake_dir
 
 (* ── Error type ────────────────────────────────── *)
 
@@ -42,6 +44,21 @@ type error =
      the parser (`ECmakeRawCmd.from_positional`); fatal at the compile boundary
      — use the `~label=` form or `yc_raw '…'`. See surface_status.md. *)
   | Positional_form of { command : string }
+  (* A command name that is neither in [Yc_primitives.command_names] nor
+     declared as a [function]/[macro] in this file. Catches typos
+     (`funnn` for `fun`, `prejct` for `project`) and surfaces "this is
+     defined elsewhere?" hints. Severity depends on [closed_world]:
+
+     - [closed_world = true]: the file contains NO opening construct
+       (no [include] / [find_package] / [add_subdirectory] / dynamic
+       [cmake_call]/[cmake_eval] / non-literal-name [function]/[macro]).
+       The command set is statically closed → the unknown name MUST be
+       a typo. Treated as fatal at the compile boundary.
+     - [closed_world = false]: the file has at least one opening
+       construct, so the command set is genuinely open. Treated as a
+       warning; suppress noisy true-positives via [yc_raw '…'] or by
+       defining the helper in-file. *)
+  | Unknown_command of { name : string; closed_world : bool }
 [@@deriving sexp_of]
 
 let classify_escape text =
@@ -181,6 +198,121 @@ let check_raw_tainted e =
   in
   walk [] e
 
+(* ── check_unknown_command ─────────────────────── *)
+
+(* Walk to collect literal `function NAME`/`macro NAME` declarations.
+   Dynamic names (`function ${var}(…)`) are skipped — we can only
+   statically know literal-string names. Inline structural recursion
+   because [walk_children] is monomorphic in [error list]. *)
+let collect_defined_names (e : expr) : Set.M(String).t =
+  let rec walk acc e =
+    let acc = match e with
+      | ECmakeFunction { name = (EString s | EVar s); _ }
+      | ECmakeMacro    { name = (EString s | EVar s); _ } ->
+        Set.add acc (String.lowercase s)
+      | _ -> acc
+    in
+    match e with
+    | ESeq es -> List.fold es ~init:acc ~f:walk
+    | ELet { value; body; _ } -> walk (walk acc value) body
+    | ESetVar (_, v) -> walk acc v
+    | ECmakeIfStmt { cond; then_; else_ } ->
+      let acc = walk acc cond in
+      let acc = walk acc then_ in
+      (match else_ with Some e -> walk acc e | None -> acc)
+    | ECmakeFunction { body; _ } -> walk acc body
+    | ECmakeMacro { body; _ } -> walk acc body
+    | ECmakeRawCmd { args; _ } -> List.fold args ~init:acc ~f:walk
+    | ECmakeApply { args; _ } -> List.fold args ~init:acc ~f:walk
+    | ECmakeOption { value; _ } -> walk acc value
+    | ECmakeSetCache { values; _ } -> List.fold values ~init:acc ~f:walk
+    | ECmakeSetParentScope { value; _ } -> walk acc value
+    | ECmakeSetEnvVar { value; _ } -> walk acc value
+    | _ -> acc
+  in
+  walk (Set.empty (module String)) e
+
+(* Flag generic-fallback command calls whose name is neither in the
+   typed primitive set nor declared as a function/macro in this file.
+   Catches typos (`funnn`, `prejct`) while preserving cmake's open call
+   ecosystem — the warning is **not fatal**, so cross-file user-defined
+   helpers and cmake-stdlib calls (`cmake_parse_arguments`,
+   `qt6_add_executable`, …) still build. Suppress legitimate but noisy
+   ones via `yc_raw '…'`. The [from_positional = None] guard excludes
+   the Step-2-rejected positional form, which is already flagged as
+   [Positional_form] above (avoid double-flagging). *)
+(* Detect any "opening construct" that introduces command names this file
+   cannot statically see:
+   - [include "Foo.cmake"] — runs the module's cmake, may define commands
+   - [find_package Foo] — same via FooConfig.cmake
+   - [add_subdirectory d] — runs d/CMakeLists.txt
+   - [cmake_call ${cmd} args] / [cmake_eval CODE …] — invokes a command
+     whose name is dynamic, or evaluates arbitrary cmake text
+   - [function ${var}(…)] / [macro ${var}(…)] — defines a command whose
+     name is computed at runtime (non-literal name field)
+
+   The presence of any such construct keeps Unknown_command at warning
+   class; the absence escalates it to fatal — the command set is then
+   statically closed, so an unknown name MUST be a typo. *)
+let has_opening_construct (e : expr) : bool =
+  let rec walk e =
+    match e with
+    (* Typed opening commands. *)
+    | ECmakeInclude _ -> true
+    | ECmakeFindPackage _ -> true
+    | ECmakeAddSubdirectory _ -> true
+    | ECmakeLanguageCall _ -> true
+    (* Dynamic name in function/macro definition. *)
+    | ECmakeFunction { name = (EString _ | EVar _); body; _ }
+    | ECmakeMacro    { name = (EString _ | EVar _); body; _ } -> walk body
+    | ECmakeFunction _ | ECmakeMacro _ -> true
+    (* Recurse through structural nodes. *)
+    | ESeq es -> List.exists es ~f:walk
+    | ELet { value; body; _ } -> walk value || walk body
+    | ESetVar (_, v) -> walk v
+    | ECmakeIfStmt { cond; then_; else_ } ->
+      walk cond || walk then_
+      || (match else_ with Some e -> walk e | None -> false)
+    | ECmakeRawCmd { args; _ } | ECmakeApply { args; _ } ->
+      List.exists args ~f:walk
+    | ECmakeOption { value; _ } -> walk value
+    | ECmakeSetCache { values; _ } -> List.exists values ~f:walk
+    | ECmakeSetParentScope { value; _ } -> walk value
+    | ECmakeSetEnvVar { value; _ } -> walk value
+    | _ -> false
+  in
+  walk e
+
+let check_unknown_command e =
+  let defined = collect_defined_names e in
+  let closed_world = not (has_opening_construct e) in
+  let check_name n acc =
+    let nl = String.lowercase n in
+    if Yc_primitives.is_known_command nl || Set.mem defined nl
+    then acc
+    else Unknown_command { name = n; closed_world } :: acc
+  in
+  let rec walk acc e =
+    let acc = match e with
+      (* Generic command dispatcher path: an unknown IDENT-headed call
+         becomes [ECmakeApply { name = EString id; _ }] in [p_generic_
+         command_y1]. A *known* command name on an ECmakeApply is the
+         escape-shadowing case caught by [check_apply_shadowing] above —
+         we only flag the unknown case here. *)
+      | ECmakeApply { name = (EString s | EVar s); _ } ->
+        check_name s acc
+      (* Some family branches reach the raw fallback as ECmakeRawCmd
+         instead. The Step-2 positional-form rejects (from_positional =
+         Some) are flagged separately by [check_raw_tainted] — skip
+         those to avoid double-flagging. *)
+      | ECmakeRawCmd { name; from_positional = None; _ } ->
+        check_name name acc
+      | _ -> acc
+    in
+    walk_children walk acc e
+  in
+  walk [] e
+
 (* ── Public API ────────────────────────────────── *)
 
 let check_all e =
@@ -188,3 +320,4 @@ let check_all e =
   @ check_apply_shadowing e
   @ check_enum_shadow e
   @ check_raw_tainted e
+  @ check_unknown_command e

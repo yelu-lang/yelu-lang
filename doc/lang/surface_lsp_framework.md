@@ -455,6 +455,92 @@ before scaling to all theories or generalizing to `ycn`.
   framework to `ycn` / other packs (the explicit "yc-first" exit
   criterion).
 
+## 7.5 Wellform diagnostics — what we flag, and when it's fatal
+
+The wellform pass ([`Yc_wellform`](../../src/langs/yelu/yc_wellform.ml),
+called via [`Yc_driver.wellform`](../../src/langs/drivers/yc_driver.ml)) is
+how the LSP turns "your file parses but won't behave" into Problems-panel
+diagnostics. Every check below surfaces through the same channel; severity
+(warning vs fatal) is the only knob.
+
+| Check | What it flags | Severity |
+|---|---|---|
+| `Reserved_name` | `EVar` whose name collides with a reserved keyword (`target`, `cache`, …) or a typed primitive | warning |
+| `Apply_shadows_primitive` | `ECmakeApply { name = "string_concat"; … }` escapes a typed yc API (use the typed form) | warning |
+| `Enum_shadow` (Y14) | `set public := …` — variable declaration shadowing an enum constructor (`Public`/`Static`/…) | **fatal** |
+| `Raw_cmake_escape` | `ECmakeRaw text` — explicit `yc_raw '…'` use, surfaced so it isn't silent | warning |
+| `Positional_form` (Step 2) | A labeled-only command (`install_targets`, `set_property`, …) written in cmake's positional keyword form | **fatal** |
+| `Unknown_command` | A command name that's neither a typed yc primitive nor declared as `function`/`macro` in this file | see § below |
+
+### Unknown_command — the open/closed-world rule
+
+cmake's command set is genuinely **open**: real code introduces names via
+five paths that single-file static analysis cannot see:
+
+1. **`include(SomeModule)`** — runs the module's cmake, which may define functions/macros.
+2. **`find_package(Foo)`** — same via `FooConfig.cmake`.
+3. **`add_subdirectory(d)`** — runs `d/CMakeLists.txt`.
+4. **`cmake_language(CALL ${cmd} args)`** / **`cmake_language(EVAL CODE …)`** — invokes a command whose name is dynamic, or runs arbitrary cmake. In yc these are `cmake_call` / `cmake_eval`.
+5. **`function(${dynamic_name} …)` / `macro(${dynamic_name} …)`** — defines a command whose name is computed at runtime (non-literal name field at the typed IR level).
+
+The wellform pass calls these "opening constructs". When the file contains
+**any** opening construct, an unknown command name could plausibly come from
+one of them, so the check stays at **warning** class — visible in Problems
+but not blocking compilation. Suppress noisy true-positives with `yc_raw '…'`
+(the explicit escape) or by defining the helper in-file.
+
+When the file has **no** opening construct, the command set is statically
+closed: every legal call is in `Yc_primitives.command_names` or declared as
+`function`/`macro` in the same file. An unknown name in that world MUST be a
+typo. The check escalates to **fatal** — `compile` exits 1, the LSP shows
+an error squiggle, the CLI gives a "did you mean fun/function/macro?" hint.
+
+### Worked examples (the typo class)
+
+These are the test cases in [`test_yc_wellform.ml`](../../test/test-yelu/test_yc_wellform.ml)
+under the `unknown-command (closed/open world)` group:
+
+```text
+# Closed world (no opening construct) — typo is FATAL.
+funnn join(result_var) (...)
+→ yelu compile: unknown command "funnn" — no in-file function/macro by that name
+   and no opening construct (include/find_package/add_subdirectory/cmake_call/
+   dynamic fun-name) that would introduce one. Did you mean fun/function/macro?
+
+# Closed world, declared in-file → silent.
+fun helper(x) ( $x := 'v' ); helper 'OUT'
+
+# Closed world, forward-ref (declared after the call) → silent.
+helper 'OUT'; fun helper(x) ( $x := 'v' )
+# (collect_defined_names is whole-program, so order doesn't matter.)
+
+# Closed world, typed primitive → silent.
+project 'fmt' Cxx
+
+# Closed world, external cmake-stdlib → FATAL.
+cmake_parse_arguments 'P' '' '' '' $ARGN
+# Fix: either wrap in `yc_raw '…'` (preserves it as raw cmake), or add an
+# `include`/`find_package` somewhere if that's what brought it in.
+
+# Open world (include opens it) → unknown is a warning, not fatal.
+include 'Helpers.cmake'; mystery_command 'x'
+```
+
+### Surfacing channels
+
+| Path | Behaviour |
+|---|---|
+| `yelu compile <file>` (per-file CLI) | closed-world unknowns are fatal (`exit 1`); open-world unknowns print `[yelu][unknown-command]` to stderr |
+| `yelu compile-corpus probes/fmt` (build-time gate) | Unknown_command is **silent**, even closed-world. The gate's contract is "no Positional_form / no Enum_shadow regressions"; the closed-world strictness lives in single-file `compile` instead. This preserves gate behaviour while the corpus migrates external calls to `yc_raw '…'`. |
+| LSP (in-editor Problems panel) | wellform runs via `Yc_driver.wellform = Yc_wellform.check_all`, so both warning and fatal classes appear; the LSP maps severity to LSP `DiagnosticSeverity`. |
+
+### Follow-ups (parked)
+
+- **"Did you mean X?"** — Levenshtein distance from the unknown name against `command_names ∪ defined_names`. Cheap to add to the warning text.
+- **Cmake-stdlib name index** — `tool/cmake_text/` already has a 935-callable index of cmake's `Modules/`. Loading it into a separate `cmake_stdlib_names` set in wellform would silence the legitimate-but-noisy `cmake_parse_arguments` / `check_language` / `cuda_add_executable` class without forcing `yc_raw`.
+- **Cross-file collect** — for a multi-file project, walking `include`/`add_subdirectory` targets to gather their `function`/`macro` declarations would eliminate the false-positive class on real corpus projects. Today the LSP sees one file at a time.
+- **Diagnostic span** — `Unknown_command` currently carries only the name. Adding the offending token's span (the located lexer infrastructure already in use for parse-error diagnostics) lets the LSP highlight the exact identifier instead of underlining the whole file.
+
 ## 8. Related
 
 - [`../yelu_cmake/driver.md`](../yelu_cmake/driver.md) — the uniform
