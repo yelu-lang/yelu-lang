@@ -1756,6 +1756,11 @@ let p_try_command_y1 toks =
    exprs), so we extract a string from EString / EVar.
    ============================================================ *)
 
+let message_modes =
+  [ "STATUS"; "FATAL_ERROR"; "SEND_ERROR"; "WARNING"; "AUTHOR_WARNING";
+    "DEPRECATION"; "NOTICE"; "VERBOSE"; "DEBUG"; "TRACE";
+    "CHECK_START"; "CHECK_PASS"; "CHECK_FAIL" ]
+
 let p_cmake_op_command_y1_inner name args kwargs =
   let out = out_var_y1 kwargs in
   match name, args with
@@ -1788,21 +1793,27 @@ let p_cmake_op_command_y1_inner name args kwargs =
     let languages = List.map langs ~f:(fun e ->
       str_of ~default:"" e) in
     Some (ECmakeProject { name = s; languages; version = None })
+  | "message", args
+    when List.exists args ~f:(function
+           | EVar s -> List.mem message_modes s ~equal:String.equal
+           | _ -> false) ->
+    (* Labeled-only (Step 2): a positional mode keyword (a bare FATAL_ERROR /
+       WARNING / …) is a fatal reject — use ~mode=Fatal_error / ~mode=Warning.
+       A *quoted* message text that happens to read like a mode is fine (it's an
+       EString, not a bare EVar). *)
+    Some (ECmakeRawCmd { name = cmake_name_of_yelu name; args;
+                         from_positional = Some "message" })
   | "message", args ->
-    let mode, texts = match args with
-      | EVar m :: rest | EString m :: rest ->
-        (match m with
-         | "STATUS" | "FATAL_ERROR" | "SEND_ERROR"
-         | "WARNING" | "AUTHOR_WARNING" | "DEPRECATION"
-         | "NOTICE" | "VERBOSE" | "DEBUG" | "TRACE" ->
-           (message_mode_of_string m, rest)
-         | _ -> (Lang_cmake.Mm_status, args))
-      | _ -> (Lang_cmake.Mm_status, args)
+    (* mode from ~mode= (value uppercased to the cmake keyword; default STATUS);
+       all positionals are message text. *)
+    let mode = match List.Assoc.find kwargs ~equal:String.equal "mode" with
+      | Some (EString s | EVar s) ->
+        let u = String.uppercase s in
+        if List.mem message_modes u ~equal:String.equal
+        then message_mode_of_string u else Lang_cmake.Mm_status
+      | _ -> Lang_cmake.Mm_status
     in
-    let texts =
-      List.map texts ~f:(fun e ->
-        match e with EString s -> s | _ -> "")
-    in
+    let texts = List.map args ~f:(fun e -> match e with EString s -> s | _ -> "") in
     Some (yc_message ~mode texts)
   | "math", [ exp ] ->
     let s = match exp with EString s -> s | _ -> "" in

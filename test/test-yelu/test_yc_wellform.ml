@@ -106,6 +106,13 @@ let () =
             "configure_package_config_file 'in' 'out' INSTALL_DESTINATION 'd'" ~expect:true;
           pcase "configure_package_config_file labeled ok"
             "configure_package_config_file 'in' 'out' ~install_destination='d'" ~expect:false;
+          pcase "message positional mode → reject"
+            "message FATAL_ERROR 'boom'" ~expect:true;
+          pcase "message ~mode labeled ok"
+            "message ~mode=Fatal_error 'boom'" ~expect:false;
+          (* a quoted text that reads like a mode is fine (EString, not bare) *)
+          pcase "message quoted mode-like text ok"
+            "message 'STATUS report'" ~expect:false;
           (* a genuinely unknown/external command stays a plain raw — no reject *)
           pcase "unknown command not flagged"
             "some_external_macro 'a' 'b'" ~expect:false ] ) ]
