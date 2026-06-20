@@ -170,12 +170,40 @@ Layered coverage for the parse/lower/print round-trips:
     `install_artifact_kinds` / `install_top_kw` / `install_targets_emit_safe`,
     verified (matrix 24/24, suite, byte-oracle), positional bridge assertions
     moved to a `test_yc_wellform` reject test + labeled round-trip kept in
-    `test_yc_cst_bridge`; (3) **roll out per family** (target → install →
-    property → cmake_op), one commit each — *next*; (4) collapse the dead
-    `split_by_keywords` + remaining formatter walks
+    `test_yc_cst_bridge`; (3) **roll out per family** ✅ **done** —
+    one commit each:
+    - target (commit 6677d4c): `add_custom_command` / `add_custom_target`
+      positional COMMAND/OUTPUT/DEPENDS/SOURCES/COMMENT/ALL/… → reject. The
+      visibility-group commands (`target_link_libraries`, `target_sources`, …)
+      are untouched — their positional keyword *is* the enum-constructor
+      surface (`Public`/`Private`/`Interface`).
+    - install (commit b20f1cd): `install_files` / `install_export` /
+      `install_directory` positional DESTINATION/COMPONENT/NAMESPACE/… → reject.
+    - property (commit 3cb4893): `set_property` / `get_property` /
+      `set_target_properties` positional PROPERTY/APPEND/mode/PROPERTIES →
+      reject (entity scope `Target`/`Source`/`Cache`/… stays — enum surface).
+      Migrated two discovered helpers (cuda-test, static-export-test) to labels.
+    - cmake_op (commit e39311c): `execute_process` positional COMMAND/
+      *_VARIABLE/… → reject. Migrated compile-error-test (3 calls).
+    - **Deferred (no `~label=` equivalent yet — positional kept until a label is
+      designed, else they'd orphan the functionality):** `export TARGETS/
+      NAMESPACE/FILE`, `configure_package_config_file INSTALL_DESTINATION`,
+      `set_source_files_properties PROPERTIES` (corpus-load-bearing,
+      main.yc:179), `cmake_minimum_required VERSION` (canonical), message modes
+      (canonical), `enable_language OPTIONAL`, `include_guard GLOBAL` (enum-ish).
+    - **Reject does not fire under `emit_ast`/fmt** (no wellform pass), so the
+      emit-bridge + matrix oracles are blind to it — each family's reject has
+      its own `test_yc_wellform` case + labeled round-trip in
+      `test_yc_cst_bridge`. The matrix only caught the corpus regressions
+      because the **discovered helpers** (`probes/fmt/test/*/CMakeLists.yc`) are
+      compiled through the fatal `compile_yc` path; `compile main.yc` alone was
+      byte-identical and hid them.
+    (4) **collapse the dead `split_by_keywords` + remaining formatter walks**
     (`pr_command_groups_args` / `pr_set_target_properties_args` / the rewriting
-    half of `pr_cmd_args`). Multi-session. Full analysis in the 2026-06-19
-    session.
+    half of `pr_cmd_args`) — *next*. The formatter still canonicalizes
+    positional → labeled (a migration aid); phase 4 removes those walks so
+    fmt-of-positional becomes a pass-through consistent with the compile reject.
+    Multi-session. Full analysis in the 2026-06-19 session.
 - **Driver interface — CST as a first-class form.** *Tier (a) done
   (2026-06-10):* `Yc_driver` now exposes `parse_cst` / `lower_cst` /
   `print_cst` / `format`, and [`../yelu_cmake/driver.md`](../yelu_cmake/driver.md)
