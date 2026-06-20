@@ -1298,40 +1298,25 @@ let p_property_command_y1_inner name args kwargs =
     in
     (match p_cmake_entity args with
      | None -> None       (* no scope keyword found → fall through to raw *)
-     | Some (entity, rest) ->
+     | Some (entity, _rest) ->
        match entity_to_gps entity with
        | None -> None
        | Some scope ->
-         let sections = split_by_keywords
-           ~keywords:["PROPERTY"; "SET"; "DEFINED"; "BRIEF_DOCS"; "FULL_DOCS"]
-           rest in
+         (* Labeled-only (Step 2): property name from `~property=NAME`, mode from
+            `~mode=Set/Defined/...` (the value an enum constructor the lexer
+            uppercases to a KEYWORD / EString). The positional PROPERTY / mode
+            keywords are rejected upstream. *)
          let property_name =
-           match property_kwarg () with
-           | Some (name, _) -> name
-           | None ->
-             (match List.Assoc.find sections ~equal:String.equal "PROPERTY" with
-              | Some (e :: _) -> str_of e
-              | _ -> "PROP")
-         in
-         let positional_has key =
-           Option.is_some (List.Assoc.find sections ~equal:String.equal key)
+           match property_kwarg () with Some (name, _) -> name | None -> "PROP"
          in
          let mode : Yelu_cmake_property.get_property_mode =
-           (* Canonical surface: `~mode=Set`/`~mode=Defined` kwarg, with the
-              value an enum constructor that the lexer uppercases to a KEYWORD
-              (EString form). *)
            match List.Assoc.find kwargs ~equal:String.equal "mode" with
            | Some (EString "SET")        -> Gpm_set
            | Some (EString "DEFINED")    -> Gpm_defined
            | Some (EString "BRIEF_DOCS") -> Gpm_brief_docs
            | Some (EString "FULL_DOCS")  -> Gpm_full_docs
            | Some (EString "VALUE")      -> Gpm_value
-           | _ ->
-             if positional_has "SET" then Gpm_set
-             else if positional_has "DEFINED" then Gpm_defined
-             else if positional_has "BRIEF_DOCS" then Gpm_brief_docs
-             else if positional_has "FULL_DOCS" then Gpm_full_docs
-             else Gpm_value
+           | _                           -> Gpm_value
          in
          Some (Yelu_cmake_property.ECmakeGetProperty
                  { var; scope; property = property_name; mode }))
@@ -1350,29 +1335,10 @@ let p_property_command_y1_inner name args kwargs =
        reject — use the `~properties={…}` record. *)
     Some (ECmakeRawCmd { name = cmake_name_of_yelu name; args;
                          from_positional = Some "set_target_properties" })
-  | "set_target_properties", target :: rest ->
-    let sections = split_by_keywords ~keywords:["PROPERTY"] (target :: rest) in
-    let targets = match List.Assoc.find sections ~equal:String.equal "_head" with
-      | Some items -> items | None -> []
-    in
-    let positional_props = sections
-      |> List.filter_map ~f:(fun (k, items) ->
-        if String.equal k "PROPERTY" then
-          match items with
-          | prop_name :: values ->
-            let name = str_of prop_name in
-            let value = match values with
-              | [ v ] -> v
-              | _ -> EString (String.concat ~sep:";" (List.map values ~f:(fun e ->
-                  str_of ~default:"" e)))
-            in
-            Some (name, value)
-          | _ -> None
-        else None)
-    in
-    (* shape-3 record: `~properties={version=…, sources=[a, b]}`. Keys
-       uppercase to the cmake property name; a list value `;`-joins (matching
-       the positional `PROPERTY SOURCES a b` form). *)
+  | "set_target_properties", target :: _rest ->
+    (* Labeled-only (Step 2): properties from the `~properties={…}` record.
+       Keys uppercase to the cmake property name; a list value `;`-joins. The
+       positional PROPERTY/PROPERTIES form is rejected upstream. *)
     let record_props =
       match List.Assoc.find kwargs ~equal:String.equal "properties" with
       | Some (ERecord fields) ->
@@ -1384,11 +1350,7 @@ let p_property_command_y1_inner name args kwargs =
           (String.uppercase k, value))
       | _ -> []
     in
-    let properties = positional_props @ record_props in
-    let target = match targets with
-      | [ t ] -> t | t :: _ -> t | _ -> EString "?"
-    in
-    Some (yc_set_target_properties target properties)
+    Some (yc_set_target_properties target record_props)
   | "set_source_files_properties", args ->
     let sections = split_by_keywords ~keywords:["PROPERTIES"; "DIRECTORY";
       "TARGET_DIRECTORY"] args in
@@ -1434,37 +1396,23 @@ let p_property_command_y1_inner name args kwargs =
       | Some (ent, rest) -> (Some ent, rest)
       | None -> (None, args)
     in
-    let sections = split_by_keywords
-      ~keywords:["APPEND"; "APPEND_STRING"; "PROPERTY"] body_args in
-    let head = match List.Assoc.find sections ~equal:String.equal "_head" with
-      | Some items -> items | None -> []
-    in
-    let append =
-      Option.is_some (List.Assoc.find sections ~equal:String.equal "APPEND")
-      || kwarg_bool ~key:"append"
-    in
-    let append_string =
-      Option.is_some (List.Assoc.find sections ~equal:String.equal "APPEND_STRING")
-      || kwarg_bool ~key:"append_string"
-    in
+    (* Labeled-only (Step 2): the body positionals are all scope names (no
+       keyword section to split); ~append / ~append_string flags + the
+       ~property=[NAME, vals…] value-list. The positional PROPERTY/APPEND form
+       is rejected upstream. *)
+    let head = body_args in
+    let append = kwarg_bool ~key:"append" in
+    let append_string = kwarg_bool ~key:"append_string" in
     let collapse_values values =
       match values with
       | [ v ] -> v
       | _ -> EString (String.concat ~sep:";" (List.map values ~f:(fun e ->
           str_of ~default:"" e)))
     in
-    (* Canonical surface (Lane C value-list): `~property=[NAME, val1, val2]`
-       arrives as repeated [property] kwargs. Falls back to the positional
-       `PROPERTY NAME val1 val2` section split for byte-equality with the
-       legacy form. Both lower to the same (name, ;-joined-value) IR. *)
     let properties =
       match property_kwarg () with
       | Some (name, values) -> [(name, collapse_values values)]
-      | None ->
-        (match List.Assoc.find sections ~equal:String.equal "PROPERTY" with
-         | Some (prop_name :: values) ->
-           [(str_of prop_name, collapse_values values)]
-         | _ -> [])
+      | None -> []
     in
     (* Build the scope sum from the entity (+ trailing same-kind names from
        the head, for multi-target / multi-source / multi-cache calls).
