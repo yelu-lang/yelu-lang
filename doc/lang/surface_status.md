@@ -163,14 +163,19 @@ Layered coverage for the parse/lower/print round-trips:
     The CST parser stays generic; the byte-equality oracle (AST-based) and the
     fmt matrix (corpus now labeled/raw) are **not** in the blast radius.
   - **Phased plan:** (1) reject mechanism — `from_positional` tag + the
-    `Yc_wellform` fatal check; (2) pilot `install_targets` — `_inner` reads
-    kwargs + leading targets only, positional keywords → tagged raw (rejected),
-    drop the two-level split + delete `pr_install_targets_args`, verify
-    (matrix/suite/byte-oracle), move its positional bridge assertions to a
-    wellform reject test + keep the labeled round-trip; (3) roll out per family
-    (target → install → property → cmake_op), one commit each; (4) collapse the
-    dead `split_by_keywords` + formatter walks. Multi-session. Full analysis in
-    the 2026-06-19 session.
+    `Yc_wellform` fatal check ✅ **done** (commit 83fd8ab); (2) pilot
+    `install_targets` ✅ **done** (commit 83fd8ab) — `_inner` reads kwargs +
+    leading targets only, positional keywords → tagged raw (rejected), dropped
+    the two-level split + deleted `pr_install_targets_args` /
+    `install_artifact_kinds` / `install_top_kw` / `install_targets_emit_safe`,
+    verified (matrix 24/24, suite, byte-oracle), positional bridge assertions
+    moved to a `test_yc_wellform` reject test + labeled round-trip kept in
+    `test_yc_cst_bridge`; (3) **roll out per family** (target → install →
+    property → cmake_op), one commit each — *next*; (4) collapse the dead
+    `split_by_keywords` + remaining formatter walks
+    (`pr_command_groups_args` / `pr_set_target_properties_args` / the rewriting
+    half of `pr_cmd_args`). Multi-session. Full analysis in the 2026-06-19
+    session.
 - **Driver interface — CST as a first-class form.** *Tier (a) done
   (2026-06-10):* `Yc_driver` now exposes `parse_cst` / `lower_cst` /
   `print_cst` / `format`, and [`../yelu_cmake/driver.md`](../yelu_cmake/driver.md)
