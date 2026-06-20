@@ -134,6 +134,12 @@ let compile_yc ?(wellform = true) ?(warn = fun _ -> ()) file =
               "yelu compile: %s: variable %S shadows the %s constructor; rename it\n"
               file name constructor;
             Stdlib.exit 1
+          | Yelu_langs.Yc_wellform.Positional_form { command } ->
+            Stdlib.Printf.eprintf
+              "yelu compile: %s: %s in the positional cmake-keyword form is not a \
+               yc surface; use the ~label= form or yc_raw '…'\n"
+              file command;
+            Stdlib.exit 1
           | _ -> ());
         let raw_escapes, others =
           List.partition_tf errors ~f:(function

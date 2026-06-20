@@ -413,46 +413,27 @@ let test_value_labels =
       "some_cmd $t ~library.destination='x'\n"
       (fmt "some_cmd $t ~library.destination='x'"))
 
-(* install_targets shape-4: the nested per-artifact-kind clauses parse
-   correctly (two-level split), and the positional and dotted-label forms
-   emit identical, correct cmake. Real `cmake --install` confirmed the
-   clause shape installs each artifact to its per-kind destination. *)
+(* install_targets — labeled-only (Step 2). The dotted-label form lowers to the
+   nested per-artifact-kind clauses + top-level options; fmt round-trips it. The
+   positional cmake-keyword form is REJECTED (a wellform fatal — exercised in
+   test_yc_wellform), so it has no place here. *)
 let test_install_targets =
-  Alcotest.test_case "install_targets nested clauses" `Quick (fun () ->
-    let positional =
-      "install_targets $t COMPONENT 'c' EXPORT $e \
-       LIBRARY DESTINATION 'lib' ARCHIVE DESTINATION 'ar'" in
+  Alcotest.test_case "install_targets dotted labels" `Quick (fun () ->
     let dotted =
       "install_targets $t ~component='c' ~export=$e \
        ~library.destination='lib' ~archive.destination='ar'" in
-    let expected =
+    Alcotest.(check string) "dotted labels emit the nested clauses"
       "install(TARGETS ${t} EXPORT ${e} COMPONENT c \
-       LIBRARY DESTINATION lib ARCHIVE DESTINATION ar)" in
-    Alcotest.(check string) "positional emits all clauses + COMPONENT"
-      expected (emit_ast positional);
-    Alcotest.(check string) "dotted-label form emits identically"
-      expected (emit_ast dotted);
-    (* formatter: a clean positional line canonicalizes to the dotted labels,
-       and fmt is emit-invariant (parser reads both forms to the same IR) *)
+       LIBRARY DESTINATION lib ARCHIVE DESTINATION ar)"
+      (emit_ast dotted);
     let fmt s =
       match Cstp.parse s with
       | Ok c -> Yelu_langs.Yc_cst_print.print_program c
       | Error e -> Alcotest.failf "parse %S: %s" s e in
-    Alcotest.(check string) "fmt canonicalizes clean line → dotted labels"
-      "install_targets $t ~component='c' ~export=$e \
-       ~library.destination='lib' ~archive.destination='ar'\n"
-      (fmt positional);
-    Alcotest.(check string) "fmt emit-invariant (clean line)"
-      (emit_ast positional) (emit_ast (fmt positional));
-    (* guard: a trailing positional after the clauses (e.g. a dynamic FILE_SET
-       clause held in a var) is NOT representable as dotted labels — the dotted
-       (kwarg) form loses the post-clause position. Such a line is left
-       positional so fmt stays emit-invariant. *)
-    let with_trailing = "install_targets $t LIBRARY DESTINATION 'lib' $fileset" in
-    Alcotest.(check bool) "trailing positional → left positional (no ~label)"
-      false (String.is_substring (fmt with_trailing) ~substring:"~library");
-    Alcotest.(check string) "fmt emit-invariant (trailing-positional line)"
-      (emit_ast with_trailing) (emit_ast (fmt with_trailing)))
+    Alcotest.(check string) "fmt round-trips the labeled form"
+      (dotted ^ "\n") (fmt dotted);
+    Alcotest.(check string) "fmt emit-invariant"
+      (emit_ast dotted) (emit_ast (fmt dotted)))
 
 (* execute_process: a mix of a keyword-terminated value-list (COMMAND), value
    labels (OUTPUT_VARIABLE, …) and flags (OUTPUT_QUIET, …). The COMMAND list

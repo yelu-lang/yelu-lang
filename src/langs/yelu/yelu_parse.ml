@@ -463,7 +463,7 @@ let split_by_keywords ~(keywords : string list) (args : expr list)
 (* Shared raw-fallback: when a typed inner parser returns None, wrap the
    original args as ECmakeRawCmd so the command round-trips through the IR. *)
 let fallback_to_raw name args rest = function
-  | None -> Some (ECmakeRawCmd { name = cmake_name_of_yelu name; args }, rest)
+  | None -> Some (ECmakeRawCmd { name = cmake_name_of_yelu name; args; from_positional = None }, rest)
   | Some e -> Some (e, rest)
 
 (* Match legacy [Lang_yelu_parse.out_var] sentinel: "?" when ~out
@@ -865,7 +865,7 @@ let p_target_command_y1_inner name args kwargs =
   in
   let try_groups_or_raw items ctor =
     if is_dynamic_first_item items
-    then Some (ECmakeRawCmd { name = cmake_name_of_yelu name; args })
+    then Some (ECmakeRawCmd { name = cmake_name_of_yelu name; args; from_positional = None })
     else Some (target_groups_to_y1 ctor items)
   in
   (* Implicit target (syntax #1): the first positional arg of a target
@@ -1045,7 +1045,7 @@ let p_target_command_y1_inner name args kwargs =
   | _ ->
     (* Known command but args don't match typed patterns
        (e.g. dynamic visibility ${kind}). Fall back to yc_raw. *)
-    Some (ECmakeRawCmd { name = cmake_name_of_yelu name; args })
+    Some (ECmakeRawCmd { name = cmake_name_of_yelu name; args; from_positional = None })
 
 let p_target_command_y1 toks =
   match toks with
@@ -1597,13 +1597,12 @@ let p_install_command_y1_inner name args kwargs =
   let kwarg_bool ~key = List.Assoc.mem kwargs ~equal:String.equal key in
   match name, args with
   | "install_targets", args ->
-    (* install(TARGETS) is nested: `<targets> [top-opts] [<KIND> <opts>]*`.
-       A flat split can't handle it because DESTINATION is BOTH a top-level
-       option and a per-artifact option. So split at two levels: level 1 at
-       the artifact KINDs (isolating each kind's region), level 2 within the
-       head and each kind region at the option keywords. The canonical yc
-       surface instead carries clauses as dotted labels (`~library.destination=`),
-       read here straight from kwargs. See painpoints.md §11. *)
+    (* Labeled-only (Step 2): clauses come from dotted labels
+       (`~library.destination=`) + top-level `~component=`/`~export=`/
+       `~destination=`; the leading positionals are the targets. The positional
+       cmake-keyword form (`LIBRARY DESTINATION …`) is NOT a yc surface — it is
+       tagged as a positional reject (Yc_wellform turns it into a fatal "use
+       ~label= / yc_raw" error). See painpoints.md §11. *)
     let art_kw = ["LIBRARY"; "ARCHIVE"; "RUNTIME"; "OBJECTS"; "FRAMEWORK";
                   "BUNDLE"; "PUBLIC_HEADER"; "PRIVATE_HEADER"; "RESOURCE";
                   "FILE_SET"; "CXX_MODULES_BMI"] in
@@ -1612,43 +1611,20 @@ let p_install_command_y1_inner name args kwargs =
     let arg_is_kw = function
       | EVar s | EString s -> List.mem (art_kw @ opt_kw) s ~equal:String.equal
       | _ -> false in
-    let label_kwargs = List.exists kwargs ~f:(fun (k, _) ->
-      String.contains k '.'
-      || List.mem ["component"; "export"; "destination"] k ~equal:String.equal) in
-    if not (List.exists args ~f:arg_is_kw) && not label_kwargs then
-      (* Backward-compat positional: install_targets dest targets *)
-      (match args with
-       | destination :: targets -> Some (yc_install_targets targets (Some destination))
-       | _ -> None)
-    else begin
-      let find sec k = Option.value (List.Assoc.find sec ~equal:String.equal k) ~default:[] in
-      let first = function e :: _ -> Some e | [] -> None in
+    if List.exists args ~f:arg_is_kw then
+      Some (ECmakeRawCmd { name = cmake_name_of_yelu "install_targets"; args;
+                           from_positional = Some "install_targets" })
+    else
       let as_str = function Some (EString s | EVar s) -> Some s | _ -> None in
-      (* level 1: split at artifact kinds *)
-      let groups = split_by_keywords ~keywords:art_kw args in
-      (* level 2 on the head: targets + top-level options *)
-      let head_sec = split_by_keywords ~keywords:opt_kw (find groups "_head") in
-      let targets = find head_sec "_head" in
-      let top_dest = first (find head_sec "DESTINATION") in
-      let top_comp = as_str (first (find head_sec "COMPONENT")) in
-      let top_export = first (find head_sec "EXPORT") in
-      (* per-kind clauses (positional): take each kind's DESTINATION *)
-      let pos_clauses = List.filter_map groups ~f:(fun (k, items) ->
-        if List.mem art_kw k ~equal:String.equal then
-          let sec = split_by_keywords ~keywords:opt_kw items in
-          Option.map (first (find sec "DESTINATION")) ~f:(fun d -> (k, d))
-        else None) in
       (* dotted-label clauses: key "library.destination" -> (LIBRARY, value) *)
-      let dotted_clauses = List.filter_map kwargs ~f:(fun (key, v) ->
+      let artifact_clauses = List.filter_map kwargs ~f:(fun (key, v) ->
         match String.lsplit2 key ~on:'.' with
         | Some (kind, "destination") -> Some (String.uppercase kind, v)
         | _ -> None) in
-      let component = match top_comp with Some _ -> top_comp | None -> as_str (kwarg_opt ~key:"component") in
-      let export = match top_export with Some _ -> top_export | None -> kwarg_opt ~key:"export" in
-      let destination = match top_dest with Some _ -> top_dest | None -> kwarg_opt ~key:"destination" in
-      let artifact_clauses = pos_clauses @ dotted_clauses in
-      Some (yc_install_targets ?export ?component ~artifact_clauses targets destination)
-    end
+      let component = as_str (kwarg_opt ~key:"component") in
+      let export = kwarg_opt ~key:"export" in
+      let destination = kwarg_opt ~key:"destination" in
+      Some (yc_install_targets ?export ?component ~artifact_clauses args destination)
   | "install_files", args ->
     (* keyword form is selected by either a positional DESTINATION/COMPONENT
        or the `~destination=`/`~component=` label kwargs *)
@@ -2441,7 +2417,7 @@ and p_generic_command_y1 toks =
   | IDENT name :: rest ->
     let args, _kwargs, rest = collect_command_args [] [] rest in
     if Yc_primitives.is_known_command name then
-      Some (ECmakeRawCmd { name = cmake_name_of_yelu name; args }, rest)
+      Some (ECmakeRawCmd { name = cmake_name_of_yelu name; args; from_positional = None }, rest)
     else
       Some (ECmakeApply { name = EString name; args }, rest)
   | _ -> None

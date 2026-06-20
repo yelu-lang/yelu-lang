@@ -193,77 +193,10 @@ let command_value_list_labels name =
   | "add_custom_target" -> [ ("DEPENDS", "depends"); ("SOURCES", "sources") ]
   | _ -> []
 
-(* install_targets is nested (critique #2 shape 4): `<targets> [top-opts]
-   [<KIND> DESTINATION <v>]* [trailing]`. DESTINATION is dual-role (top-level
-   AND per-artifact), so the generic value-label table can't express it.
-   Canonicalize each `<KIND> DESTINATION v` triple to the flat dotted label
-   `~kind.destination=v`, and the top-level COMPONENT/EXPORT/DESTINATION to
-   `~component=`/`~export=`/`~destination=`. The parser reads both the
-   positional and dotted forms back to the same artifact_clauses (two-level
-   split / dotted-kwarg in p_install_command_y1_inner), so emit is unchanged.
-   Trailing positionals (the targets list, a `$INSTALL_FILE_SET` clause-var)
-   print as-is. *)
-let install_artifact_kinds =
-  [ "LIBRARY"; "ARCHIVE"; "RUNTIME"; "OBJECTS"; "FRAMEWORK"; "BUNDLE";
-    "PUBLIC_HEADER"; "PRIVATE_HEADER"; "RESOURCE"; "FILE_SET"; "CXX_MODULES_BMI" ]
-
-let install_top_kw = [ "COMPONENT"; "EXPORT"; "DESTINATION" ]
-
-(* Emit-safety guard. Canonicalizing to dotted labels is only emit-invariant
-   when every positional is either a leading target or a clause/label value —
-   i.e. nothing stray is left after the keyword region. A trailing dynamic
-   clause-var (`$INSTALL_FILE_SET`, a FILE_SET clause held in a variable) is a
-   positional AFTER the clauses; the positional parse absorbs/drops it while
-   the dotted parse would read it as another target, so the two forms would
-   emit differently. The dotted (kwarg) surface structurally can't carry a
-   post-clause positional — so when one is present, leave the line positional
-   (a future `~raw=`/FILE_SET-clause escape is the way to lift it). *)
-let install_targets_emit_safe (args : Cst.arg list) =
-  let is_art s = List.mem install_artifact_kinds s ~equal:String.equal in
-  let is_top s = List.mem install_top_kw s ~equal:String.equal in
-  let rec drop_targets = function
-    | (Cst.Pos (A_name s | A_keyword s) :: _) as l when is_art s || is_top s -> l
-    | Cst.Pos _ :: rest -> drop_targets rest
-    | l -> l
-  in
-  let rec consume = function
-    | [] -> true
-    | Cst.Pos (A_name kw | A_keyword kw)
-      :: Cst.Pos (A_name "DESTINATION" | A_keyword "DESTINATION")
-      :: Cst.Pos _ :: rest when is_art kw -> consume rest
-    | Cst.Pos (A_name kw | A_keyword kw) :: Cst.Pos _ :: rest when is_top kw -> consume rest
-    | _ -> false
-  in
-  consume (drop_targets args)
-
-let pr_install_targets_args b (args : Cst.arg list) =
-  if not (install_targets_emit_safe args) then
-    (* not safely representable as dotted labels — print positional as-is *)
-    List.iter args ~f:(fun a -> Buffer.add_char b ' '; pr_arg b a)
-  else
-  let is_art s = List.mem install_artifact_kinds s ~equal:String.equal in
-  let top_label = function
-    | "COMPONENT" -> Some "component" | "EXPORT" -> Some "export"
-    | "DESTINATION" -> Some "destination" | _ -> None in
-  let rec go = function
-    | [] -> ()
-    (* per-artifact clause: KIND DESTINATION value → ~kind.destination=value *)
-    | Cst.Pos (A_name kw | A_keyword kw)
-      :: Cst.Pos (A_name "DESTINATION" | A_keyword "DESTINATION")
-      :: Cst.Pos v :: rest
-      when is_art kw ->
-      Buffer.add_string b " ~"; Buffer.add_string b (String.lowercase kw);
-      Buffer.add_string b ".destination="; pr_atom b v; go rest
-    (* top-level value-label: COMPONENT/EXPORT/DESTINATION value → ~label=value *)
-    | Cst.Pos (A_name kw | A_keyword kw) :: Cst.Pos v :: rest
-      when Option.is_some (top_label kw) ->
-      Buffer.add_string b " ~"; Buffer.add_string b (Option.value_exn (top_label kw));
-      Buffer.add_char b '='; pr_atom b v; go rest
-    (* targets / trailing clause-var: print as-is *)
-    | a :: rest -> Buffer.add_char b ' '; pr_arg b a; go rest
-  in
-  go args
-
+(* install_targets — labeled-only (Step 2): the positional cmake-keyword form
+   is rejected by the parser/wellform, so the formatter has no positional walk;
+   a labeled install_targets prints its `~library.destination=` etc. through the
+   generic [pr_cmd_args] / [pr_arg]. *)
 (* execute_process: COMMAND is a repeated value-list. One COMMAND →
    `~command=[…]`; a pipe (>1) → `~commands=[[…], …]` (shape-2 plural). The
    parser reads both back to the same `commands` list, so the per-COMMAND
@@ -356,8 +289,7 @@ let pr_set_target_properties_args b (args : Cst.arg list) =
    (consuming the following positional); everything else via [pr_arg]. Each
    emitted unit gets a leading space (matching the old pr_spaced behaviour). *)
 let pr_cmd_args b name (args : Cst.arg list) =
-  if String.equal name "install_targets" then pr_install_targets_args b args
-  else if String.equal name "set_target_properties" then
+  if String.equal name "set_target_properties" then
     pr_set_target_properties_args b args
   (* the COMMAND-bearing commands (repeated COMMAND → ~command/~commands) *)
   else if List.mem [ "execute_process"; "add_custom_command"; "add_custom_target" ]

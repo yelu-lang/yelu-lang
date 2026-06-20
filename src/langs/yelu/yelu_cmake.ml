@@ -886,6 +886,12 @@ type expr +=
   | ECmakeRawCmd of {     (* raw cmake with structured args — parser fallback *)
       name : string;
       args : expr list;
+      (* Set to the yc command name (e.g. "install_targets") when this raw
+         arose from a known command's *positional* cmake-keyword form — which
+         the labeled-only surface rejects. A Yc_wellform check turns the tag
+         into a fatal "use ~label= / yc_raw" error. [None] = a genuinely
+         unknown/external command (the ordinary raw fallback). *)
+      from_positional : string option;
     }
   | EInt of int
   | EUnit

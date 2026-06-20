@@ -460,8 +460,10 @@ let tier6_find_install_y1 = ("t6-find-install-y1", [
     "find_program(VAR NAMES git)";
   assert_parse_y1_emits "y1: find_file"    "( find_file VAR ~names:\"config\" )"
     "find_file(VAR NAMES config)";
+  (* labeled-only: a bare arg is a TARGET (the old dest-first backward-compat
+     form is gone); destination comes from ~destination= *)
   assert_parse_y1_emits "y1: install_targets" "( install_targets \"lib\" )"
-    "install(TARGETS  DESTINATION lib)";
+    "install(TARGETS lib)";
   assert_parse_y1_emits "y1: install_files"   "( install_files \"include\" )"
     "install(FILES  DESTINATION include)";
   assert_parse_y1_emits "y1: install_export"  "( install_export EXP \"lib/cmake\" )"

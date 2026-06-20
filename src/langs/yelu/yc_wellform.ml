@@ -37,6 +37,11 @@ type error =
      lowercase/mixed shadow (`set public := …`). See casing_design.md. *)
   | Enum_shadow of { name : string; constructor : string }
   | Raw_cmake_escape of { text : string; reason : string }
+  (* Labeled-only (Step 2): a known command written in the *positional*
+     cmake-keyword form (`install_targets … LIBRARY DESTINATION …`). Tagged by
+     the parser (`ECmakeRawCmd.from_positional`); fatal at the compile boundary
+     — use the `~label=` form or `yc_raw '…'`. See surface_status.md. *)
+  | Positional_form of { command : string }
 [@@deriving sexp_of]
 
 let classify_escape text =
@@ -168,6 +173,8 @@ let check_raw_tainted e =
     let acc = match e with
       | ECmakeRaw text ->
         Raw_cmake_escape { text; reason = classify_escape text } :: acc
+      | ECmakeRawCmd { from_positional = Some command; _ } ->
+        Positional_form { command } :: acc
       | _ -> acc
     in
     walk_children walk acc e

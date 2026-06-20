@@ -145,7 +145,7 @@ let lower_command (name : string) (args : Cst.arg list) : expr =
   (* Implicit target (syntax #1) is applied inside p_target_command_y1_inner,
      which both this CST path and the legacy parser call — single source of
      truth, so both stay consistent. *)
-  let raw () = ECmakeRawCmd { name = cmake_name_of_yelu name; args = pos } in
+  let raw () = ECmakeRawCmd { name = cmake_name_of_yelu name; args = pos; from_positional = None } in
   let via inner = match inner name pos kwargs with Some e -> e | None -> raw () in
   let prefix p = String.is_prefix name ~prefix:p in
   if prefix "string_" then via P.p_string_command_y1_inner

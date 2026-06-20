@@ -261,7 +261,7 @@ let rec emit_exp ~env (e : expr) : C.exp =
   | ESeq exprs ->
     C.Exp_list (List.map exprs ~f:(emit_exp ~env))
   | ECmakeRaw text -> C.Quote text
-  | ECmakeRawCmd { name; args } ->
+  | ECmakeRawCmd { name; args; _ } ->
     (* Reconstruct cmake text from args without quoting (matching old
        args_to_cmake_text behavior). EVar → ${name}, EString → bare.
        This preserves cmake variable expansion semantics that arg ~env
