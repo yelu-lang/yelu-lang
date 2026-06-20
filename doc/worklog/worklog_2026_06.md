@@ -410,3 +410,56 @@ groundwork for the future object-method `entity.method(args)` form.
 Docs: new `doc/lang/object_value_design.md`,
 `doc/lang/yc_syntax_critique.md` (APPEND row updated to shipped),
 this worklog entry, CLAUDE.md (Y18 + test count 923→935).
+
+## 2026-06-19: no-ALL_CAPS surface pass complete (the `~`-half)
+
+Closure record for critique #2's `~`-modifier half — turning cmake's SHOUTY
+positional keyword args into a uniform labeled surface. Design rationale stays
+in [`../lang/yc_syntax_critique.md`](../lang/yc_syntax_critique.md); this
+archives the shipped arc. Throughout: emit byte-invariant (fmt matrix 24/24),
+verified by the emit-bridge + matrix; per-command, accept-both-then-canonicalize.
+
+**The surface, end state.** Every command in `probes/fmt/main.yc` now reads as
+`~flag` / `~label=value` / `~label=[list]` / `~properties={record}`, or is an
+explicit `yc_raw` escape. cmake keyword args became argument labels.
+
+**Arc (commits):**
+- **Casing lanes** (earlier sessions): enum constructors leading-cap
+  (`Public`/`Static`/`Name_we`), property scopes (`Global`/`Cache`/`Source`/…),
+  Y14 reserved-word reject. `$foo` brace-elision sugar; single-quote canonical.
+- **Flags** (value-less labels): `~parent_scope` (`eacb906`), `include_guard
+  ~global` (`d74bd90`), `install_directory ~optional` (`bcefe40`),
+  `find_package ~required` (`8c03d01`), `set_property ~append`/`~append_string`.
+  Mechanism: `command_flags` table + command-aware formatter rewrite (a bare
+  `GLOBAL` is the include_guard flag, but `${GLOBAL}` a var is left alone).
+- **Separator `:`→`=`** (`c21aa41`) — accept-both, canonicalize to `=`.
+- **Value-labels (shape 1):** install_directory pilot (`0e99359`),
+  install_files/export (`37ec8be`), get_property, set_property `~property=[…]`.
+  `command_value_labels` + look-ahead `pr_cmd_args`; order-independence verified.
+- **install_targets correctness fix** — it was *lossy* (COMPONENT dropped,
+  nested clauses collapsed): nested-clause two-level-split parse (`a34a26e`),
+  COMPONENT printer fix, entity names literal-not-derefed (`f1296a4`), real
+  `cmake --install` verified. Then the guarded dotted-label formatter (`49e32fa`).
+- **Recursive value grammar** (shapes 2 & 3): core `A_list`/`A_record` +
+  `EList`/`ERecord` (`7ca8c5d`); shape-2 `~command`/`~commands` by arity
+  (`25f9e19`, retired the multi-COMMAND guard); shape-3
+  `set_target_properties ~properties={k=v}` (`a87f9a8`). Comma-list form
+  (`5020f6c`).
+- **execute_process** (`838fe80` + `25f9e19`) and **add_custom_command/target**
+  (`b101aba`) on the shared `pr_command_groups_args` walk.
+- **COMMAND_EXPAND_LISTS IR gap** (`591f261`) — was parsed but silently dropped
+  on emit (a `string list` placeholder the printer discarded); threaded end to
+  end as a real `bool` across the cmake AST + pp + reverse-parser + yc IR.
+- **Corpus macro-escaped** (`7cff140`): the two un-labelable lines —
+  `target_sources … FILE_SET` (a nested clause, was *actively mis-parsing*) and
+  `install_targets … $INSTALL_FILE_SET` (a metaprogramming splice) — became
+  `yc_raw`. The corpus is now fully labeled-or-raw.
+
+**Empirical cmake ground truth recorded:** painpoint #11 (repeated-keyword
+last-wins vs accumulate, install(TARGETS) probed against cmake 4.3.1).
+
+**Convergence worth noting:** the only two lines the labeled surface *couldn't*
+express turned out to be exactly the metaprogramming/nested corners that belong
+in the raw bucket — the design's edges line up with cmake's genuinely-dynamic
+ones. Next phase (labeled-only — remove positional parsing) tracked in
+[`../lang/surface_status.md`](../lang/surface_status.md) § Open decisions.

@@ -1,7 +1,9 @@
 # Surface / formatter / LSP — implementation status
 
-> Living tracker for the yc surface-syntax track: highlighter → formatter
-> → language server. Design + decision-map in
+> Living tracker for the yc surface **machinery**: highlighter → formatter →
+> language server (the parse/lower/print/LSP pipeline). The *syntax design*
+> that rides on top of this lives in
+> [`yc_syntax_critique.md`](yc_syntax_critique.md); design + decision-map in
 > [`surface_lsp_framework.md`](surface_lsp_framework.md). Sibling to
 > [`../yelu_cmake/status.md`](../yelu_cmake/status.md) (which tracks the
 > behavior-level oracle, the *dynamic*-semantics half).
@@ -92,31 +94,20 @@ Fix applied 2026-06-12: the installed grammar is now a **symlink** to the
 workspace file, so `yelu tmgrammar` / `dune promote` regens are live (just
 reload the window). If the extension is ever reinstalled, re-symlink (or copy).
 
-## Open surface items (parked 2026-06-12)
+## Open surface items
 
-- **`PARENT_SCOPE` / cmake-keyword highlighting ✅ (2026-06-12).** Added a
-  `Cmake_keyword` manifest class (→ `keyword.other.yc`) with a curated set of
-  bare cmake flags / section markers (`PARENT_SCOPE`, `CACHE`, `FORCE`,
-  `BEFORE`, `SYSTEM`, `COMMAND`, `DESTINATION`, …). Conservative: short
-  english-y words (NAME/OUTPUT/VERSION/TYPE) left out to avoid mis-highlighting
-  var names. Excluded from `word_surfaces` (no enumerable provider — locked
-  only by the grammar freshness `(diff)`). Grammar regenerated; reload to see
-  it. The deferred `~`-half will later restructure most of these into `~kw`.
-- **Furthest-failure diagnostics ✅ (2026-06-12).** `p_stmt` now records the
-  deepest token it was attempted on (`furthest` ref, reset per
-  `parse_with_pos`); on failure the error blames *that* token, not the
-  top-level statement's first token. So `Public := 1` inside a `fun …` body
-  reports `unexpected keyword "PUBLIC"` at the actual line, not the `fun`
-  line. Pinned by `test_error_span_nested`. *Still open (bonus):* a targeted
-  "X is an enum constructor, not a variable name" message — the surface face
-  of Y14, which the lexer pre-empts by tokenizing `Public` as a KEYWORD before
-  wellform runs.
-- **Dotted globals — parked, likely reframed.** Corpus check killed the clean
-  "all-caps = global" premise: `$ARGN`/`$BMI`/`$MKDOCS` are *local* all-caps
-  vars, not globals. So the dotted form can only be *cosmetic* (`_`→`.` +
-  lowercase on multi-segment names), the `sys.` fake-root collides with real
-  `SYS_*` and mislabels locals, and single-word all-caps must stay verbatim
-  (`$MSVC`). Real namespacing belongs in **ycn**. See `casing_design.md`.
+**Done (machinery, 2026-06-12):**
+- **`Cmake_keyword` highlighting ✅** — `keyword.other.yc` manifest class for a
+  curated set of bare cmake markers; grammar-freshness-locked. (Most of these
+  became `~kw` in the `~`-half pass since.)
+- **Furthest-failure diagnostics ✅** — `p_stmt` records the deepest token
+  attempted (`furthest` ref); on failure the error blames *that* token, not the
+  enclosing statement's first. Pinned by `test_error_span_nested`. *Bonus still
+  open:* a targeted "X is an enum constructor, not a variable name" message.
+
+**Parked:** dotted globals — the corpus killed "all-caps = global" (`$ARGN`/
+`$BMI` are *local* all-caps); real namespacing → **ycn**. Tracked in
+[`yc_syntax_critique.md`](yc_syntax_critique.md) § Open and `casing_design.md`.
 
 ## Testing strategy (target, build out over M1.2–M1.3)
 
