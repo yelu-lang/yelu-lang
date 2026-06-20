@@ -96,6 +96,16 @@ let () =
             "cmake_minimum_required VERSION '3.8'" ~expect:true;
           pcase "cmake_minimum_required bare ok"
             "cmake_minimum_required '3.8'" ~expect:false;
+          pcase "export TARGETS positional → reject"
+            "export TARGETS a b NAMESPACE 'ns::'" ~expect:true;
+          pcase "export ~targets labeled ok"
+            "export ~targets=[a, b] ~namespace='ns::'" ~expect:false;
+          pcase "export name form ok"
+            "export $name ~file='f.cmake'" ~expect:false;
+          pcase "configure_package_config_file positional → reject"
+            "configure_package_config_file 'in' 'out' INSTALL_DESTINATION 'd'" ~expect:true;
+          pcase "configure_package_config_file labeled ok"
+            "configure_package_config_file 'in' 'out' ~install_destination='d'" ~expect:false;
           (* a genuinely unknown/external command stays a plain raw — no reject *)
           pcase "unknown command not flagged"
             "some_external_macro 'a' 'b'" ~expect:false ] ) ]

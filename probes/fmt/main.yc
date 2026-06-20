@@ -235,7 +235,7 @@ if $FMT_INSTALL then (
   join_paths 'libdir_for_pc_file' '\${exec_prefix}' '${FMT_LIB_DIR}';
   join_paths 'includedir_for_pc_file' '\${prefix}' '${FMT_INC_DIR}';
   configure_file '${PROJECT_SOURCE_DIR}/support/cmake/fmt.pc.in' '${pkgconfig}' '@ONLY';
-  configure_package_config_file $FMT_CMAKE_DIR '${PROJECT_SOURCE_DIR}/support/cmake/fmt-config.cmake.in' $project_config;
+  configure_package_config_file '${PROJECT_SOURCE_DIR}/support/cmake/fmt-config.cmake.in' $project_config ~install_destination=$FMT_CMAKE_DIR;
   INSTALL_TARGETS := 'fmt', 'fmt-header-only', 'fmt-c';
   if $FMT_MODULE then (
     list_append INSTALL_TARGETS 'fmt-module';

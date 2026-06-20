@@ -1639,69 +1639,53 @@ let p_install_command_y1_inner name args kwargs =
         | Some (EString s | EVar s) -> Some s | _ -> None in
       let optional = kwarg_bool ~key:"optional" in
       Some (yc_install_directory ?component ~optional directory destination)
+  | "export", args
+    when List.exists args ~f:(function
+           | EVar s | EString s ->
+             List.mem [ "TARGETS"; "NAMESPACE"; "FILE" ] s ~equal:String.equal
+           | _ -> false) ->
+    (* Labeled-only (Step 2): the positional TARGETS/NAMESPACE/FILE form is a
+       fatal reject — use ~targets=[…] / ~namespace= / ~file=. *)
+    Some (ECmakeRawCmd { name = cmake_name_of_yelu name; args;
+                         from_positional = Some "export" })
   | "export", args ->
-    (* Check for keyword form: export TARGETS ... NAMESPACE ... FILE ... *)
-    let has_targets = List.exists args ~f:(function
-      | EVar "TARGETS" | EString "TARGETS" -> true | _ -> false)
-    in
-    if has_targets then
-      let sections = split_by_keywords ~keywords:["TARGETS"; "NAMESPACE"; "FILE"] args in
-      let targets = match List.Assoc.find sections ~equal:String.equal "TARGETS" with
-        | Some items -> items | None -> []
-      in
-      let namespace = match List.Assoc.find sections ~equal:String.equal "NAMESPACE" with
-        | Some [ EString s | EVar s ] -> Some s
-        | _ -> None
-      in
-      let file = match List.Assoc.find sections ~equal:String.equal "FILE" with
-        | Some (e :: _) -> Some e
-        | _ -> None
-      in
-      Some (yc_export_targets ?namespace ?file targets)
-    else begin match args with
-      | [ name_arg ] ->
-        let file = kwarg_opt ~key:"file" in
-        Some (yc_export_export ?file name_arg)
-      | _ -> None
-    end
+    (* Two modes. TARGETS form: `~targets=[…]` (+ ~namespace / ~file), no
+       leading positional. EXPORT-name form: a single positional export name
+       (+ ~file). The presence of ~targets selects the TARGETS form. *)
+    (match kwarg_opt ~key:"targets" with
+     | Some (EList targets) ->
+       let namespace = match kwarg_opt ~key:"namespace" with
+         | Some (EString s | EVar s) -> Some s | _ -> None in
+       let file = kwarg_opt ~key:"file" in
+       Some (yc_export_targets ?namespace ?file targets)
+     | _ ->
+       (match args with
+        | [ name_arg ] ->
+          let file = kwarg_opt ~key:"file" in
+          Some (yc_export_export ?file name_arg)
+        | _ -> None))
+  | "configure_package_config_file", args
+    when List.exists args ~f:(function
+           | EVar "INSTALL_DESTINATION" | EString "INSTALL_DESTINATION" -> true
+           | _ -> false) ->
+    (* Labeled-only (Step 2): the positional INSTALL_DESTINATION form is a fatal
+       reject — input/output are positional, the path is `~install_destination=`. *)
+    Some (ECmakeRawCmd { name = cmake_name_of_yelu name; args;
+                         from_positional = Some "configure_package_config_file" })
   | "configure_package_config_file", args ->
-    let has_install_dest = List.exists args ~f:(function
-      | EVar "INSTALL_DESTINATION" | EString "INSTALL_DESTINATION" -> true
-      | _ -> false)
+    let install_dest = match kwarg_opt ~key:"install_destination" with
+      | Some e -> e | None -> EVar "?" in
+    let input, output = match args with
+      | [ i; o ] -> (i, o)
+      | [ i ] -> (i, EVar "?")
+      | _ -> (EVar "?", EVar "?")
     in
-    if has_install_dest then
-      let sections = split_by_keywords ~keywords:["INSTALL_DESTINATION"] args in
-      let positional = match List.Assoc.find sections ~equal:String.equal "_head" with
-        | Some items -> items | None -> []
-      in
-      let input, output = match positional with
-        | [ a; b ] -> (a, b)
-        | [ a ] -> (a, EVar "?")
-        | _ -> (EVar "?", EVar "?")
-      in
-      let install_dest = match List.Assoc.find sections ~equal:String.equal
-                               "INSTALL_DESTINATION" with
-        | Some (e :: _) -> e
-        | _ -> EVar "?"
-      in
-      let no_set_and_check_macro = kwarg_bool ~key:"no_set_and_check_macro" in
-      let no_check_required_components_macro =
-        kwarg_bool ~key:"no_check_required_components_macro" in
-      Some (yc_configure_package_config_file
-              ~no_set_and_check_macro ~no_check_required_components_macro
-              install_dest input output)
-    else
-      let install_dest, input, output = match args with
-        | [ dest; input; output ] -> (dest, input, output)
-        | [ dest; input ] -> (dest, input, EVar "?")
-        | _ -> (EVar "?", EVar "?", EVar "?")
-      in
-      let no_set_and_check_macro = kwarg_bool ~key:"no_set_and_check_macro" in
-      let no_check_required_components_macro =
-        kwarg_bool ~key:"no_check_required_components_macro" in
-      Some (yc_configure_package_config_file
-              ~no_set_and_check_macro ~no_check_required_components_macro
-              install_dest input output)
+    let no_set_and_check_macro = kwarg_bool ~key:"no_set_and_check_macro" in
+    let no_check_required_components_macro =
+      kwarg_bool ~key:"no_check_required_components_macro" in
+    Some (yc_configure_package_config_file
+            ~no_set_and_check_macro ~no_check_required_components_macro
+            install_dest input output)
   | "write_basic_package_version_file", [ file ] ->
     let version = kwarg_opt ~key:"version" in
     let compatibility = match kwarg_opt ~key:"compatibility" with

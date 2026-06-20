@@ -560,7 +560,7 @@ let tier_remaining_y1 = ("t-remaining-y1", [
   assert_parse_y1_emits "y1: export"                 "( export Target ExpName )"
     "export(EXPORT ExpName\n)";
   assert_parse_y1_emits "y1: configure_package_config_file"
-    "( configure_package_config_file \"dest\" \"in\" \"out\" )"
+    "( configure_package_config_file \"in\" \"out\" ~install_destination=\"dest\" )"
     "configure_package_config_file(in\nout\nINSTALL_DESTINATION dest)";
   assert_parse_y1_emits "y1: write_basic_package_version_file"
     "( write_basic_package_version_file \"file\" )"
