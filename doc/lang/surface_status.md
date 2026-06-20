@@ -135,6 +135,38 @@ Layered coverage for the parse/lower/print round-trips:
 
 ## Open decisions / parked
 
+- **Labeled-only surface — remove positional parsing (planned next phase,
+  2026-06-19).** The no-ALL_CAPS pass is **complete**: the fmt corpus is now
+  fully `~label=` or explicit `yc_raw` (the two un-labelable lines — a
+  `target_sources … FILE_SET` clause and the `install_targets … $INSTALL_FILE_SET`
+  metaprogramming splice — were macro-escaped in `7cff140`). So yc can become
+  **labeled-only**: drop the positional cmake-keyword surface entirely.
+  - **Decided policy:** positional cmake-keyword *input* → **raw fallback +
+    warning** (not silently mis-parsed). Forgiving (paste-cmake still
+    compiles, as raw), reversible to stricter later.
+  - **Future to-do (global config):** a toolset switch to choose
+    warn / reject / silent per case. Punted; not blocking.
+  - **Small design item:** the warning needs to distinguish *"known structured
+    command given positional input → fell to raw"* from the existing generic
+    `ECmakeRawCmd` (genuinely unknown command). Today `Raw_cmake_escape` fires
+    only for explicit `yc_raw` (`ECmakeRaw`), not the auto `ECmakeRawCmd`
+    fallback — so this needs a distinct signal (a wellform check or an
+    `ECmakeRawCmd ~from_positional` tag).
+  - **What's removed when done:** the 19 `split_by_keywords` positional sites
+    across the per-command `_inner`s (`yelu_parse.ml`, shared by the legacy
+    parser + the CST lower) and the 4 formatter canonicalization walks
+    (`pr_install_targets_args` / `pr_command_groups_args` /
+    `pr_set_target_properties_args` / the rewriting half of `pr_cmd_args`).
+    The CST parser stays generic; the byte-equality oracle (AST-based) and the
+    fmt matrix (corpus now labeled/raw) are **not** in the blast radius.
+  - **Phased plan:** (1) settle the warning signal; (2) pilot `install_targets`
+    (clearest positional/labeled split) — `_inner` reads kwargs only, positional
+    → raw+warn, delete its formatter walk, verify (matrix/suite/byte-oracle),
+    rewrite its bridge tests (positional-canon → labeled round-trip +
+    positional→raw); (3) roll out per family (target → install → property →
+    cmake_op), one commit each; (4) collapse the dead machinery. Medium-large,
+    multi-session; main cost is bridge-test churn. Full analysis in the
+    2026-06-19 session.
 - **Driver interface — CST as a first-class form.** *Tier (a) done
   (2026-06-10):* `Yc_driver` now exposes `parse_cst` / `lower_cst` /
   `print_cst` / `format`, and [`../yelu_cmake/driver.md`](../yelu_cmake/driver.md)
