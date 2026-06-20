@@ -84,6 +84,18 @@ let () =
             "execute_process COMMAND $prog '--version' OUTPUT_VARIABLE v" ~expect:true;
           pcase "execute_process labeled ok"
             "execute_process ~command=[$prog, '--version'] ~output_variable=v" ~expect:false;
+          pcase "set_source_files_properties positional → reject"
+            "set_source_files_properties $f PROPERTIES GENERATED ON" ~expect:true;
+          pcase "set_source_files_properties labeled ok"
+            "set_source_files_properties $f ~properties={generated=ON}" ~expect:false;
+          pcase "enable_language OPTIONAL → reject"
+            "enable_language CUDA OPTIONAL" ~expect:true;
+          pcase "enable_language ~optional ok"
+            "enable_language CUDA ~optional" ~expect:false;
+          pcase "cmake_minimum_required VERSION → reject"
+            "cmake_minimum_required VERSION '3.8'" ~expect:true;
+          pcase "cmake_minimum_required bare ok"
+            "cmake_minimum_required '3.8'" ~expect:false;
           (* a genuinely unknown/external command stays a plain raw — no reject *)
           pcase "unknown command not flagged"
             "some_external_macro 'a' 'b'" ~expect:false ] ) ]

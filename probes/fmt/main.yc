@@ -1,4 +1,4 @@
-cmake_minimum_required VERSION '3.8...3.28';
+cmake_minimum_required '3.8...3.28';
 include_guard ~global;
 if ver_lt $CMAKE_VERSION '3.12' then (
   policy_set CMP0074 NEW
@@ -176,7 +176,7 @@ fun add_module_library(name) (
       path_convert_to_native '${BMI_DIR}/${name}.ifc' ~out=BMI;
       compile_opts $name Private '/interface' '/ifcOutput' $BMI Interface '/reference' 'fmt=${BMI}';
       set_target_properties $name ~properties={additional_clean_files=$BMI};
-      set_source_files_properties $BMI PROPERTIES GENERATED ON
+      set_source_files_properties $BMI ~properties={generated=ON}
     )
   );
   if $AML_USE_CMAKE_MODULES then (

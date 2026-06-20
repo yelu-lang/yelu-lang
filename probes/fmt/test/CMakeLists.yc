@@ -98,7 +98,7 @@ if $FMT_CUDA_TEST then (
     include CheckLanguage;
     check_language CUDA;
     if $CMAKE_CUDA_COMPILER then (
-      enable_language CUDA OPTIONAL;
+      enable_language CUDA ~optional;
       CUDA_FOUND := TRUE
     )
   );

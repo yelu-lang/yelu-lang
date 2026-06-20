@@ -46,7 +46,7 @@ let corpus =
   [ (* commands across families *)
     "policy_set CMP0074 NEW";
     "message \"hello\"";
-    "cmake_minimum_required VERSION \"3.8\"";
+    "cmake_minimum_required \"3.8\"";
     "include_guard GLOBAL";
     "set FOO \"a\" \"b\"";
     "string_concat 'a' 'b' ~out:OUT";

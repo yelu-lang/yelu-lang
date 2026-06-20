@@ -1351,26 +1351,29 @@ let p_property_command_y1_inner name args kwargs =
       | _ -> []
     in
     Some (yc_set_target_properties target record_props)
+  | "set_source_files_properties", args
+    when List.exists args ~f:(function
+           | EVar s | EString s ->
+             List.mem [ "PROPERTIES"; "DIRECTORY"; "TARGET_DIRECTORY" ] s
+               ~equal:String.equal
+           | _ -> false) ->
+    (* Labeled-only (Step 2): the positional PROPERTIES form is a fatal reject —
+       use the `~properties={…}` record (mirrors set_target_properties). *)
+    Some (ECmakeRawCmd { name = cmake_name_of_yelu name; args;
+                         from_positional = Some "set_source_files_properties" })
   | "set_source_files_properties", args ->
-    let sections = split_by_keywords ~keywords:["PROPERTIES"; "DIRECTORY";
-      "TARGET_DIRECTORY"] args in
-    let files = match List.Assoc.find sections ~equal:String.equal "_head" with
-      | Some items -> items | None -> []
-    in
-    let properties = sections
-      |> List.filter_map ~f:(fun (k, items) ->
-        if String.equal k "PROPERTIES" then
-          match items with
-          | prop_name :: values ->
-            let name = str_of prop_name in
-            let value = match values with
-              | [ v ] -> v
-              | _ -> EString (String.concat ~sep:";" (List.map values ~f:(fun e ->
-                  str_of ~default:"" e)))
-            in
-            Some (name, value)
-          | _ -> None
-        else None)
+    (* files positional, ~properties={k=v} record; keys uppercase, list `;`-joins *)
+    let files = args in
+    let properties =
+      match List.Assoc.find kwargs ~equal:String.equal "properties" with
+      | Some (ERecord fields) ->
+        List.map fields ~f:(fun (k, v) ->
+          let value = match v with
+            | EList items ->
+              EString (String.concat ~sep:";" (List.map items ~f:(str_of ~default:"")))
+            | _ -> v in
+          (String.uppercase k, value))
+      | _ -> []
     in
     Some (yc_set_source_files_properties files properties)
   | "set_property", args
@@ -1772,14 +1775,18 @@ let p_try_command_y1 toks =
 let p_cmake_op_command_y1_inner name args kwargs =
   let out = out_var_y1 kwargs in
   match name, args with
+  | "cmake_minimum_required", args
+    when List.exists args ~f:(function
+           | EVar "VERSION" | EString "VERSION" -> true | _ -> false) ->
+    (* Labeled-only (Step 2): the VERSION keyword carries no information (the
+       version is the sole argument), so the surface is bare — the positional
+       VERSION form is a fatal reject. *)
+    Some (ECmakeRawCmd { name = cmake_name_of_yelu name; args;
+                         from_positional = Some "cmake_minimum_required" })
   | "cmake_minimum_required", args ->
-    let version =
-      let vs = List.filter_map args ~f:(fun e ->
-        match e with EString s | EVar s -> Some s | _ -> None) in
-      match vs with
-      | v :: _ when String.is_prefix v ~prefix:"3." -> v  (* direct version *)
-      | [_; v] when String.is_prefix v ~prefix:"3." -> v   (* VERSION 3.x *)
-      | [v] when String.is_prefix v ~prefix:"3." -> v
+    (* bare version: the single positional arg is the version range *)
+    let version = match args with
+      | (EString s | EVar s) :: _ -> s
       | _ -> "3.20"
     in
     Some (ECmakeMinimumRequired version)
@@ -1833,14 +1840,17 @@ let p_cmake_op_command_y1_inner name args kwargs =
     Some (yc_include_guard Lang_cmake.Ig_global)
   | "policy_set", id :: _ ->
     Some (yc_policy_set ~new_:true (str_of id))
+  | "enable_language", args
+    when List.exists args ~f:(function
+           | EVar "OPTIONAL" | EString "OPTIONAL" -> true | _ -> false) ->
+    (* Labeled-only (Step 2): positional OPTIONAL → fatal reject; use ~optional. *)
+    Some (ECmakeRawCmd { name = cmake_name_of_yelu name; args;
+                         from_positional = Some "enable_language" })
   | "enable_language", args ->
-    let optional = List.exists args ~f:(function
-      | EVar "OPTIONAL" | EString "OPTIONAL" -> true | _ -> false)
-    in
+    (* languages positional, ~optional flag *)
+    let optional = List.Assoc.mem kwargs ~equal:String.equal "optional" in
     let langs = List.filter_map args ~f:(function
-      | EVar "OPTIONAL" | EString "OPTIONAL" -> None
-      | EVar s | EString s -> Some s
-      | _ -> None)
+      | EVar s | EString s -> Some s | _ -> None)
     in
     Some (ECmakeEnableLanguage { langs; optional })
   | "execute_process", args

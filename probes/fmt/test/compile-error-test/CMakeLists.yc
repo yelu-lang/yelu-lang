@@ -60,7 +60,7 @@ fun run_tests() (
     message SEND_ERROR 'Compile error for combined non-error test:\n${output_var}'
   )
 );
-cmake_minimum_required VERSION '3.8...3.25';
+cmake_minimum_required '3.8...3.25';
 project compile-error-test Cxx;
 fmt_headers := '
   #include <fmt/format.h>
