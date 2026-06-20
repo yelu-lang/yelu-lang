@@ -104,9 +104,38 @@ because the matrix wasn't run; fixed `f1296a4`.)
 
 ## Open / remaining
 
-- **Active next — labeled-only pass.** Remove positional cmake-keyword parsing;
-  positional input → raw + warning. Full plan + blast-radius in
-  [`surface_status.md`](surface_status.md) § Open decisions.
+- ✅ **Labeled-only pass — done (2026-06-19).** Positional cmake-keyword forms
+  are a compile error (reject, not raw); `fmt` is pass-through. Every command
+  with a labeled surface is labeled-only; the deferred list is cleared. Arc in
+  [worklog 2026-06](../worklog/worklog_2026_06.md); machinery in
+  [`surface_status.md`](surface_status.md).
+- **Surface polish (noted 2026-06-19, no hurry):**
+  - **version literal** — `cmake_minimum_required '3.8...3.25'` smuggles a cmake
+    `min...max` sub-grammar inside a string. Make a version a first-class
+    *unquoted literal* (`cmake_minimum_required 3.8...3.25`); a lexer token for
+    `N(.N)*(...N(.N)*)?`. Generalizes to `find_package` /
+    `write_basic_package_version_file` versions.
+  - **per-mode message commands** — terse aliases for the common modes
+    (`message_fatal` / `message_warning` / `message_status` / maybe
+    `message_debug`) desugaring to `message ~mode=…`, since the mode is the
+    prominent token. Curated subset only (not CHECK_*/AUTHOR_WARNING). Additive
+    sugar over the `~mode=` general form. (Rationale + boundary in
+    [`casing_design.md`](casing_design.md).)
+- **Code cleanup (noted 2026-06-19):**
+  - **`Apply_shadows_primitive` check holes** — `command_names`
+    ([`yc_primitives.ml`](../../src/langs/yelu/yc_primitives.ml)) is missing
+    `add_custom_command` (so `ECmakeApply "add_custom_command"` slips through);
+    and the error is surfaced only as a buried generic warning, unlike
+    `Raw_cmake_escape` / `Positional_form`. Give it a first-class message.
+    (Raw-cmake-name applys like `install`/`file`/`cmake_policy` can't be caught
+    by name — only proper re-encoding fixes those.) Note: `command_names` is
+    co-truth-locked to the manifest, so any addition needs `Yc_manifest` +
+    `dune promote`.
+  - **`Yelu_emit_main` orphaned** — the legacy OCaml-DSL whole-file emitters
+    (`probes/fmt/{main,test_main,compile_error_test}.ml`) were retired
+    (superseded by the `.yc` corpus); `Yelu_emit_main` now has no code
+    consumers (only `probes/fmt/migration_status.md` references it). Retire
+    candidate.
 - **Postponed structured forms:**
   - shape-4 install_targets artifact **records** (`~library={destination=…}`) —
     the dotted-label stopgap + the metaprogramming guard stand for now;
