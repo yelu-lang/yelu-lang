@@ -1,10 +1,13 @@
 # yc identifier casing — enums, variable lanes, reserved names
 
-> **Status: design settled 2026-06-12, implementation deferred behind the
-> parser work.** Came out of critique #2 (keyword mechanisms) + the
-> `EVarLookup` / `$foo` work. This note covers the *enum-choice* and
-> *variable-name* spelling; the `~`-parameter / flag / bracket-group half of
-> #2 is still deferred. See [`yc_syntax_critique.md`](yc_syntax_critique.md),
+> **Status: the enum-casing lanes shipped** (visibility / type / mode / language
+> constructors + property scopes + Y14 reject) as part of the no-ALL_CAPS pass —
+> arc in [worklog 2026-06](../worklog/worklog_2026_06.md); the `~`-half of
+> critique #2 it sat next to is **complete**. This doc keeps the durable
+> *design rationale* (casing-shape-tells-kind, the three variable lanes, Y14)
+> and the **remaining open lanes** (§ Status & open below). Came out of
+> critique #2 + the `EVarLookup` / `$foo` work. See
+> [`yc_syntax_critique.md`](yc_syntax_critique.md),
 > [`../cmake/var_reference_semantics.md`](../cmake/var_reference_semantics.md).
 
 ## The idea: casing *shape* tells you the kind
@@ -92,68 +95,39 @@ cmake-style spellings on input — full-caps enum `PUBLIC`, all-caps global
 first format pass. A cmake-trained user or model is auto-corrected, not
 errored (except the Y14 reserved-word collision, which is a real mistake).
 
-## Deferred / open
+## Status & open
 
-- **Parser/lexer** (the gate for all of this): a leading-cap token class
-  (enum constructors); `.` inside `$`-reads (dotted globals); the verbatim
-  escape syntax for oddball names.
-- **The `~` half of #2**: flags (`~system`), named values (`~out:`), and
-  bracket-groups (`~command:[…]`) — still deferred (groups need a per-keyword
-  arity table; that's the real parser work).
-- **Namespace prefix table** for dotted-global grouping (start tableless).
-- **Full boolean scheme** (fold `ON`/`OFF` or keep) — later.
+**Shipped** (no-ALL_CAPS pass; full detail in
+[worklog 2026-06](../worklog/worklog_2026_06.md)):
 
-## Implementation phases (when un-deferred)
-
-1. **Lexer/parser** — leading-cap constructor tokens; `.`-bearing `$`-reads;
-   escape form. Validated by the emit-bridge oracle (lower vs parse agree).
-2. **Enum table + emit** — per-theory constructor ⇄ cmake-casing table;
-   dotted-global emit (`UPPER_SNAKE`); local verbatim. Matrix proves emit
-   unchanged.
-3. **Formatter canonicalization** — accept cmake-style aliases; rewrite
-   `PUBLIC→Public`, `$CMAKE_VERSION→$cmake.version`; transient warnings;
-   re-`fmt` the corpus.
-4. **Y14 reject** — wellform pass rejecting reserved-word shadowing.
-
-### Progress
-
-- **Slice 1 — visibility constructors ✅ (2026-06-12).** `Public`/`Private`/
-  `Interface` (no colon). Same minimal pattern as `$foo`: the lexer
+- **Enum constructors** — visibility (`Public`/`Private`/`Interface`),
+  type/mode/language (`Static`/`String`/`Name_we`/`Cxx`), property scopes
+  (`Global`/`Cache`/`Source`/`Test`/`Install`/`Directory`/`Variable`) and
+  get_property modes (`Set`/`Defined`/…). The lexer
   ([`yelu_lexer.ml`](../../src/langs/yelu/yelu_lexer.ml) `constr_names` /
   `is_known_constr`) promotes a *capitalized* known constructor to the
-  uppercased `KEYWORD` token (lowercase `public` stays an IDENT — the
-  `~public:` kwarg key); the formatter ([`yc_cst_print.ml`](../../src/langs/yelu/yc_cst_print.ml))
-  canonicalizes the recognized `:KEYWORD` back to leading-cap. **Both gate on
-  the same `constr_names` set** so the round-trip is consistent — an unmigrated
-  enum (e.g. library-type `INTERFACE`) keeps its current form. No
-  parser/emit change; corpus re-fmt'd (21 sites); 655 tests, matrix 24/24,
-  idempotent.
-- **Slice 2 — type / mode / language ✅ (2026-06-12).** Added `STATIC`,
-  `STRING`, `NAME_WE`, `CXX` to `constr_names`. These live mostly in *tilde
-  value* positions (`~type:STRING`, `~mode:NAME_WE`) plus bare `project … CXX`.
-  Two extensions over slice 1, both still surface-only (emit byte-unchanged):
-  (a) `colon_or_keyword` now uppercase-normalizes a `:Constructor` value
-  (`~type:Static` → internal `STRING`-style uppercase, so emit stays cmake-
-  cased); (b) the formatter canonicalizes `A_name` enum values (the
-  `~type:`/`~mode:` value, which the parser stores as `A_name`) to leading-cap.
-  The `~type:` *syntax* is untouched — only the value casing. Quoted `'STRING'`
-  args (to the `set_verbose` helper) correctly stay strings. 655 tests, matrix
-  24/24, idempotent.
-- **Y14 reject ✅ (2026-06-12).** A variable / cache / option / let
-  *declaration* whose name shadows an enum constructor (case-insensitive) is
-  a **fatal** compile error — `set public := …` → "shadows the Public
-  constructor; rename it". `Yc_wellform.check_enum_shadow` produces a distinct
-  `Enum_shadow` error which `compile_yc` treats as fatal (other wellform
-  findings stay warnings). The capitalized `set Public` is already a *parse*
-  error (lexer → KEYWORD), so together no variable shadows an enum in any
-  case. Reachable case = the lowercase/mixed shadow. Tested in
-  `test_yc_wellform`. **Escape hatch (if it proves too aggressive):** the
-  reject can be downgraded to a warning, or made a compiler-toolset toggle —
-  decided 2026-06-13 to keep the hard reject for now and revisit only if real
-  code hits false positives.
-- Next: **dotted globals** (`$cmake.version`, needs `.` in `$`-reads). The
-  CamelCase enums (`AnyNewerVersion`) still need the per-theory *table*
-  (uppercase ≠ cmake casing), unlike these all-caps ones.
+  uppercased `KEYWORD` token; the formatter
+  ([`yc_cst_print.ml`](../../src/langs/yelu/yc_cst_print.ml)) canonicalizes back
+  to leading-cap. Both gate on the same set, so the round-trip is consistent;
+  emit byte-unchanged. (All shipped enums are all-caps in cmake, so tableless.)
+- **Y14 reserved-word reject** — a var / cache / option / let *declaration*
+  shadowing a known constructor (case-insensitive) is a **fatal** compile error
+  (`Yc_wellform.check_enum_shadow` → `Enum_shadow`; capitalized `set Public` is
+  already a *parse* error). Escape hatch (downgrade to warning / toolset toggle)
+  if it proves too aggressive — kept hard for now.
 
-Each step follows the proven pattern: accept old forms, `fmt` canonicalizes,
-emit-bridge + matrix confirm the emitted cmake is byte-unchanged.
+**Open lanes:**
+
+- **Dotted globals** (`$cmake.version` → `CMAKE_VERSION`) — **parked → ycn.** The
+  corpus killed the "all-caps = global" premise (`$ARGN`/`$BMI`/`$MKDOCS` are
+  *local* all-caps), so the dotted form is only cosmetic and real namespacing
+  belongs in ycn. Needs `.` inside `$`-reads; the namespace prefix table
+  (CMAKE/PROJECT/lang grouping) rides with it.
+- **CamelCase compat enums** (`AnyNewerVersion ⇄ Any_newer_version`) — need the
+  per-theory constructor⇄cmake-casing **table** (uppercase ≠ cmake casing),
+  unlike the all-caps ones that shipped tableless.
+- **Oddball verbatim escape** — a genuinely mixed-case var (`MyVar`) or one with
+  a literal `.` can't ride the lanes (case-sensitive emit would corrupt it);
+  needs an escape syntax (TBD). Rare — builtins are all-caps.
+- **Full boolean scheme** — fold cmake's `ON`/`OFF` into the `On`/`Off` enum, or
+  keep both. Later.
