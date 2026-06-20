@@ -132,29 +132,29 @@ Layered coverage for the parse/lower/print round-trips:
   `target_sources … FILE_SET` clause and the `install_targets … $INSTALL_FILE_SET`
   metaprogramming splice — were macro-escaped in `7cff140`). So yc can become
   **labeled-only**: drop the positional cmake-keyword surface entirely.
-  - **Decided policy:** positional cmake-keyword *input* → **raw fallback +
-    warning** (not silently mis-parsed). Forgiving (paste-cmake still
-    compiles, as raw), reversible to stricter later.
-  - **Future to-do (global config):** a toolset switch to choose
-    warn / reject / silent per case. Punted; not blocking.
-  - **Warning signal (settled 2026-06-19):** a **wellform check** on
-    `ECmakeRawCmd` whose `name` is a command yc has a labeled form for — lower
-    cost than tagging the IR (`ECmakeRawCmd` has ~6 construction sites). New
-    `Yc_wellform` warning ("positional form of `<cmd>` → raw; prefer `~label=`"),
-    surfaced via `compile_yc ~warn` like `Raw_cmake_escape`. (Today
-    `Raw_cmake_escape` fires only for explicit `yc_raw`/`ECmakeRaw`, not the auto
-    `ECmakeRawCmd`.)
-  - **⚠️ Raw-faithfulness finding (2026-06-19) — the plan underestimated this.**
-    `ECmakeRawCmd` emits `EVar n → ${n}` (deref) but `EString s → s` (literal).
-    A positional `install_targets foo LIBRARY DESTINATION x` lowers the bare
-    keywords to `EVar`, so a naïve raw fallback emits
-    `install(${foo} ${LIBRARY} ${DESTINATION} …)` — **garbage**. In positional
-    cmake-keyword form a *bare ident is literal* (cmake doesn't auto-deref bare
-    args; `$`-reads are `EVarLookup → ${…}`), so the fallback must map the
-    positional args `EVar → EString` before building the raw command. This is
-    per-command in the pilot; a shared helper as the rollout proceeds. (It also
-    means raw fallback ≠ "free" — it's a small deliberate transform, not just
-    `return None`.)
+  - **Decided policy (2026-06-19): reject.** A positional cmake-keyword *input*
+    is a **compile error** ("positional form of `<cmd>` isn't a yc surface; use
+    `~label=` or `yc_raw '…'`"). Reject was chosen over raw fallback after the
+    analysis below showed raw is *not* a cheap safety net. `yc_raw` remains the
+    escape for anyone who genuinely wants literal cmake (written faithfully by
+    hand, as the corpus does). Global config (warn / reject / silent per case)
+    is a future to-do.
+  - **Why not raw fallback** (the two findings that flipped the call): (1)
+    `ECmakeRawCmd` emits `EVar n → ${n}` (deref), so positional bare keywords
+    (`LIBRARY`→`${LIBRARY}`) emit garbage unless mapped `EVar→EString`; and (2)
+    a yc command name encodes an *implicit subcommand keyword* the cmake name
+    drops (`install_targets`→`install(`**`TARGETS`**`…)`), so faithful raw needs
+    per-command reconstruction (`install_targets`→`TARGETS`, etc.). Raw =
+    re-deriving the structured emit just to throw the structure away. Reject
+    needs **none** of that — the command is rejected before emit, so the args
+    never have to be faithful.
+  - **Reject mechanism:** the per-command `_inner`, on detecting positional
+    cmake keywords, falls to a raw command **tagged with the yc command name**
+    (the cmake `name` alone is too coarse — `install` is shared by
+    install_targets/files/export, and rollout is incremental). A `Yc_wellform`
+    check turns the tag into a **fatal** error (like `Enum_shadow`), surfaced via
+    `compile_yc`. Needs `ECmakeRawCmd` to carry the yc name (`from_positional :
+    string option`, ~6 construction sites default `None`).
   - **What's removed when done:** the 19 `split_by_keywords` positional sites
     across the per-command `_inner`s (`yelu_parse.ml`, shared by the legacy
     parser + the CST lower) and the 4 formatter canonicalization walks
@@ -162,14 +162,15 @@ Layered coverage for the parse/lower/print round-trips:
     `pr_set_target_properties_args` / the rewriting half of `pr_cmd_args`).
     The CST parser stays generic; the byte-equality oracle (AST-based) and the
     fmt matrix (corpus now labeled/raw) are **not** in the blast radius.
-  - **Phased plan:** (1) settle the warning signal; (2) pilot `install_targets`
-    (clearest positional/labeled split) — `_inner` reads kwargs only, positional
-    → raw+warn, delete its formatter walk, verify (matrix/suite/byte-oracle),
-    rewrite its bridge tests (positional-canon → labeled round-trip +
-    positional→raw); (3) roll out per family (target → install → property →
-    cmake_op), one commit each; (4) collapse the dead machinery. Medium-large,
-    multi-session; main cost is bridge-test churn. Full analysis in the
-    2026-06-19 session.
+  - **Phased plan:** (1) reject mechanism — `from_positional` tag + the
+    `Yc_wellform` fatal check; (2) pilot `install_targets` — `_inner` reads
+    kwargs + leading targets only, positional keywords → tagged raw (rejected),
+    drop the two-level split + delete `pr_install_targets_args`, verify
+    (matrix/suite/byte-oracle), move its positional bridge assertions to a
+    wellform reject test + keep the labeled round-trip; (3) roll out per family
+    (target → install → property → cmake_op), one commit each; (4) collapse the
+    dead `split_by_keywords` + formatter walks. Multi-session. Full analysis in
+    the 2026-06-19 session.
 - **Driver interface — CST as a first-class form.** *Tier (a) done
   (2026-06-10):* `Yc_driver` now exposes `parse_cst` / `lower_cst` /
   `print_cst` / `format`, and [`../yelu_cmake/driver.md`](../yelu_cmake/driver.md)
