@@ -168,9 +168,9 @@ per-theory and remaining-command suites not enumerated above.)
 | `doc/lang/concrete_syntax_parser.md`  | Implemented two-pass parser (Angstrom + pure OCaml) |
 | `doc/lang/surface_lsp_framework.md`   | Surface syntax + LSP design exploration (yc-first): driver-as-plug, CST/spans, manifest-as-co-truth, TextMate Milestone 0 |
 | `doc/lang/surface_status.md`          | Living tracker for the surface track (highlighter→formatter→LSP): phases, CST-lite migration via emit-bridge oracle |
-| `doc/lang/yc_syntax_critique.md`      | yc surface-syntax critique + per-item improvement plan (impl-1: implicit `target`; keyword unification; string-quote unification; `$foo` brace-elision sugar) |
+| `doc/lang/yc_syntax_critique.md`      | yc surface-syntax design + open items. The no-ALL_CAPS `~`-half pass is **complete** (flags / value-labels / recursive value grammar shapes 2–3; shipped arc in worklog 2026-06); keeps the design rationale + the grouped remaining work. Next: the labeled-only pass |
 | `doc/lang/var_centric_design.md`      | Postponed direction: value-default reads (bare `foo` = value, name explicit). Belongs in ycn not yc; ties to tc_name / Y17; needs a frequency study |
-| `doc/lang/casing_design.md`           | Settled (deferred behind parser): identifier casing lanes — enum constructors `Public` (no colon, table emit), cmake globals `$cmake.version` (dotted→`UPPER_SNAKE`, tableless), locals `$x` verbatim, oddball escape; Y14 hard-reject on reserved-word shadowing; fmt-canonicalized. The enum-choice half of critique #2 |
+| `doc/lang/casing_design.md`           | Casing lanes — **shipped** (enum constructors `Public` no-colon, property scopes, Y14 reserved-word reject) as part of the `~`-half pass; design rationale + open lanes (dotted globals→ycn, CamelCase compat-enum table, oddball escape, booleans) |
 | `doc/cmake/painpoints.md`            | 27 documented cmake pain points                     |
 | `doc/cmake/comparison.md`            | cmake PL properties, equivalence levels             |
 | `doc/cmake/policy.md`                | cmake policy system, CMP* history                   |
