@@ -65,18 +65,18 @@ same retirement discipline as the yelu_cmake byte oracle.
 
 ## Phases
 
-| phase | what | status |
-| ----- | ---- | ------ |
-| M0    | TextMate highlighter | ✅ shipped 2026-06-10 |
-| M1.0  | lexer: lossless located scanner (`lex_located`) | ✅ shipped 2026-06-10 |
-| M1.1  | `cst_lite` type + parser `text → cst_lite` (consume `lex_located`) | ✅ shipped 2026-06-10 (parses all 11 fmt .yc) |
-| M1.2  | `lower : cst_lite → expr` + emit-bridge oracle over the corpus | ✅ shipped 2026-06-10 (byte-identical on all 11 probe files) |
-| M1.3  | `print_ye` (the formatter) + round-trip / idempotence oracle | ✅ shipped 2026-06-10 (`yelu fmt`; round-trip+idempotent+comments on all 11 probe files) |
-| M1.4  | statement-level error recovery (partial tree while editing) | ⏸ **deferred into M1.5** — only the LSP consumes partial trees; the formatter is already fail-safe (parse error → no overwrite). Do the light top-level version when the LSP needs it. |
-| M1.5a | LSP server (`linol-lwt`): `textDocument/formatting` (via `Yc_driver.format`) + parse diagnostics + fail-safe | ✅ shipped 2026-06-10 (`src/bin/yelu_lsp/`; manually verified over JSON-RPC; built against the yojson-3 linol fork @ lsp 1.26) |
-| M1.5c | VS Code client wiring (`vscode-languageclient`) to launch `yelu-lsp` — deploy locally; enables format-on-save | ✅ shipped 2026-06-10 (`editors/vscode/yc/extension.js`; packages cleanly) |
-| M1.5b | richer diagnostics (parse error spans) + hover / semantic tokens | ◐ parse-error **spans done** (2026-06-12): `Yc_cst_parse.parse_with_pos` carries the offending token's span + a humanized message; the LSP maps byte offset → line/char and reports at the real range (lex errors fall back to file start). Hover / semantic tokens still ⏳ |
-| —     | retire `parse_ast`; production path is `text → cst → lower → expr` | ⏳ |
+| phase | what                                                                                                          | status                                                                                                                                                                                                                                                                      |
+| ----- | ------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| M0    | TextMate highlighter                                                                                          | ✅ shipped 2026-06-10                                                                                                                                                                                                                                                        |
+| M1.0  | lexer: lossless located scanner (`lex_located`)                                                               | ✅ shipped 2026-06-10                                                                                                                                                                                                                                                        |
+| M1.1  | `cst_lite` type + parser `text → cst_lite` (consume `lex_located`)                                            | ✅ shipped 2026-06-10 (parses all 11 fmt .yc)                                                                                                                                                                                                                                |
+| M1.2  | `lower : cst_lite → expr` + emit-bridge oracle over the corpus                                                | ✅ shipped 2026-06-10 (byte-identical on all 11 probe files)                                                                                                                                                                                                                 |
+| M1.3  | `print_ye` (the formatter) + round-trip / idempotence oracle                                                  | ✅ shipped 2026-06-10 (`yelu fmt`; round-trip+idempotent+comments on all 11 probe files)                                                                                                                                                                                     |
+| M1.4  | statement-level error recovery (partial tree while editing)                                                   | ⏸ **deferred into M1.5** — only the LSP consumes partial trees; the formatter is already fail-safe (parse error → no overwrite). Do the light top-level version when the LSP needs it.                                                                                      |
+| M1.5a | LSP server (`linol-lwt`): `textDocument/formatting` (via `Yc_driver.format`) + parse diagnostics + fail-safe  | ✅ shipped 2026-06-10 (`src/bin/yelu_lsp/`; manually verified over JSON-RPC; built against the yojson-3 linol fork @ lsp 1.26)                                                                                                                                               |
+| M1.5c | VS Code client wiring (`vscode-languageclient`) to launch `yelu-lsp` — deploy locally; enables format-on-save | ✅ shipped 2026-06-10 (`editors/vscode/yc/extension.js`; packages cleanly)                                                                                                                                                                                                   |
+| M1.5b | richer diagnostics (parse error spans) + hover / semantic tokens                                              | ◐ parse-error **spans done** (2026-06-12): `Yc_cst_parse.parse_with_pos` carries the offending token's span + a humanized message; the LSP maps byte offset → line/char and reports at the real range (lex errors fall back to file start). Hover / semantic tokens still ⏳ |
+| —     | retire `parse_ast`; production path is `text → cst → lower → expr`                                            | ⏳                                                                                                                                                                                                                                                                           |
 
 ## Deployment gotcha (local VS Code)
 
@@ -137,12 +137,24 @@ Layered coverage for the parse/lower/print round-trips:
     compiles, as raw), reversible to stricter later.
   - **Future to-do (global config):** a toolset switch to choose
     warn / reject / silent per case. Punted; not blocking.
-  - **Small design item:** the warning needs to distinguish *"known structured
-    command given positional input → fell to raw"* from the existing generic
-    `ECmakeRawCmd` (genuinely unknown command). Today `Raw_cmake_escape` fires
-    only for explicit `yc_raw` (`ECmakeRaw`), not the auto `ECmakeRawCmd`
-    fallback — so this needs a distinct signal (a wellform check or an
-    `ECmakeRawCmd ~from_positional` tag).
+  - **Warning signal (settled 2026-06-19):** a **wellform check** on
+    `ECmakeRawCmd` whose `name` is a command yc has a labeled form for — lower
+    cost than tagging the IR (`ECmakeRawCmd` has ~6 construction sites). New
+    `Yc_wellform` warning ("positional form of `<cmd>` → raw; prefer `~label=`"),
+    surfaced via `compile_yc ~warn` like `Raw_cmake_escape`. (Today
+    `Raw_cmake_escape` fires only for explicit `yc_raw`/`ECmakeRaw`, not the auto
+    `ECmakeRawCmd`.)
+  - **⚠️ Raw-faithfulness finding (2026-06-19) — the plan underestimated this.**
+    `ECmakeRawCmd` emits `EVar n → ${n}` (deref) but `EString s → s` (literal).
+    A positional `install_targets foo LIBRARY DESTINATION x` lowers the bare
+    keywords to `EVar`, so a naïve raw fallback emits
+    `install(${foo} ${LIBRARY} ${DESTINATION} …)` — **garbage**. In positional
+    cmake-keyword form a *bare ident is literal* (cmake doesn't auto-deref bare
+    args; `$`-reads are `EVarLookup → ${…}`), so the fallback must map the
+    positional args `EVar → EString` before building the raw command. This is
+    per-command in the pilot; a shared helper as the rollout proceeds. (It also
+    means raw fallback ≠ "free" — it's a small deliberate transform, not just
+    `return None`.)
   - **What's removed when done:** the 19 `split_by_keywords` positional sites
     across the per-command `_inner`s (`yelu_parse.ml`, shared by the legacy
     parser + the CST lower) and the 4 formatter canonicalization walks
