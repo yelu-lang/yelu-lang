@@ -168,7 +168,7 @@ per-theory and remaining-command suites not enumerated above.)
 | `doc/lang/concrete_syntax_parser.md`  | Implemented two-pass parser (Angstrom + pure OCaml) |
 | `doc/lang/surface_lsp_framework.md`   | Surface syntax + LSP design exploration (yc-first): driver-as-plug, CST/spans, manifest-as-co-truth, TextMate Milestone 0 |
 | `doc/lang/surface_status.md`          | Living tracker for the surface track (highlighter→formatter→LSP): phases, CST-lite migration via emit-bridge oracle |
-| `doc/lang/yc_syntax_critique.md`      | yc surface-syntax design + open items. The no-ALL_CAPS `~`-half pass is **complete** (flags / value-labels / recursive value grammar shapes 2–3; shipped arc in worklog 2026-06); keeps the design rationale + the grouped remaining work. Next: the labeled-only pass |
+| `doc/lang/yc_syntax_critique.md`      | yc surface-syntax design + open items. **Both surface passes complete**: the no-ALL_CAPS `~`-half pass *and* the labeled-only pass (Step 2 — positional cmake-keyword forms are a compile error; `fmt` is pass-through, no codemod). Shipped arc in worklog 2026-06. Keeps the design rationale + open items |
 | `doc/lang/var_centric_design.md`      | Postponed direction: value-default reads (bare `foo` = value, name explicit). Belongs in ycn not yc; ties to tc_name / Y17; needs a frequency study |
 | `doc/lang/casing_design.md`           | Casing lanes — **shipped** (enum constructors `Public` no-colon, property scopes, Y14 reserved-word reject) as part of the `~`-half pass; design rationale + open lanes (dotted globals→ycn, CamelCase compat-enum table, oddball escape, booleans) |
 | `doc/cmake/painpoints.md`            | 27 documented cmake pain points                     |

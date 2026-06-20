@@ -1,8 +1,10 @@
 # yc surface syntax — critique & design
 
 > Where the `.yc` surface read well, where it read badly, and the design that
-> fixed it. **The no-ALL_CAPS pass (the `~`-half) is complete** — the shipped
-> arc + commits are archived in
+> fixed it. **Both surface passes are complete:** the no-ALL_CAPS pass (the
+> `~`-half) *and* the labeled-only pass (Step 2 — positional cmake-keyword forms
+> are a compile error; every command with a labeled surface is labeled-only).
+> The shipped arc + commits are archived in
 > [worklog 2026-06](../worklog/worklog_2026_06.md). This doc keeps the durable
 > *design rationale* and the *open items*; it is the syntax-design companion to
 > [`surface_status.md`](surface_status.md) (the parser / formatter / LSP
@@ -10,6 +12,8 @@
 > cleaner form, `yelu fmt -w probes/**/*.yc` to canonicalize, and the
 > **emit-bridge** (`test_yc_cst_bridge`) + the **fmt matrix**
 > (`yelu matrix probes/fmt`, 24/24) prove the emitted cmake is byte-unchanged.
+> Note `fmt` is now **pass-through** (no positional→labeled codemod): a
+> positional file is rejected at compile, not silently rewritten.
 
 ## What works (keep)
 

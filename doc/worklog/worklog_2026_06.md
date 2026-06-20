@@ -463,3 +463,54 @@ express turned out to be exactly the metaprogramming/nested corners that belong
 in the raw bucket — the design's edges line up with cmake's genuinely-dynamic
 ones. Next phase (labeled-only — remove positional parsing) tracked in
 [`../lang/surface_status.md`](../lang/surface_status.md) § Open decisions.
+
+## 2026-06-19: Step 2 — labeled-only surface (positional reject) + deferred commands cleared
+
+The labeled-only pass. A command written in cmake's positional keyword form
+(`set_property foo APPEND PROPERTY X Y`) is now a **fatal compile error**; the
+`~label=` form is the sole surface. Policy = **reject** (not raw fallback):
+chosen because reject needs no faithful-raw reconstruction.
+
+**Mechanism.** `ECmakeRawCmd` gained `from_positional : string option`; a
+command's parser tags it when it sees a positional cmake keyword, and
+`Yc_wellform.check_raw_tainted` turns the tag into a fatal `Positional_form`
+error (alongside `Enum_shadow`).
+
+**Per-family rollout** (one commit each): pilot `install_targets` (`83fd8ab`);
+target — `add_custom_command/target` (`6677d4c`); install —
+`install_files/export/directory` (`b20f1cd`); property —
+`set_property/get_property/set_target_properties` (`3cb4893`); cmake_op —
+`execute_process` (`e39311c`). Entity/visibility enums
+(`Public`/`Target`/`Cache`/…) stay positional — they are the enum-constructor
+surface, not keywords.
+
+**Deferred commands then cleared** (`b3f40ec`, `41a51dc`, `82ba8a8`): each got a
+label — `set_source_files_properties ~properties={…}`, `enable_language
+~optional`, `cmake_minimum_required` **bare** (VERSION dropped), `export
+~targets=[…]/~namespace=/~file=`, `configure_package_config_file
+~install_destination=` (input/output first), `message ~mode=Fatal_error`.
+`include_guard GLOBAL` needed nothing (`Global` was already an enum
+constructor). **message deliberately did NOT become an enum constructor** —
+promoting STATUS/DEBUG/WARNING/… into `constr_names` would globally reserve
+common var names (Y14-fatal), breaking the casing "small-closed-set" rule; the
+`~mode=` label sidesteps it (and a quoted `'STATUS report'` stays text).
+
+**Phase-4 cleanup.** Parser (`1c0ffed`): dropped vestigial `split_by_keywords`
+calls in the rejected property commands (the helper stays — deferred-then-`set_source_files_properties`/`export`/`configure_package_config_file` and the
+test family still use it). Formatter (`5c9b92d`): **`fmt` is now pass-through** —
+deleted the positional→labeled codemod (`command_flags`/`command_value_labels`/
+`command_value_list_labels` + `pr_command_groups_args`/
+`pr_set_target_properties_args`, −214/+21 LOC). Decision: `fmt` blesses good
+code only; a positional→labeled migration belongs in a separate 2to3-style
+tool, not the formatter.
+
+**Oracle blind-spot lesson.** The reject fires only under the fatal `compile_yc`
+path, so the emit-bridge + matrix oracles can't see it directly. The matrix
+*did* catch corpus regressions — because the **discovered helpers**
+(`probes/fmt/test/*/CMakeLists.yc`) compile through `compile_yc`, while
+`compile main.yc` alone was byte-identical and hid them. Each command's reject
+has its own `test_yc_wellform` case + a labeled round-trip in
+`test_yc_cst_bridge`. Every corpus migration verified byte-identical emit; one
+latent bug fixed along the way (cuda-test `set_target_properties` was silently
+dropped — the code split on `PROPERTY`, not the `PROPERTIES` it was written
+with). Throughout: `dune test` green, matrix 24/24, fmt idempotent + emit-stable.

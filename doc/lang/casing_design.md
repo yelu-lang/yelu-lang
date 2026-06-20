@@ -131,3 +131,23 @@ errored (except the Y14 reserved-word collision, which is a real mistake).
   needs an escape syntax (TBD). Rare — builtins are all-caps.
 - **Full boolean scheme** — fold cmake's `ON`/`OFF` into the `On`/`Off` enum, or
   keep both. Later.
+
+## Boundary case: when a keyword set is NOT an enum constructor (message modes)
+
+Not every closed cmake keyword set should become an enum-constructor lane. The
+`message` modes (`STATUS`/`FATAL_ERROR`/`SEND_ERROR`/`WARNING`/`DEBUG`/`NOTICE`/
+`TRACE`/`VERBOSE`/…) are closed, but several are **common identifiers**.
+Promoting them to `constr_names` would globally reserve `debug`/`status`/
+`warning`/`notice`/`trace`/`verbose` as variable names — a Y14-fatal collision —
+which directly violates the "small, closed, **never-collides**" criterion above.
+
+So `message` (2026-06-19) took the **labeled** route instead:
+`message ~mode=Fatal_error 'x'`. The parser uppercases the `~mode` value to the
+cmake keyword; no `constr_names` entry, no collision. A *quoted* text that reads
+like a mode stays text (`message 'STATUS report'` → an `EString`, not the mode),
+which also resolves the prior `message 'FATAL_ERROR'`-as-mode ambiguity. This is
+the dividing line: **all-caps-only, never-a-var-name** keyword sets ride the
+enum lane (visibility, entity scopes, get_property modes); **common-word**
+keyword sets take a `~label=`. (A possible future alternative — per-mode
+commands like `message_warning 'x'`, as some cmake libraries expose — is an
+open idea, not yet decided.)
