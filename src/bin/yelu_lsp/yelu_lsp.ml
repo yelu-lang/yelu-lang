@@ -49,6 +49,111 @@ let parse_diagnostics (content : string) : Diagnostic.t list =
     [ Diagnostic.create ~range ~severity:DiagnosticSeverity.Error
         ~source:"yelu" ~message:(`String msg) () ]
 
+(* Scan [content] for the first whole-word occurrence of [name] and return
+   its byte range. Whole-word = bounded by non-identifier characters
+   (or document edges). Falls back to [None] if not found — caller maps
+   that to a document-start placeholder so the diagnostic still appears. *)
+let find_word_range (content : string) (name : string) : Range.t option =
+  let n = String.length content in
+  let m = String.length name in
+  let is_id c =
+    (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+    (c >= '0' && c <= '9') || c = '_' || c = '-'
+  in
+  let rec find i =
+    if i + m > n then None
+    else if (i = 0 || not (is_id content.[i - 1]))
+         && (i + m = n || not (is_id content.[i + m]))
+         && String.sub content i m = name
+    then Some (Range.create
+                 ~start:(offset_to_position content i)
+                 ~end_:(offset_to_position content (i + m)))
+    else find (i + 1)
+  in
+  find 0
+
+(* Wellform diagnostics: run [Yc_wellform.check_all] over the lowered IR
+   and convert each finding to an LSP Diagnostic. Severity tracks the
+   compile/format gate: Enum_shadow / Positional_form / closed-world
+   Unknown_command are errors (red curly); the rest are warnings (yellow).
+   Spans are scanned out of the source text by whole-word match — a
+   heuristic but practical until the IR carries spans (see
+   surface_lsp_framework.md §7.5 follow-ups). *)
+let wellform_diagnostics (content : string) : Diagnostic.t list =
+  match Yelu_langs.Yc_cst_parse.parse content with
+  | Error _ -> []   (* parse_diagnostics already surfaces this *)
+  | Ok cst ->
+    let expr = Yelu_langs.Yc_cst_lower.lower_program cst in
+    let findings = Yelu_langs.Yc_wellform.check_all expr in
+    let doc_start () =
+      Range.create
+        ~start:(Position.create ~line:0 ~character:0)
+        ~end_:(Position.create ~line:0 ~character:1)
+    in
+    let make ~severity ~name ~message =
+      let range =
+        match find_word_range content name with
+        | Some r -> r | None -> doc_start ()
+      in
+      Diagnostic.create ~range ~severity
+        ~source:"yelu" ~message:(`String message) ()
+    in
+    List.filter_map (fun (f : Yelu_langs.Yc_wellform.error) ->
+      match f with
+      | Yelu_langs.Yc_wellform.Enum_shadow { name; constructor } ->
+        Some (make ~severity:DiagnosticSeverity.Error ~name
+                ~message:(Printf.sprintf
+                            "variable %S shadows the %s enum constructor; \
+                             rename it (Y14)" name constructor))
+      | Yelu_langs.Yc_wellform.Positional_form { command } ->
+        Some (make ~severity:DiagnosticSeverity.Error ~name:command
+                ~message:(Printf.sprintf
+                            "`%s` in positional cmake-keyword form is not a \
+                             yc surface; use the ~label= form or yc_raw '…'"
+                            command))
+      | Yelu_langs.Yc_wellform.Unknown_command { name; closed_world = true } ->
+        Some (make ~severity:DiagnosticSeverity.Error ~name
+                ~message:(Printf.sprintf
+                            "unknown command %S — closed world (no include / \
+                             find_package / add_subdirectory / cmake_call / \
+                             dynamic fun-name). Did you mean `fun`/`function`/\
+                             `macro`?" name))
+      | Yelu_langs.Yc_wellform.Unknown_command { name; closed_world = false } ->
+        Some (make ~severity:DiagnosticSeverity.Warning ~name
+                ~message:(Printf.sprintf
+                            "%S is not a typed yc primitive and is not declared \
+                             in this file. If it's a cmake-stdlib or cross-file \
+                             call, wrap it in `yc_raw '…'` to silence." name))
+      | Yelu_langs.Yc_wellform.Raw_cmake_escape { text; reason } ->
+        let preview =
+          if String.length text > 60
+          then String.sub text 0 57 ^ "…"
+          else text
+        in
+        Some (Diagnostic.create
+                ~range:(doc_start ())
+                ~severity:DiagnosticSeverity.Information
+                ~source:"yelu"
+                ~message:(`String
+                            (Printf.sprintf "raw cmake escape [%s]: %s"
+                               reason preview)) ())
+      | Yelu_langs.Yc_wellform.Reserved_name { name; context; conflict } ->
+        Some (make ~severity:DiagnosticSeverity.Warning ~name
+                ~message:(Printf.sprintf
+                            "%s name %S collides with a %s" context name conflict))
+      | Yelu_langs.Yc_wellform.Apply_shadows_primitive { name } ->
+        Some (make ~severity:DiagnosticSeverity.Warning ~name
+                ~message:(Printf.sprintf
+                            "yc_apply on %S shadows the typed yc primitive — \
+                             use the typed form instead" name)))
+      findings
+
+(* Combined diagnostics: parse errors take precedence (no point flagging
+   wellform if the file doesn't parse). *)
+let all_diagnostics (content : string) : Diagnostic.t list =
+  let p = parse_diagnostics content in
+  if p <> [] then p else wellform_diagnostics content
+
 class lsp_server =
   object (self)
     inherit Linol_lwt.Jsonrpc2.server as super
@@ -60,7 +165,7 @@ class lsp_server =
     method private _on_doc ~(notify_back : Linol_lwt.Jsonrpc2.notify_back)
         (uri : DocumentUri.t) (content : string) : unit Linol_lwt.t =
       Hashtbl.replace buffers uri content;
-      notify_back#send_diagnostic (parse_diagnostics content)
+      notify_back#send_diagnostic (all_diagnostics content)
 
     method on_notif_doc_did_open ~notify_back d ~content : unit Linol_lwt.t =
       self#_on_doc ~notify_back d.uri content

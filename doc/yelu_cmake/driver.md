@@ -166,6 +166,84 @@ CMakeCache.txt without running cmake. The cmake evaluator is `cmake -P` (tool).
 new surface (e.g., an LSP or a syntax highlighter) means adding an operation to
 the relevant driver, visible in one place.
 
+## 6.5 How compile / wellform / format / LSP relate
+
+`compile`, `format`, and the LSP are user-facing surfaces. `wellform` is
+the diagnostic engine they all share. The contract — written once, applied
+uniformly across every language driver (today yc; the same shape will
+apply to ycn and any future pack) — is:
+
+```text
+                              wellform : expr → finding list
+                                  │
+                                  │ each finding is severity-tagged
+                                  ▼
+            ┌──────────┬───────────────────┬──────────┐
+            │          │                   │          │
+        compile      format               LSP      corpus-gate
+       (per-file)   (text→text)      (publish)    (build)
+            │          │                   │          │
+   fatals → exit 1    fatals → Error    fatals →    fatals → fail
+   warns → stderr    warns → format    Error diag    warns → silent
+                     proceeds          warns →
+                                       Warning diag
+```
+
+- **wellform is the only diagnostic source.** Every check (Y14 enum
+  shadow, Step-2 positional reject, closed-world unknown command, raw
+  escape, reserved name, apply shadowing) lives in `<pack>_wellform.ml`
+  and returns a sum-type finding list. No surface re-implements
+  diagnostic logic.
+- **Severity is split per finding type**, not per surface. The contract
+  is captured once (yc: `Yc_driver.fatal_wellform_message` filters the
+  fatal subset for the format gate). A new pack's driver pulls the same
+  fatal/warning split.
+- **The fail-safe rule for `format`**: never overwrite a file that has
+  a fatal wellform finding. The formatter would otherwise prettify a
+  semantic bug — like `funnn join(args) (body)` reformatted into a
+  clean-looking unknown command — and hide it. `Yc_driver.format`
+  parses the CST, lowers to expr, runs `wellform`, refuses on fatals.
+  Both `yelu fmt` (CLI) and the LSP's `textDocument/formatting` request
+  inherit this automatically.
+- **The LSP runs wellform on every `didOpen` / `didChange`** and maps
+  findings to `Diagnostic` with the matching severity. Fatals show as
+  red curly underlines; warnings as yellow. Span resolution today is
+  heuristic (whole-word scan in source text) until findings carry token
+  spans natively.
+- **The corpus gate ignores warnings.** Its contract is "no fatal
+  regressions across `probes/<pack>/`"; warnings are emitted by single-
+  file `compile` and the LSP, not by the gate. This keeps the gate
+  stable while the corpus migrates true-positive warnings into typed or
+  raw form.
+
+### Generalizing to ycn / future packs
+
+Adding a new language pack means filling in the same four cells:
+
+| Surface | Pack contract |
+|---|---|
+| `compile <file>` | parse → wellform (fatals → exit 1, warns → stderr) → emit |
+| `format <file>` | parse_cst → lower → wellform (fatals → Error) → print_cst |
+| LSP `didChange` | parse + wellform → publishDiagnostics with severity-tagged spans |
+| `compile-corpus probes/<pack>` | parse → wellform-fatals only → emit (warns silenced) |
+
+`Ycn_driver` today is parse/print-stub but eval-complete; when its
+concrete syntax lands, the same wellform-gates-format pattern applies —
+just point at `Ycn_wellform.check_all` instead. No surface code needs
+to change (the CLI dispatcher already calls through `Yc_driver` /
+`Ycn_driver`).
+
+The per-check severity policy is each pack's own — yc has Y14 fatal,
+Step-2 fatal, closed-world unknown fatal; ycn will likely have its own
+set (e.g. "explicit-assignment violated" — the cmake-side-effect form
+that yc allows but ycn forbids). What stays uniform across packs is
+the *infrastructure*: wellform returns findings → drivers filter
+fatals → surfaces consume.
+
+The full per-check semantics for yc — what each finding means and when
+it's fatal — is in
+[`../lang/surface_lsp_framework.md`](../lang/surface_lsp_framework.md) §7.5.
+
 ## 7. Related
 
 - [`ir_tiers.md`](ir_tiers.md) — 4-tier IR fidelity: typed → cmake_lang → yc_raw → yc_apply
