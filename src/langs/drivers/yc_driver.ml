@@ -51,11 +51,37 @@ let print_yc _e =
 
 (* The .yc formatter (print_ye): text → canonical text, via the CST.
    parse_cst then print; semantics-preserving + idempotent (oracles in
-   test_yc_cst_bridge). *)
+   test_yc_cst_bridge).
+
+   Fail-safe: refuses to format on (a) parse error or (b) fatal wellform
+   finding (Enum_shadow / Positional_form / closed-world Unknown_command).
+   The latter prevents the formatter from prettifying a typo like
+   `funnn join(args) (body)` into a clean-looking unknown command — both
+   the CLI `yelu fmt` and the LSP `textDocument/formatting` request return
+   the Error, so the typo stays visible as a diagnostic rather than being
+   cosmetically washed over. *)
+let fatal_wellform_message : Yc_wellform.error -> string option = function
+  | Yc_wellform.Enum_shadow { name; constructor } ->
+    Some (Printf.sprintf "%S shadows the %s constructor" name constructor)
+  | Yc_wellform.Positional_form { command } ->
+    Some (Printf.sprintf "%s in positional cmake-keyword form" command)
+  | Yc_wellform.Unknown_command { name; closed_world = true } ->
+    Some (Printf.sprintf "unknown command %S (closed world: no \
+                          include / find_package / add_subdirectory / \
+                          cmake_call / dynamic fun-name)" name)
+  | _ -> None
+
 let format (src : string) : (string, string) Result.t =
   match Yc_cst_parse.parse src with
-  | Ok cst -> Ok (Yc_cst_print.print_program cst)
   | Error e -> Error e
+  | Ok cst ->
+    let expr = Yc_cst_lower.lower_program cst in
+    let fatals =
+      List.filter_map fatal_wellform_message (Yc_wellform.check_all expr)
+    in
+    match fatals with
+    | [] -> Ok (Yc_cst_print.print_program cst)
+    | errs -> Error ("wellform: " ^ String.concat "; " errs)
 
 (* ══  eval  ════════════════════════════════════ *)
 
