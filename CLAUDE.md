@@ -11,8 +11,13 @@ All commands run from the yelu repo root (`dune-project` lives here).
 dune build                                      # everything
 dune build src/langs/ src/bin/yelu/             # yelu layer + main binary
 dune build src/langs/ src/bin/cmake_only/       # cmake-only generators
-dune test                                       # all unit tests (923 tests)
+dune test                                       # all unit tests (~975) + corpus gate
 ```
+
+`dune test` includes the **corpus compile gate** (`probes/fmt/dune` →
+`yelu compile-corpus probes/fmt`): every `.yc` is parse+wellform+emit checked,
+so a positional cmake-keyword form / enum-shadow / parse error / emit crash
+fails the build. (Run standalone: `dune exec src/bin/yelu/yelu.exe -- compile-corpus probes/fmt`.)
 
 After Phase 1 of retirement, the production yelu compile path is
 
@@ -305,6 +310,21 @@ See [doc/lang/typed_design.md](doc/lang/typed_design.md) for the full design.
 Key milestones: wellform pass (Y1), concrete-syntax parser + both surface passes
 (no-ALL_CAPS `~`-half + labeled-only) complete, ~975 unit tests.
 
+**Handoff (2026-06-19/20).** Step 2 (labeled-only) is fully done: positional
+cmake-keyword forms are a compile error, the deferred list is cleared (every
+command with a labeled surface is labeled-only; remaining positional surfaces
+are intentional enum constructors — visibility / entity scopes / `include_guard
+Global`), `fmt` is pass-through (no codemod), and the build-time corpus gate
+guards it. Legacy OCaml-DSL emitters (`probes/fmt/*.ml`) retired. **Next:** a
+code audit (its first artifact = refresh the stale
+[`doc/project_overview.md`](doc/project_overview.md), last full pass 2026-06-03)
+→ then a 2nd probe project from [`probes/candidates.md`](probes/candidates.md).
+Open surface/code items (version literal, per-mode `message_*`, the
+`Apply_shadows_primitive` check holes, orphaned `Yelu_emit_main`, latent
+`set_target_properties` target-deref) are parked in
+[`doc/lang/yc_syntax_critique.md`](doc/lang/yc_syntax_critique.md) § Open /
+remaining.
+
 ### 14 theories status
 
 | Theory     | Typecheck | Declares     | References cross-theory |
@@ -472,6 +492,19 @@ configuration generation with verifier feedback. cmake is the first specimen.
   + matrix can't see them — each needs its own surface-level regression test
   (in `test_yelu_lexer` / `test_yc_cst_bridge`). The fmt CLI double-newline
   bug hid the same way (tests called `Yc_driver.format`, not the CLI).
+- **The wellform *reject* (Positional_form / Enum_shadow) fires only on the
+  fatal `compile_yc` path — `emit_ast`/fmt/the emit-bridge don't run it.** So a
+  positional-form regression in a corpus file is invisible to `compile main.yc`
+  and the emit-bridge; only a *full compile* of every file catches it. Worse,
+  the **discovered helpers** (`probes/fmt/test/*/CMakeLists.yc`) go through the
+  fatal path but `main.yc` alone didn't surface them — a property reject once
+  dropped the matrix to 0/24 while `compile main.yc` stayed byte-identical. Now
+  guarded by the **corpus compile gate** (`probes/fmt/dune`, in `dune test`);
+  add new probe `.yc` under a discovered path and it's covered automatically.
+- **`command_names` (`yc_primitives.ml`) is co-truth-locked too** — like
+  `constr_names`, it feeds `Yc_manifest`; adding a command (e.g. the missing
+  `add_custom_command`, an open TODO) needs the manifest updated + `dune promote`
+  or the co-truth lock fails `dune test`.
 - Remote: `github.com/yelu-lang/yelu-lang`.
 
 ## Handoff Workflow
