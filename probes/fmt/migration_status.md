@@ -3,6 +3,12 @@
 > Status snapshot for the fmt → yelu migration. Covers Phases 0–8.
 > Phase log archived in [`doc/worklog/worklog_2026_06.md`](../../doc/worklog/worklog_2026_06.md).
 > Current-state overview in [`README.md`](README.md).
+>
+> **Historical note (2026-06-19):** this is a closed record of the `.ml`→`.yc`
+> migration. The legacy OCaml-DSL emitters it links (`main.ml` / `test_main.ml`
+> / `compile_error_test.ml`, via `Yelu_emit_main`) were **retired** once the
+> `.yc` corpus became the sole source — those links and the `yc_apply`/
+> `raw_cmake` counts below are frozen migration history, not the live state.
 
 ## Headline (2026-06-08)
 

@@ -1,6 +1,12 @@
 # Yelu — Project Overview
 
-> Last updated: 2026-06-03
+> Last full pass: 2026-06-03. **Stale on the surface track** — the no-ALL_CAPS
+> `~`-half pass and the labeled-only pass (Step 2) landed 2026-06-04..19 and are
+> *not* reflected below. For current surface state see
+> [`lang/surface_status.md`](lang/surface_status.md),
+> [`lang/yc_syntax_critique.md`](lang/yc_syntax_critique.md), and
+> [`worklog/worklog_2026_06.md`](worklog/worklog_2026_06.md). A full refresh of
+> this audit is a good first task for the next code-audit pass.
 
 ## Scope
 

@@ -151,7 +151,7 @@ All 14 `Make_*_check` modules expose `let stage = Stage_typecheck`, enforced by 
 | `test/test_deref_probes.py`                | 23    | cmake **ground-truth** deref probes (`foo`/`${foo}`/`"${foo}"`, nesting, parse-error negatives) — pinned against real cmake, run via `python3` |
 | `test/test-tmgrammar/` (dune `(diff)`)     | 1     | **freshness lock**: committed `yc.tmLanguage.json` must byte-match `yelu tmgrammar`; drift fails `dune test`, fix is `dune promote` |
 
-Total unit: 923 (dune test). Total cmake-backed: 40. (The table lists the
+Total unit: ~975 (dune test). Total cmake-backed: 40. (The table lists the
 load-bearing suites; the full `dune test` count includes the smaller
 per-theory and remaining-command suites not enumerated above.)
 
@@ -302,7 +302,8 @@ See [doc/lang/typed_design.md](doc/lang/typed_design.md) for the full design.
 > Session history → [doc/worklog/worklog_2026_04.md](doc/worklog/worklog_2026_04.md).
 > Full audit → [doc/project_overview.md](doc/project_overview.md).
 
-Key milestones: wellform pass (Y1), parser + concrete syntax (in progress), 408 tests.
+Key milestones: wellform pass (Y1), concrete-syntax parser + both surface passes
+(no-ALL_CAPS `~`-half + labeled-only) complete, ~975 unit tests.
 
 ### 14 theories status
 
@@ -325,9 +326,9 @@ Key milestones: wellform pass (Y1), parser + concrete syntax (in progress), 408 
 
 ### Test infrastructure
 
-- **935 unit tests** (`dune test`) — incl. the surface track (lexer, parser,
-  emit-bridge oracle, co-truth locks, grammar freshness) and the per-theory
-  check/compile suites
+- **~975 unit tests** (`dune test`) — incl. the surface track (lexer, parser,
+  emit-bridge oracle, co-truth locks, grammar freshness), the per-theory
+  check/compile suites, and the build-time corpus compile gate
 - **108 equivalence/semantic checks** (35 structural + 12 CMakeOnly + 61 RunCMake)
 - **corpus compile gate** (`probes/fmt/dune`, in `dune test`) — `yelu
   compile-corpus probes/fmt` compiles every `.yc` (parse + wellform + emit) and

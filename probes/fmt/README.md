@@ -12,9 +12,8 @@
 | oracle | result |
 |---|---|
 | parse-print roundtrip | 11/11 OK |
-| .yc compilation | 11/11 OK |
+| .yc compilation | 11/11 OK (build-time gate in `dune test`) |
 | cache matrix (24 cells) | 24/24 match |
-| yc_apply in main.ml | 35 (down from ~100) |
 | raw cmake escapes | 3 (all dynamic visibility — by design) |
 
 **Verdict: functionally complete.** Every cmake file under `vendor/fmt/`
@@ -27,7 +26,7 @@ oracle confirms identical `CMakeCache.txt` across all 24 option flips.
 ```
 probes/fmt/
 ├── main.json              ← 4 lines: project, source_dir, out_root
-├── main.ml / main.yc          ← CMakeLists.txt (690 lines OCaml / ~450 lines .yc)
+├── main.yc                    ← CMakeLists.txt (~450 lines .yc)
 ├── test/
 │   ├── CMakeLists.yc          ← test/CMakeLists.txt
 │   ├── fuzzing/CMakeLists.yc
@@ -47,7 +46,10 @@ snake_case.yc   →  CamelCase.cmake       (underscore → module)
 anything-else.yc →  CMakeLists.txt       (default)
 ```
 
-The `.ml` OCaml DSL versions are retained as reference.
+(The legacy `.ml` OCaml-DSL emitters — `main.ml` / `test_main.ml` /
+`compile_error_test.ml` — were **retired 2026-06-19**, superseded by the `.yc`
+corpus the matrix/manifest actually use. The `.yc` files are now the sole
+source.)
 
 ## How to run
 
