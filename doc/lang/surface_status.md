@@ -185,12 +185,30 @@ Layered coverage for the parse/lower/print round-trips:
       Migrated two discovered helpers (cuda-test, static-export-test) to labels.
     - cmake_op (commit e39311c): `execute_process` positional COMMAND/
       *_VARIABLE/… → reject. Migrated compile-error-test (3 calls).
-    - **Deferred (no `~label=` equivalent yet — positional kept until a label is
-      designed, else they'd orphan the functionality):** `export TARGETS/
-      NAMESPACE/FILE`, `configure_package_config_file INSTALL_DESTINATION`,
-      `set_source_files_properties PROPERTIES` (corpus-load-bearing,
-      main.yc:179), `cmake_minimum_required VERSION` (canonical), message modes
-      (canonical), `enable_language OPTIONAL`, `include_guard GLOBAL` (enum-ish).
+    - **Deferred commands — now all resolved** (2026-06-19, commits b3f40ec /
+      41a51dc / 82ba8a8). Each got a label + reject, except where the positional
+      form is already an enum constructor:
+      - `set_source_files_properties` → `~properties={…}` record (mirrors
+        set_target_properties).
+      - `enable_language` → `~optional` flag.
+      - `cmake_minimum_required` → **bare** version (VERSION keyword dropped — it
+        carried no information).
+      - `export` → `~targets=[…]` / `~namespace=` / `~file=` (TARGETS mode);
+        EXPORT-name form keeps a single positional name + `~file=`.
+      - `configure_package_config_file` → input/output positional +
+        `~install_destination=` (retires the confusing dest-first bare form).
+      - `message` → `~mode=Fatal_error` (NOT a positional enum constructor:
+        promoting STATUS/DEBUG/WARNING/… to constr_names would globally reserve
+        common var names, breaking the casing "small-closed-set" rule). A quoted
+        mode-like text stays text (EString, not bare EVar).
+      - `include_guard GLOBAL` and **message** are the boundary cases:
+        `include_guard` was *already* an enum constructor (`Global` ∈
+        constr_names) — nothing to do. message deliberately did **not** become
+        one (collision); it took the `~mode=` label instead.
+      Every command that has a labeled surface is now labeled-only. The only
+      remaining positional surfaces are intentional **enum constructors**
+      (visibility `Public/…`, entity scopes `Target/Source/Cache/…`,
+      `include_guard Global`) — the casing lane, not the keyword lane.
     - **Reject does not fire under `emit_ast`/fmt** (no wellform pass), so the
       emit-bridge + matrix oracles are blind to it — each family's reject has
       its own `test_yc_wellform` case + labeled round-trip in
