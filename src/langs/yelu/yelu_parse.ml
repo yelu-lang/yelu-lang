@@ -1591,22 +1591,23 @@ let p_install_command_y1_inner name args kwargs =
       let destination = kwarg_opt ~key:"destination" in
       Some (yc_install_targets ?export ?component ~artifact_clauses args destination)
   | "install_files", args ->
-    (* keyword form is selected by either a positional DESTINATION/COMPONENT
-       or the `~destination=`/`~component=` label kwargs *)
-    let has_kw = List.exists args ~f:(function
-      | EVar "DESTINATION" | EString "DESTINATION"
-      | EVar "COMPONENT" | EString "COMPONENT" -> true | _ -> false)
-      || kwarg_bool ~key:"destination" || kwarg_bool ~key:"component" in
-    if has_kw then
-      let sections = split_by_keywords ~keywords:["DESTINATION"; "COMPONENT"] args in
-      let files = match List.Assoc.find sections ~equal:String.equal "_head" with
-        | Some items -> items | None -> [] in
-      let destination = match List.Assoc.find sections ~equal:String.equal "DESTINATION" with
-        | Some (e :: _) -> e
-        | _ -> (match kwarg_opt ~key:"destination" with Some e -> e | None -> EString "?") in
-      let component = match List.Assoc.find sections ~equal:String.equal "COMPONENT" with
-        | Some [ EString s | EVar s ] -> Some s
-        | _ -> (match kwarg_opt ~key:"component" with Some (EString s | EVar s) -> Some s | _ -> None) in
+    (* Labeled-only (Step 2): a positional DESTINATION/COMPONENT/… keyword is a
+       fatal reject; the labeled `~destination=`/`~component=` form is the
+       supported surface. The bare `install_files dir files…` shorthand (no
+       keyword) stays for the deprecated INSTALL_FILES shape. *)
+    let kw = [ "DESTINATION"; "COMPONENT"; "RENAME"; "PERMISSIONS";
+               "CONFIGURATIONS"; "OPTIONAL" ] in
+    let is_kw = function
+      | EVar s | EString s -> List.mem kw s ~equal:String.equal | _ -> false in
+    if List.exists args ~f:is_kw then
+      Some (ECmakeRawCmd { name = cmake_name_of_yelu name; args;
+                           from_positional = Some "install_files" })
+    else if kwarg_bool ~key:"destination" || kwarg_bool ~key:"component" then
+      let files = args in
+      let destination = match kwarg_opt ~key:"destination" with
+        | Some e -> e | None -> EString "?" in
+      let component = match kwarg_opt ~key:"component" with
+        | Some (EString s | EVar s) -> Some s | _ -> None in
       Some (yc_install_files ?component files destination)
     else begin
       (* Backward-compat positional: install_files dest files *)
@@ -1616,28 +1617,24 @@ let p_install_command_y1_inner name args kwargs =
       | _ -> None
     end
   | "install_export", args ->
-    let has_kw = List.exists args ~f:(function
-      | EVar "DESTINATION" | EString "DESTINATION"
-      | EVar "FILE" | EString "FILE"
-      | EVar "NAMESPACE" | EString "NAMESPACE"
-      | EVar "COMPONENT" | EString "COMPONENT" -> true | _ -> false)
-      || kwarg_bool ~key:"destination" || kwarg_bool ~key:"file"
-      || kwarg_bool ~key:"namespace" || kwarg_bool ~key:"component" in
-    if has_kw then
-      let sections = split_by_keywords ~keywords:["DESTINATION"; "FILE"; "NAMESPACE"; "COMPONENT"] args in
-      let export = match List.Assoc.find sections ~equal:String.equal "_head" with
-        | Some (e :: _) -> e | _ -> EVar "?" in
-      let destination = match List.Assoc.find sections ~equal:String.equal "DESTINATION" with
-        | Some (e :: _) -> e
-        | _ -> (match kwarg_opt ~key:"destination" with Some e -> e | None -> EString "?") in
-      let file = match List.Assoc.find sections ~equal:String.equal "FILE" with
-        | Some (e :: _) -> Some e | _ -> kwarg_opt ~key:"file" in
-      let namespace = match List.Assoc.find sections ~equal:String.equal "NAMESPACE" with
-        | Some [ EString s | EVar s ] -> Some s
-        | _ -> (match kwarg_opt ~key:"namespace" with Some (EString s | EVar s) -> Some s | _ -> None) in
-      let component = match List.Assoc.find sections ~equal:String.equal "COMPONENT" with
-        | Some [ EString s | EVar s ] -> Some s
-        | _ -> (match kwarg_opt ~key:"component" with Some (EString s | EVar s) -> Some s | _ -> None) in
+    let kw = [ "DESTINATION"; "FILE"; "NAMESPACE"; "COMPONENT";
+               "EXPORT_LINK_INTERFACE_LIBRARIES"; "PERMISSIONS";
+               "CONFIGURATIONS" ] in
+    let is_kw = function
+      | EVar s | EString s -> List.mem kw s ~equal:String.equal | _ -> false in
+    if List.exists args ~f:is_kw then
+      Some (ECmakeRawCmd { name = cmake_name_of_yelu name; args;
+                           from_positional = Some "install_export" })
+    else if kwarg_bool ~key:"destination" || kwarg_bool ~key:"file"
+            || kwarg_bool ~key:"namespace" || kwarg_bool ~key:"component" then
+      let export = match args with e :: _ -> e | [] -> EVar "?" in
+      let destination = match kwarg_opt ~key:"destination" with
+        | Some e -> e | None -> EString "?" in
+      let file = kwarg_opt ~key:"file" in
+      let namespace = match kwarg_opt ~key:"namespace" with
+        | Some (EString s | EVar s) -> Some s | _ -> None in
+      let component = match kwarg_opt ~key:"component" with
+        | Some (EString s | EVar s) -> Some s | _ -> None in
       Some (yc_install_export ?file ?namespace ?component export destination)
     else begin
       (* Backward-compat positional: install_export exp dest *)
@@ -1647,30 +1644,22 @@ let p_install_command_y1_inner name args kwargs =
       | _ -> None
     end
   | "install_directory", args ->
-    let sections = split_by_keywords
-      ~keywords:["DESTINATION"; "COMPONENT"; "OPTIONAL"] args
-    in
-    let directory = match List.Assoc.find sections ~equal:String.equal "_head" with
-      | Some (e :: _) -> e | _ -> EVar "?"
-    in
-    (* Each value-keyword is also accepted as a `~destination=`/`~component=`
-       label (arrives as a kwarg, so absent from [sections]). *)
-    let destination = match List.Assoc.find sections ~equal:String.equal "DESTINATION" with
-      | Some (e :: _) -> e
-      | _ -> (match kwarg_opt ~key:"destination" with Some e -> e | None -> EString "?")
-    in
-    let component = match List.Assoc.find sections ~equal:String.equal "COMPONENT" with
-      | Some [ EString s | EVar s ] -> Some s
-      | _ -> (match kwarg_opt ~key:"component" with Some (EString s | EVar s) -> Some s | _ -> None)
-    in
-    (* Accept both the positional `OPTIONAL` keyword and the canonical
-       `~optional` flag (which arrives as a boolean kwarg, so it is absent
-       from [sections]). *)
-    let optional =
-      Option.is_some (List.Assoc.find sections ~equal:String.equal "OPTIONAL")
-      || kwarg_bool ~key:"optional"
-    in
-    Some (yc_install_directory ?component ~optional directory destination)
+    let kw = [ "DESTINATION"; "COMPONENT"; "OPTIONAL"; "PATTERN"; "REGEX";
+               "EXCLUDE"; "PERMISSIONS"; "CONFIGURATIONS"; "FILES_MATCHING";
+               "DIRECTORY_PERMISSIONS"; "FILE_PERMISSIONS" ] in
+    let is_kw = function
+      | EVar s | EString s -> List.mem kw s ~equal:String.equal | _ -> false in
+    if List.exists args ~f:is_kw then
+      Some (ECmakeRawCmd { name = cmake_name_of_yelu name; args;
+                           from_positional = Some "install_directory" })
+    else
+      let directory = match args with e :: _ -> e | [] -> EVar "?" in
+      let destination = match kwarg_opt ~key:"destination" with
+        | Some e -> e | None -> EString "?" in
+      let component = match kwarg_opt ~key:"component" with
+        | Some (EString s | EVar s) -> Some s | _ -> None in
+      let optional = kwarg_bool ~key:"optional" in
+      Some (yc_install_directory ?component ~optional directory destination)
   | "export", args ->
     (* Check for keyword form: export TARGETS ... NAMESPACE ... FILE ... *)
     let has_targets = List.exists args ~f:(function

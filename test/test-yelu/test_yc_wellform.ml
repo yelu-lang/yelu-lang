@@ -54,6 +54,18 @@ let () =
             "add_custom_target doc ALL COMMAND $cc 'build'" ~expect:true;
           pcase "add_custom_target labeled ok"
             "add_custom_target doc ~all ~command=[$cc, 'build']" ~expect:false;
+          pcase "install_directory positional → reject"
+            "install_directory 'd' DESTINATION 'x' COMPONENT 'c'" ~expect:true;
+          pcase "install_directory labeled ok"
+            "install_directory 'd' ~destination='x' ~component='c'" ~expect:false;
+          pcase "install_files positional → reject"
+            "install_files $f DESTINATION 'x' COMPONENT 'c'" ~expect:true;
+          pcase "install_files labeled ok"
+            "install_files $f ~destination='x' ~component='c'" ~expect:false;
+          pcase "install_export positional → reject"
+            "install_export $e DESTINATION 'x' NAMESPACE 'ns::'" ~expect:true;
+          pcase "install_export labeled ok"
+            "install_export $e ~destination='x' ~namespace='ns::'" ~expect:false;
           (* a genuinely unknown/external command stays a plain raw — no reject *)
           pcase "unknown command not flagged"
             "some_external_macro 'a' 'b'" ~expect:false ] ) ]

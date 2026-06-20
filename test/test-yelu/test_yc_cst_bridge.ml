@@ -172,19 +172,15 @@ let test_flags =
        leading-cap canonicalization does. *)
     Alcotest.(check string) "GLOBAL elsewhere: not the flag, IS a constructor"
       "some_cmd Global\n" (fmt "some_cmd GLOBAL");
-    (* install_directory OPTIONAL → ~optional (detected via kwarg in the
-       parser, since OPTIONAL is otherwise positional) *)
-    Alcotest.(check string) "install_directory OPTIONAL → ~optional"
-      "install_directory 'd' ~destination='x' ~optional\n"
-      (fmt "install_directory 'd' DESTINATION 'x' OPTIONAL");
+    (* install_directory ~optional — labeled-only (Step 2): the positional
+       OPTIONAL/DESTINATION form is rejected (see test_yc_wellform); the labeled
+       flag round-trips and emits the cmake OPTIONAL. *)
     Alcotest.(check string) "install_directory ~optional stable"
       "install_directory 'd' ~destination='x' ~optional\n"
       (fmt "install_directory 'd' ~destination='x' ~optional");
-    (* the parser change must keep emit identical: positional OPTIONAL and the
-       ~optional flag lower to the same cmake (the kwarg sets ~optional:true) *)
-    Alcotest.(check string) "OPTIONAL / ~optional emit identically"
-      (emit_ast "install_directory 'd' DESTINATION 'x' OPTIONAL")
-      (emit_ast "install_directory 'd' DESTINATION 'x' ~optional");
+    Alcotest.(check string) "install_directory ~optional emit-invariant"
+      (emit_ast "install_directory 'd' ~destination='x' ~optional")
+      (emit_ast (fmt "install_directory 'd' ~destination='x' ~optional"));
     (* find_package REQUIRED → ~required (positional flag; parser reads kwarg) *)
     Alcotest.(check string) "find_package REQUIRED → ~required"
       "find_package Foo ~required\n" (fmt "find_package Foo REQUIRED");
@@ -368,9 +364,10 @@ let test_separator =
     Alcotest.(check string) "`=` list accepted"
       "compile_feats fmt ~public=[a, b]\n" (fmt "compile_feats fmt ~public=[a b]"))
 
-(* Value-labels (critique #2): the value-carrying cmake keywords
-   DESTINATION/COMPONENT canonicalize to `~destination=`/`~component=` for
-   install_directory, and the parser reads them back identically. *)
+(* Value-labels (critique #2) — labeled-only (Step 2): the value-carrying cmake
+   keywords are expressed as `~destination=`/`~component=`/… labels; the
+   positional cmake-keyword form is rejected (see test_yc_wellform). The labels
+   round-trip and are order-independent on emit. *)
 let test_value_labels =
   Alcotest.test_case "value-labels (install_directory)" `Quick (fun () ->
     let fmt s =
@@ -378,35 +375,22 @@ let test_value_labels =
       | Ok c -> Yelu_langs.Yc_cst_print.print_program c
       | Error e -> Alcotest.failf "parse %S: %s" s e
     in
-    Alcotest.(check string) "DESTINATION/COMPONENT → labels"
-      "install_directory 'd' ~destination='x' ~component='c'\n"
-      (fmt "install_directory 'd' DESTINATION 'x' COMPONENT 'c'");
     Alcotest.(check string) "label form stable"
       "install_directory 'd' ~destination='x' ~component='c'\n"
       (fmt "install_directory 'd' ~destination='x' ~component='c'");
-    (* parser change must keep emit identical (keyword vs label) *)
-    Alcotest.(check string) "keyword / label emit identically"
-      (emit_ast "install_directory 'd' DESTINATION 'x' COMPONENT 'c'")
-      (emit_ast "install_directory 'd' ~destination='x' ~component='c'");
     (* order-independence: labels in any order emit the same cmake (cmake's
        positional-keyword ordering pain, compiled away) *)
     Alcotest.(check string) "label order-independent on emit"
       (emit_ast "install_directory 'd' ~destination='x' ~component='c'")
       (emit_ast "install_directory 'd' ~component='c' ~destination='x'");
-    (* install_files: DESTINATION/COMPONENT *)
-    Alcotest.(check string) "install_files → labels"
+    (* install_files: ~destination/~component *)
+    Alcotest.(check string) "install_files labels stable"
       "install_files $f ~destination='x' ~component='c'\n"
-      (fmt "install_files $f DESTINATION 'x' COMPONENT 'c'");
-    Alcotest.(check string) "install_files keyword/label emit identically"
-      (emit_ast "install_files $f DESTINATION 'x' COMPONENT 'c'")
-      (emit_ast "install_files $f ~destination='x' ~component='c'");
-    (* install_export: DESTINATION/FILE/NAMESPACE/COMPONENT *)
-    Alcotest.(check string) "install_export → labels"
+      (fmt "install_files $f ~destination='x' ~component='c'");
+    (* install_export: ~destination/~file/~namespace/~component *)
+    Alcotest.(check string) "install_export labels stable"
       "install_export $e ~destination='x' ~namespace='ns::' ~component='c'\n"
-      (fmt "install_export $e DESTINATION 'x' NAMESPACE 'ns::' COMPONENT 'c'");
-    Alcotest.(check string) "install_export keyword/label emit identically"
-      (emit_ast "install_export $e DESTINATION 'x' FILE 'f.cmake' NAMESPACE 'ns::'")
-      (emit_ast "install_export $e ~destination='x' ~file='f.cmake' ~namespace='ns::'");
+      (fmt "install_export $e ~destination='x' ~namespace='ns::' ~component='c'");
     (* dotted label key `~library.destination=` (shape-4 foundation): parses
        and round-trips through the generic kwarg printer *)
     Alcotest.(check string) "dotted kwarg key round-trips"
