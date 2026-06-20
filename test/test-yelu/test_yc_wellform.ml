@@ -46,6 +46,14 @@ let () =
           (* the labeled form is the supported surface — no reject *)
           pcase "install_targets labeled ok"
             "install_targets $t ~component='c' ~library.destination='lib'" ~expect:false;
+          pcase "add_custom_command positional → reject"
+            "add_custom_command OUTPUT $o COMMAND $cc '-c' DEPENDS $s" ~expect:true;
+          pcase "add_custom_command labeled ok"
+            "add_custom_command ~output=[$o] ~command=[$cc, '-c'] ~depends=[$s]" ~expect:false;
+          pcase "add_custom_target positional → reject"
+            "add_custom_target doc ALL COMMAND $cc 'build'" ~expect:true;
+          pcase "add_custom_target labeled ok"
+            "add_custom_target doc ~all ~command=[$cc, 'build']" ~expect:false;
           (* a genuinely unknown/external command stays a plain raw — no reject *)
           pcase "unknown command not flagged"
             "some_external_macro 'a' 'b'" ~expect:false ] ) ]

@@ -945,35 +945,20 @@ let p_target_command_y1_inner name args kwargs =
     let alias_of = match alias_of with Some s -> s | None -> name in
     Some (add_lib_alias ~alias_of name)
   | "add_custom_target", name_arg :: rest ->
-    (* ALL accepted both as the positional keyword and the `~all` flag *)
-    let all = kw_bool "all"
-              || List.exists rest ~f:(function
-                   | EVar "ALL" | EString "ALL" -> true | _ -> false) in
-    (* keyword form is selected by a positional COMMAND/SOURCES/DEPENDS or by
-       the `~command`/`~commands`/`~depends`/`~sources` label kwargs *)
-    let has_kw = List.exists rest ~f:(function
-      | EVar "COMMAND" | EString "COMMAND"
-      | EVar "SOURCES" | EString "SOURCES"
-      | EVar "DEPENDS" | EString "DEPENDS" -> true
-      | _ -> false)
-      || kw_bool "command" || kw_bool "commands"
-      || kw_bool "depends" || kw_bool "sources"
-    in
-    if has_kw then
-      let sections = split_by_keywords
-        ~keywords:["COMMAND"; "SOURCES"; "DEPENDS"; "COMMENT"]
-        (name_arg :: rest)
-      in
-      let name = match List.Assoc.find sections ~equal:String.equal "_head" with
-        | Some (n :: _) -> (str_of n)
-        | _ -> "?"
-      in
-      let commands = match sections
-        |> List.filter_map ~f:(fun (k, items) ->
-          if String.equal k "COMMAND" then Some items else None) with
-        | (_ :: _) as pos -> pos
-        | [] -> kw_commands ()
-      in
+    (* Labeled-only (Step 2): any positional cmake keyword among the args is a
+       fatal reject (use `~all`/`~command`/`~depends`/`~sources`/`~comment`). *)
+    let ct_kw = [ "ALL"; "COMMAND"; "DEPENDS"; "SOURCES"; "COMMENT";
+                  "BYPRODUCTS"; "WORKING_DIRECTORY"; "VERBATIM"; "USES_TERMINAL";
+                  "COMMAND_EXPAND_LISTS"; "JOB_POOL" ] in
+    let is_kw = function
+      | EVar s | EString s -> List.mem ct_kw s ~equal:String.equal
+      | _ -> false in
+    if List.exists rest ~f:is_kw then
+      Some (ECmakeRawCmd { name = cmake_name_of_yelu name; args;
+                           from_positional = Some "add_custom_target" })
+    else
+      let all = kw_bool "all" in
+      let commands = kw_commands () in
       let cc_list =
         List.map commands ~f:(fun cmd_args ->
           match cmd_args with
@@ -983,65 +968,45 @@ let p_target_command_y1_inner name args kwargs =
               args = List.map arg_args ~f:(fun e ->
                 str_of ~default:"" e) })
       in
-      let depends = match List.Assoc.find sections ~equal:String.equal "DEPENDS" with
-        | Some (_ :: _ as items) -> items | _ -> kw_all "depends"
-      in
-      let sources = match List.Assoc.find sections ~equal:String.equal "SOURCES" with
-        | Some (_ :: _ as items) -> items | _ -> kw_all "sources"
-      in
-      let comment = match List.Assoc.find sections ~equal:String.equal "COMMENT" with
-        | Some [ EString s | EVar s ] -> Some s
-        | _ -> kw_str_opt "comment"
-      in
+      let depends = kw_all "depends" in
+      let sources = kw_all "sources" in
+      let comment = kw_str_opt "comment" in
+      let name = str_of name_arg in
       Some (yc_add_custom_target ~all ~commands:cc_list
               ~depends ~comment ~sources name)
-    else
-      let name = str_of name_arg in
-      Some (yc_add_custom_target ~all name)
   | "add_custom_command", args ->
-    let sections = split_by_keywords
-      ~keywords:["OUTPUT"; "COMMAND"; "DEPENDS"; "COMMENT"; "VERBATIM";
-                 "COMMAND_EXPAND_LISTS"; "IMPLICIT_DEPENDS"; "WORKING_DIRECTORY"]
-      args
-    in
-    (* Each cmake keyword is also accepted as its `~label=` form (in kwargs):
-       OUTPUT/DEPENDS as value-lists, COMMAND via the singular/plural command
-       forms, COMMENT scalar, VERBATIM/COMMAND_EXPAND_LISTS flags. *)
-    let outputs = match List.Assoc.find sections ~equal:String.equal "_head" with
-      | Some (_ :: _ as items) -> items
-      | _ -> (match List.Assoc.find sections ~equal:String.equal "OUTPUT" with
-              | Some (_ :: _ as items) -> items | _ -> kw_all "output")
-    in
-    let verbatim = List.Assoc.find sections ~equal:String.equal "VERBATIM"
-                   |> Option.is_some || kw_bool "verbatim" in
-    let command_expand_lists =
-      Option.is_some (List.Assoc.find sections ~equal:String.equal "COMMAND_EXPAND_LISTS")
-      || kw_bool "command_expand_lists" in
-    let comment = match List.Assoc.find sections ~equal:String.equal "COMMENT" with
-      | Some [ EString s | EVar s ] -> Some s
-      | _ -> kw_str_opt "comment"
-    in
-    let depends = match List.Assoc.find sections ~equal:String.equal "DEPENDS" with
-      | Some (_ :: _ as items) -> items
-      | _ -> kw_all "depends"
-    in
-    (* Collect all COMMAND sections as separate command lines; else label form *)
-    let commands = match sections
-      |> List.filter_map ~f:(fun (k, items) ->
-        if String.equal k "COMMAND" then Some items else None) with
-      | (_ :: _) as pos -> pos
-      | [] -> kw_commands () in
-    let build_commands = List.map commands ~f:(fun cmd_args ->
-      match cmd_args with
-      | [] -> { command = ""; args = [] }
-      | cmd :: arg_args ->
-        { command = (str_of ~default:"" cmd);
-          args = List.map arg_args ~f:(fun e ->
-            str_of ~default:"" e) })
-    in
-    Some (ECmakeAddCustomCommand
-            { outputs; commands = build_commands; depends; comment; verbatim;
-              command_expand_lists })
+    (* Labeled-only (Step 2): any positional cmake keyword is a fatal reject —
+       use `~output`/`~command`/`~depends`/`~comment`/`~verbatim`/
+       `~command_expand_lists`. *)
+    let cc_kw = [ "OUTPUT"; "COMMAND"; "DEPENDS"; "COMMENT"; "VERBATIM";
+                  "COMMAND_EXPAND_LISTS"; "IMPLICIT_DEPENDS"; "WORKING_DIRECTORY";
+                  "MAIN_DEPENDENCY"; "BYPRODUCTS"; "JOB_POOL"; "USES_TERMINAL";
+                  "APPEND"; "DEPFILE"; "TARGET"; "PRE_BUILD"; "PRE_LINK";
+                  "POST_BUILD" ] in
+    let is_kw = function
+      | EVar s | EString s -> List.mem cc_kw s ~equal:String.equal
+      | _ -> false in
+    if List.exists args ~f:is_kw then
+      Some (ECmakeRawCmd { name = cmake_name_of_yelu name; args;
+                           from_positional = Some "add_custom_command" })
+    else
+      let outputs = kw_all "output" in
+      let verbatim = kw_bool "verbatim" in
+      let command_expand_lists = kw_bool "command_expand_lists" in
+      let comment = kw_str_opt "comment" in
+      let depends = kw_all "depends" in
+      let commands = kw_commands () in
+      let build_commands = List.map commands ~f:(fun cmd_args ->
+        match cmd_args with
+        | [] -> { command = ""; args = [] }
+        | cmd :: arg_args ->
+          { command = (str_of ~default:"" cmd);
+            args = List.map arg_args ~f:(fun e ->
+              str_of ~default:"" e) })
+      in
+      Some (ECmakeAddCustomCommand
+              { outputs; commands = build_commands; depends; comment; verbatim;
+                command_expand_lists })
   | _ ->
     (* Known command but args don't match typed patterns
        (e.g. dynamic visibility ${kind}). Fall back to yc_raw. *)

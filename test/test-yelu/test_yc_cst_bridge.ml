@@ -508,26 +508,27 @@ let test_set_target_properties =
       "set_target_properties $t ~properties={version=$V, sources=[a, b]}\n"
       (fmt "set_target_properties $t ~properties={version=$V, sources=[a, b]}"))
 
-(* add_custom_command / add_custom_target (shape-2 + value-labels + flags).
-   OUTPUT/DEPENDS/SOURCES → value-lists; COMMAND → ~command/~commands; COMMENT
-   → scalar; VERBATIM/COMMAND_EXPAND_LISTS/ALL → flags. COMMAND_EXPAND_LISTS
-   now survives emit (the IR gap fixed in 591f261). *)
+(* add_custom_command / add_custom_target — labeled-only (Step 2). OUTPUT/
+   DEPENDS/SOURCES → ~output/~depends/~sources value-lists; COMMAND →
+   ~command/~commands; COMMENT → scalar; VERBATIM/COMMAND_EXPAND_LISTS/ALL →
+   flags. COMMAND_EXPAND_LISTS survives emit (the IR gap fixed in 591f261).
+   The positional cmake-keyword form is rejected (see test_yc_wellform). *)
 let test_add_custom =
   Alcotest.test_case "add_custom_command / add_custom_target" `Quick (fun () ->
     let fmt s =
       match Cstp.parse s with
       | Ok c -> Yelu_langs.Yc_cst_print.print_program c
       | Error e -> Alcotest.failf "parse %S: %s" s e in
-    let acc = "add_custom_command OUTPUT $o COMMAND $cc '-c' COMMAND_EXPAND_LISTS DEPENDS $s" in
-    Alcotest.(check string) "add_custom_command → labels + flag"
-      "add_custom_command ~output=[$o] ~command=[$cc, '-c'] ~command_expand_lists ~depends=[$s]\n"
-      (fmt acc);
+    let acc =
+      "add_custom_command ~output=[$o] ~command=[$cc, '-c'] \
+       ~command_expand_lists ~depends=[$s]" in
+    Alcotest.(check string) "add_custom_command labels round-trip"
+      (acc ^ "\n") (fmt acc);
     Alcotest.(check string) "add_custom_command emit-invariant (COMMAND_EXPAND_LISTS kept)"
       (emit_ast acc) (emit_ast (fmt acc));
-    let act = "add_custom_target doc ALL COMMAND $cc 'build' SOURCES $srcs" in
-    Alcotest.(check string) "add_custom_target → ~all + labels"
-      "add_custom_target doc ~all ~command=[$cc, 'build'] ~sources=[$srcs]\n"
-      (fmt act);
+    let act = "add_custom_target doc ~all ~command=[$cc, 'build'] ~sources=[$srcs]" in
+    Alcotest.(check string) "add_custom_target labels round-trip"
+      (act ^ "\n") (fmt act);
     Alcotest.(check string) "add_custom_target emit-invariant"
       (emit_ast act) (emit_ast (fmt act)))
 
