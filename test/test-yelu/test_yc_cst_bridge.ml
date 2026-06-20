@@ -159,10 +159,12 @@ let test_flags =
       "X := 1 ~parent_scope\n" (fmt "X := 1 PARENT_SCOPE");
     Alcotest.(check string) "~parent_scope stable"
       "X := 1 ~parent_scope\n" (fmt "X := 1 ~parent_scope");
-    (* include_guard GLOBAL → ~global (per-command, command-aware: only the
-       include_guard flag, not a generic ${GLOBAL} var) *)
-    Alcotest.(check string) "include_guard GLOBAL → ~global"
-      "include_guard ~global\n" (fmt "include_guard GLOBAL");
+    (* include_guard is not Step-2-rejected; fmt is pass-through (no positional→
+       ~flag codemod). A bare GLOBAL canonicalizes to the `Global` enum
+       constructor (lexer), and the `~global` flag form stays — both parse to
+       Ig_global. *)
+    Alcotest.(check string) "include_guard GLOBAL → Global (enum canon, no codemod)"
+      "include_guard Global\n" (fmt "include_guard GLOBAL");
     Alcotest.(check string) "include_guard ~global stable"
       "include_guard ~global\n" (fmt "include_guard ~global");
     (* a bare GLOBAL in another command is NOT the include_guard flag, but it
@@ -181,9 +183,11 @@ let test_flags =
     Alcotest.(check string) "install_directory ~optional emit-invariant"
       (emit_ast "install_directory 'd' ~destination='x' ~optional")
       (emit_ast (fmt "install_directory 'd' ~destination='x' ~optional"));
-    (* find_package REQUIRED → ~required (positional flag; parser reads kwarg) *)
-    Alcotest.(check string) "find_package REQUIRED → ~required"
-      "find_package Foo ~required\n" (fmt "find_package Foo REQUIRED");
+    (* find_package is not Step-2-rejected: positional REQUIRED is still good
+       code and fmt is pass-through (no ~required codemod). The ~required kwarg
+       is also accepted by the parser; both emit the same cmake. *)
+    Alcotest.(check string) "find_package REQUIRED pass-through"
+      "find_package Foo REQUIRED\n" (fmt "find_package Foo REQUIRED");
     Alcotest.(check string) "find_package ~required stable"
       "find_package Foo ~required\n" (fmt "find_package Foo ~required");
     Alcotest.(check string) "REQUIRED / ~required emit identically"
