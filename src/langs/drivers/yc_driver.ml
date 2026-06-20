@@ -69,6 +69,10 @@ let fatal_wellform_message : Yc_wellform.error -> string option = function
     Some (Printf.sprintf "unknown command %S (closed world: no \
                           include / find_package / add_subdirectory / \
                           cmake_call / dynamic fun-name)" name)
+  | Yc_wellform.Function_def_typo { name } ->
+    Some (Printf.sprintf "`%s args (block)` — adjacent command + standalone \
+                          block. This shape has no valid cmake reading; \
+                          did you mean `fun %s(args) (body)`?" name name)
   | _ -> None
 
 let format (src : string) : (string, string) Result.t =
@@ -77,7 +81,8 @@ let format (src : string) : (string, string) Result.t =
   | Ok cst ->
     let expr = Yc_cst_lower.lower_program cst in
     let fatals =
-      List.filter_map fatal_wellform_message (Yc_wellform.check_all expr)
+      List.filter_map fatal_wellform_message
+        (Yc_wellform.check_cst cst @ Yc_wellform.check_all expr)
     in
     match fatals with
     | [] -> Ok (Yc_cst_print.print_program cst)

@@ -471,6 +471,7 @@ diagnostics. Every check below surfaces through the same channel; severity
 | `Raw_cmake_escape` | `ECmakeRaw text` — explicit `yc_raw '…'` use, surfaced so it isn't silent | warning |
 | `Positional_form` (Step 2) | A labeled-only command (`install_targets`, `set_property`, …) written in cmake's positional keyword form | **fatal** |
 | `Unknown_command` | A command name that's neither a typed yc primitive nor declared as `function`/`macro` in this file | see § below |
+| `Function_def_typo` | CST-level shape check — `IDENT args (block)` adjacent to a standalone block, with IDENT not known. The shape has no valid cmake reading, so it's a `fun`/`function`/`macro` keyword typo regardless of open/closed world. | **fatal** |
 
 ### Unknown_command — the open/closed-world rule
 

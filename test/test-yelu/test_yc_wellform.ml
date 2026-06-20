@@ -171,4 +171,37 @@ let () =
             "add_subdirectory 'sub'; sub_helper 'x'" ~expect:false;
           (* …but the warning still fires (we just don't escalate). *)
           ucase "open-world unknown still warns"
-            "include 'Helpers.cmake'; mystery_command 'x'" ~expect:true ] ) ]
+            "include 'Helpers.cmake'; mystery_command 'x'" ~expect:true ] );
+      ( "function-def-typo shape (CST-level)",
+        let has_def_typo src =
+          let cst = match Yelu_langs.Yc_cst_parse.parse src with
+            | Ok c -> c
+            | Error e -> Alcotest.failf "parse %S: %s" src e
+          in
+          List.exists (W.check_cst cst) ~f:(function
+            | W.Function_def_typo _ -> true
+            | _ -> false)
+        in
+        let dcase name src ~expect =
+          Alcotest.test_case name `Quick (fun () ->
+            Alcotest.(check bool) name expect (has_def_typo src))
+        in
+        [ (* The user's exact main.yc L13 typo class — flagged even in
+             open-world (the file has `include`), because the SHAPE
+             `IDENT args (block)` is unambiguous. *)
+          dcase "open-world IDENT(args)(block) flagged"
+            "include 'X.cmake'; funnnn join(result_var) ( result := 1 )"
+            ~expect:true;
+          (* Closed-world: caught by both Unknown_command and Function_def_typo. *)
+          dcase "closed-world IDENT(args)(block) flagged"
+            "funnnn join(result_var) ( result := 1 )" ~expect:true;
+          (* Real `fun` keyword goes through S_function — no command/block shape. *)
+          dcase "real fun keyword not flagged"
+            "fun join(result_var) ( result := 1 )" ~expect:false;
+          (* In-file declared function called normally — no block after, OK. *)
+          dcase "in-file call (no block) not flagged"
+            "fun helper(x) ( $x := 'v' ); helper 'OUT'" ~expect:false;
+          (* Typed primitive followed by a block — shouldn't fire (the
+             primitive is known, so the gate stays open). *)
+          dcase "typed primitive followed by block not flagged"
+            "message 'hi'; ( $x := 1 )" ~expect:false ] ) ]

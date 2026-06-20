@@ -59,6 +59,15 @@ type error =
        warning; suppress noisy true-positives via [yc_raw '…'] or by
        defining the helper in-file. *)
   | Unknown_command of { name : string; closed_world : bool }
+  (* The function-definition typo shape: a command call adjacent to a
+     standalone block at the same nesting level — `IDENT args (block)`
+     where IDENT is not a known command or in-file decl. There is no
+     legitimate cmake/yc reading of that shape (real commands don't take
+     a trailing block; control flow goes through dedicated CST variants
+     S_if / S_foreach / S_function / S_macro etc.), so it's always a
+     `fun`/`function`/`macro` keyword typo. Fatal regardless of
+     open-/closed-world — the shape is the signal, not the name. *)
+  | Function_def_typo of { name : string }
 [@@deriving sexp_of]
 
 let classify_escape text =
@@ -321,3 +330,68 @@ let check_all e =
   @ check_enum_shadow e
   @ check_raw_tainted e
   @ check_unknown_command e
+
+(* ── CST-level check: function-definition typo shape ────────
+
+   Detect `IDENT args (block)` adjacent statements at the same nesting
+   level — almost always a typo'd `fun`/`function`/`macro` keyword. The
+   shape lives at the CST level (S_command + S_block); after lowering
+   it becomes an opaque ESeq, so the check runs on the CST directly.
+
+   Called by [Yc_driver.format] and the LSP server's diagnostic feed,
+   parallel to [check_all] which runs on the lowered expr. *)
+
+let collect_cst_defined_names (p : Yc_cst.program) : Set.M(String).t =
+  let rec walk_stmt acc (s : Yc_cst.stmt) =
+    let acc = match s.node with
+      | S_function { name; _ } | S_macro { name; _ } ->
+        Set.add acc (String.lowercase name)
+      | _ -> acc
+    in
+    walk_into acc s.node
+  and walk_into acc = function
+    | S_if { then_; else_; _ } ->
+      let acc = List.fold then_ ~init:acc ~f:walk_stmt in
+      (match else_ with
+       | Some (Else_block b) -> List.fold b ~init:acc ~f:walk_stmt
+       | Some (Else_if s) -> walk_stmt acc s
+       | None -> acc)
+    | S_while { body; _ } | S_foreach { body; _ }
+    | S_function { body; _ } | S_macro { body; _ } ->
+      List.fold body ~init:acc ~f:walk_stmt
+    | S_block b -> List.fold b ~init:acc ~f:walk_stmt
+    | _ -> acc
+  in
+  List.fold p.stmts ~init:(Set.empty (module String)) ~f:walk_stmt
+
+let check_cst (p : Yc_cst.program) : error list =
+  let defined = collect_cst_defined_names p in
+  let is_known n =
+    let nl = String.lowercase n in
+    Yc_primitives.is_known_command nl || Set.mem defined nl
+  in
+  let rec walk_block acc (stmts : Yc_cst.stmt list) =
+    match stmts with
+    | { node = S_command { name; args = _ }; _ }
+      :: ({ node = S_block _; _ } :: _ as rest) when not (is_known name) ->
+      (* The smoking gun: unknown command IMMEDIATELY followed by a
+         standalone block at the same level. *)
+      let acc = Function_def_typo { name } :: acc in
+      walk_block acc rest
+    | s :: rest ->
+      let acc = walk_into acc s.node in
+      walk_block acc rest
+    | [] -> acc
+  and walk_into acc = function
+    | S_if { then_; else_; _ } ->
+      let acc = walk_block acc then_ in
+      (match else_ with
+       | Some (Else_block b) -> walk_block acc b
+       | Some (Else_if s) -> walk_into acc s.node
+       | None -> acc)
+    | S_while { body; _ } | S_foreach { body; _ }
+    | S_function { body; _ } | S_macro { body; _ } -> walk_block acc body
+    | S_block b -> walk_block acc b
+    | _ -> acc
+  in
+  List.rev (walk_block [] p.stmts)

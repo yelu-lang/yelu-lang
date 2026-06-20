@@ -145,7 +145,13 @@ let wellform_diagnostics (content : string) : Diagnostic.t list =
         Some (make ~severity:DiagnosticSeverity.Warning ~name
                 ~message:(Printf.sprintf
                             "yc_apply on %S shadows the typed yc primitive — \
-                             use the typed form instead" name)))
+                             use the typed form instead" name))
+      | Yelu_langs.Yc_wellform.Function_def_typo { name } ->
+        Some (make ~severity:DiagnosticSeverity.Error ~name
+                ~message:(Printf.sprintf
+                            "`%s args (block)` — adjacent command + standalone \
+                             block has no valid cmake reading. Did you mean \
+                             `fun %s(args) (body)`?" name name)))
       findings
 
 (* Combined diagnostics: parse errors take precedence (no point flagging
