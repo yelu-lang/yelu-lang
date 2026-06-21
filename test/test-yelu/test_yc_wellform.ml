@@ -152,16 +152,26 @@ let () =
              defining later in the file should also be OK (collect is whole-program). *)
           ucase "forward-ref ok (call then function)"
             "helper 'OUT'; fun helper(x) ( $x := 'v' )" ~expect:false;
-          (* Genuinely unknown external (cmake-stdlib, etc.) — IS flagged. *)
-          ucase "external command flagged"
-            "cmake_parse_arguments 'P' '' '' '' $ARGN" ~expect:true;
-          (* …and FATAL because there's no opening construct in this snippet. *)
-          fcase "external command FATAL in closed world"
-            "cmake_parse_arguments 'P' '' '' '' $ARGN" ~expect:true;
-          (* But an [include] opens the world → warning class (not fatal),
-             since the unknown command might come from the included module. *)
+          (* cmake-stdlib calls — silenced via Cmake_stdlib_names whitelist
+             (discovered-cache pattern; see doc/yelu_cmake/discovered_cache.md).
+             Before the stdlib cache landed (2026-06-21) these fired as
+             closed-world Unknown_command; the test history before that
+             commit asserted ~expect:true. *)
+          ucase "stdlib call (cmake_parse_arguments) is silenced"
+            "cmake_parse_arguments 'P' '' '' '' $ARGN" ~expect:false;
+          ucase "stdlib call (check_language) is silenced"
+            "check_language CXX" ~expect:false;
+          ucase "stdlib call is case-insensitive"
+            "CMAKE_PARSE_ARGUMENTS 'P' '' '' '' $ARGN" ~expect:false;
+          (* A genuinely unknown external (not in stdlib whitelist) still
+             escalates to closed-world fatal. *)
+          ucase "unknown non-stdlib external flagged"
+            "mystery_command_not_in_stdlib 'x'" ~expect:true;
+          fcase "unknown non-stdlib external FATAL in closed world"
+            "mystery_command_not_in_stdlib 'x'" ~expect:true;
+          (* An [include] opens the world → unknowns demote to warning. *)
           fcase "include opens world → unknown is NOT fatal"
-            "include 'Helpers.cmake'; cmake_parse_arguments 'P' '' '' '' $ARGN"
+            "include 'Helpers.cmake'; mystery_command_not_in_stdlib 'x'"
             ~expect:false;
           (* Same for [find_package]. *)
           fcase "find_package opens world → unknown is NOT fatal"

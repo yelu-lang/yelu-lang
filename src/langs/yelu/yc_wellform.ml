@@ -297,7 +297,14 @@ let check_unknown_command e =
   let closed_world = not (has_opening_construct e) in
   let check_name n acc =
     let nl = String.lowercase n in
-    if Yc_primitives.is_known_command nl || Set.mem defined nl
+    (* Three-tier lookup:
+       1. yc typed primitives (Yc_primitives.command_names)
+       2. in-file function/macro declarations (whole-program collect)
+       3. cmake stdlib (discovered-cache; see doc/yelu_cmake/discovered_cache.md)
+       A name in any of these is silent; only true unknowns flow through. *)
+    if Yc_primitives.is_known_command nl
+    || Set.mem defined nl
+    || Cmake_stdlib_names.mem nl
     then acc
     else Unknown_command { name = n; closed_world } :: acc
   in

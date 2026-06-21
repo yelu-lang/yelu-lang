@@ -255,6 +255,10 @@ let discover_helpers probe_dir =
           | stat ->
             if Poly.(stat.Unix.st_kind = Unix.S_DIR) then walk path
             else if String.is_suffix name ~suffix:".yc"
+                 && not (String.equal name "debug.yc")
+                 (* debug.yc is the documented scratch convention (gitignored
+                    per .gitignore); skip in the corpus walk so users can
+                    keep a typo'd playground without breaking the gate. *)
                  && Poly.(stat.Unix.st_kind = Unix.S_REG) then
               let rel_from_probe =
                 String.chop_prefix_exn path ~prefix:(probe_dir ^ "/") in
@@ -704,13 +708,15 @@ let () =
               Some (Printf.sprintf "%s in positional cmake-keyword form" command)
             | Yelu_langs.Yc_wellform.Enum_shadow { name; constructor } ->
               Some (Printf.sprintf "%S shadows the %s constructor" name constructor)
-            (* Note: Unknown_command (even closed-world) is NOT promoted to
-               fatal here. The corpus gate's job is to catch positional-form
-               and enum-shadow regressions; the closed-world escalation lives
-               in the per-file [compile] path (and through it, the LSP). This
-               preserves the gate's behaviour while the corpus migrates external
-               calls (`cmake_parse_arguments`, `cuda_add_executable`, …) to
-               `yc_raw '…'`. *)
+            (* Closed-world Unknown_command IS fatal in the corpus gate as of
+               2026-06-21, after the cmake-stdlib name-cache landed
+               (Cmake_stdlib_names; doc/yelu_cmake/discovered_cache.md).
+               Legitimate stdlib calls (`cmake_parse_arguments`,
+               `check_language`, `cuda_add_executable`, …) are now silenced
+               via the stdlib whitelist, so the only closed-world unknowns
+               left are real typos. *)
+            | Yelu_langs.Yc_wellform.Unknown_command { name; closed_world = true } ->
+              Some (Printf.sprintf "unknown command %S (closed world)" name)
             | _ -> None)
         in
         if not (List.is_empty fatals) then Error (String.concat ~sep:"; " fatals)

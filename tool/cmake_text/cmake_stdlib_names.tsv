@@ -1,0 +1,152 @@
+# cmake_stdlib_names — discovered-cache for cmake stdlib commands not in yc primitives.
+# Pattern: doc/yelu_cmake/discovered_cache.md. First instance.
+#
+# Used by Yc_wellform.check_unknown_command to silence false-positive "unknown
+# command" warnings on legitimate cmake-stdlib calls. Without this set, a file
+# calling `cmake_parse_arguments` or `check_language` (real cmake commands)
+# would fire Unknown_command, forcing the user to either `yc_raw` or add an
+# unnecessary `include()` to open the world.
+#
+# Generated: 2026-06-21
+# cmake-version: 4.3.2
+# source-root: $(brew --prefix cmake)/share/cmake/Modules (cross-checked
+#              against cmake docs at vendor/cmake when available)
+# generator: hand-curated v0; cmake_name_index.exe pass deferred to v1 when
+#            tree-sitter setup lands
+#
+# Format:
+#   <name>\t<source-module-or-builtin>\t<kind>
+# where:
+#   <kind> ∈ {builtin, function, macro}
+#   <source> = "<builtin>" for C-side, else a Modules/*.cmake filename
+#
+# Regen: when bumping cmake (or adding a missing name observed in a corpus
+# warning), edit this file and bump the cmake-version header. The TSV is
+# committed; the binary embeds names at build time via a dune rule.
+
+# ── C-side builtins not in yc command_names ──────────────────────
+
+cmake_parse_arguments	<builtin>	builtin
+cmake_path	<builtin>	builtin
+cmake_policy	<builtin>	builtin
+cmake_print_variables	<builtin>	builtin
+cmake_print_properties	<builtin>	builtin
+cmake_host_system_information	<builtin>	builtin
+aux_source_directory	<builtin>	builtin
+build_command	<builtin>	builtin
+define_property	<builtin>	builtin
+mark_as_advanced	<builtin>	builtin
+source_group	<builtin>	builtin
+variable_watch	<builtin>	builtin
+site_name	<builtin>	builtin
+load_cache	<builtin>	builtin
+get_filename_component	<builtin>	builtin
+get_directory_property	<builtin>	builtin
+get_source_file_property	<builtin>	builtin
+get_test_property	<builtin>	builtin
+get_cmake_property	<builtin>	builtin
+
+# ctest_* family (C-side, for CTestScripts)
+ctest_start	<builtin>	builtin
+ctest_configure	<builtin>	builtin
+ctest_build	<builtin>	builtin
+ctest_test	<builtin>	builtin
+ctest_coverage	<builtin>	builtin
+ctest_memcheck	<builtin>	builtin
+ctest_submit	<builtin>	builtin
+ctest_update	<builtin>	builtin
+ctest_upload	<builtin>	builtin
+ctest_read_custom_files	<builtin>	builtin
+ctest_run_script	<builtin>	builtin
+ctest_sleep	<builtin>	builtin
+ctest_empty_binary_directory	<builtin>	builtin
+
+# ── Check* family (Modules/Check*.cmake) ─────────────────────────
+
+check_language	CheckLanguage.cmake	function
+check_c_compiler_flag	CheckCCompilerFlag.cmake	macro
+check_cxx_compiler_flag	CheckCXXCompilerFlag.cmake	macro
+check_fortran_compiler_flag	CheckFortranCompilerFlag.cmake	macro
+check_compiler_flag	CheckCompilerFlag.cmake	function
+check_c_source_compiles	CheckCSourceCompiles.cmake	macro
+check_c_source_runs	CheckCSourceRuns.cmake	macro
+check_cxx_source_compiles	CheckCXXSourceCompiles.cmake	macro
+check_cxx_source_runs	CheckCXXSourceRuns.cmake	macro
+check_source_compiles	CheckSourceCompiles.cmake	function
+check_source_runs	CheckSourceRuns.cmake	function
+check_function_exists	CheckFunctionExists.cmake	macro
+check_include_file	CheckIncludeFile.cmake	macro
+check_include_file_cxx	CheckIncludeFileCXX.cmake	macro
+check_include_files	CheckIncludeFiles.cmake	macro
+check_library_exists	CheckLibraryExists.cmake	macro
+check_struct_has_member	CheckStructHasMember.cmake	macro
+check_symbol_exists	CheckSymbolExists.cmake	macro
+check_cxx_symbol_exists	CheckCXXSymbolExists.cmake	macro
+check_type_size	CheckTypeSize.cmake	macro
+check_variable_exists	CheckVariableExists.cmake	macro
+check_prototype_definition	CheckPrototypeDefinition.cmake	function
+check_pie_supported	CheckPIESupported.cmake	function
+check_ipo_supported	CheckIPOSupported.cmake	function
+
+# ── Package config (CMakePackageConfigHelpers + related) ─────────
+
+find_dependency	CMakeFindDependencyMacro.cmake	macro
+set_and_check	CMakePackageConfigHelpers.cmake	macro
+check_required_components	CMakePackageConfigHelpers.cmake	macro
+
+# ── GNUInstallDirs / FeatureSummary ──────────────────────────────
+
+gnuinstalldirs_get_absolute_install_dir	GNUInstallDirs.cmake	function
+feature_summary	FeatureSummary.cmake	function
+set_package_properties	FeatureSummary.cmake	function
+add_feature_info	FeatureSummary.cmake	function
+print_enabled_features	FeatureSummary.cmake	function
+print_disabled_features	FeatureSummary.cmake	function
+
+# ── FindPkgConfig ─────────────────────────────────────────────────
+
+pkg_check_modules	FindPkgConfig.cmake	macro
+pkg_search_module	FindPkgConfig.cmake	macro
+pkg_get_variable	FindPkgConfig.cmake	function
+
+# ── GoogleTest (Modules/GoogleTest.cmake) ────────────────────────
+
+gtest_add_tests	GoogleTest.cmake	function
+gtest_discover_tests	GoogleTest.cmake	function
+
+# ── FindCUDA (deprecated but still in corpus) ────────────────────
+
+cuda_add_executable	FindCUDA.cmake	macro
+cuda_add_library	FindCUDA.cmake	macro
+cuda_compile	FindCUDA.cmake	macro
+cuda_select_nvcc_arch_flags	FindCUDA/select_compute_arch.cmake	function
+
+# ── CMakePrintHelpers ────────────────────────────────────────────
+
+cmake_print_variables	CMakePrintHelpers.cmake	function
+cmake_print_properties	CMakePrintHelpers.cmake	function
+
+# ── ExternalProject / FetchContent ───────────────────────────────
+
+externalproject_add	ExternalProject.cmake	function
+externalproject_get_property	ExternalProject.cmake	function
+externalproject_add_step	ExternalProject.cmake	function
+externalproject_add_stepdependencies	ExternalProject.cmake	function
+externalproject_add_steptargets	ExternalProject.cmake	function
+fetchcontent_declare	FetchContent.cmake	macro
+fetchcontent_makeavailable	FetchContent.cmake	macro
+fetchcontent_populate	FetchContent.cmake	macro
+fetchcontent_getproperties	FetchContent.cmake	macro
+
+# ── Qt6 (subset; corpus-driven) ──────────────────────────────────
+
+qt_add_executable	Qt6CoreMacros.cmake	function
+qt_add_library	Qt6CoreMacros.cmake	function
+qt_add_resources	Qt6CoreMacros.cmake	function
+qt_wrap_cpp	Qt6CoreMacros.cmake	function
+
+# ── DEPRECATED but still legitimate ──────────────────────────────
+
+write_compiler_detection_header	WriteCompilerDetectionHeader.cmake	function
+
+# Last line intentionally not blank.

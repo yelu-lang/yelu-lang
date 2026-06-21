@@ -1,0 +1,30 @@
+; Codegen for the discovered-cache pattern (doc/yelu_cmake/discovered_cache.md).
+; Reads the cmake-stdlib name TSV (committed at tool/cmake_text/) and emits an
+; OCaml data module with the name array + version fingerprint as constants.
+; The wrapper module Cmake_stdlib_names.ml provides the runtime API.
+;
+; To regenerate the TSV (e.g. after bumping cmake), edit
+; tool/cmake_text/cmake_stdlib_names.tsv directly; dune picks up the change.
+
+(rule
+ (targets cmake_stdlib_names_data.ml)
+ (deps    (:tsv ../../../tool/cmake_text/cmake_stdlib_names.tsv))
+ (action
+  (with-stdout-to %{targets}
+   (bash "\
+echo '(* GENERATED from tool/cmake_text/cmake_stdlib_names.tsv — do not edit *)';\
+echo '';\
+echo 'let cmake_version_at_cache =';\
+echo -n '  \"';\
+grep -E '^# cmake-version: ' %{tsv} | head -1 | sed 's/^# cmake-version: //' | tr -d '\\n';\
+echo '\"';\
+echo '';\
+echo 'let generated_date =';\
+echo -n '  \"';\
+grep -E '^# Generated: ' %{tsv} | head -1 | sed 's/^# Generated: //' | tr -d '\\n';\
+echo '\"';\
+echo '';\
+echo 'let names = [|';\
+grep -v '^#' %{tsv} | grep -v '^[[:space:]]*$' | awk -F'\\t' '{printf \"  \\\"%s\\\";\\n\", $1}';\
+echo '|]'\
+"))))

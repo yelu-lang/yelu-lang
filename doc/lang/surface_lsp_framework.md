@@ -538,7 +538,7 @@ include 'Helpers.cmake'; mystery_command 'x'
 ### Follow-ups (parked)
 
 - **"Did you mean X?"** — Levenshtein distance from the unknown name against `command_names ∪ defined_names`. Cheap to add to the warning text.
-- **Cmake-stdlib name index** — `tool/cmake_text/` already has a 935-callable index of cmake's `Modules/`. Loading it into a separate `cmake_stdlib_names` set in wellform would silence the legitimate-but-noisy `cmake_parse_arguments` / `check_language` / `cuda_add_executable` class without forcing `yc_raw`.
+- ✅ **Cmake-stdlib name index** — shipped 2026-06-21 as `Cmake_stdlib_names` following the discovered-cache pattern ([`../yelu_cmake/discovered_cache.md`](../yelu_cmake/discovered_cache.md)). `cmake_parse_arguments` / `check_language` / `cuda_add_executable` etc. are silenced; closed-world `Unknown_command` is now fatal in `compile-corpus` again.
 - **Cross-file collect** — for a multi-file project, walking `include`/`add_subdirectory` targets to gather their `function`/`macro` declarations would eliminate the false-positive class on real corpus projects. Today the LSP sees one file at a time.
 - **Diagnostic span** — `Unknown_command` currently carries only the name. Adding the offending token's span (the located lexer infrastructure already in use for parse-error diagnostics) lets the LSP highlight the exact identifier instead of underlining the whole file.
 
