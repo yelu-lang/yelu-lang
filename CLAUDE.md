@@ -308,20 +308,48 @@ See [doc/lang/typed_design.md](doc/lang/typed_design.md) for the full design.
 > Full audit → [doc/project_overview.md](doc/project_overview.md).
 
 Key milestones: wellform pass (Y1), concrete-syntax parser + both surface passes
-(no-ALL_CAPS `~`-half + labeled-only) complete, ~975 unit tests.
+(no-ALL_CAPS `~`-half + labeled-only) complete, **unified parse_and_check
+pipeline** + cmake-stdlib name cache, ~994 unit tests.
 
-**Handoff (2026-06-19/20).** Step 2 (labeled-only) is fully done: positional
-cmake-keyword forms are a compile error, the deferred list is cleared (every
-command with a labeled surface is labeled-only; remaining positional surfaces
-are intentional enum constructors — visibility / entity scopes / `include_guard
-Global`), `fmt` is pass-through (no codemod), and the build-time corpus gate
-guards it. Legacy OCaml-DSL emitters (`probes/fmt/*.ml`) retired. **Next:** a
-code audit (its first artifact = refresh the stale
-[`doc/project_overview.md`](doc/project_overview.md), last full pass 2026-06-03)
-→ then a 2nd probe project from [`probes/candidates.md`](probes/candidates.md).
-Open surface/code items (version literal, per-mode `message_*`, the
-`Apply_shadows_primitive` check holes, orphaned `Yelu_emit_main`, latent
-`set_target_properties` target-deref) are parked in
+**Handoff (2026-06-21).** Sessions 2026-06-20..21 closed three things on top of
+the labeled-only baseline:
+
+- **Wellform-driven LSP + fmt fail-safe + closed-world Unknown_command +
+  CST shape check Function_def_typo.** Six wellform checks now cover Y14
+  enum shadow, Step-2 positional reject, raw cmake escape, apply
+  shadowing, reserved name, and unknown command (with open-/closed-world
+  rule). LSP publishes diagnostics with severity + heuristic spans; fmt
+  refuses to overwrite on fatal. Function_def_typo catches `IDENT args
+  (block)` even open-world via CST shape. Full per-check semantics +
+  surfacing contract in
+  [`doc/lang/surface_lsp_framework.md`](doc/lang/surface_lsp_framework.md) §7.5
+  and [`doc/yelu_cmake/driver.md`](doc/yelu_cmake/driver.md) §6.5.
+- **cmake-stdlib name cache** (Plan C). First instance of the
+  discovered-cache driver pattern in
+  [`doc/yelu_cmake/discovered_cache.md`](doc/yelu_cmake/discovered_cache.md):
+  TSV at `tool/cmake_text/cmake_stdlib_names.tsv` (committed, with
+  version fingerprint header), dune codegen rule embeds at build time,
+  runtime API in `src/langs/yelu/cmake_stdlib_names.ml`. Silences
+  legit-but-noisy `cmake_parse_arguments` / `check_language` /
+  `cuda_add_executable` warnings without forcing `yc_raw`. Closed-world
+  Unknown_command escalation restored in the corpus gate.
+- **B1 — unified parse_and_check pipeline.** `Yc_driver.parse_and_check`
+  is the single orchestration site for "parse + wellform + return
+  expr/cst/findings." Compile / fmt / LSP / corpus-gate all call it.
+  Compile + corpus-gate moved off the legacy direct parser, so they
+  gain `check_cst` findings (notably Function_def_typo) automatically.
+  `Yelu_parse.parse_program_y1` renamed to `parse_program_legacy`
+  (Y1 was the early-production label); back-compat alias kept for the
+  emit-bridge oracle soak. Internal `*_y1_inner` helpers stay until
+  full retirement. Plan in
+  [`doc/lang/surface_status.md`](doc/lang/surface_status.md) "Tier (b)".
+
+**Next:** B2 (token spans on wellform findings — LSP currently scans
+whole-word from source as a heuristic), or the 2nd probe project per
+[`probes/candidates.md`](probes/candidates.md). Open surface/code items
+(version literal, per-mode `message_*`, the `Apply_shadows_primitive`
+check holes, orphaned `Yelu_emit_main`, latent `set_target_properties`
+target-deref) still parked in
 [`doc/lang/yc_syntax_critique.md`](doc/lang/yc_syntax_critique.md) § Open /
 remaining.
 
@@ -346,7 +374,7 @@ remaining.
 
 ### Test infrastructure
 
-- **~975 unit tests** (`dune test`) — incl. the surface track (lexer, parser,
+- **~994 unit tests** (`dune test`) — incl. the surface track (lexer, parser,
   emit-bridge oracle, co-truth locks, grammar freshness), the per-theory
   check/compile suites, and the build-time corpus compile gate
 - **108 equivalence/semantic checks** (35 structural + 12 CMakeOnly + 61 RunCMake)

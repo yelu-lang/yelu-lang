@@ -514,3 +514,88 @@ has its own `test_yc_wellform` case + a labeled round-trip in
 latent bug fixed along the way (cuda-test `set_target_properties` was silently
 dropped — the code split on `PROPERTY`, not the `PROPERTIES` it was written
 with). Throughout: `dune test` green, matrix 24/24, fmt idempotent + emit-stable.
+
+## 2026-06-20/21: wellform → LSP → fmt fail-safe → unified pipeline → cmake-stdlib cache
+
+Three closely-linked threads on the macOS side, all landing as commits
+through `c88bef7`:
+
+**Wellform expanded into the diagnostic engine.** Six checks now run via
+`Yc_wellform.check_all` (on `expr`) and `Yc_wellform.check_cst` (on the
+CST). New variants this period: `Unknown_command { name; closed_world }`
+with the closed-world rule (file has no `include` / `find_package` /
+`add_subdirectory` / `cmake_call|cmake_eval` / dynamic fun-name → unknown
+must be a typo, fatal; otherwise warning); `Function_def_typo { name }`
+as a CST shape check for `IDENT args (block)` adjacent to a standalone
+`S_block` — only valid as a function definition, fatal regardless of
+open/closed world. The CLI / fmt / LSP / corpus-gate fatality split is
+captured once in `Yc_driver.fatal_wellform_message`; per-check semantics
++ surfacing contract in
+[`../lang/surface_lsp_framework.md`](../lang/surface_lsp_framework.md)
+§7.5 and [`../yelu_cmake/driver.md`](../yelu_cmake/driver.md) §6.5.
+
+**fmt is now fail-safe on fatal wellform.** Was parse-then-print only; a
+closed-world typo was happily prettified into a clean-looking unknown
+command, hiding the bug. Now `Yc_driver.format` lowers CST → expr,
+runs wellform, refuses on fatal findings. Both `yelu fmt` (CLI) and the
+LSP `textDocument/formatting` request inherit the gate — typo stays
+visible as a diagnostic, never cosmetically washed over.
+
+**LSP publishes wellform diagnostics.** Was parse-only. Each finding
+maps to an LSP `Diagnostic` with severity (Error / Warning /
+Information) and a span resolved by whole-word scan of the source —
+heuristic but practical until findings carry token spans natively. The
+LSP now matches the diagnostic content of `yelu compile` exactly.
+
+**cmake-stdlib name cache (Plan C — the discovered-cache pattern).**
+[`../yelu_cmake/discovered_cache.md`](../yelu_cmake/discovered_cache.md)
+generalizes the recipe: discover → commit TSV with version fingerprint
+→ dune codegen embeds into the binary → on-demand validity (option (d),
+no automatic check). First instance is `Cmake_stdlib_names`
+(`tool/cmake_text/cmake_stdlib_names.tsv`, ~80 hand-curated names + C-side
+builtins). Three-tier lookup in `check_unknown_command`: typed
+primitives ∪ in-file decls ∪ stdlib. Silences the corpus's
+`cmake_parse_arguments` / `check_language` / `cuda_add_executable`
+warnings; restores closed-world fatal escalation in the corpus gate
+(was silenced 2026-06-14 to keep it green). Pattern table parked in the
+doc for the next discovery need (`cmake_policies`, `cmake_genex_ops`,
+the runtime-loaded `cmake_reserved_vars`).
+
+**B1 — unified `parse_and_check` pipeline.** Was the structural fix that
+let everything else compose. Each of compile / fmt / LSP / corpus-gate
+had its own "parse, then check" orchestration with subtle drift. Now
+`Yc_driver.parse_and_check : string → ({expr; cst; findings}, string)
+Result.t` is the single site; consumers are 5-10 lines each. Side
+effect: compile + corpus-gate moved off the legacy direct parser
+(`Yelu_parse.parse_program_y1`, now renamed `parse_program_legacy`),
+which means they automatically gained `check_cst` findings — Function_def_typo
+catches typos in compile too now. Caught a real `funs` → `fun` typo on
+[`probes/fmt/main.yc`](../../probes/fmt/main.yc) line 13 as a side
+effect of the rollout, fixed in the same commit. Plan continuation
+(soak the emit-bridge oracle, then delete the legacy parser entirely) in
+[`../lang/surface_status.md`](../lang/surface_status.md) Tier (b).
+
+**Editor tooling (the macOS side).** `yelu-lsp` exe builds against the
+yojson-3 `linol` fork (pinned via `opam pin git+https://github.com/arbipher/linol#main`);
+VS Code extension at [`../../editors/vscode/yc/`](../../editors/vscode/yc/);
+symlink install into `~/.vscode/extensions/yelu-lang.yc-0.0.1/` is the
+recommended development flow. Reload Window picks up LSP rebuilds.
+
+**Docs reorganized to reflect the new shape:**
+- [`../project_overview.md`](../project_overview.md) — full refresh
+  (was stale since 2026-06-03; covers surface passes, LSP, wellform,
+  property unification, Pos3, command-call sugar, corpus gate).
+- [`../yelu_cmake/driver.md`](../yelu_cmake/driver.md) §6.5 — the
+  compile/wellform/format/LSP contract that any new pack inherits.
+- [`../lang/surface_lsp_framework.md`](../lang/surface_lsp_framework.md)
+  §7.5 — full wellform check table + open/closed-world rule + worked
+  examples.
+- [`../yelu_cmake/discovered_cache.md`](../yelu_cmake/discovered_cache.md)
+  — the driver-level pattern doc.
+- [`../lang/surface_status.md`](../lang/surface_status.md) — Tier (b)
+  active with 7-step plan + status; legacy parser retirement is the
+  forcing function.
+
+Throughout: `dune test` green (994/994), corpus gate green (11/11), fmt
+matrix 24/24, emit-bridge oracle covered=194 byte-identical between
+legacy and CST paths.
