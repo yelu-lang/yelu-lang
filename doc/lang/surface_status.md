@@ -240,12 +240,31 @@ Layered coverage for the parse/lower/print round-trips:
 - **Driver interface — CST as a first-class form.** *Tier (a) done
   (2026-06-10):* `Yc_driver` now exposes `parse_cst` / `lower_cst` /
   `print_cst` / `format`, and [`../yelu_cmake/driver.md`](../yelu_cmake/driver.md)
-  documents the `text ↔ cst_lite ↔ expr` form + ops. *Tier (b) deferred:*
-  point the production `parse_yc` at `lower_cst ∘ parse_cst` and retire the
-  legacy direct parser (`Yelu_parse.parse_program_y1`). The emit-bridge
-  already proves equivalence, so it's safe — but it's a production-path
-  change with its own soak, not a doc tidy-up. Do when consolidating on one
-  parser.
+  documents the `text ↔ cst_lite ↔ expr` form + ops.
+  *Tier (b) — active 2026-06-21 (B1 from project_overview.md):* unify
+  the three surfaces (compile / fmt / LSP) on a single CST-based
+  pipeline via `Yc_driver.parse_and_check`. Today compile is the
+  outlier — it uses the legacy `Yelu_parse.parse_program_y1` (string →
+  expr direct, no CST), so it misses `check_cst` findings (notably
+  `Function_def_typo`). Plan:
+  1. Add `Yc_driver.parse_and_check : string → ({expr; cst; findings},
+     string) Result.t` — single source of truth for parse + wellform.
+  2. Refactor `Yc_driver.format` to use it.
+  3. Refactor LSP `wellform_diagnostics` to use it.
+  4. Refactor `compile_yc` in `bin/yelu/yelu.ml` to use it. Compile
+     automatically gains `check_cst` (Function_def_typo).
+  5. Rename `Yelu_parse.parse_program_y1` →
+     `Yelu_parse.parse_program_legacy` (Y1 was the early-production
+     naming; the legacy label is honest and signals at every call
+     site). Internal `*_y1_inner` parser helpers stay until full
+     retirement.
+  6. Run full `dune test` — emit-bridge oracle (`covered=194`) is the
+     primary soak; any divergence between legacy and CST path breaks
+     a test.
+  7. After a soak period with no divergences observed, retire the
+     legacy parser entirely (`git rm`).
+  The legacy parser stays compiled and runnable during the soak so the
+  emit-bridge keeps proving the CST path correct.
 
 - **Token-stream formatter shortcut** — could ship canonical formatting
   over `lex_located` before the CST (indent by paren/brace depth, break at

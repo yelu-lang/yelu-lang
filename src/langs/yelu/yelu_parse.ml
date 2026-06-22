@@ -2473,7 +2473,25 @@ let parse_tokens_y1 toks =
   in
   collect [] toks
 
-let parse_program_y1 input =
+(* Legacy direct parser (string → expr).
+
+   Status (2026-06-21): retired from production. The CST path
+   (Yc_cst_parse.parse + Yc_cst_lower.lower_program) replaced it via
+   Yc_driver.parse_and_check; all three surfaces (compile / fmt / LSP)
+   now go through the CST. The legacy parser stays compiled and
+   exported as [parse_program_legacy] so the emit-bridge oracle in
+   test_yc_cst_bridge can keep proving the CST path equivalent
+   byte-for-byte (covered=194). After a soak period with no oracle
+   divergences, this file (and the internal *_y1_inner helpers
+   throughout) will be deleted entirely.
+
+   See doc/lang/surface_status.md "Driver interface — CST as a
+   first-class form" Tier (b). *)
+let parse_program_legacy input =
   match Angstrom.parse_string ~consume:All token_list input with
   | Ok toks -> parse_tokens_y1 toks
   | Error e -> Error ("lex error: " ^ e)
+
+(* Deprecated alias for the legacy parser. Kept temporarily so external
+   callers can migrate; will be removed in the next pass. *)
+let parse_program_y1 = parse_program_legacy

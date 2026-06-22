@@ -80,11 +80,11 @@ let find_word_range (content : string) (name : string) : Range.t option =
    heuristic but practical until the IR carries spans (see
    surface_lsp_framework.md §7.5 follow-ups). *)
 let wellform_diagnostics (content : string) : Diagnostic.t list =
-  match Yelu_langs.Yc_cst_parse.parse content with
+  (* B1: use the unified Yc_driver.parse_and_check so the LSP, fmt, and
+     compile all see the same findings (check_cst ∪ check_all). *)
+  match Yelu_langs.Yc_driver.parse_and_check content with
   | Error _ -> []   (* parse_diagnostics already surfaces this *)
-  | Ok cst ->
-    let expr = Yelu_langs.Yc_cst_lower.lower_program cst in
-    let findings = Yelu_langs.Yc_wellform.check_all expr in
+  | Ok { findings; _ } ->
     let doc_start () =
       Range.create
         ~start:(Position.create ~line:0 ~character:0)

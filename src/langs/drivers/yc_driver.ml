@@ -8,8 +8,11 @@ open Yelu_cmake
 
 (* ══  parse  ═══════════════════════════════════ *)
 
+(* Production path goes through [parse_and_check] (CST + check_cst + check_all).
+   This direct entry remains for callers that already have an [expr] and just
+   need the legacy parser shape — emit-bridge oracle, test infrastructure. *)
 let parse_yc src : (expr, string) result =
-  Yelu_parse.parse_program_y1 src
+  Yelu_parse.parse_program_legacy src
 
 let parse_cmake (stmts : Lang_cmake.exp list) : expr =
   Yelu_cmake_from_emit.from_emit_top stmts
@@ -75,16 +78,42 @@ let fatal_wellform_message : Yc_wellform.error -> string option = function
                           did you mean `fun %s(args) (body)`?" name name)
   | _ -> None
 
-let format (src : string) : (string, string) Result.t =
+(* The unified parse + wellform pipeline (B1, 2026-06-21). Single source of
+   truth for "parse source, run all wellform checks, return everything the
+   surfaces need." Replaces three near-duplicate orchestration sites
+   (Yc_driver.format, LSP wellform_diagnostics, bin/yelu/yelu.ml compile_yc).
+
+   Each surface consumes:
+   - [expr]      — lowered IR for emit / eval
+   - [cst]       — printer source for fmt / lsp range mapping
+   - [findings]  — combined check_cst ∪ check_all; per-surface fatal-vs-warning
+                   split is in [fatal_wellform_message] above.
+
+   See doc/lang/surface_status.md "Driver interface — CST as a first-class
+   form" Tier (b). *)
+type checked = {
+  expr     : expr;
+  cst      : Yc_cst.program;
+  findings : Yc_wellform.error list;
+}
+
+let parse_and_check (src : string) : (checked, string) Result.t =
   match Yc_cst_parse.parse src with
   | Error e -> Error e
   | Ok cst ->
     let expr = Yc_cst_lower.lower_program cst in
-    let fatals =
-      List.filter_map fatal_wellform_message
-        (Yc_wellform.check_cst cst @ Yc_wellform.check_all expr)
-    in
-    match fatals with
+    let findings = Yc_wellform.check_cst cst @ Yc_wellform.check_all expr in
+    Ok { expr; cst; findings }
+
+(* Convenience: just the fatal subset, used by format + compile to refuse. *)
+let fatals (findings : Yc_wellform.error list) : string list =
+  List.filter_map fatal_wellform_message findings
+
+let format (src : string) : (string, string) Result.t =
+  match parse_and_check src with
+  | Error e -> Error e
+  | Ok { cst; findings; _ } ->
+    match fatals findings with
     | [] -> Ok (Yc_cst_print.print_program cst)
     | errs -> Error ("wellform: " ^ String.concat "; " errs)
 

@@ -118,13 +118,18 @@ let compile_ml file =
 
 let compile_yc ?(wellform = true) ?(warn = fun _ -> ()) file =
   let src = read_all file in
-  match Yelu_langs.Yelu_parse.parse_program_y1 src with
+  (* B1 (2026-06-21): unified parse + wellform pipeline via Yc_driver.
+     Compile now goes through the CST path like fmt and the LSP, so
+     [check_cst] findings (notably Function_def_typo) reach compile. The
+     emit-bridge oracle (covered=194) proves the lowered expr matches the
+     legacy [parse_program_y1] path byte-for-byte at emit time. *)
+  match Yelu_langs.Yc_driver.parse_and_check src with
   | Error e ->
     Stdlib.Printf.eprintf "yelu compile: parse error in %s: %s\n" file e;
     Stdlib.exit 1
-  | Ok expr ->
+  | Ok { Yelu_langs.Yc_driver.expr; cst = _; findings } ->
     if wellform then begin
-      match Yelu_langs.Yc_wellform.check_all expr with
+      match findings with
       | [] -> ()
       | errors ->
         (* Y14: enum-constructor shadowing is fatal (reject), not a warning. *)
@@ -151,6 +156,16 @@ let compile_yc ?(wellform = true) ?(warn = fun _ -> ()) file =
                add_subdirectory / cmake_call / dynamic fun-name) that would \
                introduce one. Did you mean `fun`/`function`/`macro` to define it?\n"
               file name;
+            Stdlib.exit 1
+          | Yelu_langs.Yc_wellform.Function_def_typo { name } ->
+            (* CST shape: IDENT args (block) adjacent to standalone block.
+               No valid cmake reading; the only shape with this structure is
+               the function-def grammar (fun/function/macro NAME(p) (body)). *)
+            Stdlib.Printf.eprintf
+              "yelu compile: %s: `%s args (block)` — adjacent command + \
+               standalone block has no valid cmake reading. \
+               Did you mean `fun %s(args) (body)`?\n"
+              file name name;
             Stdlib.exit 1
           | Yelu_langs.Yc_wellform.Unknown_command { name; closed_world = false } ->
             (* Warning: file has at least one opening construct, so the
@@ -699,11 +714,14 @@ let () =
     let helpers = discover_helpers probe_dir in
     let check file =
       let src = read_all file in
-      match Yelu_langs.Yelu_parse.parse_program_y1 src with
+      (* B1 (2026-06-21): corpus gate goes through Yc_driver.parse_and_check,
+         same pipeline as compile / fmt / LSP. Gains Function_def_typo
+         (CST-shape check) for free. *)
+      match Yelu_langs.Yc_driver.parse_and_check src with
       | Error e -> Error (Printf.sprintf "parse error: %s" e)
-      | Ok expr ->
+      | Ok { Yelu_langs.Yc_driver.expr; cst = _; findings } ->
         let fatals =
-          List.filter_map (Yelu_langs.Yc_wellform.check_all expr) ~f:(function
+          List.filter_map findings ~f:(function
             | Yelu_langs.Yc_wellform.Positional_form { command } ->
               Some (Printf.sprintf "%s in positional cmake-keyword form" command)
             | Yelu_langs.Yc_wellform.Enum_shadow { name; constructor } ->
@@ -717,6 +735,10 @@ let () =
                left are real typos. *)
             | Yelu_langs.Yc_wellform.Unknown_command { name; closed_world = true } ->
               Some (Printf.sprintf "unknown command %S (closed world)" name)
+            | Yelu_langs.Yc_wellform.Function_def_typo { name } ->
+              Some (Printf.sprintf
+                      "`%s args (block)` — adjacent command + standalone block; \
+                       did you mean `fun %s(args) (body)`?" name name)
             | _ -> None)
         in
         if not (List.is_empty fatals) then Error (String.concat ~sep:"; " fatals)
