@@ -599,3 +599,47 @@ recommended development flow. Reload Window picks up LSP rebuilds.
 Throughout: `dune test` green (994/994), corpus gate green (11/11), fmt
 matrix 24/24, emit-bridge oracle covered=194 byte-identical between
 legacy and CST paths.
+
+## 2026-06-25: two-pass syntax audit + reconciliation + easy fixes
+
+Audited the whole 2026-06-12..21 syntax arc (labeled-only Step 2, fmt
+pass-through, B1 unified pipeline, wellform checks, LSP). **Two independent
+passes:** an internal 3-agent fan-out (parser/wellform · formatter/pipeline/emit
+· docs) and an external AI re-audit. Both artifacts archived here:
+[`syntax_audit_request_2026-06.md`](syntax_audit_request_2026-06.md) (the
+self-contained prompt) and
+[`syntax_audit_report_2026-06.md`](syntax_audit_report_2026-06.md) (the external
+tool's findings — it ran build/test/probes independently).
+
+**Reconciliation.** Strong agreement, **zero refutations of any real finding**.
+The core work was upheld clean: fmt round-trip + idempotence + fail-safe, the
+B1 one-path sharing (compile/fmt/LSP/corpus-gate all via
+`Yc_driver.parse_and_check`), the corpus gate's detection, and that the
+labeled-only parser claims match the docs. Two findings sharpened:
+- **Target-name deref upgraded Low → HIGH.** `set_target_properties fmt …`
+  (main.yc:139, not gated) emits `set_target_properties(${fmt} …)` — `${fmt}` is
+  variable-expansion, so the property is set on **nothing**. cmake configure
+  exits 0 (empty target list = no-op) and the **matrix is blind** to it (target
+  properties aren't cache vars), so 24/24 is green while the corpus ships wrong
+  cmake. Our first pass had mis-called this "by-design / not active"; the
+  external pass + a tie-break against the corpus corrected it.
+- **Doc test-count drift** confirmed across 5 sources; actual = 994.
+
+**Easy, deref-independent fixes landed** (all: dune test green, gate 11/11,
+matrix 24/24):
+- doc drift → 994 everywhere + README/driver stale refs (`7598394`)
+- labeled-only reject guards match bare `EVar` only — quoted-keyword literals no
+  longer false-positive (`63b3728`)
+- `yelu compile` reports emit failures cleanly instead of an OCaml backtrace
+  (`0bb63c4`)
+- `add_custom_command` registered in `command_names` — closes the apply-shadow
+  gap; grammar re-promoted (`d60190f`)
+
+**Open (need a decision or the deref):** (1) target-name deref — fix property/
+install target slots to literal **+ a matrix supplement** (file-api/target-
+property check), since the matrix can't see this class; (2) silent `~label=`
+drop on target commands (`link_lib ~public=` → empty) — needs an
+unknown-kwarg-for-command check; (3) find / dir-global-test-property / add_test
+/ `find_package COMPONENTS` silently mis-emit positional keywords — reject-or-
+label per family; (4) `Function_def_typo` open-world gate + `check_reserved_names`
+declaration coverage. Full detail in the report doc.
