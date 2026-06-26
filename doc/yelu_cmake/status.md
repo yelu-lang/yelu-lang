@@ -26,7 +26,7 @@ ecosystem coverage in `cmake_vs_normal.md`, chronological history
   no `src/` or `test/` file imports it.
 
 Verification baseline:
-- 1010 unit tests pass
+- ~994 unit tests pass
 - 50/50 `make runcmake-yelu`
 - 12/12 `make cmake-only-check`
 - 12 step tests pass

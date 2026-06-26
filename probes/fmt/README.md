@@ -7,7 +7,10 @@
 > function definitions, 12 user-facing options. Good first probe — broad
 > coverage in a compact surface.
 
-## Status (2026-06-08)
+## Status (2026-06-21)
+
+> The corpus was converted to the labeled-only surface (Step 2) and is guarded
+> by the build-time `compile-corpus` gate; the table below still holds.
 
 | oracle | result |
 |---|---|
@@ -26,7 +29,7 @@ oracle confirms identical `CMakeCache.txt` across all 24 option flips.
 ```
 probes/fmt/
 ├── main.json              ← 4 lines: project, source_dir, out_root
-├── main.yc                    ← CMakeLists.txt (~450 lines .yc)
+├── main.yc                    ← CMakeLists.txt (297 lines .yc)
 ├── test/
 │   ├── CMakeLists.yc          ← test/CMakeLists.txt
 │   ├── fuzzing/CMakeLists.yc

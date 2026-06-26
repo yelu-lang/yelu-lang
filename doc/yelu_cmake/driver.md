@@ -87,7 +87,7 @@ equal to `lower_cst ∘ parse_cst` by the emit-bridge oracle.
 
 | Op | Function | Strategy | Notes |
 |---|---|---|---|
-| parse ← .yc → IR (legacy/prod) | `parse_yc` | code | `Yelu_parse.parse_program_y1` |
+| parse ← .yc → IR (legacy/prod) | `parse_yc` | code | `Yelu_parse.parse_program_legacy` (alias `parse_program_y1`) |
 | parse ← .yc → cst | `parse_cst` | code | `Yc_cst_parse.parse` |
 | lower cst → IR | `lower_cst` | code | `Yc_cst_lower.lower_program` (emit-bridge ≡ `parse_yc`) |
 | print cst → .yc | `print_cst` | code | `Yc_cst_print.print_program` |

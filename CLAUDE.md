@@ -11,7 +11,7 @@ All commands run from the yelu repo root (`dune-project` lives here).
 dune build                                      # everything
 dune build src/langs/ src/bin/yelu/             # yelu layer + main binary
 dune build src/langs/ src/bin/cmake_only/       # cmake-only generators
-dune test                                       # all unit tests (~975) + corpus gate
+dune test                                       # all unit tests (~994) + corpus gate
 ```
 
 `dune test` includes the **corpus compile gate** (`probes/fmt/dune` →
@@ -156,7 +156,7 @@ All 14 `Make_*_check` modules expose `let stage = Stage_typecheck`, enforced by 
 | `test/test_deref_probes.py`                | 23    | cmake **ground-truth** deref probes (`foo`/`${foo}`/`"${foo}"`, nesting, parse-error negatives) — pinned against real cmake, run via `python3` |
 | `test/test-tmgrammar/` (dune `(diff)`)     | 1     | **freshness lock**: committed `yc.tmLanguage.json` must byte-match `yelu tmgrammar`; drift fails `dune test`, fix is `dune promote` |
 
-Total unit: ~975 (dune test). Total cmake-backed: 40. (The table lists the
+Total unit: ~994 (dune test). Total cmake-backed: 40. (The table lists the
 load-bearing suites; the full `dune test` count includes the smaller
 per-theory and remaining-command suites not enumerated above.)
 

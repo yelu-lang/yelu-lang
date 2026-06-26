@@ -112,7 +112,7 @@ IR — is the replacement; tracked in
 
 | Suite                              | Count    | What it verifies                                              |
 | ---------------------------------- | -------: | ------------------------------------------------------------- |
-| Unit tests (`dune test`)           | ~991     | Pretty-printer, compile, parse, eval, lift/lower, steps, surface (lexer / parser / CST / emit-bridge oracle / co-truth locks / grammar freshness), per-theory check/compile suites. |
+| Unit tests (`dune test`)           | ~994     | Pretty-printer, compile, parse, eval, lift/lower, steps, surface (lexer / parser / CST / emit-bridge oracle / co-truth locks / grammar freshness), per-theory check/compile suites. |
 | **Corpus compile gate** (in `dune test`) | every `.yc` under `probes/fmt` | `yelu compile-corpus probes/fmt` — parse + wellform + emit each file; fails the build on a positional cmake-keyword form, enum-shadow, parse error, or emit crash. Closes the blind spot where `compile main.yc` was byte-identical but discovered helpers (`probes/fmt/test/*/CMakeLists.yc`) had regressed. |
 | `make runcmake-yelu`               | 50 / 50  | yelu-generated scripts vs cmake reference output.             |
 | `make cmake-only-check`            | 12 / 12  | Structural equivalence for `Tests/CMakeOnly/`.                |
