@@ -951,7 +951,7 @@ let p_target_command_y1_inner name args kwargs =
                   "BYPRODUCTS"; "WORKING_DIRECTORY"; "VERBATIM"; "USES_TERMINAL";
                   "COMMAND_EXPAND_LISTS"; "JOB_POOL" ] in
     let is_kw = function
-      | EVar s | EString s -> List.mem ct_kw s ~equal:String.equal
+      | EVar s -> List.mem ct_kw s ~equal:String.equal
       | _ -> false in
     if List.exists rest ~f:is_kw then
       Some (ECmakeRawCmd { name = cmake_name_of_yelu name; args;
@@ -984,7 +984,7 @@ let p_target_command_y1_inner name args kwargs =
                   "APPEND"; "DEPFILE"; "TARGET"; "PRE_BUILD"; "PRE_LINK";
                   "POST_BUILD" ] in
     let is_kw = function
-      | EVar s | EString s -> List.mem cc_kw s ~equal:String.equal
+      | EVar s -> List.mem cc_kw s ~equal:String.equal
       | _ -> false in
     if List.exists args ~f:is_kw then
       Some (ECmakeRawCmd { name = cmake_name_of_yelu name; args;
@@ -1270,7 +1270,7 @@ let p_property_command_y1_inner name args kwargs =
   | "get_property", args
     when (let kw = [ "PROPERTY"; "SET"; "DEFINED"; "BRIEF_DOCS"; "FULL_DOCS" ] in
           List.exists args ~f:(function
-            | EVar s | EString s -> List.mem kw s ~equal:String.equal
+            | EVar s -> List.mem kw s ~equal:String.equal
             | _ -> false)) ->
     (* Labeled-only (Step 2): a positional PROPERTY / mode (SET/DEFINED/…)
        keyword is a fatal reject — use ~property= / ~mode= / ~out=. *)
@@ -1353,7 +1353,7 @@ let p_property_command_y1_inner name args kwargs =
     Some (yc_set_target_properties target record_props)
   | "set_source_files_properties", args
     when List.exists args ~f:(function
-           | EVar s | EString s ->
+           | EVar s ->
              List.mem [ "PROPERTIES"; "DIRECTORY"; "TARGET_DIRECTORY" ] s
                ~equal:String.equal
            | _ -> false) ->
@@ -1379,7 +1379,7 @@ let p_property_command_y1_inner name args kwargs =
   | "set_property", args
     when (let kw = [ "PROPERTY"; "APPEND"; "APPEND_STRING" ] in
           List.exists args ~f:(function
-            | EVar s | EString s -> List.mem kw s ~equal:String.equal
+            | EVar s -> List.mem kw s ~equal:String.equal
             | _ -> false)) ->
     (* Labeled-only (Step 2): the positional PROPERTY / APPEND / APPEND_STRING
        form is a fatal reject — use ~property= / ~append / ~append_string. The
@@ -1552,8 +1552,12 @@ let p_install_command_y1_inner name args kwargs =
                   "FILE_SET"; "CXX_MODULES_BMI"] in
     let opt_kw = ["DESTINATION"; "COMPONENT"; "EXPORT"; "PERMISSIONS";
                   "CONFIGURATIONS"; "NAMELINK_COMPONENT"] in
+    (* Match bare [EVar] only — the positional cmake-keyword form is always a
+       bare ident; a *quoted* string equal to a keyword (EString) is a literal
+       operand and must NOT trigger the reject. All labeled-only reject guards
+       follow this rule (audit 2026-06: fixes the quoted-literal false positive). *)
     let arg_is_kw = function
-      | EVar s | EString s -> List.mem (art_kw @ opt_kw) s ~equal:String.equal
+      | EVar s -> List.mem (art_kw @ opt_kw) s ~equal:String.equal
       | _ -> false in
     if List.exists args ~f:arg_is_kw then
       Some (ECmakeRawCmd { name = cmake_name_of_yelu "install_targets"; args;
@@ -1577,7 +1581,7 @@ let p_install_command_y1_inner name args kwargs =
     let kw = [ "DESTINATION"; "COMPONENT"; "RENAME"; "PERMISSIONS";
                "CONFIGURATIONS"; "OPTIONAL" ] in
     let is_kw = function
-      | EVar s | EString s -> List.mem kw s ~equal:String.equal | _ -> false in
+      | EVar s -> List.mem kw s ~equal:String.equal | _ -> false in
     if List.exists args ~f:is_kw then
       Some (ECmakeRawCmd { name = cmake_name_of_yelu name; args;
                            from_positional = Some "install_files" })
@@ -1600,7 +1604,7 @@ let p_install_command_y1_inner name args kwargs =
                "EXPORT_LINK_INTERFACE_LIBRARIES"; "PERMISSIONS";
                "CONFIGURATIONS" ] in
     let is_kw = function
-      | EVar s | EString s -> List.mem kw s ~equal:String.equal | _ -> false in
+      | EVar s -> List.mem kw s ~equal:String.equal | _ -> false in
     if List.exists args ~f:is_kw then
       Some (ECmakeRawCmd { name = cmake_name_of_yelu name; args;
                            from_positional = Some "install_export" })
@@ -1627,7 +1631,7 @@ let p_install_command_y1_inner name args kwargs =
                "EXCLUDE"; "PERMISSIONS"; "CONFIGURATIONS"; "FILES_MATCHING";
                "DIRECTORY_PERMISSIONS"; "FILE_PERMISSIONS" ] in
     let is_kw = function
-      | EVar s | EString s -> List.mem kw s ~equal:String.equal | _ -> false in
+      | EVar s -> List.mem kw s ~equal:String.equal | _ -> false in
     if List.exists args ~f:is_kw then
       Some (ECmakeRawCmd { name = cmake_name_of_yelu name; args;
                            from_positional = Some "install_directory" })
@@ -1641,7 +1645,7 @@ let p_install_command_y1_inner name args kwargs =
       Some (yc_install_directory ?component ~optional directory destination)
   | "export", args
     when List.exists args ~f:(function
-           | EVar s | EString s ->
+           | EVar s ->
              List.mem [ "TARGETS"; "NAMESPACE"; "FILE" ] s ~equal:String.equal
            | _ -> false) ->
     (* Labeled-only (Step 2): the positional TARGETS/NAMESPACE/FILE form is a
@@ -1666,7 +1670,7 @@ let p_install_command_y1_inner name args kwargs =
         | _ -> None))
   | "configure_package_config_file", args
     when List.exists args ~f:(function
-           | EVar "INSTALL_DESTINATION" | EString "INSTALL_DESTINATION" -> true
+           | EVar "INSTALL_DESTINATION" -> true
            | _ -> false) ->
     (* Labeled-only (Step 2): the positional INSTALL_DESTINATION form is a fatal
        reject — input/output are positional, the path is `~install_destination=`. *)
@@ -1766,7 +1770,7 @@ let p_cmake_op_command_y1_inner name args kwargs =
   match name, args with
   | "cmake_minimum_required", args
     when List.exists args ~f:(function
-           | EVar "VERSION" | EString "VERSION" -> true | _ -> false) ->
+           | EVar "VERSION" -> true | _ -> false) ->
     (* Labeled-only (Step 2): the VERSION keyword carries no information (the
        version is the sole argument), so the surface is bare — the positional
        VERSION form is a fatal reject. *)
@@ -1837,7 +1841,7 @@ let p_cmake_op_command_y1_inner name args kwargs =
     Some (yc_policy_set ~new_:true (str_of id))
   | "enable_language", args
     when List.exists args ~f:(function
-           | EVar "OPTIONAL" | EString "OPTIONAL" -> true | _ -> false) ->
+           | EVar "OPTIONAL" -> true | _ -> false) ->
     (* Labeled-only (Step 2): positional OPTIONAL → fatal reject; use ~optional. *)
     Some (ECmakeRawCmd { name = cmake_name_of_yelu name; args;
                          from_positional = Some "enable_language" })
@@ -1857,7 +1861,7 @@ let p_cmake_op_command_y1_inner name args kwargs =
                      "ERROR_STRIP_TRAILING_WHITESPACE"; "COMMAND_ERROR_IS_FATAL";
                      "COMMAND_ECHO" ] in
           List.exists args ~f:(function
-            | EVar s | EString s -> List.mem kw s ~equal:String.equal
+            | EVar s -> List.mem kw s ~equal:String.equal
             | _ -> false)) ->
     (* Labeled-only (Step 2): a positional cmake keyword (COMMAND / *_VARIABLE /
        OUTPUT_QUIET / …) is a fatal reject — use the ~command / ~commands /

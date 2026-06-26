@@ -113,6 +113,13 @@ let () =
           (* a quoted text that reads like a mode is fine (EString, not bare) *)
           pcase "message quoted mode-like text ok"
             "message 'STATUS report'" ~expect:false;
+          (* a *quoted* string equal to a cmake keyword is a literal, not the
+             positional keyword — the guards match bare EVar only, so no
+             false-positive reject (the keyword form is always bare). *)
+          pcase "install_files quoted-keyword literal not rejected"
+            "install_files 'lib' 'DESTINATION'" ~expect:false;
+          pcase "set_property quoted-keyword literal not rejected"
+            "set_property foo ~property=[X, 'APPEND']" ~expect:false;
           (* a genuinely unknown/external command stays a plain raw — no reject
              (Positional_form is for the *labeled-only* family; unknown commands
              are flagged separately by Unknown_command below) *)
