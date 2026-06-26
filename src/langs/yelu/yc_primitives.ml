@@ -47,7 +47,8 @@ let command_names : Set.M(String).t =
     "file_read_symlink"; "configure_file";
     (* target *)
     "add_exe"; "add_lib"; "add_lib_imported"; "add_lib_alias";
-    "add_exe_alias"; "add_custom_target"; "add_dependencies";
+    "add_exe_alias"; "add_custom_target"; "add_custom_command";
+    "add_dependencies";
     "link_lib"; "include_dirs"; "compile_defs"; "compile_opts";
     "compile_feats"; "link_opts"; "link_dirs"; "target_sources";
     "target_link_libraries"; "target_include_directories";
