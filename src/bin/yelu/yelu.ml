@@ -200,7 +200,14 @@ let compile_yc ?(wellform = true) ?(warn = fun _ -> ()) file =
             warn (Yelu_langs.Yc_wellform.format_raw_escape ~index:(i + List.length others) file text reason)
           | _ -> ())
     end;
-    Yelu_langs.Yelu_cmake_emit.emit_script expr
+    (* Emit can raise (e.g. an Eval_error or an unhandled IR shape). Report it
+       cleanly + exit 1, matching the corpus gate — the single-file CLI must not
+       dump an OCaml backtrace (audit 2026-06). *)
+    (try Yelu_langs.Yelu_cmake_emit.emit_script expr
+     with e ->
+       Stdlib.Printf.eprintf "yelu compile: %s: emit failed: %s\n"
+         file (Exn.to_string e);
+       Stdlib.exit 1)
 
 let compile ?(warn = fun _ -> ()) file =
   if String.is_suffix file ~suffix:".ml" then compile_ml file
