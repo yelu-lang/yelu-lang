@@ -635,11 +635,28 @@ matrix 24/24):
 - `add_custom_command` registered in `command_names` — closes the apply-shadow
   gap; grammar re-promoted (`d60190f`)
 
-**Open (need a decision or the deref):** (1) target-name deref — fix property/
-install target slots to literal **+ a matrix supplement** (file-api/target-
-property check), since the matrix can't see this class; (2) silent `~label=`
-drop on target commands (`link_lib ~public=` → empty) — needs an
-unknown-kwarg-for-command check; (3) find / dir-global-test-property / add_test
-/ `find_package COMPONENTS` silently mis-emit positional keywords — reject-or-
-label per family; (4) `Function_def_typo` open-world gate + `check_reserved_names`
-declaration coverage. Full detail in the report doc.
+**(1) target-name deref — FIXED at the root (`a57bcf4`), honest emit.** The fix
+wasn't the shallow per-command coercion patch; the discussion (with the user)
+traced it to a deeper inconsistency: the emitter rendered an unresolved bare
+`EVar name` as `${name}`, injecting a read that yc's own spec
+([`../cmake/var_reference_semantics.md`](../cmake/var_reference_semantics.md))
+forbids — *bare `foo` is the literal "foo"; you must write `$foo` to read.*
+Made unresolved `EVar` a literal in `arg` + `target_arg` (the other two
+renderers already were). All four now agree; only `EVarLookup` derefs. This
+**eliminates the slot-dependent deref** — property/install/test target slots are
+correct with no per-command coercion (the `target_first_arg_commands` list is now
+wellform-only). Corpus emit diff: 7 changes, all fixes (target names,
+cmake_parse_arguments prefix, output-vars, keyword args, metaprogramming
+keywords), **zero regressions** — the corpus already wrote every real read as
+`$foo`. Byte oracle intact (193/193, covered=194), matrix 24/24 (now emitting
+*correct* literal target names), gate 11/11. A **matrix supplement** (file-api /
+target-property diff) is still worth adding — not to catch this bug (gone) but
+because the matrix's CMakeCache-only diff is structurally blind to the
+target-property/install class.
+
+**Still open:** (2) silent `~label=` drop on target commands (`link_lib
+~public=` → empty) — needs an unknown-kwarg-for-command check; (3) find /
+dir-global-test-property / add_test / `find_package COMPONENTS` silently mis-emit
+positional keywords — reject-or-label per family; (4) `Function_def_typo`
+open-world gate + `check_reserved_names` declaration coverage. Full detail in the
+report doc.
