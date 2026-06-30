@@ -425,7 +425,16 @@ let test_set_target_properties =
     Alcotest.(check string) "record form stable"
       (rec_ ^ "\n") (fmt rec_);
     Alcotest.(check string) "record emit-invariant"
-      (emit_ast rec_) (emit_ast (fmt rec_)))
+      (emit_ast rec_) (emit_ast (fmt rec_));
+    (* Honest emit (2026-06): a *bare* target name is a literal, NOT a deref.
+       `fmt` → `fmt` (the target), not `${fmt}` (a variable read). A real
+       variable holding a name is written `$t` → `${t}`. *)
+    Alcotest.(check string) "bare target name emits literal (not ${})"
+      "set_target_properties(fmt PROPERTIES VERSION 1)"
+      (emit_ast "set_target_properties fmt ~properties={version='1'}");
+    Alcotest.(check string) "$-var target name still derefs"
+      "set_target_properties(${t} PROPERTIES VERSION 1)"
+      (emit_ast "set_target_properties $t ~properties={version='1'}"))
 
 (* add_custom_command / add_custom_target — labeled-only (Step 2). OUTPUT/
    DEPENDS/SOURCES → ~output/~depends/~sources value-lists; COMMAND →

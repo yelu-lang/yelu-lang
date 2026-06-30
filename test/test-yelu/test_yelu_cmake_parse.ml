@@ -467,7 +467,7 @@ let tier6_find_install_y1 = ("t6-find-install-y1", [
   assert_parse_y1_emits "y1: install_files"   "( install_files \"include\" )"
     "install(FILES  DESTINATION include)";
   assert_parse_y1_emits "y1: install_export"  "( install_export EXP \"lib/cmake\" )"
-    "install(EXPORT ${EXP}  DESTINATION lib/cmake )";
+    "install(EXPORT EXP  DESTINATION lib/cmake )";
 ])
 
 let tier8_misc_y1 = ("t8-misc-y1", [
@@ -646,7 +646,7 @@ let tier5_path_y1 = ("t5-path-y1", [
   assert_parse_y1_emits "y1: append"                  "( path_append PV \"sub\" )"
     "cmake_path(APPEND PV sub)";
   assert_parse_y1_emits "y1: compare"                 "( path_compare P1 P2 ~out:OUT )"
-    "cmake_path(COMPARE ${P1} EQUAL ${P2} OUT)";
+    "cmake_path(COMPARE P1 EQUAL P2 OUT)";
   assert_parse_y1_emits "y1: hash"                    "( path_hash PV ~out:OUT )"
     "cmake_path(HASH PV OUT)";
   assert_parse_y1_emits "y1: get_filename_component"  "( get_filename_component \"file.txt\" ~out:OUT )"

@@ -77,7 +77,10 @@ let rec arg ?(env = empty_subst) (e : expr) : C.arg =
   | EVar name ->
     (match Map.find env name with
      | Some replacement -> arg ~env replacement
-     | None -> C.Bare ("${" ^ name ^ "}"))
+     (* Honest emit: an *unresolved* bare ident is a LITERAL (cmake's model —
+        bare `foo` = "foo"; you must write `$foo` to read). No emit-time deref;
+        a runtime read is EVarLookup. See var_reference_semantics.md. *)
+     | None -> C.Bare name)
   | EVarLookup inner -> C.Bare ("${" ^ lookup_text ~env inner ^ "}")
   | ECmakeGenex s ->
     (* Render genex source verbatim, Quoted. Matches legacy compile's
@@ -109,7 +112,8 @@ let rec target_arg ?(env = empty_subst) (e : expr) : string =
   | EVar name ->
     (match Map.find env name with
      | Some replacement -> target_arg ~env replacement
-     | None -> "${" ^ name ^ "}")
+     (* Honest emit: an unresolved bare ident is a literal name, not a deref. *)
+     | None -> name)
   | EVarLookup inner -> "${" ^ lookup_text ~env inner ^ "}"
   | EString s -> s
   | ETarget name -> name
