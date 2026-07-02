@@ -344,14 +344,55 @@ the labeled-only baseline:
   full retirement. Plan in
   [`doc/lang/surface_status.md`](doc/lang/surface_status.md) "Tier (b)".
 
-**Next:** B2 (token spans on wellform findings — LSP currently scans
-whole-word from source as a heuristic), or the 2nd probe project per
-[`probes/candidates.md`](probes/candidates.md). Open surface/code items
-(version literal, per-mode `message_*`, the `Apply_shadows_primitive`
-check holes, orphaned `Yelu_emit_main`, latent `set_target_properties`
-target-deref) still parked in
+**Handoff (2026-06-26) — syntax audit + fixes (continuing on macOS).**
+Two-pass audit of the whole 2026-06 syntax arc (internal 3-agent + an
+independent external re-audit); both artifacts + the reconciliation are in
+[`doc/worklog/`](doc/worklog/) (`syntax_audit_request_2026-06.md`,
+`syntax_audit_report_2026-06.md`, and the 2026-06-25 worklog entry). Landed
+**five fixes**, all green (dune test, corpus gate 11/11, matrix 24/24, byte
+oracle 193/193):
+- `7598394` doc drift → test count 994 everywhere + README/driver refs
+- `63b3728` reject guards match bare `EVar` only (quoted-keyword literals no
+  longer false-positive)
+- `0bb63c4` `yelu compile` reports emit failures cleanly (no backtrace)
+- `d60190f` `add_custom_command` registered in `command_names`
+- `a57bcf4` **honest emit** — unresolved bare `EVar` is a *literal*, not a `${}`
+  deref (root-cause fix for the target-name-deref bug; also killed the
+  slot-dependent deref — the `target_first_arg_commands` coercion is now
+  wellform-only). Zero corpus regressions; the model now matches
+  [`doc/cmake/var_reference_semantics.md`](doc/cmake/var_reference_semantics.md)
+  (bare = literal, `$foo` = read).
+
+**Next (open audit findings, pick one):** (2) **silent `~label=` drop** on
+target commands (`link_lib ~public=` → empty) — add an unknown-kwarg-for-command
+wellform check; (3) **find / dir-global-test-property / add_test /
+`find_package COMPONENTS`** silently mis-emit positional keywords — reject-or-
+label per family (same fork as the deferred-commands work); (4)
+`Function_def_typo` open-world gate + `check_reserved_names` declaration
+coverage. Plus a **matrix supplement** (file-api / target-property diff) —
+the CMakeCache-only diff is structurally blind to the target-property/install
+class (the honest-emit bug was invisible to it). Also parked: B2 (token spans
+on wellform findings), the 2nd probe project
+([`probes/candidates.md`](probes/candidates.md)), and the surface polish
+(version literal, per-mode `message_*`) in
 [`doc/lang/yc_syntax_critique.md`](doc/lang/yc_syntax_critique.md) § Open /
 remaining.
+
+**Continuing on macOS (env notes).** The core loop is portable: `opam install
+. --deps-only`, then `dune build` / `dune test` / `dune exec
+src/bin/yelu/yelu.exe -- compile-corpus probes/fmt` all work with just the
+OCaml toolchain — **no cmake needed** for the unit suite + corpus gate. Watch:
+- **`vendor/cmake` is a Linux-path symlink** (`/home/red/code/contrib/cmake-all/…`)
+  and won't resolve on macOS. Only the cmake-backed suites need it — `matrix`,
+  `hybrid`, `make runcmake-*`, `make cmake-check*`. For those: `brew install
+  cmake` (needs 4.3.x; some tests are version-pinned — see Gotchas) and repoint
+  `vendor/cmake` + set up `vendor/fmt` / `vendor/cmake-tutorial`. Skip them and
+  the audit-fix work (all parser/wellform/emit) is fully exercised by `dune
+  test` + `compile-corpus` alone.
+- `dune test --force` can hit a transient symlink `EEXIST` sandbox race
+  (harmless — re-run); may behave differently on macOS's filesystem.
+- `make cmake-check*` needs `gersemi` (`pipx install gersemi`).
+- The `find _build -name yelu.exe` idiom used in probes is cross-platform.
 
 ### 14 theories status
 
