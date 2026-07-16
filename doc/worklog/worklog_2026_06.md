@@ -677,8 +677,13 @@ vendor parity, emit-diff verified); the specialized property getters/setters
 reject their PROPERTY/PROPERTIES forms (their raw fallback leaked *yc* command
 names — `set_global_property(` isn't cmake).
 
-**Still open:** (4) `Function_def_typo` open-world gate +
-`check_reserved_names` declaration coverage; the **matrix supplement**
-(file-api / target-property / test diff — the add_test `-C` drop is the third
-confirmed instance of the CMakeCache blind spot, after target properties and
-install clauses). Full detail in the report doc.
+**(4) typo gate + reserved declarations — FIXED (2026-07-16, `c28860e`).**
+`Function_def_typo` is world-aware (closed → fatal, open → warning, mirroring
+Unknown_command; new CST-side opener scan); `check_reserved_names` covers
+declaration sites (ESetVar/SetCache/Option/ParentScope/ELet) at warning
+severity. **All four audit findings are now closed.**
+
+**Still open:** the **matrix supplement** (file-api / target-property / test
+diff — the add_test `-C` drop was the third confirmed instance of the
+CMakeCache blind spot, after target properties and install clauses). Full
+detail in the report doc.

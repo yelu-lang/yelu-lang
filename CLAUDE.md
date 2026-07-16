@@ -379,8 +379,12 @@ gained ~name/~command and the corpus migration restored the silently-dropped
 leak yc names into raw emit). find_package bare *version* positional is still
 accepted-and-dropped (needs the version-literal work).
 
-**Next (open audit findings):** (4) `Function_def_typo` open-world gate +
-`check_reserved_names` declaration coverage. Plus a **matrix supplement**
+**Update (2026-07-16 c):** audit finding **(4) is fixed** (`c28860e`) —
+`Function_def_typo` is world-aware (closed → fatal, open → warning) and
+`check_reserved_names` covers declaration sites. **All four audit findings
+closed.**
+
+**Next:** the **matrix supplement**
 (file-api / target-property / test diff — the add_test `-C` drop was the third
 confirmed CMakeCache blind-spot instance) —
 the CMakeCache-only diff is structurally blind to the target-property/install
