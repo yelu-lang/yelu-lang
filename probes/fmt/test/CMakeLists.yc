@@ -25,7 +25,7 @@ fun add_fmt_test(name) (
   if $FMT_WERROR then (
     compile_opts $name Private $WERROR_FLAG
   );
-  add_test NAME $name COMMAND $name
+  add_test ~name=$name ~command=[$name]
 );
 add_subdirectory 'gtest';
 TEST_MAIN_SRC := 'test-main.cc', 'gtest-extra.cc', 'gtest-extra.h', 'util.cc';
@@ -84,12 +84,12 @@ if $FMT_PEDANTIC then (
   compile_defs nolocale-test Private 'FMT_STATIC_THOUSANDS_SEPARATOR=1'
 );
 if $FMT_PEDANTIC and not $WIN32 and not ( match $CMAKE_CXX_COMPILER_ID 'GNU' and ver_lt $CMAKE_CXX_COMPILER_VERSION '4.9' ) then (
-  add_test NAME 'compile-error-test' COMMAND $CMAKE_CTEST_COMMAND '--build-and-test' '${CMAKE_CURRENT_SOURCE_DIR}/compile-error-test' '${CMAKE_CURRENT_BINARY_DIR}/compile-error-test' '--build-generator' '${CMAKE_GENERATOR}' '--build-makeprogram' '${CMAKE_MAKE_PROGRAM}' '--build-options' '-DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}' '-DCMAKE_CXX_FLAGS=${CMAKE_CXX_FLAGS}' '-DCMAKE_CXX_STANDARD=${CMAKE_CXX_STANDARD}' '-DCXX_STANDARD_FLAG=${CXX_STANDARD_FLAG}' '-DFMT_DIR=${CMAKE_SOURCE_DIR}';
-  add_test NAME 'find-package-test' '-C' '${CMAKE_BUILD_TYPE}' COMMAND $CMAKE_CTEST_COMMAND '--build-and-test' '${CMAKE_CURRENT_SOURCE_DIR}/find-package-test' '${CMAKE_CURRENT_BINARY_DIR}/find-package-test' '--build-generator' '${CMAKE_GENERATOR}' '--build-makeprogram' '${CMAKE_MAKE_PROGRAM}' '--build-options' '-DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}' '-DCMAKE_CXX_FLAGS=${CMAKE_CXX_FLAGS}' '-DCMAKE_CXX_STANDARD=${CMAKE_CXX_STANDARD}' '-DFMT_DIR=${PROJECT_BINARY_DIR}' '-DPEDANTIC_COMPILE_FLAGS=${PEDANTIC_COMPILE_FLAGS}' '-DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}';
-  add_test NAME 'add-subdirectory-test' '-C' '${CMAKE_BUILD_TYPE}' COMMAND $CMAKE_CTEST_COMMAND '--build-and-test' '${CMAKE_CURRENT_SOURCE_DIR}/add-subdirectory-test' '${CMAKE_CURRENT_BINARY_DIR}/add-subdirectory-test' '--build-generator' '${CMAKE_GENERATOR}' '--build-makeprogram' '${CMAKE_MAKE_PROGRAM}' '--build-options' '-DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}' '-DCMAKE_CXX_STANDARD=${CMAKE_CXX_STANDARD}' '-DPEDANTIC_COMPILE_FLAGS=${PEDANTIC_COMPILE_FLAGS}' '-DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}'
+  add_test ~name='compile-error-test' ~command=[$CMAKE_CTEST_COMMAND, '--build-and-test', '${CMAKE_CURRENT_SOURCE_DIR}/compile-error-test', '${CMAKE_CURRENT_BINARY_DIR}/compile-error-test', '--build-generator', '${CMAKE_GENERATOR}', '--build-makeprogram', '${CMAKE_MAKE_PROGRAM}', '--build-options', '-DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}', '-DCMAKE_CXX_FLAGS=${CMAKE_CXX_FLAGS}', '-DCMAKE_CXX_STANDARD=${CMAKE_CXX_STANDARD}', '-DCXX_STANDARD_FLAG=${CXX_STANDARD_FLAG}', '-DFMT_DIR=${CMAKE_SOURCE_DIR}'];
+  add_test ~name='find-package-test' ~command=[$CMAKE_CTEST_COMMAND, '-C', '${CMAKE_BUILD_TYPE}', '--build-and-test', '${CMAKE_CURRENT_SOURCE_DIR}/find-package-test', '${CMAKE_CURRENT_BINARY_DIR}/find-package-test', '--build-generator', '${CMAKE_GENERATOR}', '--build-makeprogram', '${CMAKE_MAKE_PROGRAM}', '--build-options', '-DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}', '-DCMAKE_CXX_FLAGS=${CMAKE_CXX_FLAGS}', '-DCMAKE_CXX_STANDARD=${CMAKE_CXX_STANDARD}', '-DFMT_DIR=${PROJECT_BINARY_DIR}', '-DPEDANTIC_COMPILE_FLAGS=${PEDANTIC_COMPILE_FLAGS}', '-DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}'];
+  add_test ~name='add-subdirectory-test' ~command=[$CMAKE_CTEST_COMMAND, '-C', '${CMAKE_BUILD_TYPE}', '--build-and-test', '${CMAKE_CURRENT_SOURCE_DIR}/add-subdirectory-test', '${CMAKE_CURRENT_BINARY_DIR}/add-subdirectory-test', '--build-generator', '${CMAKE_GENERATOR}', '--build-makeprogram', '${CMAKE_MAKE_PROGRAM}', '--build-options', '-DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}', '-DCMAKE_CXX_STANDARD=${CMAKE_CXX_STANDARD}', '-DPEDANTIC_COMPILE_FLAGS=${PEDANTIC_COMPILE_FLAGS}', '-DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}']
 );
 if $FMT_PEDANTIC and not $WIN32 then (
-  add_test NAME 'static-export-test' '-C' '${CMAKE_BUILD_TYPE}' COMMAND $CMAKE_CTEST_COMMAND '--build-and-test' '${CMAKE_CURRENT_SOURCE_DIR}/static-export-test' '${CMAKE_CURRENT_BINARY_DIR}/static-export-test' '--build-generator' '${CMAKE_GENERATOR}' '--build-makeprogram' '${CMAKE_MAKE_PROGRAM}' '--build-options' '-DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}' '-DCMAKE_CXX_STANDARD=${CMAKE_CXX_STANDARD}' '-DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}'
+  add_test ~name='static-export-test' ~command=[$CMAKE_CTEST_COMMAND, '-C', '${CMAKE_BUILD_TYPE}', '--build-and-test', '${CMAKE_CURRENT_SOURCE_DIR}/static-export-test', '${CMAKE_CURRENT_BINARY_DIR}/static-export-test', '--build-generator', '${CMAKE_GENERATOR}', '--build-makeprogram', '${CMAKE_MAKE_PROGRAM}', '--build-options', '-DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}', '-DCMAKE_CXX_STANDARD=${CMAKE_CXX_STANDARD}', '-DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}']
 );
 if $FMT_CUDA_TEST then (
   if ver_lt $CMAKE_VERSION '3.15' then (
@@ -104,10 +104,10 @@ if $FMT_CUDA_TEST then (
   );
   if $CUDA_FOUND then (
     add_subdirectory 'cuda-test';
-    add_test NAME 'cuda-test' COMMAND 'fmt-in-cuda-test'
+    add_test ~name='cuda-test' ~command=['fmt-in-cuda-test']
   )
 );
 enable_language C;
 add_exe c-test 'c-test.c';
 link_lib c-test Private 'fmt::fmt-c';
-add_test NAME 'c-test' COMMAND 'c-test'
+add_test ~name='c-test' ~command=['c-test']

@@ -183,15 +183,12 @@ let test_flags =
     Alcotest.(check string) "install_directory ~optional emit-invariant"
       (emit_ast "install_directory 'd' ~destination='x' ~optional")
       (emit_ast (fmt "install_directory 'd' ~destination='x' ~optional"));
-    (* find_package is not Step-2-rejected: positional REQUIRED is still good
-       code and fmt is pass-through (no ~required codemod). The ~required kwarg
-       is also accepted by the parser; both emit the same cmake. *)
-    Alcotest.(check string) "find_package REQUIRED pass-through"
-      "find_package Foo REQUIRED\n" (fmt "find_package Foo REQUIRED");
+    (* find_package — labeled-only (audit #3 rollout): positional REQUIRED is
+       rejected (see test_yc_wellform); ~required is the surface. *)
     Alcotest.(check string) "find_package ~required stable"
       "find_package Foo ~required\n" (fmt "find_package Foo ~required");
-    Alcotest.(check string) "REQUIRED / ~required emit identically"
-      (emit_ast "find_package Foo REQUIRED")
+    Alcotest.(check string) "find_package ~required emits REQUIRED"
+      "find_package(Foo REQUIRED)"
       (emit_ast "find_package Foo ~required");
     (* set_property — labeled-only (Step 2): APPEND/APPEND_STRING → ~append/
        ~append_string flags; PROPERTY name vals → ~property=[name, vals…] value

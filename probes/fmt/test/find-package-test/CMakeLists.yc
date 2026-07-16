@@ -1,6 +1,6 @@
 cmake_minimum_required '3.8...3.25';
 project 'fmt-test';
-find_package 'FMT' REQUIRED;
+find_package 'FMT' ~required;
 add_exe library-test 'main.cc';
 link_lib library-test Public 'fmt::fmt';
 compile_opts library-test Private $PEDANTIC_COMPILE_FLAGS;

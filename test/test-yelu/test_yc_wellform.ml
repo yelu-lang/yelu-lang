@@ -106,6 +106,27 @@ let () =
             "configure_package_config_file 'in' 'out' INSTALL_DESTINATION 'd'" ~expect:true;
           pcase "configure_package_config_file labeled ok"
             "configure_package_config_file 'in' 'out' ~install_destination='d'" ~expect:false;
+          (* audit #3 rollout: find / test / property-stub families *)
+          pcase "find_library positional NAMES → reject"
+            "find_library mylib NAMES foo bar" ~expect:true;
+          pcase "find_library labeled ok"
+            "find_library mylib ~names=[foo, bar]" ~expect:false;
+          pcase "find_package positional REQUIRED → reject"
+            "find_package Foo REQUIRED" ~expect:true;
+          pcase "find_package positional COMPONENTS → reject (was silent drop)"
+            "find_package Foo COMPONENTS a b" ~expect:true;
+          pcase "find_package ~required ok"
+            "find_package Foo ~required" ~expect:false;
+          pcase "add_test positional NAME/COMMAND → reject"
+            "add_test NAME t COMMAND runner 'a'" ~expect:true;
+          pcase "add_test labeled ok"
+            "add_test ~name='t' ~command=[runner, 'a']" ~expect:false;
+          pcase "add_test bare shorthand ok"
+            "add_test 't' 'runner' 'a'" ~expect:false;
+          pcase "set_global_property positional PROPERTY → reject (yc-name leak)"
+            "set_global_property PROPERTY FOO bar" ~expect:true;
+          pcase "set_test_properties positional PROPERTIES → reject"
+            "set_test_properties mytest PROPERTIES FOO bar" ~expect:true;
           pcase "message positional mode → reject"
             "message FATAL_ERROR 'boom'" ~expect:true;
           pcase "message ~mode labeled ok"

@@ -155,6 +155,8 @@ let command_kwargs : Set.M(String).t Map.M(String).t =
     "get_filename_component", ["mode"];
     (* list *)
     "list_transform", ["prepend"];
+    (* test *)
+    "add_test", ["name"; "command"];
     (* find *)
     "find_package", ["required"];
     "find_library", ["name"; "names"; "path"; "paths"];

@@ -1065,33 +1065,39 @@ let p_dir_command_y1 toks =
    Test family — enable_testing, add_test.
    ============================================================ *)
 
-let p_test_command_y1_inner name args _kwargs =
-  let is_name_kw = function
-    | EVar "NAME" | EString "NAME" -> true
-    | _ -> false
-  in
+let p_test_command_y1_inner name args kwargs =
   match name, args with
   | "enable_testing", [] -> Some yc_enable_testing
-  | "add_test", e :: _ when is_name_kw e ->
-    (* Keyword form: add_test NAME <name> COMMAND <command> [args...].
-       CONFIGURATIONS / WORKING_DIRECTORY are accepted but not yet
-       plumbed to the typed IR; split_by_keywords isolates them so
-       the NAME/COMMAND sections parse correctly. *)
-    let sections = split_by_keywords
-        ~keywords:["NAME"; "COMMAND"; "CONFIGURATIONS"; "WORKING_DIRECTORY"]
-        args in
-    let name = match List.Assoc.find sections ~equal:String.equal "NAME" with
-      | Some (n :: _) -> n | _ -> EString "?"
-    in
-    let command, call_args =
-      match List.Assoc.find sections ~equal:String.equal "COMMAND" with
-      | Some (cmd :: rest) -> (cmd, rest)
-      | _ -> (EString "?", [])
-    in
-    Some (yc_add_test name command call_args)
-  | "add_test", name_arg :: command :: rest ->
-    (* Positional form: add_test <name> <command> [args...] *)
-    Some (yc_add_test name_arg command rest)
+  | "add_test", args
+    when List.exists args ~f:(function
+           | EVar ("NAME" | "COMMAND" | "CONFIGURATIONS" | "WORKING_DIRECTORY"
+                  | "COMMAND_EXPAND_LISTS") -> true
+           | _ -> false) ->
+    (* Labeled-only (Step 2 rollout, audit #3): the positional NAME/COMMAND
+       form is a fatal reject — use ~name= + ~command=[cmd, args…]. The old
+       section split silently DROPPED extra NAME-section positionals (the
+       corpus lost `-C ${CMAKE_BUILD_TYPE}` this way, matrix-blind since
+       tests aren't cache variables). *)
+    Some (ECmakeRawCmd { name = cmake_name_of_yelu name; args;
+                         from_positional = Some "add_test" })
+  | "add_test", args ->
+    (* Labeled: `~name=X ~command=[cmd, args…]` (command list flattens to
+       repeated kwargs, same convention as execute_process). The bare
+       `add_test <name> <command> [args…]` shorthand (no cmake keyword)
+       stays. *)
+    let kwarg_all key =
+      List.filter_map kwargs ~f:(fun (k, v) ->
+        Option.some_if (String.equal k key) v) in
+    (match List.Assoc.find kwargs ~equal:String.equal "name" with
+     | Some name_e ->
+       (match kwarg_all "command" with
+        | cmd :: rest -> Some (yc_add_test name_e cmd rest)
+        | [] -> Some (yc_add_test name_e (EString "?") []))
+     | None ->
+       (match args with
+        | name_arg :: command :: rest ->
+          Some (yc_add_test name_arg command rest)
+        | _ -> None))
   | _ -> None
 
 let p_test_command_y1 toks =
@@ -1439,6 +1445,22 @@ let p_property_command_y1_inner name args kwargs =
      | Some scope ->
        Some (Yelu_cmake_property.ECmakeSetProperty
                { scope; append; append_string; properties }))
+  | ( "get_directory_property" | "set_directory_property"
+    | "set_test_properties" | "set_source_property"
+    | "set_global_property" | "get_global_property" ), args
+    when List.exists args ~f:(function
+           | EVar ("PROPERTY" | "PROPERTIES" | "DIRECTORY" | "TARGET_DIRECTORY") ->
+             true
+           | _ -> false) ->
+    (* Labeled-only (Step 2 rollout, audit #3): these specialized getters/
+       setters are stubs — their positional PROPERTY/PROPERTIES form fell to a
+       raw that leaked the *yc* command name into the emit (e.g.
+       `set_global_property(PROPERTY …)`, not a cmake command). Fatal reject;
+       the typed surface for this functionality is the unified
+       `set_property`/`get_property` entity forms (`set_property Global
+       ~property=[…]`). *)
+    Some (ECmakeRawCmd { name = cmake_name_of_yelu name; args;
+                         from_positional = Some name })
   | "get_directory_property", [] ->
     Some (yc_get_directory_property "PROP" out)
   | "set_directory_property", [] ->
@@ -1490,14 +1512,39 @@ let p_find_command_y1_inner name args kwargs =
     | _ -> ""
   in
   match name, args with
-  | "find_package", pkg :: rest ->
-    (* Accept positional `REQUIRED` and the canonical `~required` flag (a
-       boolean kwarg, so absent from [rest]). *)
-    let required =
-      List.exists rest ~f:(function
-        | EVar "REQUIRED" | EString "REQUIRED" -> true | _ -> false)
-      || List.Assoc.mem kwargs ~equal:String.equal "required" in
+  | "find_package", args
+    when List.exists args ~f:(function
+           | EVar s ->
+             List.mem
+               [ "REQUIRED"; "COMPONENTS"; "OPTIONAL_COMPONENTS"; "QUIET";
+                 "EXACT"; "MODULE"; "CONFIG"; "NO_MODULE"; "GLOBAL";
+                 "NO_POLICY_SCOPE"; "BYPASS_PROVIDER" ]
+               s ~equal:String.equal
+           | _ -> false) ->
+    (* Labeled-only (Step 2 rollout, audit #3): a positional cmake keyword is a
+       fatal reject. REQUIRED has the ~required label; COMPONENTS et al. were
+       previously *silently dropped* (`find_package Foo COMPONENTS a b` emitted
+       `find_package(Foo)`) — reject is strictly better than data loss; a
+       ~components label can come when the IR grows components. *)
+    Some (ECmakeRawCmd { name = cmake_name_of_yelu name; args;
+                         from_positional = Some "find_package" })
+  | "find_package", pkg :: _rest ->
+    (* NOTE: a bare version positional (`find_package CUDA '9.0'`) is accepted
+       and currently dropped — the IR has no version field yet (ties to the
+       version-literal TODO in yc_syntax_critique.md). *)
+    let required = List.Assoc.mem kwargs ~equal:String.equal "required" in
     Some (yc_find_package ~required (str_name pkg))
+  | ("find_library" | "find_path" | "find_program" | "find_file"), args
+    when List.exists args ~f:(function
+           | EVar s ->
+             List.mem
+               [ "NAMES"; "PATHS"; "HINTS"; "PATH_SUFFIXES"; "DOC"; "REQUIRED";
+                 "NO_CACHE"; "NO_DEFAULT_PATH"; "VALIDATOR"; "REGISTRY_VIEW" ]
+               s ~equal:String.equal
+           | _ -> false) ->
+    (* Labeled-only: use ~name/~names/~path/~paths (or yc_raw for the rest). *)
+    Some (ECmakeRawCmd { name = cmake_name_of_yelu name; args;
+                         from_positional = Some name })
   | "find_library", [ cvar ] ->
     let names = kwarg_list ~key:"name" @ kwarg_list ~key:"names" in
     let paths = kwarg_list ~key:"path" @ kwarg_list ~key:"paths" in
