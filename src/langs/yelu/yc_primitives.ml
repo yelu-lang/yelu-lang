@@ -106,3 +106,101 @@ let reserved_names : Set.M(String).t =
 
 let is_reserved name =
   Set.mem reserved_names name
+
+(* ── Per-command `~kwarg` vocabulary (audit 2026-07) ─────────────────────
+   The accepted `~label=` keys for each KNOWN command. Source of truth is the
+   parser: every key an `_inner` reads (kwarg_opt / kwarg_bool / kw_all /
+   Assoc.find on kwargs) is listed here; `Yc_wellform.check_cst` rejects a
+   kwarg on a known command that is not in this vocabulary — closing the
+   silent-drop hole (`link_lib foo ~public=[…]` emitted `target_link_libraries(
+   foo PRIVATE )` with the libraries silently discarded).
+
+   Maintenance contract: when an `_inner` gains a kwarg read, add the key here
+   (the drift direction is safe — a missing entry FAILS LOUDLY as a spurious
+   reject in the corpus gate / tests, never silently). Commands not listed
+   accept no kwargs beyond the family `~out` rule below. Unknown/user commands
+   are exempt (open vocabulary). *)
+
+let command_kwargs : Set.M(String).t Map.M(String).t =
+  List.map ~f:(fun (c, ks) -> (c, Set.of_list (module String) ks)) [
+    (* target *)
+    "add_lib", ["type"];
+    "add_lib_alias", ["alias_of"];
+    "include_dirs", ["system"; "before"];
+    "target_include_directories", ["system"; "before"];
+    "compile_opts", ["before"]; "target_compile_options", ["before"];
+    "link_opts", ["before"]; "target_link_options", ["before"];
+    "link_dirs", ["before"]; "target_link_directories", ["before"];
+    "add_custom_target",
+      ["all"; "command"; "commands"; "depends"; "sources"; "comment"];
+    "add_custom_command",
+      ["output"; "command"; "commands"; "depends"; "comment"; "verbatim";
+       "command_expand_lists"];
+    (* install *)
+    "install_targets", ["component"; "export"; "destination"];
+    "install_files", ["destination"; "component"];
+    "install_export", ["destination"; "file"; "namespace"; "component"];
+    "install_directory", ["destination"; "component"; "optional"];
+    "export", ["targets"; "namespace"; "file"];
+    "configure_package_config_file",
+      ["install_destination"; "no_set_and_check_macro";
+       "no_check_required_components_macro"];
+    "write_basic_package_version_file", ["version"; "compatibility"];
+    (* property *)
+    "set_property", ["property"; "append"; "append_string"];
+    "get_property", ["property"; "mode"];
+    "set_target_properties", ["properties"];
+    "set_source_files_properties", ["properties"];
+    (* path *)
+    "get_filename_component", ["mode"];
+    (* list *)
+    "list_transform", ["prepend"];
+    (* find *)
+    "find_package", ["required"];
+    "find_library", ["name"; "names"; "path"; "paths"];
+    "find_path", ["name"; "names"; "path"; "paths"];
+    "find_program", ["name"; "names"; "path"; "paths"];
+    "find_file", ["name"; "names"; "path"; "paths"];
+    (* cmake_op *)
+    "message", ["mode"];
+    "include", ["optional"];
+    "enable_language", ["optional"];
+    "include_guard", ["global"];
+    "execute_process",
+      ["command"; "commands"; "working_directory"; "timeout";
+       "result_variable"; "output_variable"; "error_variable";
+       "input_file"; "output_file"; "error_file"; "output_quiet";
+       "error_quiet"; "output_strip_trailing_whitespace";
+       "error_strip_trailing_whitespace"; "command_error_is_fatal"];
+  ] |> Map.of_alist_exn (module String)
+
+(* Families with out-var (`~out=VAR` / the `:=` sugar) semantics — their
+   inners read [out_var_y1]. Family-granular on purpose (a per-command split
+   inside e.g. the list family is a later refinement). *)
+let takes_out_var name =
+  String.is_prefix name ~prefix:"string_"
+  || String.is_prefix name ~prefix:"list_"
+  || String.is_prefix name ~prefix:"path_"
+  || String.is_prefix name ~prefix:"file_"
+  || List.mem
+       [ "get_filename_component"; "math"; "cmake_get_log_level";
+         "get_property"; "get_target_property";
+         "get_directory_property"; "get_global_property" ]
+       name ~equal:String.equal
+
+(* install_targets dotted per-artifact-kind keys: `~library.destination=` *)
+let install_artifact_kinds =
+  [ "library"; "archive"; "runtime"; "objects"; "framework"; "bundle";
+    "public_header"; "private_header"; "resource"; "file_set";
+    "cxx_modules_bmi" ]
+
+let allowed_kwarg ~command key =
+  (String.equal key "out" && takes_out_var command)
+  || (match Map.find command_kwargs command with
+      | Some set -> Set.mem set key
+      | None -> false)
+  || (String.equal command "install_targets"
+      && (match String.lsplit2 key ~on:'.' with
+          | Some (kind, "destination") ->
+            List.mem install_artifact_kinds kind ~equal:String.equal
+          | _ -> false))

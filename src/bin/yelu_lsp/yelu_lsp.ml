@@ -151,7 +151,13 @@ let wellform_diagnostics (content : string) : Diagnostic.t list =
                 ~message:(Printf.sprintf
                             "`%s args (block)` — adjacent command + standalone \
                              block has no valid cmake reading. Did you mean \
-                             `fun %s(args) (body)`?" name name)))
+                             `fun %s(args) (body)`?" name name))
+      | Yelu_langs.Yc_wellform.Unknown_kwarg { command; key } ->
+        Some (make ~severity:DiagnosticSeverity.Error ~name:("~" ^ key)
+                ~message:(Printf.sprintf
+                            "`%s` does not accept ~%s= — the argument would be \
+                             silently dropped; check the label spelling"
+                            command key)))
       findings
 
 (* Combined diagnostics: parse errors take precedence (no point flagging

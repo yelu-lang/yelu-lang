@@ -76,6 +76,9 @@ let fatal_wellform_message : Yc_wellform.error -> string option = function
     Some (Printf.sprintf "`%s args (block)` — adjacent command + standalone \
                           block. This shape has no valid cmake reading; \
                           did you mean `fun %s(args) (body)`?" name name)
+  | Yc_wellform.Unknown_kwarg { command; key } ->
+    Some (Printf.sprintf "`%s` does not accept ~%s= — the argument would be \
+                          silently dropped; check the label spelling" command key)
   | _ -> None
 
 (* The unified parse + wellform pipeline (B1, 2026-06-21). Single source of

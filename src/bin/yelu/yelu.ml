@@ -167,6 +167,15 @@ let compile_yc ?(wellform = true) ?(warn = fun _ -> ()) file =
                Did you mean `fun %s(args) (body)`?\n"
               file name name;
             Stdlib.exit 1
+          | Yelu_langs.Yc_wellform.Unknown_kwarg { command; key } ->
+            (* Fatal: the parser reads only the kwargs it knows; an unknown
+               `~label=` would be silently dropped (silent semantic loss —
+               `link_lib foo ~public=[…]` used to emit an empty link list). *)
+            Stdlib.Printf.eprintf
+              "yelu compile: %s: `%s` does not accept ~%s= — the argument \
+               would be silently dropped; check the label spelling\n"
+              file command key;
+            Stdlib.exit 1
           | Yelu_langs.Yc_wellform.Unknown_command { name; closed_world = false } ->
             (* Warning: file has at least one opening construct, so the
                command set is genuinely open. Could be cross-file user
@@ -746,6 +755,10 @@ let () =
               Some (Printf.sprintf
                       "`%s args (block)` — adjacent command + standalone block; \
                        did you mean `fun %s(args) (body)`?" name name)
+            | Yelu_langs.Yc_wellform.Unknown_kwarg { command; key } ->
+              Some (Printf.sprintf
+                      "`%s` does not accept ~%s= (argument would be silently \
+                       dropped)" command key)
             | _ -> None)
         in
         if not (List.is_empty fatals) then Error (String.concat ~sep:"; " fatals)

@@ -221,4 +221,53 @@ let () =
           (* Typed primitive followed by a block — shouldn't fire (the
              primitive is known, so the gate stays open). *)
           dcase "typed primitive followed by block not flagged"
-            "message 'hi'; ( $x := 1 )" ~expect:false ] ) ]
+            "message 'hi'; ( $x := 1 )" ~expect:false ] );
+      ( "unknown-kwarg (CST-level)",
+        let has_unknown_kwarg src =
+          let cst = match Yelu_langs.Yc_cst_parse.parse src with
+            | Ok c -> c
+            | Error e -> Alcotest.failf "parse %S: %s" src e
+          in
+          List.exists (W.check_cst cst) ~f:(function
+            | W.Unknown_kwarg _ -> true
+            | _ -> false)
+        in
+        let kcase name src ~expect =
+          Alcotest.test_case name `Quick (fun () ->
+            Alcotest.(check bool) name expect (has_unknown_kwarg src))
+        in
+        [ (* THE audit bug: ~public= silently dropped the libraries. *)
+          kcase "link_lib ~public= → reject"
+            "link_lib foo ~public=['bar', 'baz']" ~expect:true;
+          kcase "link_lib ~banana= → reject"
+            "link_lib foo ~banana='x' Public 'bar'" ~expect:true;
+          (* target family has no ~out semantics — would be dropped *)
+          kcase "link_lib ~out= → reject"
+            "link_lib foo ~out=U Public 'bar'" ~expect:true;
+          (* legit kwargs pass *)
+          kcase "include_dirs ~system ok"
+            "include_dirs fmt ~system 'inc'" ~expect:false;
+          kcase "add_lib ~type ok"
+            "add_lib foo ~type:STATIC 'a.c'" ~expect:false;
+          kcase "string family ~out ok"
+            "string_toupper 'x' ~out=U" ~expect:false;
+          kcase "include_guard ~global ok"
+            "include_guard ~global" ~expect:false;
+          kcase "message ~mode ok"
+            "message ~mode=Fatal_error 'boom'" ~expect:false;
+          (* install_targets dotted artifact keys: known kind ok, unknown not *)
+          kcase "install_targets ~library.destination ok"
+            "install_targets $t ~library.destination='lib'" ~expect:false;
+          kcase "install_targets ~banana.destination → reject"
+            "install_targets $t ~banana.destination='lib'" ~expect:true;
+          (* `:=` command-call sugar (S_assign_call) is covered too *)
+          kcase ":= sugar legit kwarg ok"
+            "v := get_property Target foo ~property=NAME" ~expect:false;
+          kcase ":= sugar unknown kwarg → reject"
+            "v := get_property Target foo ~banana=NAME" ~expect:true;
+          (* unknown/user commands have an open vocabulary — exempt *)
+          kcase "unknown command kwargs exempt"
+            "include 'X.cmake'; my_own_macro ~foo=1 'a'" ~expect:false;
+          (* assignment kwargs are S_assign, not a command — exempt *)
+          kcase "assignment ~parent_scope exempt"
+            "X := 1 ~parent_scope" ~expect:false ] ) ]

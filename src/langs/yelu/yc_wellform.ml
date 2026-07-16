@@ -44,6 +44,14 @@ type error =
      the parser (`ECmakeRawCmd.from_positional`); fatal at the compile boundary
      — use the `~label=` form or `yc_raw '…'`. See surface_status.md. *)
   | Positional_form of { command : string }
+  (* Labeled-only follow-up (audit 2026-07): a `~kwarg` on a KNOWN command that
+     the command does not accept. The parser reads only the keys it knows and
+     silently drops the rest — `link_lib foo ~public=['bar']` emitted
+     `target_link_libraries(foo PRIVATE )` with the libraries discarded, exit 0.
+     Fatal at the compile boundary; vocabulary in
+     [Yc_primitives.command_kwargs] / [allowed_kwarg]. Unknown/user commands
+     are exempt (open vocabulary). CST-level (kwargs are consumed by lowering). *)
+  | Unknown_kwarg of { command : string; key : string }
   (* A command name that is neither in [Yc_primitives.command_names] nor
      declared as a [function]/[macro] in this file. Catches typos
      (`funnn` for `fun`, `prejct` for `project`) and surfaces "this is
@@ -371,6 +379,47 @@ let collect_cst_defined_names (p : Yc_cst.program) : Set.M(String).t =
   in
   List.fold p.stmts ~init:(Set.empty (module String)) ~f:walk_stmt
 
+(* ── CST-level check: unknown `~kwarg` on a known command ────────
+   Runs on the CST because kwargs are consumed by lowering (each _inner reads
+   the keys it knows and the rest vanish). Known commands only — unknown/user
+   commands have an open vocabulary. Covers S_command and the `:=` command-call
+   sugar (S_assign_call). Vocabulary: [Yc_primitives.allowed_kwarg]. *)
+let check_cst_kwargs (p : Yc_cst.program) : error list =
+  let check_args acc name (args : Yc_cst.arg list) =
+    let command = String.lowercase name in
+    if not (Yc_primitives.is_known_command command) then acc
+    else
+      List.fold args ~init:acc ~f:(fun acc (a : Yc_cst.arg) ->
+        match a with
+        | Kw (k, _) | Kw_flag k | Kw_list (k, _)
+          when not (Yc_primitives.allowed_kwarg ~command k) ->
+          Unknown_kwarg { command; key = k } :: acc
+        | _ -> acc)
+  in
+  let rec walk_stmt acc (s : Yc_cst.stmt) =
+    let acc = match s.node with
+      | S_command { name; args } -> check_args acc name args
+      | S_assign_call { cmd_name; cmd_args; _ } ->
+        check_args acc cmd_name cmd_args
+      | _ -> acc
+    in
+    walk_into acc s.node
+  and walk_into acc = function
+    | S_if { then_; else_; _ } ->
+      let acc = List.fold then_ ~init:acc ~f:walk_stmt in
+      (match else_ with
+       | Some (Else_block b) -> List.fold b ~init:acc ~f:walk_stmt
+       | Some (Else_if s) -> walk_stmt acc s
+       | None -> acc)
+    | S_while { body; _ } | S_foreach { body; _ }
+    | S_function { body; _ } | S_macro { body; _ } ->
+      List.fold body ~init:acc ~f:walk_stmt
+    | S_block b -> List.fold b ~init:acc ~f:walk_stmt
+    | S_let { body; _ } -> walk_stmt acc body
+    | _ -> acc
+  in
+  List.rev (List.fold p.stmts ~init:[] ~f:walk_stmt)
+
 let check_cst (p : Yc_cst.program) : error list =
   let defined = collect_cst_defined_names p in
   let is_known n =
@@ -401,4 +450,4 @@ let check_cst (p : Yc_cst.program) : error list =
     | S_block b -> walk_block acc b
     | _ -> acc
   in
-  List.rev (walk_block [] p.stmts)
+  List.rev (walk_block [] p.stmts) @ check_cst_kwargs p
