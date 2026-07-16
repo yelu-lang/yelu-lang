@@ -665,7 +665,20 @@ unknown/user commands and assignment kwargs exempt. Also completed the honest
 emit for the fifth renderer (`88320dd` — ECmakeRawCmd's raw_arg still derefed
 bare idents).
 
-**Still open:** (3) find / dir-global-test-property / add_test /
-`find_package COMPONENTS` silently mis-emit positional keywords — reject-or-
-label per family; (4) `Function_def_typo` open-world gate +
-`check_reserved_names` declaration coverage. Full detail in the report doc.
+**(3) find / add_test / property-stub families — FIXED (2026-07-16, `3618e9e`).**
+Labeled-only rollout completed for the last keyword families: find_* reject
+positional NAMES/PATHS/… (labels existed); find_package rejects
+REQUIRED/COMPONENTS/… (COMPONENTS was a *silent drop*; ~required is the
+surface; bare version `'9.0'` still accepted-and-dropped — version-literal
+TODO); add_test gains ~name/~command labels + reject — and the migration
+**fixed a live corpus bug**: the old NAME-section split silently dropped
+`-C ${CMAKE_BUILD_TYPE}` on three ctest invocations (matrix-blind; restored to
+vendor parity, emit-diff verified); the specialized property getters/setters
+reject their PROPERTY/PROPERTIES forms (their raw fallback leaked *yc* command
+names — `set_global_property(` isn't cmake).
+
+**Still open:** (4) `Function_def_typo` open-world gate +
+`check_reserved_names` declaration coverage; the **matrix supplement**
+(file-api / target-property / test diff — the add_test `-C` drop is the third
+confirmed instance of the CMakeCache blind spot, after target properties and
+install clauses). Full detail in the report doc.

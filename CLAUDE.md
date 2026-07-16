@@ -371,12 +371,18 @@ all surfaces instead of a silent drop; vocabulary in
 Honest emit completed for the fifth renderer too (`88320dd`, ECmakeRawCmd
 raw_arg).
 
-**Next (open audit findings, pick one):** (3) **find /
-dir-global-test-property / add_test / `find_package COMPONENTS`** silently
-mis-emit positional keywords — reject-or-label per family (same fork as the
-deferred-commands work); (4) `Function_def_typo` open-world gate +
+**Update (2026-07-16 b):** audit finding **(3) is fixed** (`3618e9e`) — the
+find / add_test / property-stub families are labeled-only (find_* positional
+keywords reject; find_package COMPONENTS no longer silently drops; add_test
+gained ~name/~command and the corpus migration restored the silently-dropped
+`-C ${CMAKE_BUILD_TYPE}` ctest args to vendor parity; property stubs no longer
+leak yc names into raw emit). find_package bare *version* positional is still
+accepted-and-dropped (needs the version-literal work).
+
+**Next (open audit findings):** (4) `Function_def_typo` open-world gate +
 `check_reserved_names` declaration coverage. Plus a **matrix supplement**
-(file-api / target-property diff) —
+(file-api / target-property / test diff — the add_test `-C` drop was the third
+confirmed CMakeCache blind-spot instance) —
 the CMakeCache-only diff is structurally blind to the target-property/install
 class (the honest-emit bug was invisible to it). Also parked: B2 (token spans
 on wellform findings), the 2nd probe project
