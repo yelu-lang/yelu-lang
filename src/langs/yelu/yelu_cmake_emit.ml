@@ -270,8 +270,13 @@ let rec emit_exp ~env (e : expr) : C.exp =
        args_to_cmake_text behavior). EVar → ${name}, EString → bare.
        This preserves cmake variable expansion semantics that arg ~env
        would break by quoting ${...} strings. *)
-    let raw_arg = function
-      | EVar n -> C.Bare ("${" ^ n ^ "}")
+    let rec raw_arg = function
+      (* Honest emit (same rule as arg/target_arg/cond_text/lookup_text):
+         resolve through subst; an *unresolved* bare ident is a literal. *)
+      | EVar n ->
+        (match Map.find env n with
+         | Some replacement -> raw_arg replacement
+         | None -> C.Bare n)
       | EVarLookup inner -> C.Bare ("${" ^ lookup_text ~env inner ^ "}")
       | EString s -> C.Bare s
       | EBool true -> C.Bare "ON"
