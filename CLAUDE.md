@@ -363,13 +363,20 @@ oracle 193/193):
   [`doc/cmake/var_reference_semantics.md`](doc/cmake/var_reference_semantics.md)
   (bare = literal, `$foo` = read).
 
-**Next (open audit findings, pick one):** (2) **silent `~label=` drop** on
-target commands (`link_lib ~public=` → empty) — add an unknown-kwarg-for-command
-wellform check; (3) **find / dir-global-test-property / add_test /
-`find_package COMPONENTS`** silently mis-emit positional keywords — reject-or-
-label per family (same fork as the deferred-commands work); (4)
-`Function_def_typo` open-world gate + `check_reserved_names` declaration
-coverage. Plus a **matrix supplement** (file-api / target-property diff) —
+**Update (2026-07-16):** audit finding **(2) is fixed** — `Unknown_kwarg`
+wellform check (`a5d33ae`): an unknown `~label=` on a known command is fatal on
+all surfaces instead of a silent drop; vocabulary in
+`Yc_primitives.command_kwargs` / `allowed_kwarg` (add the key there when an
+`_inner` gains a kwarg read — missing entries fail loudly, never silently).
+Honest emit completed for the fifth renderer too (`88320dd`, ECmakeRawCmd
+raw_arg).
+
+**Next (open audit findings, pick one):** (3) **find /
+dir-global-test-property / add_test / `find_package COMPONENTS`** silently
+mis-emit positional keywords — reject-or-label per family (same fork as the
+deferred-commands work); (4) `Function_def_typo` open-world gate +
+`check_reserved_names` declaration coverage. Plus a **matrix supplement**
+(file-api / target-property diff) —
 the CMakeCache-only diff is structurally blind to the target-property/install
 class (the honest-emit bug was invisible to it). Also parked: B2 (token spans
 on wellform findings), the 2nd probe project

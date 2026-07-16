@@ -654,9 +654,18 @@ target-property diff) is still worth adding — not to catch this bug (gone) but
 because the matrix's CMakeCache-only diff is structurally blind to the
 target-property/install class.
 
-**Still open:** (2) silent `~label=` drop on target commands (`link_lib
-~public=` → empty) — needs an unknown-kwarg-for-command check; (3) find /
-dir-global-test-property / add_test / `find_package COMPONENTS` silently mis-emit
-positional keywords — reject-or-label per family; (4) `Function_def_typo`
-open-world gate + `check_reserved_names` declaration coverage. Full detail in the
-report doc.
+**(2) silent `~label=` drop — FIXED (2026-07-16, `a5d33ae`).** New
+`Unknown_kwarg` wellform check (CST-level, `check_cst_kwargs`): a `~label=` on a
+KNOWN command that isn't in the command's vocabulary
+(`Yc_primitives.command_kwargs` / `allowed_kwarg`, audited from every kwarg read
+in the parser) is **fatal** on all surfaces (compile / fmt / LSP / corpus gate).
+`link_lib foo ~public=['bar']` now rejects instead of emitting an empty link
+list. Family-granular `~out` rule; install_targets dotted artifact keys;
+unknown/user commands and assignment kwargs exempt. Also completed the honest
+emit for the fifth renderer (`88320dd` — ECmakeRawCmd's raw_arg still derefed
+bare idents).
+
+**Still open:** (3) find / dir-global-test-property / add_test /
+`find_package COMPONENTS` silently mis-emit positional keywords — reject-or-
+label per family; (4) `Function_def_typo` open-world gate +
+`check_reserved_names` declaration coverage. Full detail in the report doc.
