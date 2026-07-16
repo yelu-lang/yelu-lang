@@ -75,7 +75,7 @@ type error =
      S_if / S_foreach / S_function / S_macro etc.), so it's always a
      `fun`/`function`/`macro` keyword typo. Fatal regardless of
      open-/closed-world — the shape is the signal, not the name. *)
-  | Function_def_typo of { name : string }
+  | Function_def_typo of { name : string; closed_world : bool }
 [@@deriving sexp_of]
 
 let classify_escape text =
@@ -133,21 +133,33 @@ let walk_children (f : error list -> expr -> error list) (acc : error list) (e :
 (* ── check_reserved_names ──────────────────────── *)
 
 let check_reserved_names e =
+  let chk name context acc =
+    if Yc_primitives.is_reserved name then
+      let conflict = if Yc_primitives.is_known_command name
+        then "typed primitive" else "reserved keyword"
+      in
+      Reserved_name { name; context; conflict } :: acc
+    else acc
+  in
   let rec walk acc e =
     let acc = match e with
-      | EVar name ->
-        if Yc_primitives.is_reserved name then
-          let conflict = if Yc_primitives.is_known_command name
-            then "typed primitive" else "reserved keyword"
-          in
-          Reserved_name { name; context = "variable"; conflict } :: acc
-        else acc
+      | EVar name -> chk name "variable" acc
       | ECmakeFunction { name; _ } | ECmakeMacro { name; _ } ->
         let n = match name with EString s | EVar s -> s | _ -> "" in
         if Yc_primitives.is_reserved n then
           Reserved_name { name = n; context = "function";
                           conflict = "reserved keyword" } :: acc
         else acc
+      (* Declaration sites (audit #4): a var / cache / option / let DECLARED
+         with a reserved name previously slipped through — only *references*
+         were checked, unlike check_enum_shadow which covers declarations.
+         Same sites as the enum-shadow walk; warning severity (Y14's hard
+         reject stays scoped to enum constructors — casing_design.md). *)
+      | ESetVar (name, _) -> chk name "variable declaration" acc
+      | ECmakeSetParentScope { name; _ } -> chk name "variable declaration" acc
+      | ECmakeSetCache { name; _ } -> chk name "cache declaration" acc
+      | ECmakeOption { name; _ } -> chk name "option declaration" acc
+      | ELet { var; _ } -> chk var "let binding" acc
       | _ -> acc
     in
     walk_children walk acc e
@@ -420,8 +432,38 @@ let check_cst_kwargs (p : Yc_cst.program) : error list =
   in
   List.rev (List.fold p.stmts ~init:[] ~f:walk_stmt)
 
+(* CST-side open-world signal — mirror of [has_opening_construct] for what the
+   CST can express: an opener command makes the file's command set open (a
+   cross-file function could define the "unknown" name). Dynamic fun/macro
+   names are not CST-expressible (S_function carries a literal string), so the
+   command openers are the complete CST-side set. *)
+let cst_has_opening_construct (p : Yc_cst.program) : bool =
+  let is_opener n =
+    List.mem [ "include"; "find_package"; "add_subdirectory"; "cmake_call" ]
+      (String.lowercase n) ~equal:String.equal
+  in
+  let rec walk_stmt (s : Yc_cst.stmt) =
+    match s.node with
+    | S_command { name; _ } -> is_opener name
+    | S_assign_call { cmd_name; _ } -> is_opener cmd_name
+    | S_if { then_; else_; _ } ->
+      List.exists then_ ~f:walk_stmt
+      || (match else_ with
+          | Some (Else_block b) -> List.exists b ~f:walk_stmt
+          | Some (Else_if s) -> walk_stmt s
+          | None -> false)
+    | S_while { body; _ } | S_foreach { body; _ }
+    | S_function { body; _ } | S_macro { body; _ } ->
+      List.exists body ~f:walk_stmt
+    | S_block b -> List.exists b ~f:walk_stmt
+    | S_let { body; _ } -> walk_stmt body
+    | _ -> false
+  in
+  List.exists p.stmts ~f:walk_stmt
+
 let check_cst (p : Yc_cst.program) : error list =
   let defined = collect_cst_defined_names p in
+  let closed_world = not (cst_has_opening_construct p) in
   let is_known n =
     let nl = String.lowercase n in
     Yc_primitives.is_known_command nl || Set.mem defined nl
@@ -431,8 +473,11 @@ let check_cst (p : Yc_cst.program) : error list =
     | { node = S_command { name; args = _ }; _ }
       :: ({ node = S_block _; _ } :: _ as rest) when not (is_known name) ->
       (* The smoking gun: unknown command IMMEDIATELY followed by a
-         standalone block at the same level. *)
-      let acc = Function_def_typo { name } :: acc in
+         standalone block at the same level. Escalation mirrors
+         Unknown_command (audit #4): closed world → fatal (the shape can only
+         be a typo'd fun/function/macro); open world → warning (the name may
+         be a cross-file command legitimately followed by a block). *)
+      let acc = Function_def_typo { name; closed_world } :: acc in
       walk_block acc rest
     | s :: rest ->
       let acc = walk_into acc s.node in

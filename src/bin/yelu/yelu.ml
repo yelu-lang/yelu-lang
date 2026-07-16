@@ -157,10 +157,10 @@ let compile_yc ?(wellform = true) ?(warn = fun _ -> ()) file =
                introduce one. Did you mean `fun`/`function`/`macro` to define it?\n"
               file name;
             Stdlib.exit 1
-          | Yelu_langs.Yc_wellform.Function_def_typo { name } ->
-            (* CST shape: IDENT args (block) adjacent to standalone block.
-               No valid cmake reading; the only shape with this structure is
-               the function-def grammar (fun/function/macro NAME(p) (body)). *)
+          | Yelu_langs.Yc_wellform.Function_def_typo { name; closed_world = true } ->
+            (* CST shape: IDENT args (block) adjacent to standalone block, in a
+               closed world — can only be a typo'd fun/function/macro. Open
+               world downgrades to a warning below (audit #4). *)
             Stdlib.Printf.eprintf
               "yelu compile: %s: `%s args (block)` — adjacent command + \
                standalone block has no valid cmake reading. \
@@ -188,6 +188,15 @@ let compile_yc ?(wellform = true) ?(warn = fun _ -> ()) file =
                      has an opening construct, so unknown names cannot be \
                      statically resolved), wrap it in `yc_raw '…'` to silence."
                     file name)
+          | Yelu_langs.Yc_wellform.Function_def_typo
+              { name; closed_world = false } ->
+            (* Warning in open world: the shape looks like a typo'd fun, but
+               the name may be a cross-file command followed by a block. *)
+            warn (Printf.sprintf
+                    "[yelu][fun-typo?] %s: `%s args (block)` looks like a \
+                     typo'd `fun %s(args) (body)`; if %s is a cross-file \
+                     command this is fine."
+                    file name name name)
           | _ -> ());
         let raw_escapes, others =
           List.partition_tf errors ~f:(function
@@ -751,7 +760,8 @@ let () =
                left are real typos. *)
             | Yelu_langs.Yc_wellform.Unknown_command { name; closed_world = true } ->
               Some (Printf.sprintf "unknown command %S (closed world)" name)
-            | Yelu_langs.Yc_wellform.Function_def_typo { name } ->
+            | Yelu_langs.Yc_wellform.Function_def_typo
+                { name; closed_world = true } ->
               Some (Printf.sprintf
                       "`%s args (block)` — adjacent command + standalone block; \
                        did you mean `fun %s(args) (body)`?" name name)

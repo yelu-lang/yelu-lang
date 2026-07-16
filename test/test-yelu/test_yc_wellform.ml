@@ -224,15 +224,33 @@ let () =
           Alcotest.test_case name `Quick (fun () ->
             Alcotest.(check bool) name expect (has_def_typo src))
         in
-        [ (* The user's exact main.yc L13 typo class — flagged even in
-             open-world (the file has `include`), because the SHAPE
-             `IDENT args (block)` is unambiguous. *)
+        let typo_closed_world src =
+          let cst = match Yelu_langs.Yc_cst_parse.parse src with
+            | Ok c -> c
+            | Error e -> Alcotest.failf "parse %S: %s" src e
+          in
+          List.find_map (W.check_cst cst) ~f:(function
+            | W.Function_def_typo { closed_world; _ } -> Some closed_world
+            | _ -> None)
+        in
+        let wcase name src ~expect =
+          Alcotest.test_case name `Quick (fun () ->
+            Alcotest.(check (option bool)) name expect (typo_closed_world src))
+        in
+        [ (* Escalation mirrors Unknown_command (audit #4): the shape is
+             flagged in both worlds, but open-world is a WARNING (the name may
+             be a cross-file command followed by a block), closed-world FATAL. *)
           dcase "open-world IDENT(args)(block) flagged"
             "include 'X.cmake'; funnnn join(result_var) ( result := 1 )"
             ~expect:true;
+          wcase "open-world typo carries closed_world=false"
+            "include 'X.cmake'; funnnn join(result_var) ( result := 1 )"
+            ~expect:(Some false);
           (* Closed-world: caught by both Unknown_command and Function_def_typo. *)
           dcase "closed-world IDENT(args)(block) flagged"
             "funnnn join(result_var) ( result := 1 )" ~expect:true;
+          wcase "closed-world typo carries closed_world=true"
+            "funnnn join(result_var) ( result := 1 )" ~expect:(Some true);
           (* Real `fun` keyword goes through S_function — no command/block shape. *)
           dcase "real fun keyword not flagged"
             "fun join(result_var) ( result := 1 )" ~expect:false;
@@ -243,6 +261,33 @@ let () =
              primitive is known, so the gate stays open). *)
           dcase "typed primitive followed by block not flagged"
             "message 'hi'; ( $x := 1 )" ~expect:false ] );
+      ( "reserved-name declarations (audit #4)",
+        (* Production path (parse_and_check = CST parse + lower + all checks) —
+           the same pipeline compile / fmt / LSP run. *)
+        let has_reserved_decl src =
+          match Yelu_langs.Yc_driver.parse_and_check src with
+          | Error e -> Alcotest.failf "parse %S: %s" src e
+          | Ok { Yelu_langs.Yc_driver.findings; _ } ->
+            List.exists findings ~f:(function
+              | W.Reserved_name { context; _ } ->
+                String.is_substring context ~substring:"declaration"
+                || String.equal context "let binding"
+              | _ -> false)
+        in
+        let rcase name src ~expect =
+          Alcotest.test_case name `Quick (fun () ->
+            Alcotest.(check bool) name expect (has_reserved_decl src))
+        in
+        [ (* a var declared with a typed-primitive name now warns (references
+             were already checked; declarations slipped through) *)
+          rcase "command-name var declaration flagged"
+            "add_custom_target := 'x'" ~expect:true;
+          rcase "cache declaration with command name flagged"
+            "cache list_append := 'y'" ~expect:true;
+          rcase "ordinary var declaration ok"
+            "my_var := 1" ~expect:false;
+          rcase "let binding with command name flagged"
+            "let math = '1' in message $math" ~expect:true ] );
       ( "unknown-kwarg (CST-level)",
         let has_unknown_kwarg src =
           let cst = match Yelu_langs.Yc_cst_parse.parse src with

@@ -72,7 +72,9 @@ let fatal_wellform_message : Yc_wellform.error -> string option = function
     Some (Printf.sprintf "unknown command %S (closed world: no \
                           include / find_package / add_subdirectory / \
                           cmake_call / dynamic fun-name)" name)
-  | Yc_wellform.Function_def_typo { name } ->
+  | Yc_wellform.Function_def_typo { name; closed_world = true } ->
+    (* Open-world Function_def_typo is a warning, not fatal — the name may be
+       a cross-file command legitimately followed by a block (audit #4). *)
     Some (Printf.sprintf "`%s args (block)` — adjacent command + standalone \
                           block. This shape has no valid cmake reading; \
                           did you mean `fun %s(args) (body)`?" name name)

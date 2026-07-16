@@ -146,12 +146,18 @@ let wellform_diagnostics (content : string) : Diagnostic.t list =
                 ~message:(Printf.sprintf
                             "yc_apply on %S shadows the typed yc primitive — \
                              use the typed form instead" name))
-      | Yelu_langs.Yc_wellform.Function_def_typo { name } ->
-        Some (make ~severity:DiagnosticSeverity.Error ~name
+      | Yelu_langs.Yc_wellform.Function_def_typo { name; closed_world } ->
+        (* Escalation mirrors Unknown_command: closed world → Error (can only
+           be a typo), open world → Warning (may be a cross-file command). *)
+        let severity =
+          if closed_world then DiagnosticSeverity.Error
+          else DiagnosticSeverity.Warning
+        in
+        Some (make ~severity ~name
                 ~message:(Printf.sprintf
                             "`%s args (block)` — adjacent command + standalone \
-                             block has no valid cmake reading. Did you mean \
-                             `fun %s(args) (body)`?" name name))
+                             block looks like a typo'd function definition. Did \
+                             you mean `fun %s(args) (body)`?" name name))
       | Yelu_langs.Yc_wellform.Unknown_kwarg { command; key } ->
         Some (make ~severity:DiagnosticSeverity.Error ~name:("~" ^ key)
                 ~message:(Printf.sprintf
