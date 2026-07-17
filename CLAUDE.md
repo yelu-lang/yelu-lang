@@ -395,10 +395,29 @@ block (ported, `c49e626`). Matrix 24/24 under the tripled oracle. **The 2026-06
 audit arc is fully closed** — all four findings fixed and the oracle blind spot
 plugged.
 
-**Next:** the 2nd probe project
-([`probes/candidates.md`](probes/candidates.md)) — the surface + tripled oracle
-are now in their strongest state for it. Also parked: B2 (token spans
-on wellform findings) and the surface polish
+**In progress (2026-07-16): Tier (b) legacy-parser retirement — semantic half
+DONE (`237bfb8`).** `Yc_driver.parse_yc` = `parse_cst ∘ lower_cst`; all 280
+per-command tests + wellform tests run on the production path; the emit-bridge
+oracle + `test_yc_cst_bridge_probes` are retired (superseded by the tripled
+matrix); the switch caught a real dispatch drift (`get_property` missing from
+`yc_cst_lower.property_names` — CST path silently fell to raw, dropped `~out`).
+**Remaining: the pure-mechanical dead-code sweep in `yelu_parse.ml`** (~900
+token-level lines, zero callers): the tail from `p_cmake_op_command_y1`
+(~line 1970) to EOF (cond + stmt grammar + `parse_program_legacy` + aliases),
+the scattered per-family `p_*_command_y1` dispatchers, `p_assign_y1` + the
+`*_fwd` forward refs (~197-206), `collect_command_args`, `p_expr_y1`,
+`fallback_to_raw`. Survivors: the 12 `*_y1_inner`s + their expr-level helpers
+(`split_by_keywords`, `out_var_y1`, `p_cmake_entity`, `str_of`,
+`cmake_name_of_yelu`, `message_modes`, …) — `yc_cst_lower` calls exactly those.
+Delete with Edit (never sed), build + full suite after each chunk.
+
+**Then:** the 2nd probe project
+([`probes/candidates.md`](probes/candidates.md)) — recommendation from the
+2026-07-16 discussion: **spdlog** for maximal new signal (a real
+`find_package(fmt)` consumer — the one shape fmt can't exercise) or
+**nlohmann/json** for the fastest clean win; ycn/Y17 work is NOT gated on it
+(fmt covers 13/15 coverage-map rows + z3/llvm corpora for stats). Also parked:
+B2 (token spans on wellform findings) and the surface polish
 (version literal incl. the `find_package CUDA '9.0'` version-drop, per-mode
 `message_*`) in
 [`doc/lang/yc_syntax_critique.md`](doc/lang/yc_syntax_critique.md) § Open /
