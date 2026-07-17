@@ -68,6 +68,29 @@ link_lib perf-sanity Public 'fmt::fmt';
 if $FMT_MODULE then (
   add_fmt_test 'module-test' MODULE
 );
+yc_raw 'if (NOT DEFINED MSVC_STATIC_RUNTIME AND MSVC)
+  foreach (flag_var
+           CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE
+           CMAKE_CXX_FLAGS_MINSIZEREL CMAKE_CXX_FLAGS_RELWITHDEBINFO)
+    if (${flag_var} MATCHES "^(/|-)(MT|MTd)")
+      set(MSVC_STATIC_RUNTIME ON)
+      break()
+    endif ()
+  endforeach ()
+endif ()';
+if not $MSVC_STATIC_RUNTIME then (
+  add_exe posix-mock-test 'posix-mock-test.cc' '../src/format.cc' $TEST_MAIN_SRC;
+  include_dirs posix-mock-test Private '${PROJECT_SOURCE_DIR}/include';
+  link_lib posix-mock-test Public gtest;
+  if $FMT_PEDANTIC then (
+    compile_opts posix-mock-test Private $PEDANTIC_COMPILE_FLAGS
+  );
+  if $MSVC then (
+    compile_opts posix-mock-test Private '/utf-8'
+  );
+  add_test ~name='posix-mock-test' ~command=['posix-mock-test'];
+  add_fmt_test 'os-test'
+);
 message 'FMT_PEDANTIC: ${FMT_PEDANTIC}';
 if $FMT_PEDANTIC then (
   if not str_eq $CMAKE_CXX_COMPILER_ID 'Intel' then (
