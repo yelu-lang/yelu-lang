@@ -384,14 +384,23 @@ accepted-and-dropped (needs the version-literal work).
 `check_reserved_names` covers declaration sites. **All four audit findings
 closed.**
 
-**Next:** the **matrix supplement**
-(file-api / target-property / test diff — the add_test `-C` drop was the third
-confirmed CMakeCache blind-spot instance) —
-the CMakeCache-only diff is structurally blind to the target-property/install
-class (the honest-emit bug was invisible to it). Also parked: B2 (token spans
-on wellform findings), the 2nd probe project
-([`probes/candidates.md`](probes/candidates.md)), and the surface polish
-(version literal, per-mode `message_*`) in
+**Update (2026-07-16 d): matrix supplement SHIPPED** (`6aae29a`) — every
+`yelu hybrid` run / matrix cell now diffs **three channels**: CMakeCache +
+file-api **codemodel-v2** (targets/properties/sources/install) + **ctest
+--show-only=json-v1** (test definitions incl. args). First run caught (1) a
+**contaminated `vendor/fmt/CMakeLists.txt`** (overwritten by an old yelu emit;
+restored to pristine upstream — the restore lives in the external fmt clone,
+outside this repo) and (2) the corpus missing the posix-mock-test/os-test
+block (ported, `c49e626`). Matrix 24/24 under the tripled oracle. **The 2026-06
+audit arc is fully closed** — all four findings fixed and the oracle blind spot
+plugged.
+
+**Next:** the 2nd probe project
+([`probes/candidates.md`](probes/candidates.md)) — the surface + tripled oracle
+are now in their strongest state for it. Also parked: B2 (token spans
+on wellform findings) and the surface polish
+(version literal incl. the `find_package CUDA '9.0'` version-drop, per-mode
+`message_*`) in
 [`doc/lang/yc_syntax_critique.md`](doc/lang/yc_syntax_critique.md) § Open /
 remaining.
 
@@ -530,6 +539,13 @@ configuration generation with verifier feedback. cmake is the first specimen.
   (cmake 4.3 dev). Not a submodule — do not re-add it as one.
 - **`vendor/cmake-tutorial` is external**: Not checked in. The cmake tutorial v1 reference
   files live here. Must be set up separately (clone from cmake source).
+- **Vendor trees are external WORKING trees — they can be dirty.** An early run
+  once overwrote `vendor/fmt/CMakeLists.txt` with a yelu emit, so the matrix's
+  "vendor" baseline was partly yelu-vs-yelu until the file-api supplement
+  exposed it (2026-07-16). When a baseline looks suspiciously agreeable, check
+  `git -C vendor/fmt status` first; restore with `git -C vendor/fmt checkout --
+  <file>`. The codemodel channel now also catches this class (an old emit
+  diverges structurally from the current one).
 - **cmake vs shell string semantics**: cmake lists are semicolon-joined strings; shell
   uses space-separated arrays. cmake `if(FOO)` implicitly dereferences FOO — a footgun
   yelu should compile away. Keep `;`-list conflation as a compiler-internal detail.

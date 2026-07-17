@@ -683,7 +683,28 @@ Unknown_command; new CST-side opener scan); `check_reserved_names` covers
 declaration sites (ESetVar/SetCache/Option/ParentScope/ELet) at warning
 severity. **All four audit findings are now closed.**
 
-**Still open:** the **matrix supplement** (file-api / target-property / test
-diff — the add_test `-C` drop was the third confirmed instance of the
-CMakeCache blind spot, after target properties and install clauses). Full
-detail in the report doc.
+**Matrix supplement — SHIPPED (2026-07-16, `6aae29a`).** Every `yelu hybrid`
+run (⇒ every matrix cell) now diffs THREE channels: CMakeCache (as before) +
+the **file-api codemodel-v2** (targets, properties, sources, install rules;
+normalized roots, bookkeeping stripped — mirrors `test/cmake_file_api_cmp.py`)
++ **`ctest --show-only=json-v1`** (test definitions incl. full command args).
+A cell passes only if all three match. Its FIRST run caught two
+cache-invisible realities:
+
+1. **`vendor/fmt/CMakeLists.txt` was contaminated** — the working tree of the
+   external fmt clone (`/home/red/code/contrib/fmt-all/fmt`, symlinked as
+   `vendor/fmt`) had been overwritten by an *old yelu emit* at some point
+   (pre-version-range `cmake_minimum_required(VERSION 3.8)`, stripped
+   comments, our pp style). The matrix's "vendor" baseline was partly
+   yelu-vs-yelu. **Restored to pristine upstream (`git -C vendor/fmt checkout
+   -- CMakeLists.txt`, commit 6b2d7f9)** — note this restore lives OUTSIDE
+   this repo. Reassuring: against the true upstream, the cache diff still
+   passes 0-semantic.
+2. **The corpus was missing the posix-mock-test / os-test block** (vendor
+   test/CMakeLists.txt 87-112) — two targets + one test absent from every
+   hybrid build, forever invisible to the cache diff. Ported (`c49e626`:
+   yc_raw for the computed-deref MSVC flag scan, typed yc for the rest).
+
+Matrix now 24/24 under the tripled oracle (cache 0-semantic + 29 codemodel
+keys 0-differ + ctest MATCH per cell). The audit arc is fully closed: all four
+findings fixed AND the oracle class that hid them is plugged.
