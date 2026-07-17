@@ -451,6 +451,14 @@ OCaml toolchain — **no cmake needed** for the unit suite + corpus gate. Watch:
   / emit crash. No cmake needed. Closes the gap where the **discovered helpers**
   (`probes/fmt/test/*/CMakeLists.yc`) were only checked by the *manual* matrix —
   `compile main.yc` alone used to hide their regressions.
+- **fmt hybrid matrix, tripled oracle** (`yelu matrix probes/fmt`, manual —
+  needs cmake) — 24 option cells; each configures vendor + hybrid with real
+  cmake and diffs **three channels**: CMakeCache + file-api **codemodel-v2**
+  (targets/properties/sources/install) + **ctest** definitions (full command
+  args). The cache alone is blind to the codemodel/test classes (three audit
+  bugs + a contaminated vendor file hid there). Distinct from the *predictor
+  smoke* matrix (`test_fmt_matrix_smoke.ml`, yc-eval vs cmake) — see
+  [probes/cache_matrix.md](probes/cache_matrix.md).
 - **cmake ground-truth probes** — `python3 test/test_deref_probes.py` (deref
   semantics, not in `dune test`)
 - **12 end-to-end tutorial steps** (generate → configure → build → run)

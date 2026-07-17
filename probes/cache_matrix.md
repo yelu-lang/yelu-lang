@@ -4,6 +4,16 @@
 > ([test/test-runcmake/test_fmt_matrix_smoke.ml](../test/test-runcmake/test_fmt_matrix_smoke.ml)) —
 > the per-cell real-vs-predicted cmake-cache diff that's been our
 > primary signal for closing the predictor's gaps.
+>
+> **Two matrices — don't confuse them.** This doc covers the *predictor smoke*
+> matrix (yc-**eval** vs real cmake, cache variables only). The other matrix is
+> `yelu matrix probes/fmt` (the hybrid driver: yc-**emit** vs vendor, both
+> configured by real cmake), which since 2026-07-16 compares **three channels
+> per cell** — CMakeCache + file-api codemodel-v2 (targets / properties /
+> sources / install rules) + `ctest --show-only=json-v1` (test definitions incl.
+> args). The cache-only diff is structurally blind to the codemodel/test
+> classes; see [fmt/README.md](fmt/README.md) § Status and the 2026-07-16
+> worklog entry for what the extra channels caught on their first run.
 
 ## At a glance
 

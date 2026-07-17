@@ -7,17 +7,27 @@
 > function definitions, 12 user-facing options. Good first probe — broad
 > coverage in a compact surface.
 
-## Status (2026-06-21)
+## Status (2026-07-16)
 
-> The corpus was converted to the labeled-only surface (Step 2) and is guarded
-> by the build-time `compile-corpus` gate; the table below still holds.
+> The corpus is labeled-only (Step 2), guarded by the build-time
+> `compile-corpus` gate, and the matrix compares **three channels per cell**
+> since 2026-07-16 (the tripled oracle — see below).
 
 | oracle | result |
 |---|---|
 | parse-print roundtrip | 11/11 OK |
 | .yc compilation | 11/11 OK (build-time gate in `dune test`) |
-| cache matrix (24 cells) | 24/24 match |
-| raw cmake escapes | 3 (all dynamic visibility — by design) |
+| matrix — CMakeCache (24 cells) | 24/24, 0 semantic |
+| matrix — file-api codemodel-v2 | 24/24, 29 target/codemodel keys 0-differ |
+| matrix — ctest definitions | 24/24 MATCH (full command args) |
+| raw cmake escapes | 4 (dynamic visibility ×3 + MSVC flag scan — by design) |
+
+> **Why three channels:** the cache diff is structurally blind to target
+> properties, install rules, and test definitions — three real bugs hid there
+> (audit 2026-06/07). The codemodel + ctest channels close that class; their
+> first run also caught a contaminated `vendor/fmt/CMakeLists.txt` (an old
+> yelu emit had overwritten upstream) and a never-ported
+> posix-mock-test/os-test block.
 
 **Verdict: functionally complete.** Every cmake file under `vendor/fmt/`
 has a `.yc` concrete-syntax equivalent that compiles and produces
@@ -60,9 +70,12 @@ source.)
 # Compile a single .yc file
 dune exec src/bin/yelu/yelu.exe -- compile probes/fmt/main.yc
 
-# Full matrix test (compiles all .yc, diffs caches)
+# One hybrid run (compiles all .yc; diffs cache + codemodel + ctest)
 dune exec src/bin/yelu/yelu.exe -- hybrid probes/fmt
 dune exec src/bin/yelu/yelu.exe -- hybrid probes/fmt -D FMT_FUZZ=ON
+
+# Full matrix (all 24 option cells, each under the tripled oracle)
+dune exec src/bin/yelu/yelu.exe -- matrix probes/fmt
 ```
 
 The hybrid driver:

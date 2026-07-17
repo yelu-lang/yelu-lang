@@ -1,5 +1,16 @@
 # Syntax Surface Audit Report — June 2026
 
+> **CLOSED (2026-07-16).** Every finding below is resolved — see the
+> 2026-06-25 and 2026-07-16 entries in
+> [`worklog_2026_06.md`](worklog_2026_06.md) for the fix-by-fix record:
+> honest emit (`a57bcf4` + `88320dd`), Unknown_kwarg (`a5d33ae`),
+> find/add_test/property-stub labeled-only (`3618e9e`), world-aware
+> Function_def_typo + reserved-decl coverage (`c28860e`), and the file-api
+> matrix supplement (`6aae29a`) that plugged the CMakeCache blind spot this
+> report kept running into (its first run also exposed a contaminated
+> `vendor/fmt/CMakeLists.txt` and a never-ported posix-mock/os-test block,
+> `c49e626`).
+
 Request: [`syntax_audit_request_2026-06.md`](syntax_audit_request_2026-06.md)
 
 Scope: current `.yc` syntax surface, parser/wellform pipeline, formatter, LSP-facing diagnostics, and corpus gate behavior. This was a read-only audit; no project files were modified.
