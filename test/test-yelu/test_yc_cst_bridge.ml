@@ -1,29 +1,21 @@
-(* Emit-bridge oracle (M1.2): the CST path must be behavior-identical to
-   the proven text→expr parser, measured at the emitted cmake text —
-   emit(lower(parse_cst s)) == emit(parse_ast s). Reuses the byte-equality
-   emit oracle rather than structural expr equality (extensible variant).
-   See doc/lang/surface_status.md. *)
+(* Surface regression tests over the production path (parse_cst ∘ lower_cst).
+
+   History: this file was born as the emit-bridge ORACLE (M1.2) — the CST path
+   proven behavior-identical to the legacy direct parser at the emitted-cmake
+   level. Tier (b) retired the legacy parser (2026-07-16) after a month-long
+   byte-identical soak, so the bridge comparisons are gone; what remains are
+   the per-command emit goldens, fmt round-trips, and canonicalization
+   regressions, all on the single production path. *)
 
 open Base
-module Parse = Yelu_langs.Yelu_parse
 module Cstp = Yelu_langs.Yc_cst_parse
-module Lower = Yelu_langs.Yc_cst_lower
 module Emit = Yelu_langs.Yelu_cmake_emit
 
+(* The single production path: parse_yc = parse_cst ∘ lower_cst. *)
 let emit_ast src =
-  match Parse.parse_program_y1 src with
+  match Yelu_langs.Yc_driver.parse_yc src with
   | Ok e -> Emit.emit_script e
-  | Error e -> Alcotest.failf "ast-parse %S: %s" src e
-
-let emit_cst src =
-  match Cstp.parse src with
-  | Ok p -> Emit.emit_script (Lower.lower_program p)
-  | Error e -> Alcotest.failf "cst-parse %S: %s" src e
-
-let bridge src =
-  Alcotest.test_case src `Quick (fun () ->
-    Alcotest.(check string) "emit(lower cst) == emit(ast)"
-      (emit_ast src) (emit_cst src))
+  | Error e -> Alcotest.failf "parse %S: %s" src e
 
 (* print round-trip + idempotence: printing the CST, re-parsing, and
    re-emitting must reproduce the original emit; printing is idempotent. *)
@@ -38,7 +30,7 @@ let roundtrip src =
        | Ok c2 ->
          Alcotest.(check string) "emit after round-trip == emit(ast)"
            (emit_ast src)
-           (Emit.emit_script (Lower.lower_program c2));
+           (Emit.emit_script (Yelu_langs.Yc_cst_lower.lower_program c2));
          Alcotest.(check string) "print idempotent"
            printed (Yelu_langs.Yc_cst_print.print_program c2)))
 
@@ -459,8 +451,7 @@ let test_add_custom =
 
 let () =
   Alcotest.run "yc_cst_bridge"
-    [ "bridge", List.map corpus ~f:bridge;
-      "install_targets", [ test_install_targets ];
+    [ "install_targets", [ test_install_targets ];
       "execute_process", [ test_execute_process ];
       "set_target_properties", [ test_set_target_properties ];
       "add_custom", [ test_add_custom ];

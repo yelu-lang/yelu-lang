@@ -6,8 +6,9 @@
 open Base
 module W = Yelu_langs.Yc_wellform
 
+(* Production path (Tier b): parse_yc = parse_cst ∘ lower_cst. *)
 let parse s =
-  match Yelu_langs.Yelu_parse.parse_program_y1 s with
+  match Yelu_langs.Yc_driver.parse_yc s with
   | Ok e -> e
   | Error e -> Alcotest.failf "parse %S: %s" s e
 

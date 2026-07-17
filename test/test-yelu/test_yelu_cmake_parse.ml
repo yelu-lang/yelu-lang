@@ -5,8 +5,11 @@ open Yelu_langs.Yelu_cmake_path
 open Yelu_langs.Yelu_cmake_normal_target
 open Yelu_langs.Yelu_cmake_target
 
+(* Production path (Tier b, 2026-07-16): the legacy direct parser is retired;
+   these per-command tests now exercise parse_cst ∘ lower_cst — the same
+   `_inner` interpretation, reached through the CST. *)
 let parse input =
-  match Yelu_langs.Yelu_parse.parse_program_y1 input with
+  match Yelu_langs.Yc_driver.parse_yc input with
   | Ok expr -> expr
   | Error e -> Alcotest.failf "Parse error: %s" e
 
@@ -28,7 +31,7 @@ let assert_parses name input =
    expecteds are the durable assertion. *)
 let assert_parse_y1_emits name source expected =
   Alcotest.test_case name `Quick (fun () ->
-    match Yelu_langs.Yelu_parse.parse_program_y1 source with
+    match Yelu_langs.Yc_driver.parse_yc source with
     | Error msg ->
       Alcotest.failf "%s: new parser failed: %s" name msg
     | Ok new_yelu1 ->

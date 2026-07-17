@@ -3,7 +3,7 @@ open Yelu_langs
 
 let test name input =
   Stdio.printf "%-25s " name;
-  match Yelu_parse.parse_program_y1 input with
+  match Yc_driver.parse_yc input with
   | Ok _ -> Stdio.print_endline "OK"
   | Error e -> Stdio.printf "Error: %s\n" e
 

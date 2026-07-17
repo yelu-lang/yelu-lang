@@ -8,11 +8,17 @@ open Yelu_cmake
 
 (* ══  parse  ═══════════════════════════════════ *)
 
-(* Production path goes through [parse_and_check] (CST + check_cst + check_all).
-   This direct entry remains for callers that already have an [expr] and just
-   need the legacy parser shape — emit-bridge oracle, test infrastructure. *)
+(* Tier (b) retirement (2026-07-16): [parse_yc] IS the CST path now —
+   parse_cst ∘ lower_cst, the same pipeline parse_and_check uses. The legacy
+   direct parser (parse_program_legacy) is retired; its month-long emit-bridge
+   soak (emit(lower(parse_cst t)) == emit(parse_legacy t), byte-identical over
+   the corpus) plus the tripled matrix oracle (cache + codemodel + ctest vs
+   real cmake) are the evidence base. Wellform-checked parsing is
+   [parse_and_check] below. *)
 let parse_yc src : (expr, string) result =
-  Yelu_parse.parse_program_legacy src
+  match Yc_cst_parse.parse src with
+  | Ok cst -> Ok (Yc_cst_lower.lower_program cst)
+  | Error e -> Error e
 
 let parse_cmake (stmts : Lang_cmake.exp list) : expr =
   Yelu_cmake_from_emit.from_emit_top stmts
@@ -22,12 +28,8 @@ let parse_ycn (e : expr) : expr =
 
 (* ══  cst_lite form  (text ↔ cst_lite ↔ expr) ══
    The concrete-syntax tree that carries comments + source spans
-   ([Yc_cst]). It is the substrate for the formatter (print_ye) and the
-   LSP. Note: [parse_yc] above is still the production text→expr path; the
-   CST path here is proven byte-identical to it via the emit-bridge oracle
-   (emit of lower_cst.parse_cst equals emit of parse_yc, in the
-   test_yc_cst_bridge tests), but has not yet replaced it (that retirement
-   is deferred work; see doc/lang/surface_status.md). *)
+   ([Yc_cst]). It is the substrate for the formatter (print_ye), the LSP,
+   and — since Tier (b) — the production text→expr path itself. *)
 
 let parse_cst (src : string) : (Yc_cst.program, string) result =
   Yc_cst_parse.parse src

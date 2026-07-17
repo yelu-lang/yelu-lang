@@ -123,7 +123,12 @@ let dir_names =
     "link_directories" ]
 let test_names = [ "enable_testing"; "add_test" ]
 let property_names =
+  (* NB: hand-copied from the legacy dispatcher guards; `get_property` was
+     missing here until Tier-b retirement (2026-07-16) — on the CST path it
+     silently fell to raw and dropped ~out. With the legacy parser retired
+     these lists are the single dispatch source. *)
   [ "get_target_property"; "set_target_properties"; "set_property";
+    "get_property";
     "get_directory_property"; "set_directory_property"; "set_test_properties";
     "set_source_property"; "set_source_files_properties";
     "set_global_property"; "get_global_property" ]
