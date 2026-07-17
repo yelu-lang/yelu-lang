@@ -454,6 +454,12 @@ let build_hybrid_tree ~source_dir ~yelu_root ~spliced_files =
 let cmake_configure ~source_dir ~build_dir ~d_flags =
   let _ = run_capture (Printf.sprintf "rm -rf %s" (Stdlib.Filename.quote build_dir)) in
   mkdirp build_dir;
+  (* file-api: request the codemodel so this same configure also emits the
+     build-model JSON (Y5 supplement; consumed by cmd_hybrid's diff). Must be
+     written AFTER the wipe above. *)
+  let query = Stdlib.Filename.concat build_dir ".cmake/api/v1/query" in
+  mkdirp query;
+  write_all (Stdlib.Filename.concat query "codemodel-v2") "";
   let flags = String.concat ~sep:" "
     (List.map d_flags ~f:(fun f -> "-D" ^ Stdlib.Filename.quote f))
   in
@@ -511,6 +517,93 @@ let merge_flags ~manifest ~cmdline =
     not (Set.mem cmdline_keys (key_of f))) in
   manifest_only @ cmdline
 
+(* ============================================================
+   file-api supplement (Y5 / audit follow-up, 2026-07).
+
+   The cache diff below is structurally blind to anything that is not a
+   cache variable — target properties, install rules, test definitions.
+   Three real bugs hid there (set_target_properties on ${empty}, install
+   clauses, add_test's dropped `-C` args). Supplement: query cmake's
+   file-api (codemodel-v2) during both configures and diff the normalized
+   replies, plus `ctest --show-only=json-v1` for test definitions.
+   ============================================================ *)
+
+(* The codemodel query itself is written by [cmake_configure] (which wipes the
+   build dir first, so the query must be created there, post-wipe). *)
+
+(* Canonicalize a reply: drop cmake-internal bookkeeping that varies without
+   semantic effect (same set the file-api test harness strips —
+   test/cmake_file_api_cmp.py), and sort assoc keys so structural equality
+   is string equality on the pretty-print. *)
+let rec json_canon (j : Yojson.Safe.t) : Yojson.Safe.t =
+  let unstable = [ "jsonFile"; "backtrace"; "backtraceGraph"; "id" ] in
+  match j with
+  | `Assoc kvs ->
+    `Assoc
+      (kvs
+       |> List.filter ~f:(fun (k, _) ->
+            not (List.mem unstable k ~equal:String.equal))
+       |> List.map ~f:(fun (k, v) -> (k, json_canon v))
+       |> List.sort ~compare:(fun (a, _) (b, _) -> String.compare a b))
+  | `List xs -> `List (List.map xs ~f:json_canon)
+  | x -> x
+
+(* key → canonical-json map of the codemodel replies. [normalize] rewrites the
+   vendor/hybrid roots to shared placeholders in the raw text (paths only occur
+   inside JSON strings). Reply filenames carry a content hash — key on the
+   hashless prefix (`target-fmt-Debug-<hash>.json` → `target-fmt-Debug`),
+   mirroring the python harness. *)
+let fileapi_reply_map ~normalize build_dir : (string * string) list =
+  let reply = Stdlib.Filename.concat build_dir ".cmake/api/v1/reply" in
+  if not (Stdlib.Sys.file_exists reply) then []
+  else
+    Stdlib.Sys.readdir reply |> Array.to_list
+    |> List.filter ~f:(fun f ->
+         String.is_suffix f ~suffix:".json"
+         && (String.is_prefix f ~prefix:"codemodel-v2"
+             || String.is_prefix f ~prefix:"target-"))
+    |> List.map ~f:(fun f ->
+         let key =
+           let stem = String.chop_suffix_exn f ~suffix:".json" in
+           match String.rsplit2 stem ~on:'-' with
+           | Some (k, _hash) -> k
+           | None -> stem
+         in
+         let canon =
+           read_all (Stdlib.Filename.concat reply f)
+           |> normalize |> Yojson.Safe.from_string |> json_canon
+           |> Yojson.Safe.pretty_to_string
+         in
+         (key, canon))
+    |> List.sort ~compare:(fun (a, _) (b, _) -> String.compare a b)
+
+(* Test definitions incl. full command arg lists — the channel that would have
+   caught the add_test `-C` drop. *)
+let ctest_show ~normalize build_dir : string option =
+  let out, code =
+    run_capture
+      (Printf.sprintf "cd %s && ctest --show-only=json-v1 2>/dev/null"
+         (Stdlib.Filename.quote build_dir))
+  in
+  if code <> 0 then None
+  else
+    match Yojson.Safe.from_string (normalize out) with
+    | j -> Some (Yojson.Safe.pretty_to_string (json_canon j))
+    | exception _ -> None
+
+(* First point of divergence between two canonical pretty-prints — enough to
+   triage from the log without dumping whole codemodels. *)
+let first_divergence a b : (int * string * string) option =
+  let la = String.split_lines a and lb = String.split_lines b in
+  let rec go i = function
+    | x :: xs, y :: ys ->
+      if String.equal x y then go (i + 1) (xs, ys) else Some (i, x, y)
+    | x :: _, [] -> Some (i, x, "<end>")
+    | [], y :: _ -> Some (i, "<end>", y)
+    | [], [] -> None
+  in
+  go 1 (la, lb)
+
 let cmd_hybrid ?(source_dir_override = None) manifest_path d_flags =
   let m = load_manifest manifest_path in
   let source_dir = Option.value source_dir_override ~default:m.source_dir in
@@ -566,7 +659,8 @@ let cmd_hybrid ?(source_dir_override = None) manifest_path d_flags =
   build_hybrid_tree ~source_dir ~yelu_root ~spliced_files;
   log "[yelu] hybrid source at %s/" yelu_root;
 
-  (* 4. Run cmake on both. *)
+  (* 4. Run cmake on both — with the file-api codemodel query in place, so
+     each configure also emits the build-model JSON (free: same configure). *)
   let vendor_build = Stdlib.Filename.concat m.out_root "yelu/build-cmake" in
   let hybrid_build = Stdlib.Filename.concat m.out_root "yelu/build-yelu" in
   let code_v = cmake_configure ~source_dir:source_abs ~build_dir:vendor_build ~d_flags in
@@ -583,11 +677,10 @@ let cmd_hybrid ?(source_dir_override = None) manifest_path d_flags =
       (Stdlib.Filename.concat vendor_build "CMakeCache.txt") in
   let h_cache = strip_cache ~build_dir:vendor_build ~source_dir
       (Stdlib.Filename.concat hybrid_build "CMakeCache.txt") in
+  let cache_semantic =
   if String.equal v_cache h_cache then begin
     log "[yelu] caches MATCH — hybrid is semantically equivalent";
-    log "[yelu] log saved: %s" log_path;
-    Stdlib.close_out log_oc;
-    Stdlib.exit 0
+    []
   end else begin
     (* Classify each diff line. *)
     let v_lines = String.split_lines v_cache in
@@ -627,10 +720,81 @@ let cmd_hybrid ?(source_dir_override = None) manifest_path d_flags =
       log "[yelu] --- path-only ---";
       List.iter path_only ~f:(fun s -> log "  %s" s)
     end;
-    log "[yelu] log saved: %s" log_path;
-    Stdlib.close_out log_oc;
-    if List.is_empty semantic then Stdlib.exit 0 else Stdlib.exit 1
+    semantic
   end
+  in
+
+  (* 6. file-api supplement: diff the codemodel (targets, properties, sources,
+     install rules) + ctest definitions — the classes the cache diff cannot
+     see. Roots normalized to shared placeholders so vendor/hybrid paths
+     compare equal. *)
+  let realpath p =
+    run_capture (Printf.sprintf "realpath %s" (Stdlib.Filename.quote p))
+    |> fst |> String.strip in
+  let normalize s =
+    List.fold
+      [ realpath hybrid_build, "<BUILD>"; realpath vendor_build, "<BUILD>";
+        realpath yelu_root, "<SRC>"; source_abs, "<SRC>" ]
+      ~init:s
+      ~f:(fun acc (root, placeholder) ->
+        if String.is_empty root then acc
+        else String.substr_replace_all acc ~pattern:root ~with_:placeholder)
+  in
+  let cm_v = fileapi_reply_map ~normalize vendor_build in
+  let cm_h = fileapi_reply_map ~normalize hybrid_build in
+  let keys =
+    Set.union
+      (Set.of_list (module String) (List.map cm_v ~f:fst))
+      (Set.of_list (module String) (List.map cm_h ~f:fst))
+    |> Set.to_list
+  in
+  let fileapi_bad =
+    List.filter_map keys ~f:(fun key ->
+      let find m = List.Assoc.find m key ~equal:String.equal in
+      match find cm_v, find cm_h with
+      | Some a, Some b when String.equal a b -> None
+      | Some a, Some b ->
+        (match first_divergence a b with
+         | Some (line, va, vh) ->
+           log "[yelu] file-api DIFFER %s (line %d):" key line;
+           log "    vendor: %s" (String.strip va);
+           log "    hybrid: %s" (String.strip vh)
+         | None -> ());
+        Some (Printf.sprintf "codemodel %s" key)
+      | Some _, None ->
+        log "[yelu] file-api: %s only in vendor" key;
+        Some (Printf.sprintf "%s only in vendor" key)
+      | None, Some _ ->
+        log "[yelu] file-api: %s only in hybrid" key;
+        Some (Printf.sprintf "%s only in hybrid" key)
+      | None, None -> None)
+  in
+  let ctest_bad =
+    match ctest_show ~normalize vendor_build, ctest_show ~normalize hybrid_build with
+    | Some a, Some b when String.equal a b -> []
+    | Some a, Some b ->
+      (match first_divergence a b with
+       | Some (line, va, vh) ->
+         log "[yelu] ctest DIFFER (line %d):" line;
+         log "    vendor: %s" (String.strip va);
+         log "    hybrid: %s" (String.strip vh)
+       | None -> ());
+      [ "ctest definitions" ]
+    | None, None -> []          (* no ctest / no tests on either side *)
+    | Some _, None -> log "[yelu] ctest: hybrid produced no output"; [ "ctest hybrid missing" ]
+    | None, Some _ -> log "[yelu] ctest: vendor produced no output"; [ "ctest vendor missing" ]
+  in
+  log "[yelu] file-api: %d codemodel keys, %d differ%s"
+    (List.length keys) (List.length fileapi_bad)
+    (if List.is_empty ctest_bad then "; ctest MATCH" else "; ctest DIFFERS");
+
+  log "[yelu] log saved: %s" log_path;
+  Stdlib.close_out log_oc;
+  if List.is_empty cache_semantic
+  && List.is_empty fileapi_bad
+  && List.is_empty ctest_bad
+  then Stdlib.exit 0
+  else Stdlib.exit 1
 
 (* ============================================================
    Arg dispatch. *)
