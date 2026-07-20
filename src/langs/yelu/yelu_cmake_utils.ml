@@ -87,7 +87,7 @@ let ybool b = EBool b
 
 (* [${VAR}] inline refs stay as [EString] in yelu_cmake (matching the
    legacy [Ycs_eval] flow); [$<...>] generator expressions go through
-   [ECmakeGenex]. Mirrors [Yelu_parse.p_expr_y1]. *)
+   [ECmakeGenex]. Mirrors the atom lowering in [Yc_cst_lower.lower_atom]. *)
 let ystr_eval s =
   if String.is_substring s ~substring:"$<" then
     Yelu_cmake_string.ECmakeGenex s

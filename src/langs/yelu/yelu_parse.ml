@@ -1,34 +1,30 @@
-(* [tool-interface]
-   node:     .yc text → yc
-   op:       parse
-   strategy: code
-   exports:  parse_program_y1 : string → (Yelu_cmake.expr, error) result
-   imports:  Yelu_lang_lexer (token stream), Yelu_cmake (IR types),
-             per-theory fragment ctors
-   ─────────
+(* Per-command argument interpretation for yc — the `_inner` library.
 
-   Concrete-syntax parser for yelu_cmake. Produces
-   [Yelu_cmake.expr] directly from token streams. The only
-   production parser since E1 retired the legacy
-   [Lang_yelu_parse] path.
+   **This file is no longer a parser.** Tier (b) (2026-07-16) retired the
+   token-level grammar: the production path is
+   `Yc_cst_parse.parse` → `Yc_cst_lower.lower_program` → `Yelu_cmake.expr`
+   (`Yc_driver.parse_yc`). What survives here is the piece that path calls —
+   the per-family `_inner` functions, which take an *already-parsed*
+   `(positional expr list, kwarg alist)` and build the typed IR node for one
+   cmake command family.
 
-   Current scope: broad CMake-family coverage including variable
-   assignment plus control, cond, string, list, path, file,
-   target, dir, test, property, find, install, cmake_op,
-   function/macro/while/foreach/apply shapes.
+   So the contract of every export is:
 
-     - `IDENT := value`              → ESetVar
-     - `IDENT := v1, v2, v3`         → ESetVar (… EList …)
-     - `cache IDENT := v ; 'msg'`    → ECmakeSetCache
-     - `( set IDENT value... )`      → ESetVar
-     - `( option IDENT value )`      → ECmakeOption
-     - `( unset_cache IDENT )`       → ECmakeUnsetVarCache
+     p_<family>_command_y1_inner :
+       string -> expr list -> (string * expr) list -> expr option
+       (command name)  (positionals)  (~kwargs)        (None = raw fallback)
 
-   The exposed entry point [parse_program_y1] returns a single
-   [Yelu_cmake.expr] for the covered syntax. Unsupported inputs
-   produce [Error _]. Test coverage lives in
-   [test_yelu_cmake_parse.ml] (smoke + structural assertions on
-   the IR shape, plus 125 inline-golden cases frozen during E1).
+   [Yc_cst_lower.lower_command] dispatches to these by name; they are the
+   single source of truth for "what does this cmake command mean", shared by
+   compile / fmt / LSP / the corpus gate. The `_y1` suffix is historical (Y1
+   was the early-production label) and is retained only to avoid a churn-only
+   rename across the dispatch table.
+
+   Covered families: string, list, path, file, target, dir, test, property,
+   find, install, try, cmake_op — plus the shared helpers they need
+   ([split_by_keywords], [out_var_y1], [p_cmake_entity], [str_of],
+   [target_groups_to_y1], …). Test coverage: [test_yelu_cmake_parse.ml]
+   (280 per-command cases, run through the production CST path).
 
    === Legacy-compatible defaults (vestigial) ===
 
@@ -52,15 +48,10 @@
                                  keyword args (paths, hints, etc.). *)
 
 open Base
-open Yelu_lexer
 open Yelu_cmake
-open Yelu_cmake_normal_bool
-open Yelu_cmake_normal_int
-open Yelu_cmake_store
 open Yelu_cmake_string
 open Yelu_cmake_list
 open Yelu_cmake_path
-open Yelu_cmake_file
 open Yelu_cmake_normal_target
 open Yelu_cmake_target
 open Yelu_cmake_cmake_op
@@ -74,37 +65,6 @@ open Yelu_cmake_utils
    the build.
    ============================================================ *)
 
-(* kw mirrors [Lang_yelu_parse.kw]: reserved-word strings map to
-   dedicated tokens (LET / IF / FOREACH / FUNCTION / MACRO / etc.);
-   other strings match IDENT. *)
-let kw s toks =
-  let expect = match s with
-    | "let" -> LET | "in" -> IN | "if" -> IF | "then" -> THEN | "else" -> ELSE
-    | "foreach" -> FOREACH | "function" -> FUNCTION | "fun" -> FUNCTION
-    | "macro" -> MACRO
-    | "while" -> WHILE | "break" -> BREAK | "continue" -> CONTINUE
-    | "return" -> RETURN
-    | "target" -> TARGET | "cvar" -> CVAR | "cache" -> CACHE
-    | "RANGE" -> RANGE
-    | _ -> EOF
-  in
-  match toks with
-  | IDENT s' :: rest when String.equal s s' -> Some ((), rest)
-  | t :: rest when Poly.equal t expect -> Some ((), rest)
-  | _ -> None
-
-let delim t toks =
-  match toks with
-  | t' :: rest when Poly.equal t t' -> Some ((), rest)
-  | _ -> None
-
-let lparen = delim LPAREN
-let rparen = delim RPAREN
-let lbrack = delim LBRACK
-let rbrack = delim RBRACK
-let eq_tok = delim EQ
-let dotdot = delim DOTDOT
-
 let rec str_of ?(default = "?") = function
   | ETarget s | EVar s | EString s -> s
   (* A first-class `${...}` reconstructs to its cmake text in a *name/keyword*
@@ -114,320 +74,6 @@ let rec str_of ?(default = "?") = function
   | EVarLookup e -> "${" ^ str_of ~default e ^ "}"
   | _ -> default
 
-(* ============================================================
-   Expression parsing — currently the common literal/name subset used
-   by the covered statement families.
-
-   yelu_cmake's expression grammar is richer than what var values
-   originally needed; Phase 2a has widened this helper for the direct
-   parser, while preserving legacy-compatible token choices where the
-   byte oracle depends on them.
-   ============================================================ *)
-
-let rec p_expr_y1 toks =
-  match toks with
-  | TARGET :: IDENT name :: rest -> Some (ETarget name, rest)
-  | TARGET :: PATH s :: rest -> Some (ETarget s, rest)
-  | TARGET :: STRING s :: rest -> Some (ETarget s, rest)
-  | TARGET :: EVAL s :: rest -> Some (ETarget s, rest)
-  | STRING s :: rest -> Some (EString s, rest)
-  | PATH s :: rest -> Some (EString s, rest)
-  | EVAL s :: rest ->
-    (* $<...> → ECmakeGenex; a pure `${...}` → first-class EVarLookup
-       (shared decision via [parse_var_lookup], so the CST lowering routes
-       identically); mixed/literal → EString. *)
-    if String.is_substring s ~substring:"$<" then
-      Some (ECmakeGenex s, rest)
-    else
-      (match parse_var_lookup s with
-       | Some e -> Some (e, rest)
-       | None -> Some (EString s, rest))
-  | KEYWORD s :: rest -> Some (EString s, rest)
-  | BOOL b :: rest -> Some (EBool b, rest)
-  | INT n :: rest -> Some (EString (Int.to_string n), rest)
-  | IDENT name :: rest -> Some (EVar name, rest)
-  | LPAREN :: rest ->
-    (* Parenthesized expression: ( expr ). *)
-    (match p_expr_y1 rest with
-     | Some (e, RPAREN :: rest') -> Some (e, rest')
-     | _ -> None)
-  (* recursive value list `[ v, v, … ]` (mirror CST p_atom) *)
-  | LBRACK :: rest ->
-    let rec items acc = function
-      | RBRACK :: r -> Some (EList (List.rev acc), r)
-      | COMMA :: r  -> items acc r
-      | toks ->
-        (match p_expr_y1 toks with
-         | Some (e, r) -> items (e :: acc) r
-         | None -> None)
-    in
-    items [] rest
-  (* record `{ key=v, … }` — keys bare idents, `=` (or `:`) binds *)
-  | LBRACE :: rest ->
-    let rec fields acc = function
-      | RBRACE :: r -> Some (ERecord (List.rev acc), r)
-      | COMMA :: r  -> fields acc r
-      | IDENT k :: (COLON | EQ) :: r ->
-        (match p_expr_y1 r with
-         | Some (v, r') -> fields ((k, v) :: acc) r'
-         | None -> None)
-      | _ -> None
-    in
-    fields [] rest
-  | _ -> None
-
-(* ============================================================
-   Var-family statement parsers. Each produces a Yelu_cmake.expr
-   (specifically one of: ESetVar, ECmakeSetCache, ECmakeOption,
-   ECmakeUnsetVarCache, ECmakeSetEnvVar, ECmakeUnsetEnvVar) without
-   going through Lang_yelu_cmake AST.
-   ============================================================ *)
-
-(* Var-family dispatchers below build their IR through
-   [Yelu_cmake_utils.yc_set] etc. The empty/single/list value-list
-   normalization that [yc_set] does internally used to live in a
-   local [pack_set_value]; removed in F refactor. *)
-
-(* `IDENT := v1, v2, v3` or `cache IDENT := v ; 'msg'` *)
-(* Forward references — populated at the bottom of the file once
-   [collect_command_args] and the family `_inner` parsers are defined.
-   Used by p_assign_y1's command-call sugar (`var := cmd args ~kw=v`),
-   which lives before its dependencies due to call-chain order
-   (p_var_stmt_y1 → p_assign_y1 happens at line 311). *)
-let collect_command_args_fwd :
-  (expr list -> (string * expr) list -> token list ->
-   expr list * (string * expr) list * token list) ref =
-  ref (fun _ _ _ -> ([], [], []))
-
-let dispatch_command_fwd :
-  (string -> expr list -> (string * expr) list -> expr option) ref =
-  ref (fun _ _ _ -> None)
-
-let fallback_to_raw_fwd :
-  (string -> expr list -> token list -> expr option ->
-   (expr * token list) option) ref =
-  ref (fun _ _ _ _ -> None)
-
-let p_assign_y1 toks =
-  let is_cache, toks =
-    match toks with
-    | CACHE :: rest -> (true, rest)
-    | (IDENT _ | STRING _ | EVAL _) :: WALRUS :: _ -> (false, toks)
-    | _ -> (false, toks)
-  in
-  match toks with
-  (* Low-priority `:=` — if the RHS starts with a known command name followed
-     by command-shape tokens (TILDE kwarg or further positionals), parse the
-     rest as a full command call, inject `~out=var`, and dispatch to the
-     matching family `_inner`. This makes `var := get_property Target foo
-     ~property=NAME` desugar to `get_property Target foo ~property=NAME
-     ~out=var`. Single bare value (e.g. `var := foo` or empty) falls through
-     to the legacy value-list path. *)
-  | (IDENT s | STRING s | EVAL s) :: WALRUS :: IDENT cmd :: after_cmd
-    when (not is_cache)
-      && Yc_primitives.is_known_command cmd
-      && (match after_cmd with
-          | TILDE :: _ -> true
-          | [] | SEMI :: _ | RPAREN :: _ -> false
-          | _ -> true) ->
-    let args, kwargs, rest =
-      !collect_command_args_fwd [] [] after_cmd
-    in
-    let kwargs = kwargs @ [ ("out", EVar s) ] in
-    !fallback_to_raw_fwd cmd args rest (!dispatch_command_fwd cmd args kwargs)
-  | (IDENT s | STRING s | EVAL s) :: WALRUS :: rest ->
-    let rec collect_vals ?(only_one = false) acc toks =
-      match toks with
-      | TILDE :: _ | (RPAREN :: _) | (SEMI :: _) | []
-        when List.is_empty acc -> None
-      | TILDE :: _ when not (List.is_empty acc) ->
-        Some (List.rev acc, toks)
-      | (RPAREN :: _) | (SEMI :: _) | [] ->
-        Some (List.rev acc, toks)
-      | IDENT "PARENT_SCOPE" :: _ when not (List.is_empty acc) ->
-        Some (List.rev acc, toks)
-      | _ ->
-        (match p_expr_y1 toks with
-         | Some (v, COMMA :: rest) ->
-           collect_vals ~only_one (v :: acc) rest
-         | Some (v, rest) ->
-           if only_one then Some (List.rev (v :: acc), rest)
-           else collect_vals ~only_one (v :: acc) rest
-         | None ->
-           if List.is_empty acc then None else Some (List.rev acc, toks))
-    in
-    (match collect_vals ~only_one:is_cache [] rest with
-     | None -> None
-     | Some (values, rest) ->
-       if is_cache then
-         (* `cache VAR := v ; 'msg'` — extract docstring; default ""
-            and cache_type "STRING" matches legacy parse defaults.
-            Kwargs ~type:TYPE and ~force after the docstring. *)
-         let msg, rest =
-           match rest with
-           | SEMI :: STRING s :: rest' -> (s, rest')
-           | SEMI :: PATH s :: rest' -> (s, rest')
-           | STRING s :: SEMI :: rest' -> (s, rest')
-           | STRING s :: rest' -> (s, rest')
-           | PATH s :: rest' -> (s, rest')
-           | _ -> ("", rest)
-         in
-         let rec collect_cache_kwargs cache_type force = function
-           (* ~type:VALUE or ~type=VALUE *)
-           | TILDE :: IDENT "type" :: (COLON | EQ) :: rest ->
-             (match p_expr_y1 rest with
-              | Some (v, r) ->
-                let t = str_of ~default:"STRING" v in
-                collect_cache_kwargs t force r
-              | None -> collect_cache_kwargs cache_type force rest)
-           | TILDE :: IDENT "type" :: _ :: rest ->
-             collect_cache_kwargs cache_type force rest
-           | TILDE :: IDENT "type" :: [] ->
-             (cache_type, force, [])
-           (* :TYPE keyword form: ~type:STRING was lexed as TILDE; KEYWORD "STRING" *)
-           | TILDE :: KEYWORD kw :: rest
-             when String.equal kw "STRING" || String.equal kw "BOOL"
-               || String.equal kw "FILEPATH" || String.equal kw "PATH" ->
-             collect_cache_kwargs kw force rest
-           | TILDE :: IDENT "force" :: rest ->
-             collect_cache_kwargs cache_type true rest
-           | TILDE :: _ :: rest ->
-             collect_cache_kwargs cache_type force rest
-           | toks -> (cache_type, force, toks)
-         in
-         let cache_type_s, force, rest = collect_cache_kwargs "STRING" false rest in
-         Some (Yelu_cmake_store.ECmakeSetCache
-                 { name = s; values; cache_type = cache_type_s;
-                   docstring = msg; force }, rest)
-       else
-         let parent_scope, rest =
-           match rest with
-           | IDENT "PARENT_SCOPE" :: r -> true, r
-           | TILDE :: IDENT "parent_scope" :: r -> true, r
-           | _ -> false, rest
-         in
-         Some (yc_set ~parent_scope s values, rest))
-  | _ -> None
-
-(* `set NAME value...` plain set form (outer `(`/`)` handled by block). *)
-let p_set_command_y1 toks =
-  match kw "set" toks with
-  | None -> None
-  | Some ((), toks) ->
-    match toks with
-    | (STRING name | PATH name | IDENT name) :: rest ->
-      let rec collect_vals acc toks =
-        match toks with
-        | (RPAREN :: _) | (SEMI :: _) | [] -> List.rev acc, toks
-        | IDENT "PARENT_SCOPE" :: rest' ->
-          (* Trailing PARENT_SCOPE keyword — terminate value collection.
-             Mirrors cmake's `set(X v PARENT_SCOPE)` shape. *)
-          List.rev acc, IDENT "PARENT_SCOPE" :: rest'
-        | _ ->
-          (match p_expr_y1 toks with
-           | Some (v, rest) -> collect_vals (v :: acc) rest
-           | None -> List.rev acc, toks)
-      in
-      let values, rest = collect_vals [] rest in
-      let parent_scope, rest =
-        match rest with
-        | IDENT "PARENT_SCOPE" :: r -> true, r
-        | TILDE :: IDENT "parent_scope" :: r -> true, r
-        | _ -> false, rest
-      in
-      Some (yc_set ~parent_scope name values, rest)
-    | _ -> None
-
-(* `option NAME value` *)
-let p_option_command_y1 toks =
-  match kw "option" toks with
-  | None -> None
-  | Some ((), toks) ->
-    match toks with
-    | (STRING name | IDENT name) :: rest ->
-      (match p_expr_y1 rest with
-       | None -> None
-       | Some (help, rest) ->
-         (match p_expr_y1 rest with
-          | Some (value, rest) ->
-            let msg = str_of ~default:"" help in
-            Some (yc_option ~value ~msg name, rest)
-          | None ->
-            (* No default value — help was actually the default *)
-            let value = help in
-            Some (yc_option ~value ~msg:"" name, rest)))
-    | _ -> None
-
-(* `unset_cache NAME` *)
-let p_unset_cache_command_y1 toks =
-  match kw "unset_cache" toks with
-  | None -> None
-  | Some ((), toks) ->
-    match toks with
-    | (STRING name | IDENT name) :: rest ->
-      Some (yc_unset_cache name, rest)
-    | _ -> None
-
-let p_var_stmt_y1 toks =
-  match p_assign_y1 toks with Some r -> Some r | None ->
-  match p_set_command_y1 toks with Some r -> Some r | None ->
-  match p_option_command_y1 toks with Some r -> Some r | None ->
-  p_unset_cache_command_y1 toks
-
-(* ============================================================
-   Command + kwargs collector — duplicated from
-   [Lang_yelu_parse.p_command]'s argument-loop. Collects positional
-   args (as yelu_cmake expr) and `~name:value` kwargs (as a name → expr
-   alist) until it hits a parser-stopping token.
-   ============================================================ *)
-
-let rec collect_command_args args kwargs toks =
-  match toks with
-  (* `~key=[items]` — list-valued kwarg. Items flatten to N kwarg entries
-     with the same key (per-command handlers recover the list via
-     filter_map / find_all). Used by visibility kind-scoped groups
-     (`~public=[...]`) and by value-list labels (`~property=[NAME, vals...]`
-     in set_property). General mechanism; future shape-2/3 commands plug in
-     without parser changes — just per-command kwarg-list extraction. *)
-  | TILDE :: IDENT kw :: (COLON | EQ) :: LBRACK :: rest ->
-    let rec collect_items acc = function
-      | RBRACK :: r -> (List.rev acc, r)
-      | COMMA :: r -> collect_items acc r
-      | toks' ->
-        (match p_expr_y1 toks' with
-         | Some (e, r) -> collect_items (e :: acc) r
-         | None -> (List.rev acc, toks'))
-    in
-    let items, rest = collect_items [] rest in
-    (* Prepend reversed so that the final List.rev kwargs at the end of
-       collection restores source order. Per-command handlers that care
-       about order (e.g. property_kwarg in set_property) get [name; vals...]
-       matching the [NAME, vals...] surface order. *)
-    let kwargs' = List.rev_map items ~f:(fun e -> (kw, e)) in
-    collect_command_args args (kwargs' @ kwargs) rest
-  | TILDE :: IDENT kw0 :: rest0 ->
-    (* dotted label `~library.destination=v` flattens a per-artifact record
-       (shape 4); plain keys are the single-IDENT case. *)
-    let rec read_key acc = function
-      | DOT :: IDENT k2 :: r -> read_key (acc ^ "." ^ k2) r
-      | r -> (acc, r)
-    in
-    let key, after = read_key kw0 rest0 in
-    (match after with
-     | (COLON | EQ) :: rest ->
-       (match p_expr_y1 rest with
-        | Some (v, r) -> collect_command_args args ((key, v) :: kwargs) r
-        | None -> (List.rev args, List.rev kwargs, toks))
-     | KEYWORD v :: rest ->
-       collect_command_args args ((key, EVar v) :: kwargs) rest
-     | rest ->
-       collect_command_args args ((key, EBool true) :: kwargs) rest)
-  | (RPAREN :: _) | (SEMI :: _) | [] ->
-    (List.rev args, List.rev kwargs, toks)
-  | _ ->
-    (match p_expr_y1 toks with
-     | Some (e, r) -> collect_command_args (e :: args) kwargs r
-     | None -> (List.rev args, List.rev kwargs, toks))
 
 (* ── Section splitter ───────────────────────────
 
@@ -459,12 +105,6 @@ let split_by_keywords ~(keywords : string list) (args : expr list)
         loop acc current_kw (e :: current_group) rest
   in
   loop [] "_head" [] args
-
-(* Shared raw-fallback: when a typed inner parser returns None, wrap the
-   original args as ECmakeRawCmd so the command round-trips through the IR. *)
-let fallback_to_raw name args rest = function
-  | None -> Some (ECmakeRawCmd { name = cmake_name_of_yelu name; args; from_positional = None }, rest)
-  | Some e -> Some (e, rest)
 
 (* Match legacy [Lang_yelu_parse.out_var] sentinel: "?" when ~out
    missing. Some parser tests omit ~out and rely on this fallback;
@@ -571,14 +211,6 @@ let p_string_command_y1_inner name args kwargs =
             { out; error_var = None; op_name; args = rest })
   | _ -> None
 
-let p_string_command_y1 toks =
-  match toks with
-  | IDENT name :: rest when String.is_prefix name ~prefix:"string_" ->
-      let args, kwargs, rest = collect_command_args [] [] rest in
-      p_string_command_y1_inner name args kwargs
-      |> fallback_to_raw name args rest
-    | _ -> None
-
 (* ============================================================
    List family — mirrors [Lang_yelu_parse]'s list_* dispatch in
    p_command. cvar name extracted from the first positional arg.
@@ -646,14 +278,6 @@ let p_list_command_y1_inner name args kwargs =
             { list = cvar_name_of_y1 cvar;
               action; selector = None; output = None })
   | _ -> None
-
-let p_list_command_y1 toks =
-  match toks with
-  | IDENT name :: rest when String.is_prefix name ~prefix:"list_" ->
-      let args, kwargs, rest = collect_command_args [] [] rest in
-      p_list_command_y1_inner name args kwargs
-      |> fallback_to_raw name args rest
-    | _ -> None
 
 (* ============================================================
    Path family — mirrors [Lang_yelu_parse]'s path_* dispatch.
@@ -733,16 +357,6 @@ let p_path_command_y1_inner name args kwargs =
             { var = out; filename; mode = "PATH" })
   | _ -> None
 
-let p_path_command_y1 toks =
-  match toks with
-  | IDENT name :: rest
-      when String.is_prefix name ~prefix:"path_"
-        || String.equal name "get_filename_component" ->
-      let args, kwargs, rest = collect_command_args [] [] rest in
-      p_path_command_y1_inner name args kwargs
-      |> fallback_to_raw name args rest
-    | _ -> None
-
 (* ============================================================
    File family — file_*, configure_file. cvar args become out strings;
    file/path args stay as expressions.
@@ -770,16 +384,6 @@ let p_file_command_y1_inner name args kwargs =
   | "file_strings", [ file ] -> Some (yc_file_strings out file)
   | "file_read_symlink", [ link ] -> Some (yc_file_read_symlink out link)
   | _ -> None
-
-let p_file_command_y1 toks =
-  match toks with
-  | IDENT name :: rest
-      when String.is_prefix name ~prefix:"file_"
-        || String.equal name "configure_file" ->
-      let args, kwargs, rest = collect_command_args [] [] rest in
-      p_file_command_y1_inner name args kwargs
-      |> fallback_to_raw name args rest
-    | _ -> None
 
 (* ============================================================
    Target family — add_exe / add_lib / link_lib / include_dirs /
@@ -1012,24 +616,6 @@ let p_target_command_y1_inner name args kwargs =
        (e.g. dynamic visibility ${kind}). Fall back to yc_raw. *)
     Some (ECmakeRawCmd { name = cmake_name_of_yelu name; args; from_positional = None })
 
-let p_target_command_y1 toks =
-  match toks with
-  | IDENT name :: rest
-      when (match name with
-            | "add_exe" | "add_lib" | "link_lib" | "include_dirs"
-            | "target_link_libraries" | "target_include_directories"
-            | "compile_defs" | "compile_opts" | "compile_feats"
-            | "target_compile_definitions" | "target_compile_options"
-            | "target_compile_features" | "target_link_options"
-            | "target_link_directories"
-            | "link_opts" | "link_dirs" | "target_sources"
-            | "add_lib_alias" | "add_custom_target" | "add_custom_command" -> true
-            | _ -> false) ->
-      let args, kwargs, rest = collect_command_args [] [] rest in
-      p_target_command_y1_inner name args kwargs
-      |> fallback_to_raw name args rest
-    | _ -> None
-
 (* ============================================================
    Dir family — add_subdirectory, include_directories,
    add_compile_definitions, add_compile_options, add_link_options,
@@ -1046,20 +632,6 @@ let p_dir_command_y1_inner name args _kwargs =
   | "add_definitions", defs -> Some (yc_add_definitions defs)
   | "link_directories", dirs -> Some (yc_link_directories dirs)
   | _ -> None
-
-let p_dir_command_y1 toks =
-  match toks with
-  | IDENT name :: rest
-      when (match name with
-            | "add_subdirectory" | "include_directories"
-            | "add_compile_definitions" | "add_compile_options"
-            | "add_link_options" | "add_definitions"
-            | "link_directories" -> true
-            | _ -> false) ->
-      let args, kwargs, rest = collect_command_args [] [] rest in
-      p_dir_command_y1_inner name args kwargs
-      |> fallback_to_raw name args rest
-    | _ -> None
 
 (* ============================================================
    Test family — enable_testing, add_test.
@@ -1099,16 +671,6 @@ let p_test_command_y1_inner name args kwargs =
           Some (yc_add_test name_arg command rest)
         | _ -> None))
   | _ -> None
-
-let p_test_command_y1 toks =
-  match toks with
-  | IDENT name :: rest
-      when String.equal name "enable_testing"
-        || String.equal name "add_test" ->
-      let args, kwargs, rest = collect_command_args [] [] rest in
-      p_test_command_y1_inner name args kwargs
-      |> fallback_to_raw name args rest
-    | _ -> None
 
 (* ============================================================
    Property family — get/set_target_property, set_property,
@@ -1475,22 +1037,6 @@ let p_property_command_y1_inner name args kwargs =
     Some (yc_get_global_property ~property:"PROP" out)
   | _ -> None
 
-let p_property_command_y1 toks =
-  match toks with
-  | IDENT name :: rest
-      when (match name with
-            | "get_target_property" | "set_target_properties"
-            | "set_property" | "get_property"
-            | "get_directory_property" | "set_directory_property"
-            | "set_test_properties"
-            | "set_source_property" | "set_source_files_properties"
-            | "set_global_property" | "get_global_property" -> true
-            | _ -> false) ->
-      let args, kwargs, rest = collect_command_args [] [] rest in
-      p_property_command_y1_inner name args kwargs
-      |> fallback_to_raw name args rest
-    | _ -> None
-
 (* ============================================================
    Find family — find_package, find_library/path/program/file.
    Legacy parser defaults names/paths/hints lists to empty.
@@ -1562,15 +1108,6 @@ let p_find_command_y1_inner name args kwargs =
     let paths = kwarg_list ~key:"path" @ kwarg_list ~key:"paths" in
     Some (yc_find_file ~names ~paths (cvar_name cvar))
   | _ -> None
-
-let p_find_command_y1 toks =
-  match toks with
-  | IDENT name :: rest
-      when String.is_prefix name ~prefix:"find_" ->
-      let args, kwargs, rest = collect_command_args [] [] rest in
-      p_find_command_y1_inner name args kwargs
-      |> fallback_to_raw name args rest
-    | _ -> None
 
 (* ============================================================
    Install family — install_targets / install_files / install_export
@@ -1751,20 +1288,6 @@ let p_install_command_y1_inner name args kwargs =
             ~compatibility ?version file)
   | _ -> None
 
-let p_install_command_y1 toks =
-  match toks with
-  | IDENT name :: rest
-      when (match name with
-            | "install_targets" | "install_files" | "install_export"
-            | "install_directory"
-            | "export" | "configure_package_config_file"
-            | "write_basic_package_version_file" -> true
-            | _ -> false) ->
-      let args, kwargs, rest = collect_command_args [] [] rest in
-      p_install_command_y1_inner name args kwargs
-      |> fallback_to_raw name args rest
-    | _ -> None
-
 (* ============================================================
    try family (try_compile / try_run scalar forms).
 
@@ -1783,17 +1306,6 @@ let p_try_command_y1_inner name args _kwargs =
     Some (yc_try_run (cvar_name_of_y1 run_result)
             (cvar_name_of_y1 compile_result) [])
   | _ -> None
-
-let p_try_command_y1 toks =
-  match toks with
-  | IDENT name :: rest
-      when (match name with
-            | "try_compile" | "try_run" -> true
-            | _ -> false) ->
-      let args, kwargs, rest = collect_command_args [] [] rest in
-      p_try_command_y1_inner name args kwargs
-      |> fallback_to_raw name args rest
-    | _ -> None
 
 (* ============================================================
    cmake_op family (scalar commands; control flow deferred).
@@ -1967,582 +1479,3 @@ let p_cmake_op_command_y1_inner name args kwargs =
     Some (ECmakeRaw s)
   | _ -> None
 
-let p_cmake_op_command_y1 toks =
-  match toks with
-  | IDENT name :: rest
-      when (match name with
-            | "cmake_minimum_required" | "project" | "message"
-            | "math" | "include" | "include_guard" | "policy_set"
-            | "enable_language" | "execute_process"
-            | "separate_arguments"
-            | "cmake_call" | "cmake_eval" | "cmake_get_log_level"
-            | "yc_raw" -> true
-            | _ -> false) ->
-      let args, kwargs, rest = collect_command_args [] [] rest in
-      p_cmake_op_command_y1_inner name args kwargs
-      |> fallback_to_raw name args rest
-    | _ -> None
-
-(* Outer block: `( <stmt> ... )`. Mirrors [Lang_yelu_parse.p_block]
-   semicolon-separated semantics and the single-stmt collapse. As
-   Phase 2a families are migrated, the block accepts any family-
-   recognized statement; non-recognized inputs make the parser fail
-   (the legacy parser handles them via its full grammar). *)
-(* ============================================================
-   Condition parser — mirrors [Lang_yelu_parse.p_cond] / [p_cond_atom]
-   structure. Builds yelu_cmake cond expressions (ENot, EAnd, EOr,
-   EIntLess/Equal/etc., ECmakeStringEqual, ECmakeVarDefined,
-   ECmakeTargetExists, ECmakeMatches, ECmakeInList, ECmakeIsDirectory,
-   ECmakeIsAbsolute, ECmakeFileExists, ECmakePolicyCheck) directly.
-   ============================================================ *)
-
-let rec p_cond_atom_y1 toks =
-  let bin op cont rest =
-    match p_expr_y1 rest with
-    | Some (a, rest) ->
-      (match p_expr_y1 rest with
-       | Some (b, rest) -> Some (op a b, rest)
-       | None -> cont)
-    | None -> cont
-  in
-  let _ = bin in
-  match toks with
-  | IDENT "not" :: rest ->
-    (match p_cond_atom_y1 rest with
-     | Some (c, rest) -> Some (ENot c, rest)
-     | None -> None)
-  | TARGET :: rest ->
-    (match p_expr_y1 rest with
-     | Some (e, rest) ->
-       let target = match e with
-         | ETarget _ | EString _ -> e
-         | EVar name -> ETarget name
-         | _ -> ETarget "?"
-       in
-       Some (ECmakeTargetExists target, rest)
-     | None -> None)
-  | IDENT "defined" :: rest ->
-    (match p_expr_y1 rest with
-     | Some (e, rest) ->
-       let name = match e with
-         | EVar s | EString s -> s
-         | _ -> "?"
-       in
-       Some (ECmakeVarDefined name, rest)
-     | None -> None)
-  | IDENT "str_eq" :: rest ->
-    (match p_expr_y1 rest with
-     | Some (a, rest) ->
-       (match p_expr_y1 rest with
-        | Some (b, rest) -> Some (ECmakeStringEqual (a, b), rest)
-        | None -> None)
-     | None -> None)
-  | IDENT "eq" :: rest ->
-    (match p_expr_y1 rest with
-     | Some (a, rest) ->
-       (match p_expr_y1 rest with
-        | Some (b, rest) -> Some (EIntEqual (a, b), rest)
-        | None -> None)
-     | None -> None)
-  | IDENT "lt" :: rest ->
-    (match p_expr_y1 rest with
-     | Some (a, rest) ->
-       (match p_expr_y1 rest with
-        | Some (b, rest) -> Some (EIntLess (a, b), rest)
-        | None -> None)
-     | None -> None)
-  | IDENT "gt" :: rest ->
-    (match p_expr_y1 rest with
-     | Some (a, rest) ->
-       (match p_expr_y1 rest with
-        | Some (b, rest) -> Some (EIntGreater (a, b), rest)
-        | None -> None)
-     | None -> None)
-  | IDENT "ver_lt" :: rest ->
-    (match p_expr_y1 rest with
-     | Some (a, rest) ->
-       (match p_expr_y1 rest with
-        | Some (b, rest) -> Some (ECmakeVersionLess (a, b), rest)
-        | None -> None)
-     | None -> None)
-  | IDENT "ver_gt" :: rest ->
-    (match p_expr_y1 rest with
-     | Some (a, rest) ->
-       (match p_expr_y1 rest with
-        | Some (b, rest) -> Some (ECmakeVersionGreater (a, b), rest)
-        | None -> None)
-     | None -> None)
-  | IDENT "ver_eq" :: rest ->
-    (match p_expr_y1 rest with
-     | Some (a, rest) ->
-       (match p_expr_y1 rest with
-        | Some (b, rest) -> Some (ECmakeVersionEqual (a, b), rest)
-        | None -> None)
-     | None -> None)
-  | IDENT "ver_ge" :: rest ->
-    (match p_expr_y1 rest with
-     | Some (a, rest) ->
-       (match p_expr_y1 rest with
-        | Some (b, rest) -> Some (ECmakeVersionGreaterEqual (a, b), rest)
-        | None -> None)
-     | None -> None)
-  | IDENT "ver_le" :: rest ->
-    (match p_expr_y1 rest with
-     | Some (a, rest) ->
-       (match p_expr_y1 rest with
-        | Some (b, rest) -> Some (ECmakeVersionLessEqual (a, b), rest)
-        | None -> None)
-     | None -> None)
-  | IDENT "match" :: rest ->
-    (match p_expr_y1 rest with
-     | Some (e, rest) ->
-       (match rest with
-        | STRING s :: rest' -> Some (ECmakeMatches { expr_ = e; regex = s }, rest')
-        | PATH s :: rest' -> Some (ECmakeMatches { expr_ = e; regex = s }, rest')
-        | _ -> None)
-     | None -> None)
-  | IDENT "list_in" :: rest ->
-    (match p_expr_y1 rest with
-     | Some (item, rest) ->
-       (match p_expr_y1 rest with
-        | Some (list_, rest) ->
-          Some (ECmakeInList { item; list_ }, rest)
-        | None -> None)
-     | None -> None)
-  | IDENT "exists" :: rest ->
-    (match p_expr_y1 rest with
-     | Some (e, rest) -> Some (ECmakeFileExists e, rest)
-     | None -> None)
-  | IDENT "is_dir" :: rest ->
-    (match p_expr_y1 rest with
-     | Some (e, rest) -> Some (ECmakeIsDirectory e, rest)
-     | None -> None)
-  | IDENT "is_abs" :: rest ->
-    (match p_expr_y1 rest with
-     | Some (e, rest) -> Some (ECmakeIsAbsolute e, rest)
-     | None -> None)
-  | IDENT "policy" :: rest ->
-    (match rest with
-     | IDENT id :: rest' -> Some (ECmakePolicyCheck id, rest')
-     | _ -> None)
-	| LPAREN :: rest ->
-	  (* Parenthesized condition: (cond and cond or ...).
-	     p_expr_y1 also handles LPAREN for simple (expr), but cannot
-	     handle and/or; this arm catches compound conditions. *)
-	  (match p_cond_y1 rest with
-	   | Some (c, RPAREN :: rest') -> Some (c, rest')
-	   | _ -> None)
-  | _ ->
-    (* Bare expression = truthy *)
-    p_expr_y1 toks
-
-(* Top-level cond: left-associative AND / OR over cond_atoms. *)
-and p_cond_y1 toks =
-  match p_cond_atom_y1 toks with
-  | None -> None
-  | Some (c1, rest) ->
-    let rec loop acc = function
-      | IDENT "and" :: r ->
-        (match p_cond_atom_y1 r with
-         | Some (c, r') -> loop (EAnd (acc, c)) r'
-         | None -> Some (acc, IDENT "and" :: r))
-      | IDENT "or" :: r ->
-        (match p_cond_atom_y1 r with
-         | Some (c, r') -> loop (EOr (acc, c)) r'
-         | None -> Some (acc, IDENT "or" :: r))
-      | r -> Some (acc, r)
-    in
-    loop c1 rest
-
-(* ============================================================
-   Statement dispatcher with mutually-recursive control flow.
-
-   Order matters: keyword-prefixed dispatchers (let / if / fun /
-   macro / while / foreach + break/continue/return) come first;
-   then family command dispatchers; then var assign; then bare
-   block; then apply (catches any IDENT-headed `( ... )` call).
-   ============================================================ *)
-
-let rec p_stmt_inner_y1 toks =
-  match p_let_y1 toks with Some r -> Some r | None ->
-  match p_if_y1 toks with Some r -> Some r | None ->
-  match p_function_y1 toks with Some r -> Some r | None ->
-  match p_macro_y1 toks with Some r -> Some r | None ->
-  match p_while_y1 toks with Some r -> Some r | None ->
-  match p_foreach_y1 toks with Some r -> Some r | None ->
-  match p_flow_y1 toks with Some r -> Some r | None ->
-  match p_string_command_y1 toks with Some r -> Some r | None ->
-  match p_list_command_y1 toks with Some r -> Some r | None ->
-  match p_path_command_y1 toks with Some r -> Some r | None ->
-  match p_file_command_y1 toks with Some r -> Some r | None ->
-  match p_target_command_y1 toks with Some r -> Some r | None ->
-  match p_dir_command_y1 toks with Some r -> Some r | None ->
-  match p_test_command_y1 toks with Some r -> Some r | None ->
-  match p_property_command_y1 toks with Some r -> Some r | None ->
-  match p_find_command_y1 toks with Some r -> Some r | None ->
-  match p_install_command_y1 toks with Some r -> Some r | None ->
-  match p_try_command_y1 toks with Some r -> Some r | None ->
-  match p_cmake_op_command_y1 toks with Some r -> Some r | None ->
-  match p_var_stmt_y1 toks with Some r -> Some r | None ->
-  match p_apply_y1 toks with Some r -> Some r | None ->
-  match p_generic_command_y1 toks with Some r -> Some r | None ->
-  p_block_y1 toks
-
-(* `let var [: type] = expr in stmt` — yelu_cmake ELet is expression-shaped,
-   matching the syntax directly (no rest-of-list awkwardness like the
-   legacy sequence-shaped Ylet). *)
-and p_let_y1 toks =
-  match kw "let" toks with
-  | None -> None
-  | Some ((), toks) ->
-    match toks with
-    | IDENT name :: toks ->
-      (* skip optional `:type` annotation *)
-      let toks = match toks with
-        | COLON :: IDENT _ :: r -> r
-        | COLON :: TARGET :: r -> r
-        | COLON :: CVAR :: r -> r
-        | _ -> toks
-      in
-      (match eq_tok toks with
-       | None -> None
-       | Some ((), toks) ->
-         match p_expr_y1 toks with
-         | None -> None
-         | Some (value, toks) ->
-           match kw "in" toks with
-           | None -> None
-           | Some ((), toks) ->
-             match p_stmt_inner_y1 toks with
-             | Some (body, rest) ->
-               Some (ELet { var = name; value; body }, rest)
-             | None -> None)
-    | _ -> None
-
-(* `if cond then ( body ) [else ( body ) | else if ...]` *)
-and p_if_y1 toks =
-  match kw "if" toks with
-  | None -> None
-  | Some ((), toks) ->
-    match p_cond_y1 toks with
-    | None -> None
-    | Some (cond, toks) ->
-      match kw "then" toks with
-      | None -> None
-      | Some ((), toks) ->
-        match p_block_y1 toks with
-        | None -> None
-        | Some (then_, toks) ->
-          let else_opt =
-            match kw "else" toks with
-            | None -> None
-            | Some ((), r) ->
-              (match p_block_y1 r with
-               | Some (e, r') -> Some (Some e, r')
-               | None ->
-                 (match p_if_y1 r with
-                  | Some (e, r') -> Some (Some e, r')
-                  | None -> None))
-          in
-          (match else_opt with
-           | Some (else_, rest) ->
-             Some (Yelu_cmake_if.ECmakeIfStmt { cond; then_; else_ }, rest)
-           | None ->
-             Some (Yelu_cmake_if.ECmakeIfStmt
-                     { cond; then_; else_ = None }, toks))
-
-(* `fun name(args) ( body )` / `function name(args) ( body )` *)
-and p_function_y1 toks =
-  match kw "function" toks with
-  | None -> None
-  | Some ((), toks) ->
-    match toks with
-    | IDENT name :: toks ->
-      let args, toks =
-        match toks with
-        | LPAREN :: r ->
-          let rec loop acc = function
-            | RPAREN :: r' -> (List.rev acc, r')
-            | COMMA :: r' -> loop acc r'
-            | (IDENT a :: r') -> loop (a :: acc) r'
-            | toks' -> (List.rev acc, toks')
-          in
-          loop [] r
-        | _ -> ([], toks)
-      in
-      (match p_block_y1 toks with
-       | Some (body, rest) ->
-         Some (ECmakeFunction { name = EString name; params = args; body }, rest)
-       | None -> None)
-    | _ -> None
-
-(* `macro name(args) ( body )` *)
-and p_macro_y1 toks =
-  match kw "macro" toks with
-  | None -> None
-  | Some ((), toks) ->
-    match toks with
-    | IDENT name :: toks ->
-      let args, toks =
-        match toks with
-        | LPAREN :: r ->
-          let rec loop acc = function
-            | RPAREN :: r' -> (List.rev acc, r')
-            | COMMA :: r' -> loop acc r'
-            | (IDENT a :: r') -> loop (a :: acc) r'
-            | toks' -> (List.rev acc, toks')
-          in
-          loop [] r
-        | _ -> ([], toks)
-      in
-      (match p_block_y1 toks with
-       | Some (body, rest) ->
-         Some (ECmakeMacro { name = EString name; params = args; body }, rest)
-       | None -> None)
-    | _ -> None
-
-(* `while cond ( body )` *)
-and p_while_y1 toks =
-  match kw "while" toks with
-  | None -> None
-  | Some ((), toks) ->
-    match p_cond_y1 toks with
-    | None -> None
-    | Some (cond, toks) ->
-      match p_block_y1 toks with
-      | Some (body, rest) -> Some (ECmakeWhile { cond; body }, rest)
-      | None -> None
-
-(* `foreach var in items ( body )` plus
-   `foreach var in RANGE n..m ( body )` and
-   `foreach var in [ items ] ( body )`. The bare-list form uses LBRACK.
-   For symmetry with the legacy parser, we also try the IN ZIP_LISTS
-   shape (loop_vars × list_vars) — though it's less common. *)
-and p_foreach_y1 toks =
-  match kw "foreach" toks with
-  | None -> None
-  | Some ((), toks) ->
-    match toks with
-    | IDENT lv :: toks ->
-      (match kw "in" toks with
-       | None -> None
-       | Some ((), toks) ->
-         (* RANGE first *)
-         match kw "RANGE" toks with
-         | Some ((), r) ->
-           (match r with
-            | INT start :: r ->
-              (match dotdot r with
-               | None -> None
-               | Some ((), r) ->
-                 (match r with
-                  | INT stop :: r ->
-                    (match p_block_y1 r with
-                     | Some (body, r') ->
-                       Some (ECmakeForeachRange
-                               { loop_var = lv;
-                                 start = Some start;
-                                 stop;
-                                 step = None;
-                                 body }, r')
-                     | None -> None)
-                  | _ -> None))
-            | _ -> None)
-         | None ->
-           (* IN LISTS <ident>+ — iterate over the contents of one or
-              more list variables. Surface form mirrors cmake's
-              `foreach(v IN LISTS A B)`. Emits ECmakeForeachInList. *)
-           match kw "LISTS" toks with
-           | Some ((), r) ->
-             let rec idents acc = function
-               | IDENT id :: rest -> idents (id :: acc) rest
-               | toks' -> (List.rev acc, toks')
-             in
-             let lists, r = idents [] r in
-             if List.is_empty lists then None
-             else
-               (match p_block_y1 r with
-                | Some (body, r') ->
-                  Some (ECmakeForeachInList
-                          { loop_var = lv; lists; items = []; body }, r')
-                | None -> None)
-           | None ->
-           (* [ items ] bracketed list *)
-           match toks with
-           | LBRACK :: r ->
-             let rec items_loop acc = function
-               | RBRACK :: r' -> (List.rev acc, r')
-               | SEMI :: r' -> items_loop acc r'
-               | toks' ->
-                 (match p_expr_y1 toks' with
-                  | Some (e, r') -> items_loop (e :: acc) r'
-                  | None -> (List.rev acc, toks'))
-             in
-             let items, r = items_loop [] r in
-             (match p_block_y1 r with
-              | Some (body, r') ->
-                Some (ECmakeForeach
-                        { loop_var = lv; items; body }, r')
-              | None -> None)
-           | _ -> None)
-    | _ -> None
-
-(* Generic command: any IDENT-headed call not matched by a family parser.
-   Wraps in ECmakeApply so unknown cmake commands round-trip through the IR. *)
-and p_generic_command_y1 toks =
-  match toks with
-  | IDENT name :: rest ->
-    let args, _kwargs, rest = collect_command_args [] [] rest in
-    if Yc_primitives.is_known_command name then
-      Some (ECmakeRawCmd { name = cmake_name_of_yelu name; args; from_positional = None }, rest)
-    else
-      Some (ECmakeApply { name = EString name; args }, rest)
-  | _ -> None
-
-(* Bare flow keywords: break / continue / return. *)
-and p_flow_y1 toks =
-  match toks with
-  | BREAK :: rest -> Some (ECmakeBreak, rest)
-  | CONTINUE :: rest -> Some (ECmakeContinue, rest)
-  | RETURN :: rest -> Some (ECmakeReturn { propagate_vars = [] }, rest)
-  | _ -> None
-
-(* Bare function application: `IDENT( args )` — only matches if the
-   IDENT is not a known reserved command name (since those go to
-   their specific dispatchers first via p_stmt_inner_y1). Has to come
-   AFTER all the family dispatchers to avoid hijacking. *)
-and p_apply_y1 toks =
-  match toks with
-  | LPAREN :: IDENT name :: LPAREN :: rest ->
-    (* Form: `( name(args) )` *)
-    let rec collect acc = function
-      | RPAREN :: r -> Some (List.rev acc, r)
-      | COMMA :: r -> collect acc r
-      | toks' ->
-        (match p_expr_y1 toks' with
-         | Some (e, r) -> collect (e :: acc) r
-         | None -> None)
-    in
-    (match collect [] rest with
-     | Some (args, rest) ->
-       (match rparen rest with
-        | Some ((), rest) ->
-          Some (ECmakeApply { name = EString name; args }, rest)
-        | None -> None)
-     | None -> None)
-  | _ -> None
-
-(* Block: `( stmt; stmt; ... )` — accepts any covered family. *)
-and p_block_y1 toks =
-  match lparen toks with
-  | None -> None
-  | Some ((), toks) ->
-    let rec collect toks =
-      match p_stmt_inner_y1 toks with
-      | None -> Some ([], toks)
-      | Some (s, rest) ->
-        let rest = match rest with SEMI :: r -> r | _ -> rest in
-        (match collect rest with
-         | Some (ss, r) -> Some (s :: ss, r)
-         | None -> None)
-    in
-    (match collect toks with
-     | Some (stmts, RPAREN :: rest) ->
-       let result = match stmts with
-         | [ s ] -> s
-         | _ -> ESeq stmts
-       in
-       Some (result, rest)
-     | _ -> None)
-
-let p_stmt_y1 = p_stmt_inner_y1
-
-(* Populate forward refs declared near p_assign_y1 — needed for the
-   `var := cmd args ~kw=v` command-call sugar to reach the family
-   `_inner` parsers that live further down in the file. *)
-let () =
-  collect_command_args_fwd := collect_command_args;
-  fallback_to_raw_fwd := fallback_to_raw;
-  dispatch_command_fwd := fun cmd args kwargs ->
-    if String.is_prefix cmd ~prefix:"string_" then
-      p_string_command_y1_inner cmd args kwargs
-    else if String.is_prefix cmd ~prefix:"list_" then
-      p_list_command_y1_inner cmd args kwargs
-    else if String.is_prefix cmd ~prefix:"path_"
-         || String.equal cmd "get_filename_component" then
-      p_path_command_y1_inner cmd args kwargs
-    else if String.is_prefix cmd ~prefix:"file_"
-         || String.equal cmd "configure_file" then
-      p_file_command_y1_inner cmd args kwargs
-    else
-      (* Some inners (notably target/dir/cmake_op) have a catch-all returning
-         ECmakeRawCmd for any unknown command. That makes the family `_inner`
-         always succeed when called out-of-family, which would shadow the
-         genuine handler for other families. Strip such "fallback" Somes so
-         the real handler downstream gets a chance. *)
-      let drop_raw = function
-        | Some (Yelu_cmake.ECmakeRawCmd _) -> None
-        | other -> other
-      in
-      let tries = [
-        (fun () -> drop_raw (p_target_command_y1_inner cmd args kwargs));
-        (fun () -> drop_raw (p_dir_command_y1_inner cmd args kwargs));
-        (fun () -> drop_raw (p_test_command_y1_inner cmd args kwargs));
-        (fun () -> drop_raw (p_property_command_y1_inner cmd args kwargs));
-        (fun () -> drop_raw (p_find_command_y1_inner cmd args kwargs));
-        (fun () -> drop_raw (p_install_command_y1_inner cmd args kwargs));
-        (fun () -> drop_raw (p_try_command_y1_inner cmd args kwargs));
-        (fun () -> drop_raw (p_cmake_op_command_y1_inner cmd args kwargs));
-      ] in
-      List.find_map tries ~f:(fun f -> f ())
-
-(* ============================================================
-   Entry points
-   ============================================================ *)
-
-let parse_tokens_y1 toks =
-  (* Collect multiple top-level statements separated by semicolons.
-     A single statement (including a block) is returned as-is;
-     multiple statements are wrapped in ESeq. *)
-  let rec collect acc = function
-    | [] -> Ok (match List.rev acc with [ s ] -> s | ss -> ESeq ss)
-    | toks ->
-      match p_stmt_y1 toks with
-      | None ->
-        if List.is_empty acc
-        then Error "parse error (unsupported yelu_cmake direct-parser syntax)"
-        else begin
-          let ctx = match toks with
-            | [] -> ""
-            | t :: _ -> " at " ^ Sexp.to_string ([%sexp_of: token] t)
-          in
-          Error ("unexpected trailing tokens" ^ ctx)
-        end
-      | Some (s, rest) ->
-        let rest = match rest with SEMI :: r -> r | _ -> rest in
-        collect (s :: acc) rest
-  in
-  collect [] toks
-
-(* Legacy direct parser (string → expr).
-
-   Status (2026-06-21): retired from production. The CST path
-   (Yc_cst_parse.parse + Yc_cst_lower.lower_program) replaced it via
-   Yc_driver.parse_and_check; all three surfaces (compile / fmt / LSP)
-   now go through the CST. The legacy parser stays compiled and
-   exported as [parse_program_legacy] so the emit-bridge oracle in
-   test_yc_cst_bridge can keep proving the CST path equivalent
-   byte-for-byte (covered=194). After a soak period with no oracle
-   divergences, this file (and the internal *_y1_inner helpers
-   throughout) will be deleted entirely.
-
-   See doc/lang/surface_status.md "Driver interface — CST as a
-   first-class form" Tier (b). *)
-let parse_program_legacy input =
-  match Angstrom.parse_string ~consume:All token_list input with
-  | Ok toks -> parse_tokens_y1 toks
-  | Error e -> Error ("lex error: " ^ e)
-
-(* Deprecated alias for the legacy parser. Kept temporarily so external
-   callers can migrate; will be removed in the next pass. *)
-let parse_program_y1 = parse_program_legacy
