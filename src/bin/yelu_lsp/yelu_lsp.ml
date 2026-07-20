@@ -2,7 +2,7 @@
 
    M1.5a: textDocument/formatting via Yc_driver.format (the same engine as
    `yelu fmt`) + parse diagnostics. Hover / semantic tokens / richer
-   diagnostics to follow. See doc/lang/surface_status.md. *)
+   diagnostics to follow. See doc/lang/surface_lsp_framework.md §8. *)
 
 open Lsp.Types
 

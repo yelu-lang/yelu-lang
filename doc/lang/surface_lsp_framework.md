@@ -542,7 +542,95 @@ include 'Helpers.cmake'; mystery_command 'x'
 - **Cross-file collect** — for a multi-file project, walking `include`/`add_subdirectory` targets to gather their `function`/`macro` declarations would eliminate the false-positive class on real corpus projects. Today the LSP sees one file at a time.
 - **Diagnostic span** — `Unknown_command` currently carries only the name. Adding the offending token's span (the located lexer infrastructure already in use for parse-error diagnostics) lets the LSP highlight the exact identifier instead of underlining the whole file.
 
-## 8. Related
+## 8. Implemented architecture — the shipped pipeline
+
+> Absorbed from the retired `surface_status.md` (2026-07-20). That file was a
+> *tracker*, but six source files cited it for durable design explanation, so
+> the durable half lives here and the in-flight half moved to
+> [`../status.md`](../status.md). Everything in this section is **shipped**;
+> the phase-by-phase history is in
+> [`../worklog/worklog_2026_06.md`](../worklog/worklog_2026_06.md).
+
+### 8.1 The form graph
+
+```
+text ──parse──▶ cst_lite ──lower──▶ expr  (eval / check / emit — unchanged)
+                  ▲   │
+        print_ye  │   │   cst_lite = AST shape + comments + spans
+                  └───┘   (Prettier/ESTree "CST-lite", NOT a fully lossless
+   formatter: generic over cst_lite        tree — the canonical formatter
+   except ~6 structural forms              regenerates whitespace)
+```
+
+- **Commands are uniform** at the CST: `name atom* ;` → one generic parse rule
+  and one generic print rule. The ~119-way per-command mapping lives only in
+  `lower` — one direction, no printer mirror. `lower` dispatches per family to
+  the `_inner` functions in `yelu_parse.ml` (name → positionals → kwargs →
+  `expr option`).
+- **`print_ye` mirrors `parse` over the ~6 bespoke forms only**
+  (`if/then/else`, `let … in`, `:=`, blocks `( … )`, `foreach`, conditions),
+  locked by the round-trip oracle.
+- The `cst_lite` type is **closed** (unlike `expr`), so traversals are
+  ppx-derivable — useful for the printer's trivia handling and LSP node-walking.
+- **`Yc_driver.parse_and_check`** is the single parse+wellform site; compile,
+  fmt, LSP and the corpus gate all enter through it, so a new check reaches
+  every surface at once.
+
+### 8.2 How it was migrated (the discipline, worth reusing)
+
+The CST path was **not** a parser fork. It was built beside the proven AST
+path, locked to it with an oracle, and only then did the old path retire:
+
+1. parser emits `cst_lite` alongside the existing AST; `lower : cst_lite → expr`.
+2. **emit-bridge oracle:** over the whole corpus,
+   `emit (lower (parse_cst t)) == emit (parse_ast t)` — byte equality on the
+   *output*, not structural `expr` equality (awkward on an extensible variant).
+3. once green corpus-wide, relocate per-command construction into `lower` and
+   retire `parse_ast`.
+
+Completed 2026-07-16 (`237bfb8`). Two things worth keeping in mind:
+
+- The oracle **retires with its reference side**. Once both sides are the same
+  path the comparison is a tautology; the tripled fmt matrix, which diffs
+  against *real cmake*, is a strictly stronger reference than the legacy
+  parser ever was.
+- The switch immediately caught a real drift — `get_property` was missing from
+  `yc_cst_lower.property_names`, so that path silently fell to raw and dropped
+  `~out`. Single-dispatch makes the class rarer but not impossible; see the
+  **three-edit rule** for adding a command (CLAUDE.md § Gotchas).
+
+### 8.3 Testing strategy
+
+- **Exhaustive single-construct round-trips** — one per length-one
+  expression/construct (each atom, command shape, cond op, control form), so
+  every grammar leaf is covered in isolation. Length-two combinations are
+  valuable but combinatorially large — sample, don't enumerate.
+- **Command-coverage lock** (2026-07-20) — every `Yc_primitives.command_names`
+  entry must have a parse+emit case in `test_yelu_cmake_parse.ml`, enforced at
+  build time. Added after a scan found 15 commands with no test and 5 of them
+  broken, three with no `.yc` surface at all.
+- **Regression collection** — every bug found becomes a pinned case.
+- **Absorb real-world inputs** — harvest from the probe `.yc` files and the
+  z3/llvm corpora, not just synthetic snippets.
+
+### 8.4 Deployment gotcha (local VS Code)
+
+The extension is installed **as a copy** under
+`~/.vscode-server/extensions/yelu-lang.yc-0.1.0/` (WSL), and VS Code reads its
+two halves from *different* places:
+
+- **LSP binary** — from the *workspace*
+  (`_build/default/src/bin/yelu_lsp/yelu_lsp.exe`), so `dune build` + a window
+  reload picks up LSP changes.
+- **TextMate grammar** — from the *installed copy*'s
+  `syntaxes/yc.tmLanguage.json`, **not** the workspace. Regenerating the
+  workspace file does nothing until that copy is updated — no reload or LSP
+  rebuild helps.
+
+Fixed 2026-06-12 by making the installed grammar a **symlink** to the
+workspace file. If the extension is ever reinstalled, re-symlink.
+
+## 9. Related
 
 - [`../yelu_cmake/driver.md`](../yelu_cmake/driver.md) — the uniform
   per-language op interface the LSP plugs into.

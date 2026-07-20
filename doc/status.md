@@ -62,16 +62,43 @@ surface). Design notes:
 acceptance corpus already exists (65 hand-written ycn programs in
 `test_yelu_lift_lower.ml`).
 
+## Parked — not queued, but not forgotten
+
+Small, independent, and safe to pick up in any order. Each is a *surface* item
+(no IR impact) unless noted.
+
+| item | note |
+| --- | --- |
+| **B2 — token spans on wellform findings** | Findings carry a name, not a span; the LSP scans for the first whole-word match. Heuristic but practical. The located lexer already provides what's needed. |
+| **LSP hover / semantic tokens** (M1.5b tail) | Parse-error spans shipped; these two did not. |
+| **Statement-level error recovery** (M1.4) | Deferred into the LSP work — only the LSP consumes partial trees, and the formatter is already fail-safe (parse error → no overwrite). Do the light top-level version when the LSP needs it. |
+| **Cross-file collect** | The LSP sees one file at a time, so `function`/`macro` declarations behind `include`/`add_subdirectory` read as unknown. Would kill the last open-world false-positive class. |
+| **"Did you mean X?"** | Levenshtein against `command_names ∪ defined_names`; cheap addition to the `Unknown_command` text. |
+| **Manifest `ctor` column** | Populate + test-lock now that `lower` makes the surface↔constructor link verifiable. |
+| **Version literal** | `find_package Foo '9.0'` — the bare version positional is still accepted-and-dropped. |
+| **Per-mode `message_*`** | vs today's `~mode=`. |
+| **Duplicate single-value field → reject** | Y14 pattern (painpoints #11) for record / dotted-label forms. Adjacent: a wrong-*shaped* `~properties=` (list where a record is expected) is silently dropped — `Unknown_kwarg` can't see it, the key is valid. |
+| **`string_json` unknown op** | Fails at emit (`emit_ast: unknown string(JSON …) op`) rather than as a wellform diagnostic. Right error, wrong surface. |
+| **"Belief" definition** | Shapes the `check` op's output type — flat diagnostics vs a richer fact stream the LSP renders. See `lang/surface_lsp_framework.md` §4. |
+
 ## Where the durable records live
 
 | kind | file |
 | --- | --- |
 | narrative record of finished work | [`worklog/worklog_2026_06.md`](worklog/worklog_2026_06.md) |
 | project-wide audit | [`project_overview.md`](project_overview.md) |
-| surface / formatter / LSP tracker | [`lang/surface_status.md`](lang/surface_status.md) |
+| surface / formatter / LSP **design** (incl. the shipped pipeline, §8) | [`lang/surface_lsp_framework.md`](lang/surface_lsp_framework.md) |
+| yc syntax design + open items | [`lang/yc_syntax_critique.md`](lang/yc_syntax_critique.md) |
 | yelu_cmake harness tracker | [`yelu_cmake/status.md`](yelu_cmake/status.md) |
 | numbered backlog (Y2…Y18) + handoff | [`../CLAUDE.md`](../CLAUDE.md) |
 | layer triage rule (yc vs ycn) | [`lang/yc_ycn_boundary.md`](lang/yc_ycn_boundary.md) |
+
+> **One tracker.** `lang/surface_status.md` was retired 2026-07-20 and folded
+> into the three files above (design → framework §8, history → worklog,
+> open items → this file). It had become ~95% finished work, and a second
+> "living tracker" is exactly how the Tier (b) state ended up recorded in
+> three drifting places. If a surface question needs a tracker again, it
+> belongs *here*, not in a new file.
 
 **Keeping this honest:** when an item lands, delete it from here and write it
 up in the worklog. If this file ever describes something already shipped, it

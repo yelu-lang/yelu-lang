@@ -4,8 +4,8 @@
    enough to reproduce source (formatter) and map ranges (LSP), but NOT a
    fully lossless tree (the canonical formatter regenerates whitespace).
 
-   Two deliberate choices (see doc/lang/surface_status.md,
-   surface_lsp_framework.md §3.2):
+   Two deliberate choices (see doc/lang/surface_lsp_framework.md §3.2
+   and §8.1):
 
    - **Comments are a program-level, span-tagged side list**, not woven
      into nodes. The parser keeps structure and comments separate (pure,

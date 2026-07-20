@@ -7,8 +7,8 @@
 > The shipped arc + commits are archived in
 > [worklog 2026-06](../worklog/worklog_2026_06.md). This doc keeps the durable
 > *design rationale* and the *open items*; it is the syntax-design companion to
-> [`surface_status.md`](surface_status.md) (the parser / formatter / LSP
-> *machinery*). Syntax evolution is a safe, mechanical operation: accept a
+> [`surface_lsp_framework.md`](surface_lsp_framework.md) §8 (the parser /
+> formatter / LSP *machinery*). Syntax evolution is a safe, mechanical operation: accept a
 > cleaner form, `yelu fmt -w probes/**/*.yc` to canonicalize, and the
 > **emit-bridge** (`test_yc_cst_bridge`) + the **fmt matrix**
 > (`yelu matrix probes/fmt`, 24/24) prove the emitted cmake is byte-unchanged.
@@ -108,7 +108,7 @@ because the matrix wasn't run; fixed `f1296a4`.)
   are a compile error (reject, not raw); `fmt` is pass-through. Every command
   with a labeled surface is labeled-only; the deferred list is cleared. Arc in
   [worklog 2026-06](../worklog/worklog_2026_06.md); machinery in
-  [`surface_status.md`](surface_status.md).
+  [`surface_lsp_framework.md`](surface_lsp_framework.md) §8.
 - **Surface polish (noted 2026-06-19, no hurry):**
   - **version literal** — `cmake_minimum_required '3.8...3.25'` smuggles a cmake
     `min...max` sub-grammar inside a string. Make a version a first-class
@@ -179,8 +179,8 @@ because the matrix wasn't run; fixed `f1296a4`.)
 
 ## Related
 
-- [`surface_status.md`](surface_status.md) — the parser / formatter / LSP
-  machinery this design evolves on top of.
+- [`surface_lsp_framework.md`](surface_lsp_framework.md) §8 — the parser /
+  formatter / LSP machinery this design evolves on top of.
 - [`casing_design.md`](casing_design.md) — the casing lanes in full.
 - [`../worklog/worklog_2026_06.md`](../worklog/worklog_2026_06.md) — the shipped arc.
 - [`../cmake/painpoints.md`](../cmake/painpoints.md) — cmake ground-truth (incl. §11).

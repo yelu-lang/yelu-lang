@@ -309,8 +309,7 @@ Open items in [`lang/yc_syntax_critique.md`](lang/yc_syntax_critique.md) § Open
 | `lang/lang_coverage.md`                    | cmake command coverage tracker.                                    |
 | `lang/typed_design.md`                     | Type system design space (deferred; Y17 substrate).                |
 | `lang/concrete_syntax_parser.md`           | Implemented two-pass parser (Angstrom + pure OCaml).               |
-| `lang/surface_status.md`                   | Living tracker for the surface track (highlighter → formatter → LSP). Per-milestone status, deferred items, decisions parked. |
-| `lang/surface_lsp_framework.md`            | Surface + LSP design. §3 decision map (parser library, error recovery, deployment, testing). §7.5 wellform diagnostics — full per-check table, open/closed-world rule for `Unknown_command`, surfacing channels. |
+| `lang/surface_lsp_framework.md`            | Surface + LSP design. §3 decision map (parser library, error recovery, deployment, testing). §8 the **shipped pipeline** (form graph, migration discipline, testing strategy, VS Code deployment gotcha) — absorbed from the retired `surface_status.md`. §7.5 wellform diagnostics — full per-check table, open/closed-world rule for `Unknown_command`, surfacing channels. |
 | `lang/yc_syntax_critique.md`               | yc surface critique + the design that fixed it. Both surface passes archived; remaining open polish items at the bottom. |
 | `lang/casing_design.md`                    | Casing lanes — enum constructors leading-cap, dotted globals, locals, Y14 reject. Shipped 2026-06-12..19. |
 | `lang/var_centric_design.md`               | Postponed direction: value-default reads (`foo` = value, name explicit). Belongs in ycn not yc. |

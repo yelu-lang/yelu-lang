@@ -42,7 +42,8 @@ type error =
   (* Labeled-only (Step 2): a known command written in the *positional*
      cmake-keyword form (`install_targets … LIBRARY DESTINATION …`). Tagged by
      the parser (`ECmakeRawCmd.from_positional`); fatal at the compile boundary
-     — use the `~label=` form or `yc_raw '…'`. See surface_status.md. *)
+     — use the `~label=` form or `yc_raw '…'`.
+     See surface_lsp_framework.md §8. *)
   | Positional_form of { command : string }
   (* Labeled-only follow-up (audit 2026-07): a `~kwarg` on a KNOWN command that
      the command does not accept. The parser reads only the keys it knows and

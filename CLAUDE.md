@@ -175,7 +175,6 @@ per-theory and remaining-command suites not enumerated above.)
 | `doc/lang/syntax_tiers.md`            | Concrete syntax tier plan                           |
 | `doc/lang/concrete_syntax_parser.md`  | Implemented two-pass parser (Angstrom + pure OCaml) |
 | `doc/lang/surface_lsp_framework.md`   | Surface syntax + LSP design exploration (yc-first): driver-as-plug, CST/spans, manifest-as-co-truth, TextMate Milestone 0 |
-| `doc/lang/surface_status.md`          | Living tracker for the surface track (highlighter→formatter→LSP): phases, CST-lite migration via emit-bridge oracle |
 | `doc/lang/yc_syntax_critique.md`      | yc surface-syntax design + open items. **Both surface passes complete**: the no-ALL_CAPS `~`-half pass *and* the labeled-only pass (Step 2 — positional cmake-keyword forms are a compile error; `fmt` is pass-through, no codemod). Shipped arc in worklog 2026-06. Keeps the design rationale + open items |
 | `doc/lang/yc_ycn_boundary.md`         | **Layer triage rule (adopted 2026-07-16)**: yc = anything that *erases* to cmake with no semantic gap; ycn = anything needing a value/type model. Why erasability (the oracles depend on it), the three precedents, the record literal-vs-value split, a backlog decision table. Answers Y17/Y18's "yc vs ycn placement" |
 | `doc/lang/var_centric_design.md`      | Postponed direction: value-default reads (bare `foo` = value, name explicit). Belongs in ycn not yc; ties to tc_name / Y17; needs a frequency study |
@@ -346,7 +345,7 @@ the labeled-only baseline:
   (Y1 was the early-production label); back-compat alias kept for the
   emit-bridge oracle soak. Internal `*_y1_inner` helpers stay until
   full retirement. Plan in
-  [`doc/lang/surface_status.md`](doc/lang/surface_status.md) "Tier (b)".
+  [`doc/status.md`](doc/status.md).
 
 **Handoff (2026-06-26) — syntax audit + fixes (continuing on macOS).**
 Two-pass audit of the whole 2026-06 syntax arc (internal 3-agent + an
