@@ -563,7 +563,7 @@ text ──parse──▶ cst_lite ──lower──▶ expr  (eval / check / em
 ```
 
 - **Commands are uniform** at the CST: `name atom* ;` → one generic parse rule
-  and one generic print rule. The ~119-way per-command mapping lives only in
+  and one generic print rule. The 138-way per-command mapping lives only in
   `lower` — one direction, no printer mirror. `lower` dispatches per family to
   the `_inner` functions in `yelu_parse.ml` (name → positionals → kwargs →
   `expr option`).

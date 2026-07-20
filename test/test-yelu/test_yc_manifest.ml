@@ -55,8 +55,43 @@ let manifest_hard_keywords =
 let lexer_hard_keywords =
   sset (Map.keys Yelu_langs.Yelu_lexer.reserved)
 
+(* Dispatch lock: every known command must be OWNED by a family `_inner`.
+
+   [Yc_cst_lower.family_of] returning [Fam_generic] means the name falls to the
+   var-family/generic branch, which ends in the raw escape — it would emit its
+   *yc* name as a cmake command, silently. Being listed in `command_names`
+   suppresses the Unknown_command warning, so nothing else notices.
+
+   This is the static half of the guard added 2026-07-20 after `add_exe_alias`
+   / `add_lib_imported` / `precompile_headers` were found in exactly that
+   state (and `get_property` before them, in Tier b). The command-coverage
+   lock in test_yelu_cmake_parse catches it dynamically; this catches it
+   without needing anyone to write a golden. *)
+let var_family_exempt =
+  Set.of_list (module String) [ "set"; "option"; "unset_cache" ]
+
+let dispatch_lock =
+  Alcotest.test_case "every command dispatches to a family _inner" `Quick
+    (fun () ->
+      let orphans =
+        Set.filter P.command_names ~f:(fun c ->
+          (not (Set.mem var_family_exempt c))
+          && match Yelu_langs.Yc_cst_lower.family_of c with
+             | Yelu_langs.Yc_cst_lower.Fam_generic -> true
+             | _ -> false)
+        |> Set.to_list
+      in
+      if not (List.is_empty orphans) then
+        Alcotest.failf
+          "%d known command(s) fall through to the generic/raw branch: %s\n\
+           Each would emit its yc name as a bogus cmake command. Add the name \
+           to the right family list in yc_cst_lower.ml (and give it an _inner \
+           arm in yelu_parse.ml)."
+          (List.length orphans) (String.concat ~sep:", " orphans))
+
 let tests =
-  [ check_set_eq "commands ≡ Yc_primitives.command_names"
+  [ dispatch_lock;
+    check_set_eq "commands ≡ Yc_primitives.command_names"
       ~expected:P.command_names ~got:command_surfaces;
     check_set_eq "word surfaces ≡ Yc_primitives.reserved_names"
       ~expected:P.reserved_names ~got:word_surfaces;

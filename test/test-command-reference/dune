@@ -1,0 +1,23 @@
+; Freshness lock (a co-truth lock for a *generated file*): the committed
+; command reference must byte-match `yelu command-reference` output. So a
+; command_names / family-list / command_kwargs change that isn't followed by a
+; regenerate fails the build.
+; Fix: `dune promote` (updates the committed markdown), or re-run
+;   dune exec src/bin/yelu/yelu.exe -- command-reference
+;
+; Same pattern as test-tmgrammar. The point is that the reference can never
+; lie: it is derived from the code (including Yc_cst_lower.family_of, the
+; *actual* dispatch function, not a copy) and byte-compared on every test run.
+; The hand-maintained table it replaces claimed "~60 of ~70 commands have a
+; test" while 15 had none and 3 had no implementation at all.
+(rule
+ (target yc_command_reference.md.gen)
+ (deps ../../src/bin/yelu/yelu.exe)
+ (action
+  (with-stdout-to yc_command_reference.md.gen
+   (run ../../src/bin/yelu/yelu.exe command-reference --stdout))))
+
+(rule
+ (alias runtest)
+ (action
+  (diff ../../doc/lang/yc_command_reference.md yc_command_reference.md.gen)))

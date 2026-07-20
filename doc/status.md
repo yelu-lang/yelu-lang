@@ -13,7 +13,7 @@
 **Doc cleanup + test enhancement, before item 3** (agreed 2026-07-20: the
 raw-escape unification touches the IR, so tighten the net first).
 
-- **Test enhancement — done.** A coverage scan found 15 of ~119
+- **Test enhancement — done.** A coverage scan found 15 of the 138
   `command_names` entries with zero test mention; five were genuinely broken
   (9 `cmake_path` ops silently dropping `~out=`; `add_exe_alias` /
   `add_lib_imported` / `precompile_headers` with **no .yc surface at all**,

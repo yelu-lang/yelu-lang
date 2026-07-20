@@ -32,7 +32,7 @@ Runtime: cmake 4.3.1 (`/usr/bin/cmake`, Kitware apt).
 | **Test depth**            | file-api tests (steps 1–12)                | 12 / 12 ✓          | 12        | Full codemodel-v2 binding match ✓                                                         |
 | **Command breadth**       | commands at `build` level                  | ~15                | ~20       | all `target_*` + `add_compile_*`; ALIAS/OBJECT/MODULE libs; gap: `target_link_libraries`  |
 | **Command breadth**       | commands at `script-pair` level            | ~15                | ~20       | all scripting core; gap: `cmake_policy` (Y11)                                             |
-| **Command breadth**       | commands with any test                     | 119 / 119 ✓        | —         | **enforced** by the command-coverage lock (2026-07-20); every `command_names` entry has a parse+emit case |
+| **Command breadth**       | commands with any test                     | 138 / 138 ✓        | —         | **enforced** by the command-coverage lock (2026-07-20); every `command_names` entry has a parse+emit case. Live table: [`yc_command_reference.md`](yc_command_reference.md) (generated). |
 | **Benchmark suites**      | `Tests/CMakeOnly/`                         | 12 / 12 ✓          | 12        | all tractable dirs done                                                                   |
 | **Benchmark suites**      | `Tests/CMakeCommands/`                     | 11 / 12            | 12        | `target_link_libraries` deferred                                                          |
 | **Benchmark suites**      | `Tests/RunCMake/` compat                   | 64 / ~67           | ~67       | cmake 4.3 unblocked 3 tests                                                               |

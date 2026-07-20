@@ -55,6 +55,11 @@ USAGE:
   yelu tmgrammar [-o PATH]
     Generate the VS Code TextMate grammar (yc.tmLanguage.json) from
     the manifest. Default PATH: editors/vscode/yc/syntaxes/yc.tmLanguage.json
+
+  yelu command-reference [-o PATH]
+    Generate the yc command table (family, ~out, accepted ~labels) from
+    the code. Freshness-locked by dune test; fix drift with `dune promote`.
+    Default PATH: doc/lang/yc_command_reference.md
 |}
 
 (* ============================================================
@@ -836,6 +841,80 @@ let tmgrammar_json () : Yojson.Safe.t =
 let cmd_manifest () =
   List.iter (Yelu_langs.Yc_manifest.to_lines ()) ~f:Stdlib.print_endline
 
+(* ── Command reference (generated) ────────────────────────────────────────
+   Emits the yc command table as markdown, derived from the code rather than
+   maintained by hand: `Yc_primitives.command_names` (what exists),
+   `Yc_cst_lower.family_of` (the REAL dispatch — the same function
+   `lower_command` uses, not a copy), `command_kwargs` / `takes_out_var` (the
+   accepted labels).
+
+   Committed as doc/lang/yc_command_reference.md and freshness-locked by a
+   dune (diff) rule, same pattern as the TextMate grammar. A hand-maintained
+   coverage table is exactly what rotted in lang_coverage.md — it claimed
+   "~60 of ~70 commands have a test" while 15 had none and 3 had no
+   implementation at all. This one cannot drift: it is regenerated and
+   byte-compared on every `dune test`. *)
+let command_reference_md () =
+  let module P = Yelu_langs.Yc_primitives in
+  let module L = Yelu_langs.Yc_cst_lower in
+  let b = Buffer.create 8192 in
+  let p fmt = Stdlib.Printf.ksprintf (Buffer.add_string b) fmt in
+  let commands = Set.to_list P.command_names in
+  p "# yc command reference (generated — do not edit)\n\n";
+  p "> Regenerate with `dune exec src/bin/yelu/yelu.exe -- command-reference`.\n";
+  p "> A dune `(diff)` rule fails `dune test` if this file drifts from the\n";
+  p "> code; fix with `dune promote`. Derived from `Yc_primitives.command_names`,\n";
+  p "> `Yc_cst_lower.family_of`, `Yc_primitives.command_kwargs` and\n";
+  p "> `takes_out_var` — so every row is true by construction.\n>\n";
+  p "> **Coverage is 100%% by construction too**: the command-coverage lock in\n";
+  p "> `test/test-yelu/test_yelu_cmake_parse.ml` requires a parse+emit case for\n";
+  p "> every command below, and the dispatch lock in `test_yc_manifest.ml`\n";
+  p "> requires each to be owned by a family `_inner` (never the raw fallback).\n\n";
+  p "**%d commands.**\n\n" (List.length commands);
+  (* group by family, in the dispatch order family_of uses *)
+  let families =
+    [ L.Fam_target; L.Fam_string; L.Fam_list; L.Fam_path; L.Fam_file;
+      L.Fam_property; L.Fam_install; L.Fam_find; L.Fam_dir; L.Fam_cmake_op;
+      L.Fam_test; L.Fam_try; L.Fam_generic ]
+  in
+  List.iter families ~f:(fun fam ->
+    let members =
+      List.filter commands ~f:(fun c ->
+        Poly.equal (L.family_of c) fam)
+    in
+    if not (List.is_empty members) then begin
+      p "## %s (%d)\n\n" (L.family_name fam) (List.length members);
+      p "| command | `~out` | accepted `~labels` |\n";
+      p "| --- | --- | --- |\n";
+      List.iter members ~f:(fun c ->
+        let out = if P.takes_out_var c then "✓" else "" in
+        let kws =
+          match Map.find P.command_kwargs c with
+          | None -> "—"
+          | Some s ->
+            Set.to_list s
+            |> List.map ~f:(fun k -> "`~" ^ k ^ "=`")
+            |> String.concat ~sep:" "
+        in
+        let kws =
+          if String.equal c "install_targets" then
+            kws ^ " · dotted `~<kind>.destination=` for "
+            ^ String.concat ~sep:"/" P.install_artifact_kinds
+          else kws
+        in
+        p "| `%s` | %s | %s |\n" c out kws);
+      p "\n"
+    end);
+  Buffer.contents b
+
+let default_command_reference_path = "doc/lang/yc_command_reference.md"
+
+let cmd_command_reference out =
+  mkdirp (Stdlib.Filename.dirname out);
+  write_all out (command_reference_md ());
+  Stdlib.Printf.printf "[yelu] wrote %s (%d commands)\n%!" out
+    (Set.length Yelu_langs.Yc_primitives.command_names)
+
 let cmd_tmgrammar out =
   mkdirp (Stdlib.Filename.dirname out);
   let json = Yojson.Safe.pretty_to_string (tmgrammar_json ()) in
@@ -864,6 +943,15 @@ let () =
              (print_program's rstrip); do not add a second. *)
           if write then write_all file out else Stdlib.print_string out))
   | "manifest" :: _ -> cmd_manifest ()
+  | "command-reference" :: rest when List.mem rest "--stdout" ~equal:String.equal ->
+    Stdlib.print_string (command_reference_md ())
+  | "command-reference" :: rest ->
+    let rec find = function
+      | "-o" :: o :: _ -> o
+      | _ :: r -> find r
+      | [] -> default_command_reference_path
+    in
+    cmd_command_reference (find rest)
   | "tmgrammar" :: rest when List.mem rest "--stdout" ~equal:String.equal ->
     (* print the grammar to stdout (for the freshness diff rule) *)
     Stdlib.print_string (Yojson.Safe.pretty_to_string (tmgrammar_json ()) ^ "\n")

@@ -150,6 +150,46 @@ let cmake_op_names =
     "separate_arguments"; "cmake_call"; "cmake_eval"; "cmake_get_log_level";
     "yc_raw" ]
 
+(* Which family `_inner` owns a command name.
+
+   [Fam_generic] is the fallback branch: the var-family statement shapes plus
+   the generic command form, which ends in the **raw escape**. A name that is
+   in [Yc_primitives.command_names] but lands here is therefore a bug unless
+   it is genuinely a var-family command — it would emit its *yc* name as a
+   cmake command. That invariant is asserted by `test_yc_manifest`; see the
+   three-edit rule in CLAUDE.md § Gotchas.
+
+   Kept as its own function so the command reference (`yelu command-reference`)
+   reads the *real* dispatch instead of re-deriving a copy that can drift. *)
+type family =
+  | Fam_string | Fam_list | Fam_path | Fam_file | Fam_target | Fam_dir
+  | Fam_test | Fam_property | Fam_find | Fam_install | Fam_try
+  | Fam_cmake_op | Fam_generic
+
+let family_name = function
+  | Fam_string -> "string" | Fam_list -> "list" | Fam_path -> "path"
+  | Fam_file -> "file" | Fam_target -> "target" | Fam_dir -> "dir"
+  | Fam_test -> "test" | Fam_property -> "property" | Fam_find -> "find"
+  | Fam_install -> "install" | Fam_try -> "try"
+  | Fam_cmake_op -> "cmake_op" | Fam_generic -> "var / generic"
+
+let family_of (name : string) : family =
+  let prefix p = String.is_prefix name ~prefix:p in
+  if prefix "string_" then Fam_string
+  else if prefix "list_" then Fam_list
+  else if prefix "path_" || String.equal name "get_filename_component" then
+    Fam_path
+  else if prefix "file_" || String.equal name "configure_file" then Fam_file
+  else if in_set target_names name then Fam_target
+  else if in_set dir_names name then Fam_dir
+  else if in_set test_names name then Fam_test
+  else if in_set property_names name then Fam_property
+  else if prefix "find_" then Fam_find
+  else if in_set install_names name then Fam_install
+  else if in_set try_names name then Fam_try
+  else if in_set cmake_op_names name then Fam_cmake_op
+  else Fam_generic
+
 (* Dispatch a command by name to the matching family `_inner`, mirroring
    p_stmt_inner_y1's order + guards, with raw fallback. *)
 let lower_command (name : string) (args : Cst.arg list) : expr =
@@ -159,22 +199,20 @@ let lower_command (name : string) (args : Cst.arg list) : expr =
      truth, so both stay consistent. *)
   let raw () = ECmakeRawCmd { name = cmake_name_of_yelu name; args = pos; from_positional = None } in
   let via inner = match inner name pos kwargs with Some e -> e | None -> raw () in
-  let prefix p = String.is_prefix name ~prefix:p in
-  if prefix "string_" then via P.p_string_command_y1_inner
-  else if prefix "list_" then via P.p_list_command_y1_inner
-  else if prefix "path_" || String.equal name "get_filename_component" then
-    via P.p_path_command_y1_inner
-  else if prefix "file_" || String.equal name "configure_file" then
-    via P.p_file_command_y1_inner
-  else if in_set target_names name then via P.p_target_command_y1_inner
-  else if in_set dir_names name then via P.p_dir_command_y1_inner
-  else if in_set test_names name then via P.p_test_command_y1_inner
-  else if in_set property_names name then via P.p_property_command_y1_inner
-  else if prefix "find_" then via P.p_find_command_y1_inner
-  else if in_set install_names name then via P.p_install_command_y1_inner
-  else if in_set try_names name then via P.p_try_command_y1_inner
-  else if in_set cmake_op_names name then via P.p_cmake_op_command_y1_inner
-  else
+  match family_of name with
+  | Fam_string -> via P.p_string_command_y1_inner
+  | Fam_list -> via P.p_list_command_y1_inner
+  | Fam_path -> via P.p_path_command_y1_inner
+  | Fam_file -> via P.p_file_command_y1_inner
+  | Fam_target -> via P.p_target_command_y1_inner
+  | Fam_dir -> via P.p_dir_command_y1_inner
+  | Fam_test -> via P.p_test_command_y1_inner
+  | Fam_property -> via P.p_property_command_y1_inner
+  | Fam_find -> via P.p_find_command_y1_inner
+  | Fam_install -> via P.p_install_command_y1_inner
+  | Fam_try -> via P.p_try_command_y1_inner
+  | Fam_cmake_op -> via P.p_cmake_op_command_y1_inner
+  | Fam_generic ->
     (* var-family + generic, mirroring p_var_stmt then p_generic_command *)
     let pos_atoms =
       List.filter_map args ~f:(function Cst.Pos a -> Some a | _ -> None)
