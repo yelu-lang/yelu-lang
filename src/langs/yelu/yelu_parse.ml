@@ -1007,34 +1007,18 @@ let p_property_command_y1_inner name args kwargs =
      | Some scope ->
        Some (Yelu_cmake_property.ECmakeSetProperty
                { scope; append; append_string; properties }))
-  | ( "get_directory_property" | "set_directory_property"
-    | "set_test_properties" | "set_source_property"
-    | "set_global_property" | "get_global_property" ), args
-    when List.exists args ~f:(function
-           | EVar ("PROPERTY" | "PROPERTIES" | "DIRECTORY" | "TARGET_DIRECTORY") ->
-             true
-           | _ -> false) ->
-    (* Labeled-only (Step 2 rollout, audit #3): these specialized getters/
-       setters are stubs — their positional PROPERTY/PROPERTIES form fell to a
-       raw that leaked the *yc* command name into the emit (e.g.
-       `set_global_property(PROPERTY …)`, not a cmake command). Fatal reject;
-       the typed surface for this functionality is the unified
-       `set_property`/`get_property` entity forms (`set_property Global
-       ~property=[…]`). *)
-    Some (ECmakeRawCmd { name = cmake_name_of_yelu name; args;
-                         from_positional = Some name })
-  | "get_directory_property", [] ->
-    Some (yc_get_directory_property "PROP" out)
-  | "set_directory_property", [] ->
-    Some (yc_set_directory_property "PROP" [])
-  | "set_test_properties", [ test ] ->
-    Some (yc_set_tests_properties [ test ] [])
-  | "set_source_property", [ file ] ->
-    Some (yc_set_source_property ~property:"PROP" file [])
-  | "set_global_property", [] ->
-    Some (yc_set_global_property [])
-  | "get_global_property", [] ->
-    Some (yc_get_global_property ~property:"PROP" out)
+  (* NOTE (2026-07-20): the specialized property getters/setters
+     (set_/get_global_property, set_/get_directory_property,
+     set_test_properties, set_source_property) had NO usable .yc surface —
+     the positional form rejected, no labeled form existed, and the bare
+     arity emitted nothing / a literal `?` / crashed emit. They were also
+     redundant: the unified entity form covers every scope
+     (`set_property Global|Directory|Test|Source … ~property=[…]`,
+     `get_property … ~out=`). The .yc surface is removed; their IR
+     constructors stay — those have real programmatic users (step_common_ir,
+     the CMakeOnly generators, runcmake tests) that build IR directly in
+     OCaml. Writing one in .yc now reports "unknown command", which is
+     honest. *)
   | _ -> None
 
 (* ============================================================

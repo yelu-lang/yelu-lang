@@ -124,10 +124,11 @@ let () =
             "add_test ~name='t' ~command=[runner, 'a']" ~expect:false;
           pcase "add_test bare shorthand ok"
             "add_test 't' 'runner' 'a'" ~expect:false;
-          pcase "set_global_property positional PROPERTY → reject (yc-name leak)"
-            "set_global_property PROPERTY FOO bar" ~expect:true;
-          pcase "set_test_properties positional PROPERTIES → reject"
-            "set_test_properties mytest PROPERTIES FOO bar" ~expect:true;
+          (* The specialized scope setters lost their .yc surface entirely
+             (2026-07-20), so they are no longer Positional_form rejects —
+             they are now plain unknown commands. The unified entity form
+             (`set_property Global … ~property=[…]`) is the surface, and its
+             positional reject is covered above. *)
           pcase "message positional mode → reject"
             "message FATAL_ERROR 'boom'" ~expect:true;
           pcase "message ~mode labeled ok"

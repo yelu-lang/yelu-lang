@@ -126,12 +126,12 @@ let property_names =
   (* NB: hand-copied from the legacy dispatcher guards; `get_property` was
      missing here until Tier-b retirement (2026-07-16) — on the CST path it
      silently fell to raw and dropped ~out. With the legacy parser retired
-     these lists are the single dispatch source. *)
+     these lists are the single dispatch source. The specialized scope
+     getters/setters were removed 2026-07-20 (no usable .yc surface; the
+     unified entity form covers them) — keep in sync with
+     [Yc_primitives.command_names]. *)
   [ "get_target_property"; "set_target_properties"; "set_property";
-    "get_property";
-    "get_directory_property"; "set_directory_property"; "set_test_properties";
-    "set_source_property"; "set_source_files_properties";
-    "set_global_property"; "get_global_property" ]
+    "get_property"; "set_source_files_properties" ]
 let install_names =
   [ "install_targets"; "install_files"; "install_export"; "install_directory";
     "export"; "configure_package_config_file";

@@ -316,9 +316,10 @@ let tier_remaining = ("t-remaining", [
   assert_parses "path_absolute_path" "( path_absolute_path PV )";
   assert_parses "path_native_path" "( path_native_path PV ~out:OUT )";
   assert_parses "path_convert_to_cmake" "( path_convert_to_cmake \"/tmp\" ~out:OUT )";
-  assert_parses "get_directory_property" "( get_directory_property ~out:OUT )";
-  assert_parses "set_global_property" "( set_global_property )";
-  assert_parses "set_source_property" "( set_source_property \"file.c\" )";
+  (* The specialized scope getters/setters (get_/set_directory_property,
+     set_/get_global_property, set_test_properties, set_source_property) lost
+     their .yc surface 2026-07-20 — no usable form existed and the unified
+     entity form covers them. Their IR ctors remain for OCaml-DSL users. *)
   assert_parses "list_sublist" "( list_sublist MYLIST '1' '3' ~out:OUT )";
   assert_parses "list_filter" "( list_filter MYLIST 'pat' )";
   assert_parses "list_transform" "( list_transform MYLIST ~append )";
@@ -533,12 +534,11 @@ let tier_remaining_y1 = ("t-remaining-y1", [
     "cmake_path(NATIVE_PATH PV OUT)";
   assert_parse_y1_emits "y1: path_convert_to_cmake"  "( path_convert_to_cmake \"/tmp\" ~out:OUT )"
     "cmake_path(CONVERT /tmp TO_CMAKE_PATH_LIST OUT)";
-  assert_parse_y1_emits "y1: get_directory_property" "( get_directory_property ~out:OUT )"
-    "get_directory_property(OUT PROP)";
-  assert_parse_y1_emits "y1: set_global_property"    "( set_global_property )"
-    "";
-  assert_parse_y1_emits "y1: set_source_property"    "( set_source_property \"file.c\" )"
-    "set_property(SOURCE file.c PROPERTY PROP )";
+  (* get_directory_property / set_global_property / set_source_property emit
+     goldens removed with their .yc surface (2026-07-20) — they asserted the
+     broken shapes (`get_directory_property(OUT PROP)` with a placeholder
+     property, and an EMPTY emit for set_global_property). The unified
+     entity form is covered by test_yc_cst_bridge. *)
   assert_parse_y1_emits "y1: list_sublist"           "( list_sublist MYLIST '1' '3' ~out:OUT )"
     "list(SUBLIST MYLIST 1 3 OUT)\n";
   assert_parse_y1_emits "y1: list_filter"            "( list_filter MYLIST 'pat' )"

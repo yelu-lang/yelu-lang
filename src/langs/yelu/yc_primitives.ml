@@ -60,13 +60,15 @@ let command_names : Set.M(String).t =
     "add_definitions"; "add_link_options"; "link_directories";
     (* test *)
     "enable_testing"; "add_test";
-    (* property *)
+    (* property. NB: the specialized scope getters/setters
+       (set_/get_global_property, set_/get_directory_property,
+       set_test_properties, set_source_property) were removed 2026-07-20 —
+       they had no usable .yc surface and are covered by the unified entity
+       form (`set_property Global|Directory|Test|Source … ~property=[…]`).
+       Their IR ctors remain for programmatic (OCaml-DSL) users. *)
     "get_target_property"; "set_target_properties"; "set_property";
     "get_property";
-    "get_directory_property"; "set_directory_property";
-    "set_test_properties"; "set_source_property";
     "set_source_files_properties";
-    "set_global_property"; "get_global_property";
     (* find *)
     "find_package"; "find_library"; "find_path";
     "find_program"; "find_file";
@@ -186,8 +188,7 @@ let takes_out_var name =
   || String.is_prefix name ~prefix:"file_"
   || List.mem
        [ "get_filename_component"; "math"; "cmake_get_log_level";
-         "get_property"; "get_target_property";
-         "get_directory_property"; "get_global_property" ]
+         "get_property"; "get_target_property" ]
        name ~equal:String.equal
 
 (* install_targets dotted per-artifact-kind keys: `~library.destination=` *)
