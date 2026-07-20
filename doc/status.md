@@ -21,15 +21,24 @@ raw-escape unification touches the IR, so tighten the net first).
   itself). All fixed, and a **command-coverage lock** in
   `test_yelu_cmake_parse.ml` now fails the build if a `command_names` entry
   has no case. 274 → 312 in that suite, ~1034 unit tests overall.
-- **Doc cleanup — in progress.** Done: test counts (994 → 1034), the
-  `yelu_parse.ml` row (it stopped being a parser at Tier (b)), the test-table
-  row naming a file that no longer exists, the now-fixed latent deref in
-  `yc_syntax_critique.md`, and a new gotcha — *a name in `command_names` is
-  not evidence it is implemented* (adding a command takes **three** edits:
-  `command_names`, an `_inner` arm, the `yc_cst_lower` family list).
-  Remaining: `lang_coverage.md` (snapshot is 2026-05-20) and a
-  `project_overview.md` pass (last full audit 2026-06-21, predates the audit
-  fixes and Tier (b)).
+- **Doc cleanup — done.** Test counts (994 → 1034); the `yelu_parse.ml` row
+  (it stopped being a parser at Tier (b)); a test-table row naming a file that
+  no longer exists; the now-fixed latent deref in `yc_syntax_critique.md`;
+  four already-closed rows in `project_overview.md`'s gap table; and a new
+  gotcha — *a name in `command_names` is not evidence it is implemented*
+  (adding a command takes **three** edits: `command_names`, an `_inner` arm,
+  the `yc_cst_lower` family list).
+- **One status tracker — done.** `lang/surface_status.md` retired; see the
+  note at the bottom of this file.
+- **Coverage doc — done, by generating it.**
+  [`lang/yc_command_reference.md`](lang/yc_command_reference.md) is emitted by
+  `yelu command-reference` from `command_names` × `Yc_cst_lower.family_of` ×
+  `command_kwargs`, and freshness-locked by a dune `(diff)` rule. The
+  hand-maintained rows in `lang_coverage.md` were the ones that rotted (it
+  claimed ~60/~70 commands had a test while 15 had none); that file now keeps
+  only its non-derivable half, the cmake test-suite tractability map.
+  `project_overview.md` still wants a full body pass at some point — it has a
+  delta note at the top for now.
 
 ## Immediate queue (agreed order, 2026-07-16)
 

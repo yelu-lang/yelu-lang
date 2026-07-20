@@ -150,13 +150,14 @@ All 14 `Make_*_check` modules expose `let stage = Stage_typecheck`, enforced by 
 | `test/test-yelu/test_yelu_steps.ml`        | 19    | tutorial v1 step1–step12 + 8_table + 11_config + ctest     |
 | `test/test-yelu/test_yelu_function.ml`     | 14    | F2: dynamic scope / shallow binding                        |
 | `test/test-yelu/test_yc_cst_bridge.ml`     | 47    | emit-bridge oracle (`emit(lower(parse_cst)) == emit(parse_ast)`) + comment placement + **surface canonicalization** regression (`$foo`, `'`/`"` quotes, enum constructors) |
-| `test/test-yelu/test_yc_manifest.ml`       | 4     | **co-truth lock**: manifest vocabulary ≡ providers (commands, reserved words, **enum constructors ≡ `Yelu_lexer.constr_names`**) |
+| `test/test-yelu/test_yc_manifest.ml`       | 5     | **co-truth lock**: manifest vocabulary ≡ providers (commands, reserved words, **enum constructors ≡ `Yelu_lexer.constr_names`**), plus the **dispatch lock**: every `command_names` entry must be owned by a family `_inner`, never the generic/raw branch |
 | `test/test-yelu/test_yc_tmgrammar.ml`      | 4     | TextMate vocabulary-rule generation (regex escaping, longest-first, `\b` bounds) |
 | `test/test-runcmake/test_yelu_cmake.ml`    | 40    | yelu_cmake lowerings configure through real cmake          |
 | `test/test-runcmake/` (other)              | 37    | cmake -P compat + yelu scripts                             |
 | `test/test-file-api/`                      | —     | codemodel-v2 JSON diff                                     |
 | `test/test_deref_probes.py`                | 23    | cmake **ground-truth** deref probes (`foo`/`${foo}`/`"${foo}"`, nesting, parse-error negatives) — pinned against real cmake, run via `python3` |
 | `test/test-tmgrammar/` (dune `(diff)`)     | 1     | **freshness lock**: committed `yc.tmLanguage.json` must byte-match `yelu tmgrammar`; drift fails `dune test`, fix is `dune promote` |
+| `test/test-command-reference/` (dune `(diff)`) | 1 | **freshness lock**: committed `doc/lang/yc_command_reference.md` must byte-match `yelu command-reference` |
 
 Total unit: ~1034 (dune test). Total cmake-backed: 40. (The table lists the
 load-bearing suites; the full `dune test` count includes the smaller
@@ -171,7 +172,8 @@ per-theory and remaining-command suites not enumerated above.)
 | `doc/project_overview.md`             | Full project audit: code, tests, gaps, TODOs        |
 | `doc/lang/typed_design.md`            | Type system, compositional checking architecture    |
 | `doc/lang/lang_design.md`             | Language design: staging, types, surface syntax     |
-| `doc/lang/lang_coverage.md`           | cmake command coverage tracker                      |
+| `doc/lang/yc_command_reference.md`    | **Generated** yc command table (138 commands by family, `~out`, accepted `~labels`). Regenerate with `yelu command-reference`; freshness-locked by `dune test` (fix drift with `dune promote`). Never hand-edit |
+| `doc/lang/lang_coverage.md`           | cmake **test-suite** coverage map (RunCMake/CMakeOnly tractability, what's blocked on Y11). The yc-command rows moved to the generated reference |
 | `doc/lang/syntax_tiers.md`            | Concrete syntax tier plan                           |
 | `doc/lang/concrete_syntax_parser.md`  | Implemented two-pass parser (Angstrom + pure OCaml) |
 | `doc/lang/surface_lsp_framework.md`   | Surface syntax + LSP design exploration (yc-first): driver-as-plug, CST/spans, manifest-as-co-truth, TextMate Milestone 0 |
