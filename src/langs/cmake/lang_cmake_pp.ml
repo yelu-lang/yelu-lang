@@ -1207,11 +1207,16 @@ and pp_project_cmd ff cmd =
   | Set_source_files_properties { files; directories; target_directories;
                                     properties } ->
       Fmt.(
+        (* Leading spaces on the keys: [pp_list_with_key] emits "KEY items "
+           (trailing space, no leading), so a key placed directly after the
+           un-spaced [files] list would token-merge — `${BMI}PROPERTIES`, which
+           cmake reads as ONE argument, silently losing the keyword. Same
+           convention as " SOURCES" / " DEPENDS" above. *)
         pf ff "set_source_files_properties(%a%a%a%a)"
           (list_sp string) files
-          (pp_list_with_key "DIRECTORY" string) directories
-          (pp_list_with_key "TARGET_DIRECTORY" pp_target) target_directories
-          (pp_list_with_key "PROPERTIES" pp_property) properties)
+          (pp_list_with_key " DIRECTORY" string) directories
+          (pp_list_with_key " TARGET_DIRECTORY" pp_target) target_directories
+          (pp_list_with_key " PROPERTIES" pp_property) properties)
   | Get_target_property { var; target; property = { prop; _ } } ->
       Fmt.(pf ff "get_target_property(%a %a %s)" pp_var var pp_target target prop)
   | Set_target_properties { targets; properties } ->
