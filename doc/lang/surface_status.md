@@ -241,30 +241,25 @@ Layered coverage for the parse/lower/print round-trips:
   (2026-06-10):* `Yc_driver` now exposes `parse_cst` / `lower_cst` /
   `print_cst` / `format`, and [`../yelu_cmake/driver.md`](../yelu_cmake/driver.md)
   documents the `text ↔ cst_lite ↔ expr` form + ops.
-  *Tier (b) — active 2026-06-21 (B1 from project_overview.md):* unify
-  the three surfaces (compile / fmt / LSP) on a single CST-based
-  pipeline via `Yc_driver.parse_and_check`. Today compile is the
-  outlier — it uses the legacy `Yelu_parse.parse_program_y1` (string →
-  expr direct, no CST), so it misses `check_cst` findings (notably
-  `Function_def_typo`). Plan:
-  1. Add `Yc_driver.parse_and_check : string → ({expr; cst; findings},
-     string) Result.t` — single source of truth for parse + wellform.
-  2. Refactor `Yc_driver.format` to use it.
-  3. Refactor LSP `wellform_diagnostics` to use it.
-  4. Refactor `compile_yc` in `bin/yelu/yelu.ml` to use it. Compile
-     automatically gains `check_cst` (Function_def_typo).
-  5. Rename `Yelu_parse.parse_program_y1` →
-     `Yelu_parse.parse_program_legacy` (Y1 was the early-production
-     naming; the legacy label is honest and signals at every call
-     site). Internal `*_y1_inner` parser helpers stay until full
-     retirement.
-  6. Run full `dune test` — emit-bridge oracle (`covered=194`) is the
-     primary soak; any divergence between legacy and CST path breaks
-     a test.
-  7. After a soak period with no divergences observed, retire the
-     legacy parser entirely (`git rm`).
-  The legacy parser stays compiled and runnable during the soak so the
-  emit-bridge keeps proving the CST path correct.
+  *Tier (b) — steps 1–6 done 2026-06-21 (B1), step 7 (retirement) done
+  2026-07-16:*
+  - **B1 (`c88bef7`)** unified compile / fmt / LSP / corpus-gate on
+    `Yc_driver.parse_and_check` (parse + `check_cst` ∪ `check_all`), so
+    compile gained the CST-shape findings (notably `Function_def_typo`);
+    `parse_program_y1` → `parse_program_legacy`.
+  - **Retirement (`237bfb8`)** made `Yc_driver.parse_yc` =
+    `parse_cst ∘ lower_cst`. The legacy direct parser has no callers; the
+    emit-bridge oracle retired *with its reference side* (once both sides are
+    one path the comparison is a tautology — and the tripled matrix, which
+    diffs against **real cmake**, is a strictly stronger reference than the
+    legacy parser ever was). Moving the 280-test per-command suite onto the
+    CST path immediately caught a real drift: `get_property` was missing from
+    `yc_cst_lower.property_names`, so that path silently fell to raw and
+    dropped `~out` — a class of bug the single-dispatch design now makes
+    impossible.
+  - **Remaining:** the mechanical dead-code sweep of `yelu_parse.ml`
+    (~900 unreachable token-level lines). Tracked with its precise
+    delete/keep map in [`../status.md`](../status.md).
 
 - **Token-stream formatter shortcut** — could ship canonical formatting
   over `lex_located` before the CST (indent by paren/brace depth, break at

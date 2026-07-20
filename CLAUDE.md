@@ -164,6 +164,7 @@ per-theory and remaining-command suites not enumerated above.)
 
 | File                                 | Purpose                                             |
 | ------------------------------------ | --------------------------------------------------- |
+| `doc/status.md`                       | **What's in flight right now** + the immediate queue, and nothing else. Short + self-expiring: finished items leave for the worklog. Start here when resuming |
 | `doc/manifesto.md`                    | Project manifesto: thesis, falsifiability, approach |
 | `doc/project_overview.md`             | Full project audit: code, tests, gaps, TODOs        |
 | `doc/lang/typed_design.md`            | Type system, compositional checking architecture    |
