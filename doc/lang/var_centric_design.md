@@ -4,6 +4,12 @@
 > pending a frequency study. Grew out of critique item #4 (`${X}` noise) and
 > the `EVarLookup` work — see [`yc_syntax_critique.md`](yc_syntax_critique.md)
 > and [`../cmake/var_reference_semantics.md`](../cmake/var_reference_semantics.md).
+>
+> **Placement (2026-07-16):** this doc's "belongs in ycn, not yc" conclusion is
+> one of the three precedents behind the general triage rule now written up in
+> [`yc_ycn_boundary.md`](yc_ycn_boundary.md) — *yc = erases to cmake; ycn =
+> needs a value/type model*. Both ideas here (A syntax inversion, B
+> var-as-typed-handle) are ycn-side under that rule.
 
 ## The proposal
 

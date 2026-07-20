@@ -144,14 +144,21 @@ because the matrix wasn't run; fixed `f1296a4`.)
   - **function labeled args** (`fun f(~x)`, call `f ~x='v'`) — a real feature
     (yc `fun`→cmake `function()`, needs generated `cmake_parse_arguments`);
     ties to **Y15**.
-- **Parked redesigns:**
+- **Parked redesigns** (layer placement per
+  [`yc_ycn_boundary.md`](yc_ycn_boundary.md) — *yc = erases to cmake; ycn =
+  needs a value/type model*):
   - **uniform metaprogramming / raw-escape** story — unify `yc_raw` /
     `ECmakeRaw` / `ECmakeRawCmd` / hybrid `raw_cmake` into one "opaque cmake
-    code" model. Now unblocked (the pass is done).
+    code" model. **yc** (it's about opacity, not values). Now unblocked (the
+    pass is done).
   - **value-default inversion** (bare `foo` = the value) → belongs in **ycn**,
     needs a frequency study ([`var_centric_design.md`](var_centric_design.md)).
   - **dotted globals** (`$cmake.version`) — the corpus falsified "all-caps =
     global"; real namespacing → **ycn** ([`casing_design.md`](casing_design.md)).
+  - **records as first-class values** (bind / pass / project a `{…}`) → **ycn**.
+    The record *literal* as argument syntax (`~properties={k=v}`, and the
+    queued shape-4 `~library={…}`) stays **yc** — it erases to a keyword run.
+    The boundary is the value flow, not the braces.
 - **Latent bugs (matrix-invisible today):**
   - literal-target `${}` **deref** in `set_target_properties` (and install_targets
     target names) — same `EVar→EString` remedy as the property entity fix;

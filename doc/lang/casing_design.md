@@ -122,7 +122,9 @@ errored (except the Y14 reserved-word collision, which is a real mistake).
   corpus killed the "all-caps = global" premise (`$ARGN`/`$BMI`/`$MKDOCS` are
   *local* all-caps), so the dotted form is only cosmetic and real namespacing
   belongs in ycn. Needs `.` inside `$`-reads; the namespace prefix table
-  (CMAKE/PROJECT/lang grouping) rides with it.
+  (CMAKE/PROJECT/lang grouping) rides with it. (One of the three precedents
+  behind the general triage rule in
+  [`yc_ycn_boundary.md`](yc_ycn_boundary.md).)
 - **CamelCase compat enums** (`AnyNewerVersion ⇄ Any_newer_version`) — need the
   per-theory constructor⇄cmake-casing **table** (uppercase ≠ cmake casing),
   unlike the all-caps ones that shipped tableless.
