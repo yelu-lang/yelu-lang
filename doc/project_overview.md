@@ -4,6 +4,18 @@
 > Step 2), property-family unification, Pos3 entity prototype, `:=` command-call
 > sugar, and the LSP (formatting + wellform diagnostics + parse-error spans) all
 > landed 2026-06-13..20 and are reflected below.
+>
+> **Delta since (not yet folded into the body):** the 2026-06 syntax audit
+> closed all four findings — honest emit (`a57bcf4`, bare ident is a literal in
+> all five renderers), `Unknown_kwarg`, labeled-only find/test/property, and a
+> world-aware `Function_def_typo`; the fmt matrix gained the **tripled oracle**
+> (cache + file-api codemodel-v2 + ctest, `6aae29a`); **Tier (b)** retired the
+> legacy token-level parser, so `Yc_driver.parse_yc = parse_cst ∘ lower_cst`
+> and `yelu_parse.ml` is now the per-command `_inner` library, not a parser;
+> the yc/ycn boundary rule was adopted (`lang/yc_ycn_boundary.md`); and a
+> **command-coverage lock** (2026-07-20) now enforces a parse+emit case for
+> every `Yc_primitives.command_names` entry. Current in-flight work lives in
+> [`status.md`](status.md).
 
 ## Scope
 
@@ -112,7 +124,7 @@ IR — is the replacement; tracked in
 
 | Suite                              | Count    | What it verifies                                              |
 | ---------------------------------- | -------: | ------------------------------------------------------------- |
-| Unit tests (`dune test`)           | ~994     | Pretty-printer, compile, parse, eval, lift/lower, steps, surface (lexer / parser / CST / emit-bridge oracle / co-truth locks / grammar freshness), per-theory check/compile suites. |
+| Unit tests (`dune test`)           | ~1034     | Pretty-printer, compile, parse, eval, lift/lower, steps, surface (lexer / parser / CST / emit-bridge oracle / co-truth locks / grammar freshness), per-theory check/compile suites. |
 | **Corpus compile gate** (in `dune test`) | every `.yc` under `probes/fmt` | `yelu compile-corpus probes/fmt` — parse + wellform + emit each file; fails the build on a positional cmake-keyword form, enum-shadow, parse error, or emit crash. Closes the blind spot where `compile main.yc` was byte-identical but discovered helpers (`probes/fmt/test/*/CMakeLists.yc`) had regressed. |
 | `make runcmake-yelu`               | 50 / 50  | yelu-generated scripts vs cmake reference output.             |
 | `make cmake-only-check`            | 12 / 12  | Structural equivalence for `Tests/CMakeOnly/`.                |
@@ -229,12 +241,12 @@ in [`yelu_cmake/status.md`](yelu_cmake/status.md).
 | No effect pass                   | Checker      | No execution-mode validation.                        |
 | No systematic lower pass         | Compiler     | Panics on malformed input.                           |
 | Comments inside argument lists   | IR shape     | Currently dropped; whether IR should carry them is open. |
-| cmake-stdlib not in `command_names` | Wellform UX | `cmake_parse_arguments`, `check_language`, `cuda_add_executable`, … fire as `Unknown_command`. 935-callable index already in `tool/cmake_text/`; needs loading into wellform. Candidate next step (C). |
-| Wellform findings carry no spans | LSP UX     | LSP scans source text for first whole-word match. Heuristic but practical; native spans → exact squiggle highlight. |
-| `Function_def_typo` not in compile | Coverage  | CST-level check; `Yc_driver.format` + LSP run it but `compile` uses legacy direct parser (no CST). |
-| Open-world false positives in corpus | Coverage | `probes/fmt/test/cuda-test/CMakeLists.yc` (`cuda_add_executable`) + `compile-error-test` (`cmake_parse_arguments`) need `yc_raw` or stdlib-index integration. |
+| ~~cmake-stdlib not in `command_names`~~ | — | **Closed** (Plan C): the discovered-cache driver pattern — TSV at `tool/cmake_text/cmake_stdlib_names.tsv`, embedded by a dune codegen rule, runtime API `Cmake_stdlib_names`. |
+| Wellform findings carry no spans | LSP UX     | LSP scans source text for first whole-word match. Heuristic but practical; native spans → exact squiggle highlight. Parked as B2. |
+| ~~`Function_def_typo` not in compile~~ | — | **Closed** by B1: `Yc_driver.parse_and_check` is the single parse+wellform site for compile / fmt / LSP / corpus-gate, and (Tier b) there is no legacy parser left to bypass the CST. |
+| ~~Open-world false positives in corpus~~ | — | **Closed** by the stdlib cache; the corpus gate runs closed-world and is 11/11. |
 | Single-file LSP                  | Tooling      | LSP sees one file at a time; no cross-file `function`/`macro` collection across `include`/`add_subdirectory`. |
-| First-class cmake entity is parser-local | Language | Pos3 prototype (`cmake_entity` in `yelu_parse.ml`) — promoting to a real IR value class is Y18, design in `lang/object_value_design.md`. |
+| First-class cmake entity is parser-local | Language | Pos3 prototype (`cmake_entity` in `yelu_parse.ml`) — promoting to a real IR value class is Y18, design in `lang/object_value_design.md`. Placement settled: the leading-cap *constructor* is yc, the *value class* is ycn ([`lang/yc_ycn_boundary.md`](lang/yc_ycn_boundary.md)). |
 
 ## Implementation Queue
 

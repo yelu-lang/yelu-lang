@@ -11,7 +11,7 @@ All commands run from the yelu repo root (`dune-project` lives here).
 dune build                                      # everything
 dune build src/langs/ src/bin/yelu/             # yelu layer + main binary
 dune build src/langs/ src/bin/cmake_only/       # cmake-only generators
-dune test                                       # all unit tests (~994) + corpus gate
+dune test                                       # all unit tests (~1034) + corpus gate
 ```
 
 `dune test` includes the **corpus compile gate** (`probes/fmt/dune` →
@@ -76,7 +76,9 @@ make step1 .. step12     # generate → cmake configure → build → run
 
 | File                                   | Purpose                                                          |
 | -------------------------------------- | ---------------------------------------------------------------- |
-| `src/langs/yelu/yelu_parse.ml`                 | Concrete-syntax parser → `yelu_cmake.expr`                       |
+| `src/langs/yelu/yc_cst_parse.ml`               | Concrete-syntax parser → CST (**the** parser since Tier (b))     |
+| `src/langs/yelu/yc_cst_lower.ml`               | CST → `yelu_cmake.expr`; dispatches per family to the `_inner`s  |
+| `src/langs/yelu/yelu_parse.ml`                 | Per-command argument interpretation (`p_<family>_command_y1_inner`: name → positionals → kwargs → `expr option`). **Not a parser** — the token-level grammar was deleted in Tier (b) (`cf69703`) |
 | `src/langs/yelu/yelu_lexer.ml`                 | Shared tokens                                                    |
 | `src/langs/yelu/yelu_cmake.ml`                 | Core `yelu_cmake` types + env + eval primitives                  |
 | `src/langs/yelu/yelu_cmake_emit.ml`            | `yelu_cmake.expr` → `Lang_cmake.exp` (production emit)           |
@@ -140,7 +142,7 @@ All 14 `Make_*_check` modules expose `let stage = Stage_typecheck`, enforced by 
 | `test/test-yelu/test_yelu_compile.ml`      | 194   | yelu → cmake compilation                                   |
 | `test/test-yelu/test_yelu_check.ml`        | 57    | per-theory type checking + wellform name binding           |
 | `test/test-yelu/test_yelu_lexer.ml`        | 31    | concrete-syntax lexer (incl. `$foo` sugar + enum-constructor normalization) |
-| `test/test-yelu/test_yelu_parse.ml`        | 170   | concrete-syntax parser                                     |
+| `test/test-yelu/test_yelu_cmake_parse.ml`  | 312   | per-command parse + emit goldens (`parse_cst ∘ lower_cst`), plus the **command-coverage lock**: every `Yc_primitives.command_names` entry must have a case here, else the build fails |
 | `test/test-yelu/test_yelu_bridge.ml`       | 43    | production yelu_cmake AST → yelu_cmake (via legacy bridge) |
 | `test/test-yelu/test_yelu_emit_debug.ml`   | 3     | yelu_cmake → cmake text (debug direct-emit path)           |
 | `test/test-yelu/test_yelu_emit.ml`         | —     | yelu_cmake → `Lang_cmake.exp` → cmake text (production emit) |
@@ -156,7 +158,7 @@ All 14 `Make_*_check` modules expose `let stage = Stage_typecheck`, enforced by 
 | `test/test_deref_probes.py`                | 23    | cmake **ground-truth** deref probes (`foo`/`${foo}`/`"${foo}"`, nesting, parse-error negatives) — pinned against real cmake, run via `python3` |
 | `test/test-tmgrammar/` (dune `(diff)`)     | 1     | **freshness lock**: committed `yc.tmLanguage.json` must byte-match `yelu tmgrammar`; drift fails `dune test`, fix is `dune promote` |
 
-Total unit: ~994 (dune test). Total cmake-backed: 40. (The table lists the
+Total unit: ~1034 (dune test). Total cmake-backed: 40. (The table lists the
 load-bearing suites; the full `dune test` count includes the smaller
 per-theory and remaining-command suites not enumerated above.)
 
@@ -311,7 +313,7 @@ See [doc/lang/typed_design.md](doc/lang/typed_design.md) for the full design.
 
 Key milestones: wellform pass (Y1), concrete-syntax parser + both surface passes
 (no-ALL_CAPS `~`-half + labeled-only) complete, **unified parse_and_check
-pipeline** + cmake-stdlib name cache, ~994 unit tests.
+pipeline** + cmake-stdlib name cache, ~1034 unit tests.
 
 **Handoff (2026-06-21).** Sessions 2026-06-20..21 closed three things on top of
 the labeled-only baseline:
@@ -462,7 +464,7 @@ OCaml toolchain — **no cmake needed** for the unit suite + corpus gate. Watch:
 
 ### Test infrastructure
 
-- **~994 unit tests** (`dune test`) — incl. the surface track (lexer, parser,
+- **~1034 unit tests** (`dune test`) — incl. the surface track (lexer, parser,
   emit-bridge oracle, co-truth locks, grammar freshness), the per-theory
   check/compile suites, and the build-time corpus compile gate
 - **108 equivalence/semantic checks** (35 structural + 12 CMakeOnly + 61 RunCMake)
@@ -632,10 +634,22 @@ configuration generation with verifier feedback. cmake is the first specimen.
   dropped the matrix to 0/24 while `compile main.yc` stayed byte-identical. Now
   guarded by the **corpus compile gate** (`probes/fmt/dune`, in `dune test`);
   add new probe `.yc` under a discovered path and it's covered automatically.
-- **`command_names` (`yc_primitives.ml`) is co-truth-locked too** — like
-  `constr_names`, it feeds `Yc_manifest`; adding a command (e.g. the missing
-  `add_custom_command`, an open TODO) needs the manifest updated + `dune promote`
-  or the co-truth lock fails `dune test`.
+- **`command_names` (`yc_primitives.ml`) is co-truth-locked twice over** — like
+  `constr_names`, it feeds `Yc_manifest`, so adding a command needs the manifest
+  updated + `dune promote` or the co-truth lock fails `dune test`. Since
+  2026-07-20 it *also* needs a case in `test_yelu_cmake_parse.ml` (the
+  **command-coverage lock**).
+- **A name in `command_names` is NOT evidence that it is implemented.** Being
+  listed only means "known" — it suppresses the `Unknown_command` warning. A
+  command with no `_inner` arm, or with an `_inner` but no entry in the
+  `yc_cst_lower` family list (`target_names`, `property_names`, …), falls
+  through to the **raw escape** and emits its *yc* name as a bogus cmake
+  command — silently. This bit twice: `get_property` missing from
+  `property_names` (Tier b) and `add_exe_alias` / `add_lib_imported` /
+  `precompile_headers` having no surface at all (2026-07-20). The coverage
+  lock now makes the class unreachable, but when adding a command remember it
+  takes **three** edits: `command_names`, an `_inner` arm, and the
+  `yc_cst_lower` family list.
 - Remote: `github.com/yelu-lang/yelu-lang`.
 
 ## Handoff Workflow

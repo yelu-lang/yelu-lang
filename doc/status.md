@@ -6,18 +6,30 @@
 > *why* something is designed a certain way, or a full project audit, this is
 > the wrong file — see § Where the durable records live.
 >
-> Last touched: 2026-07-16.
+> Last touched: 2026-07-20.
 
 ## In flight
 
-*(nothing — next item is #1 in the queue below)*
+**Doc cleanup + test enhancement, before item 3** (agreed 2026-07-20: the
+raw-escape unification touches the IR, so tighten the net first).
 
-**Just landed: Tier (b) is complete.** `Yc_driver.parse_yc` =
-`parse_cst ∘ lower_cst` (`237bfb8`), and the dead token-level grammar is
-deleted (`cf69703`, 2548 → 1481 lines). `yelu_parse.ml` is no longer a parser
-— it is the per-command argument-interpretation library (`_inner` functions:
-name → positionals → kwargs → `expr option`) that `Yc_cst_lower` dispatches to.
-`open Yelu_lexer` is gone; the file no longer touches tokens.
+- **Test enhancement — done.** A coverage scan found 15 of ~119
+  `command_names` entries with zero test mention; five were genuinely broken
+  (9 `cmake_path` ops silently dropping `~out=`; `add_exe_alias` /
+  `add_lib_imported` / `precompile_headers` with **no .yc surface at all**,
+  emitting their yc name as bogus cmake; `add_lib_alias` aliasing a target to
+  itself). All fixed, and a **command-coverage lock** in
+  `test_yelu_cmake_parse.ml` now fails the build if a `command_names` entry
+  has no case. 274 → 312 in that suite, ~1034 unit tests overall.
+- **Doc cleanup — in progress.** Done: test counts (994 → 1034), the
+  `yelu_parse.ml` row (it stopped being a parser at Tier (b)), the test-table
+  row naming a file that no longer exists, the now-fixed latent deref in
+  `yc_syntax_critique.md`, and a new gotcha — *a name in `command_names` is
+  not evidence it is implemented* (adding a command takes **three** edits:
+  `command_names`, an `_inner` arm, the `yc_cst_lower` family list).
+  Remaining: `lang_coverage.md` (snapshot is 2026-05-20) and a
+  `project_overview.md` pass (last full audit 2026-06-21, predates the audit
+  fixes and Tier (b)).
 
 ## Immediate queue (agreed order, 2026-07-16)
 

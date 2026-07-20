@@ -7,8 +7,16 @@
 > which testing level, what is blocked on `cmake_policy` (Y11) —
 > but specific test counts and "X / Y done" numbers may lag the
 > code by a few weeks. See `../project_overview.md` for current
-> per-suite totals (~1,010 unit tests; 729/729 Bar #3-lite round-
+> per-suite totals (~1,034 unit tests; 729/729 Bar #3-lite round-
 > trip; 50/50 `make runcmake-yelu`; etc.).
+>
+> **Update 2026-07-20.** The "commands with any test" row is no longer an
+> estimate — it is *measured and enforced*. The command-coverage lock in
+> `test/test-yelu/test_yelu_cmake_parse.ml` asserts that every entry in
+> `Yc_primitives.command_names` has a parse+emit case, so the figure is
+> **100% by construction**; a new command without a case fails `dune test`.
+> Note this counts *yc surface* commands, not the wider cmake command
+> universe the rest of this document maps.
 
 ## Current State
 
@@ -24,7 +32,7 @@ Runtime: cmake 4.3.1 (`/usr/bin/cmake`, Kitware apt).
 | **Test depth**            | file-api tests (steps 1–12)                | 12 / 12 ✓          | 12        | Full codemodel-v2 binding match ✓                                                         |
 | **Command breadth**       | commands at `build` level                  | ~15                | ~20       | all `target_*` + `add_compile_*`; ALIAS/OBJECT/MODULE libs; gap: `target_link_libraries`  |
 | **Command breadth**       | commands at `script-pair` level            | ~15                | ~20       | all scripting core; gap: `cmake_policy` (Y11)                                             |
-| **Command breadth**       | commands with any test                     | ~60                | ~70       | `text`-only commands: `find_*`, `install`, `file`, genex                                  |
+| **Command breadth**       | commands with any test                     | 119 / 119 ✓        | —         | **enforced** by the command-coverage lock (2026-07-20); every `command_names` entry has a parse+emit case |
 | **Benchmark suites**      | `Tests/CMakeOnly/`                         | 12 / 12 ✓          | 12        | all tractable dirs done                                                                   |
 | **Benchmark suites**      | `Tests/CMakeCommands/`                     | 11 / 12            | 12        | `target_link_libraries` deferred                                                          |
 | **Benchmark suites**      | `Tests/RunCMake/` compat                   | 64 / ~67           | ~67       | cmake 4.3 unblocked 3 tests                                                               |
