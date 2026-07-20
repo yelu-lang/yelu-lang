@@ -128,6 +128,11 @@ let command_kwargs : Set.M(String).t Map.M(String).t =
     (* target *)
     "add_lib", ["type"];
     "add_lib_alias", ["alias_of"];
+    "add_exe_alias", ["alias_of"];
+    "add_lib_imported", ["type"; "global"];
+    (* precompile_headers takes NO kwargs — visibility is the positional enum
+       constructor (`precompile_headers app Private 'pch.h'`), same as
+       include_dirs / compile_defs. *)
     "include_dirs", ["system"; "before"];
     "target_include_directories", ["system"; "before"];
     "compile_opts", ["before"]; "target_compile_options", ["before"];

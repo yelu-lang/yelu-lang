@@ -116,7 +116,14 @@ let target_names =
     "target_compile_definitions"; "target_compile_options";
     "target_compile_features"; "target_link_options";
     "target_link_directories"; "link_opts"; "link_dirs"; "target_sources";
-    "add_lib_alias"; "add_custom_target"; "add_custom_command" ]
+    "add_lib_alias"; "add_custom_target"; "add_custom_command";
+    (* Added 2026-07-20. These have target-family `_inner`s but were absent
+       here, so they fell to the raw escape and emitted their yc name as a
+       bogus cmake command. Same drift class as the `get_property` omission
+       from [property_names] — this list and [Yc_primitives.command_names]
+       must agree, which [test_yc_manifest] now locks. *)
+    "add_exe_alias"; "add_lib_imported"; "precompile_headers";
+    "add_dependencies" ]
 let dir_names =
   [ "add_subdirectory"; "include_directories"; "add_compile_definitions";
     "add_compile_options"; "add_link_options"; "add_definitions";

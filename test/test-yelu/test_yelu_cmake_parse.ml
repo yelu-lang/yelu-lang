@@ -13,9 +13,33 @@ let parse input =
   | Ok expr -> expr
   | Error e -> Alcotest.failf "Parse error: %s" e
 
+(* ── Command-coverage lock ────────────────────────────────────────────────
+   Every [Yc_primitives.command_names] entry must be exercised by at least one
+   case in this file. The assert_* helpers below run at MODULE-INIT time (they
+   build the Alcotest case list), so [record_coverage] has seen every source
+   string before [Alcotest.run] executes the final coverage case.
+
+   Motivation (2026-07-20): a coverage scan found 15 commands with zero test
+   mention, and four of them were BROKEN — add_exe_alias / add_lib_imported /
+   precompile_headers had no .yc surface at all yet sat in command_names as
+   "known", so they skipped the Unknown_command warning, fell to the raw
+   escape, and emitted their yc name as a bogus cmake command. Being listed as
+   known while being unimplemented is the worst failure mode available, and
+   nothing caught it. Now adding a command without a golden fails the build. *)
+let covered : (string, String.comparator_witness) Set.t ref =
+  ref (Set.empty (module String))
+
+let record_coverage source =
+  String.split_on_chars source
+    ~on:[ ' '; '\t'; '\n'; '('; ')'; '['; ']'; '{'; '}'; ';'; '\''; '"'; ',' ]
+  |> List.iter ~f:(fun tok ->
+    if Yelu_langs.Yc_primitives.is_known_command tok then
+      covered := Set.add !covered tok)
+
 (* Smoke test: the new parser accepts the input and the resulting Yelu1
    expression survives [emit_script] without raising. *)
 let assert_parses name input =
+  record_coverage input;
   Alcotest.test_case name `Quick (fun () ->
     let expr = parse input in
     try
@@ -30,6 +54,7 @@ let assert_parses name input =
    it was last green; the legacy path is now retired, so these inline
    expecteds are the durable assertion. *)
 let assert_parse_y1_emits name source expected =
+  record_coverage source;
   Alcotest.test_case name `Quick (fun () ->
     match Yelu_langs.Yc_driver.parse_yc source with
     | Error msg ->
@@ -656,6 +681,43 @@ let tier5_path_y1 = ("t5-path-y1", [
     "get_filename_component(OUT file.txt PATH)";
 ])
 
+(* Regression (2026-07-20): the nine cmake_path ops whose IR field is
+   `out : string option` used to hardcode `out = None` in the parser, so a
+   user's `~out=` was SILENTLY DROPPED and the result landed in the path
+   variable instead of the requested one. Only path_normal_path read the
+   (already existing) [opt_out_y1] helper. These goldens pin OUTPUT_VARIABLE
+   for all nine.
+
+   The class was found by a coverage scan — path_append_string,
+   path_remove_extension, path_replace_extension, path_relative_path and
+   path_is_prefix had zero mention in any test. *)
+let tier5_path_out_y1 = ("t5-path-out-y1", [
+  assert_parse_y1_emits "y1: append ~out"             "( path_append PV \"sub\" ~out:OUT )"
+    "cmake_path(APPEND PV sub OUTPUT_VARIABLE OUT)";
+  assert_parse_y1_emits "y1: append_string ~out"      "( path_append_string PV \"x\" ~out:OUT )"
+    "cmake_path(APPEND_STRING PV x OUTPUT_VARIABLE OUT)";
+  assert_parse_y1_emits "y1: remove_filename ~out"    "( path_remove_filename PV ~out:OUT )"
+    "cmake_path(REMOVE_FILENAME PV OUTPUT_VARIABLE OUT)";
+  assert_parse_y1_emits "y1: replace_filename ~out"   "( path_replace_filename PV \"new\" ~out:OUT )"
+    "cmake_path(REPLACE_FILENAME PV new OUTPUT_VARIABLE OUT)";
+  assert_parse_y1_emits "y1: remove_extension ~out"   "( path_remove_extension PV ~out:OUT )"
+    "cmake_path(REMOVE_EXTENSION PV OUTPUT_VARIABLE OUT)";
+  assert_parse_y1_emits "y1: replace_extension ~out"  "( path_replace_extension PV \"txt\" ~out:OUT )"
+    "cmake_path(REPLACE_EXTENSION PV txt OUTPUT_VARIABLE OUT)";
+  assert_parse_y1_emits "y1: relative_path ~out"      "( path_relative_path PV ~out:OUT )"
+    "cmake_path(RELATIVE_PATH PV OUTPUT_VARIABLE OUT)";
+  assert_parse_y1_emits "y1: absolute_path ~out"      "( path_absolute_path PV ~out:OUT )"
+    "cmake_path(ABSOLUTE_PATH PV OUTPUT_VARIABLE OUT)";
+  assert_parse_y1_emits "y1: normal_path ~out"        "( path_normal_path PV ~out:OUT )"
+    "cmake_path(NORMAL_PATH PV OUTPUT_VARIABLE OUT)";
+  (* IS_PREFIX / CONVERT take the result var positionally, not via
+     OUTPUT_VARIABLE — pinned here so the two shapes stay distinguished. *)
+  assert_parse_y1_emits "y1: is_prefix ~out"          "( path_is_prefix PV \"pre\" ~out:OUT )"
+    "cmake_path(IS_PREFIX PV pre OUT)";
+  assert_parse_y1_emits "y1: convert_to_native ~out"  "( path_convert_to_native \"/tmp\" ~out:OUT )"
+    "cmake_path(CONVERT /tmp TO_NATIVE_PATH_LIST OUT)";
+])
+
 (* Phase 2a pair-wise oracle for the list family. *)
 let tier3_list_y1 = ("t3-list-y1", [
   assert_parse_y1_emits "y1: append"             "( list_append MYLIST 'a' 'b' )"
@@ -728,15 +790,108 @@ let tier2_string_y1 = ("t2-string-y1", [
     "string(LENGTH hello OUT)";
 ])
 
+(* Commands the 2026-07-20 coverage scan found with ZERO mention in any test.
+   The path_* ones are pinned above (they were broken); these three were
+   correct but unwitnessed. *)
+let tier_uncovered_y1 = ("t-uncovered-y1", [
+  assert_parse_y1_emits "y1: cmake_eval"    "( cmake_eval 'message(hi)' )"
+    "cmake_language(EVAL CODE \"message(hi)\")";
+  assert_parse_y1_emits "y1: string_json"   "( string_json GET $doc 'a' ~out:OUT )"
+    "string(JSON OUT GET ${doc} a)";
+  (* Regression for cc196c1: [pp_list_with_key] emits a trailing but no
+     LEADING space, so bare keys token-merged into the preceding argument —
+     `${BMI}PROPERTIES GENERATED ON`, silently losing the keyword. The
+     leading space in the golden is the whole point of this case. *)
+  assert_parse_y1_emits "y1: set_source_files_properties"
+    "( set_source_files_properties $BMI ~properties={generated=ON} )"
+    "set_source_files_properties(${BMI} PROPERTIES GENERATED ON )";
+
+  assert_parse_y1_emits "y1: add_compile_definitions" "( add_compile_definitions 'FOO=1' )"
+    "add_compile_definitions(FOO=1)";
+  assert_parse_y1_emits "y1: add_custom_target" "( add_custom_target run ~command=['echo' 'hi'] )"
+    "add_custom_target(run COMMAND echo hi)";
+  assert_parse_y1_emits "y1: add_test" "( add_test ~name='t1' ~command=['runner' '-v'] )"
+    "add_test(NAME t1 COMMAND runner -v)";
+  assert_parse_y1_emits "y1: enable_testing" "( enable_testing )"
+    "enable_testing()";
+  assert_parse_y1_emits "y1: string_genex_strip" "( string_genex_strip '$<0:x>y' ~out:OUT )"
+    "string(GENEX_STRIP \"$<0:x>y\" OUT)";
+  assert_parse_y1_emits "y1: string_regex_quote" "( string_regex_quote 'a.b' ~out:OUT )"
+    "string(REGEX QUOTE OUT a.b)";
+  assert_parse_y1_emits "y1: string_repeat" "( string_repeat 'ab' 3 ~out:OUT )"
+    "string(REPEAT ab 3 OUT)";
+  assert_parse_y1_emits "y1: string_strip" "( string_strip '  x  ' ~out:OUT )"
+    "string(STRIP \"  x  \" OUT)";
+
+  (* Wired 2026-07-20 — these four had IR ctors and no .yc surface, so they
+     silently emitted their yc name as a bogus cmake command. The goldens
+     assert the REAL cmake spelling (add_executable/add_library/
+     target_precompile_headers), which is exactly what was missing. *)
+  assert_parse_y1_emits "y1: add_exe_alias" "( add_exe_alias 'My::app' app )"
+    "add_executable(My::app ALIAS app)";
+  assert_parse_y1_emits "y1: add_lib_imported" "( add_lib_imported extlib ~type=Shared )"
+    "add_library(extlib SHARED IMPORTED)";
+  assert_parse_y1_emits "y1: precompile_headers" "( precompile_headers app Private 'pch.h' )"
+    "target_precompile_headers(app PRIVATE pch.h)";
+  assert_parse_y1_emits "y1: add_dependencies" "( add_dependencies app lib1 )"
+    "add_dependencies(app lib1)";
+  (* Regression: the 2nd positional used to be dropped, so this emitted
+     `add_library(My::lib ALIAS My::lib)` — a target aliasing itself. *)
+  assert_parse_y1_emits "y1: add_lib_alias positional" "( add_lib_alias 'My::lib' lib1 )"
+    "add_library(My::lib ALIAS lib1)";
+
+  (* The long-form `target_*` spellings. The short yc names (link_lib,
+     include_dirs, compile_defs, …) were covered; their cmake-spelled aliases
+     share an [_inner] arm but had never been exercised by that name. *)
+  assert_parse_y1_emits "y1: target_link_libraries" "( target_link_libraries app Private lib1 )"
+    "target_link_libraries(app PRIVATE lib1)";
+  assert_parse_y1_emits "y1: target_include_directories" "( target_include_directories app Private 'inc' )"
+    "target_include_directories(app PRIVATE inc)";
+  assert_parse_y1_emits "y1: target_compile_definitions" "( target_compile_definitions app Private 'D=1' )"
+    "target_compile_definitions(app PRIVATE D=1)";
+  assert_parse_y1_emits "y1: target_compile_options" "( target_compile_options app Private '-Wall' )"
+    "target_compile_options(app PRIVATE -Wall)";
+  assert_parse_y1_emits "y1: target_sources" "( target_sources app Private 'a.cpp' )"
+    "target_sources(app PRIVATE a.cpp)";
+  assert_parse_y1_emits "y1: find_package" "( find_package Foo ~required )"
+    "find_package(Foo REQUIRED)";
+  assert_parse_y1_emits "y1: get_property" "( get_property Global 'FOO' ~property=['P'] ~out:OUT )"
+    "get_property(OUT GLOBAL PROPERTY P)";
+
+  (* Multi-line emit — smoke rather than golden. *)
+  assert_parses "install_directory" "( install_directory 'inc/' ~destination='include' )";
+  assert_parses "add_custom_command" "( add_custom_command ~output='g.c' ~command=['gen'] )";
+  assert_parses "yc_raw" "( yc_raw 'foo(bar)' )";
+])
+
+(* The lock. Must be listed LAST in the suite so every other group has been
+   constructed (and thus recorded) first — though module-init ordering already
+   guarantees it. *)
+let coverage_lock = ("command-coverage", [
+  Alcotest.test_case "every command_names entry has a case" `Quick (fun () ->
+    let missing =
+      Set.diff Yelu_langs.Yc_primitives.command_names !covered |> Set.to_list
+    in
+    if not (List.is_empty missing) then
+      Alcotest.failf
+        "%d command(s) in Yc_primitives.command_names have no case in this \
+         file: %s\n\
+         Add a golden with assert_parse_y1_emits (preferred) or a smoke case \
+         with assert_parses. An unexercised command can be entirely \
+         unimplemented and still look 'known' to the wellform checker."
+        (List.length missing) (String.concat ~sep:", " missing));
+])
+
 let () =
   Alcotest.run "Yelu Parser" [
     tier0_control; tier0_control_y1; tier0_cond; tier0_cond_y1;
     tier0_var; tier0_var_y1; tier0_cmake_op; tier0_cmake_op_y1;
     tier0_target; tier0_target_y1; tier0_dir; tier0_dir_y1; tier0_file; tier0_scripting; tier0_full;
     tier1_target; tier2_string; tier2_string_y1; tier3_list; tier3_list_y1;
-    tier4_file; tier4_file_y1; tier5_path; tier5_path_y1;
+    tier4_file; tier4_file_y1; tier5_path; tier5_path_y1; tier5_path_out_y1;
     tier6_find_install; tier6_find_install_y1;
     tier7_scripting; tier7_try_y1;
     tier8_misc; tier8_misc_y1; tier8_misc_cmake_op_y1;
     tier_remaining; tier_remaining_y1; tier9_genex; tier9_genex_y1;
+    tier_uncovered_y1; coverage_lock;
   ]

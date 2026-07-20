@@ -315,34 +315,40 @@ let p_path_command_y1_inner name args kwargs =
   | "path_compare", [ input1; input2 ] ->
     Some (ECmakePathCompare
             { input1; op = "EQUAL"; input2; out })
+  (* These carry `out : string option` (cmake's optional OUTPUT_VARIABLE —
+     without it cmake_path mutates <path-var> in place). They hardcoded
+     `out = None`, silently DROPPING a user's `~out=` so the result landed in
+     the path var instead (fixed 2026-07-20; [opt_out_y1] already existed and
+     was used by path_normal_path only). *)
   | "path_append", [ pv; input ] ->
     Some (ECmakePathAppend
-            { path = cvar_name_of_y1 pv; inputs = [ input ]; out = None })
+            { path = cvar_name_of_y1 pv; inputs = [ input ]; out = opt_out_y1 () })
   | "path_append_string", [ pv; input ] ->
     Some (ECmakePathAppendString
-            { path = cvar_name_of_y1 pv; inputs = [ input ]; out = None })
+            { path = cvar_name_of_y1 pv; inputs = [ input ]; out = opt_out_y1 () })
   | "path_remove_filename", [ pv ] ->
-    Some (ECmakePathRemoveFilename { path = cvar_name_of_y1 pv; out = None })
+    Some (ECmakePathRemoveFilename
+            { path = cvar_name_of_y1 pv; out = opt_out_y1 () })
   | "path_replace_filename", [ pv; input ] ->
     Some (ECmakePathReplaceFilename
-            { path = cvar_name_of_y1 pv; input; out = None })
+            { path = cvar_name_of_y1 pv; input; out = opt_out_y1 () })
   | "path_remove_extension", [ pv ] ->
     Some (ECmakePathRemoveExtension
-            { path = cvar_name_of_y1 pv; last_only = false; out = None })
+            { path = cvar_name_of_y1 pv; last_only = false; out = opt_out_y1 () })
   | "path_replace_extension", [ pv; input ] ->
     Some (ECmakePathReplaceExtension
             { path = cvar_name_of_y1 pv; last_only = false; input;
-              out = None })
+              out = opt_out_y1 () })
   | "path_normal_path", [ pv ] ->
     Some (ECmakePathNormalPath
             { path = cvar_name_of_y1 pv; out = opt_out_y1 () })
   | "path_relative_path", [ pv ] ->
     Some (ECmakePathRelativePath
-            { path = cvar_name_of_y1 pv; base_dir = None; out = None })
+            { path = cvar_name_of_y1 pv; base_dir = None; out = opt_out_y1 () })
   | "path_absolute_path", [ pv ] ->
     Some (ECmakePathAbsolutePath
             { path = cvar_name_of_y1 pv; base_dir = None;
-              normalize = false; out = None })
+              normalize = false; out = opt_out_y1 () })
   | "path_native_path", [ pv ] ->
     Some (ECmakePathNativePath
             { path = cvar_name_of_y1 pv; normalize = false; out })
@@ -544,10 +550,44 @@ let p_target_command_y1_inner name args kwargs =
       | ETarget s :: _ | EString s :: _ | EVar s :: _ -> EVar s
       | _ -> EVar "?"
     in
-    let alias_of = kw_str_opt "alias_of" in
     let name = str_of name_arg in
-    let alias_of = match alias_of with Some s -> s | None -> name in
+    (* `~alias_of=` wins; otherwise a 2nd positional is the aliased target.
+       Before 2026-07-20 the 2nd positional was DROPPED and alias_of fell back
+       to [name], so `add_lib_alias 'My::lib' lib1` emitted
+       `add_library(My::lib ALIAS My::lib)` — a target aliasing itself. *)
+    let alias_of = match kw_str_opt "alias_of" with
+      | Some s -> s
+      | None -> (match args with _ :: t :: _ -> str_of t | _ -> name)
+    in
     Some (add_lib_alias ~alias_of name)
+  (* add_exe_alias / add_lib_imported / precompile_headers: the IR ctors have
+     existed (and have programmatic users) since the theory split, but the .yc
+     surface was never wired — so these names sat in [command_names] as
+     "known", skipped the Unknown_command warning, fell through to the raw
+     escape and emitted their *yc* name as a bogus cmake command
+     (`add_exe_alias(My::app app)`). Wired 2026-07-20; found by the
+     command-coverage lock. *)
+  | "add_exe_alias", args ->
+    let name = match args with a :: _ -> str_of a | [] -> "?" in
+    let target = match kw_str_opt "alias_of" with
+      | Some s -> s
+      | None -> (match args with _ :: t :: _ -> str_of t | _ -> name)
+    in
+    Some (ECmakeAddExecutableAlias { name; target })
+  | "add_lib_imported", args ->
+    let name = match args with a :: _ -> a | [] -> EVar "?" in
+    let lib_type =
+      Option.map (kw_str_opt "type") ~f:String.uppercase
+    in
+    Some (ECmakeAddLibraryImported
+            { name; lib_type; global = kw_bool "global" })
+  | "precompile_headers", target :: items ->
+    try_groups_or_raw items
+      (fun ~visibility items ->
+        ECmakeTargetPrecompileHeaders { target; visibility; headers = items })
+  | "add_dependencies", target :: deps ->
+    Some (ECmakeAddDependencies
+            { target = str_of target; deps = List.map deps ~f:str_of })
   | "add_custom_target", name_arg :: rest ->
     (* Labeled-only (Step 2): any positional cmake keyword among the args is a
        fatal reject (use `~all`/`~command`/`~depends`/`~sources`/`~comment`). *)
