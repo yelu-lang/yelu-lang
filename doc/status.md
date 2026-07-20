@@ -28,23 +28,16 @@ directions. Pure-*surface* yc items (version literal, `message_*`,
 happen any time, including after ycn starts.
 
 1. ~~Tier (b) sweep~~ — **done** (`cf69703`).
-2. **Dead specialized-property commands — decide.** ← *next*
-   `set_global_property` / `get_global_property` / `set_directory_property` /
-   `get_directory_property` / `set_test_properties` / `set_source_property`
-   have **no usable surface**: the positional form rejects (audit #3), no
-   labeled form exists, and the bare arity emits nothing, a literal `?`, or
-   *crashes emit* (`set_test_properties 'mytest'` →
-   `emit_ast: uncovered expr constructor`). They are fully redundant — the
-   unified entity form covers all of them
-   (`set_property Global|Directory|Test|Source ~property=[…]`, verified).
-   They are nonetheless in `command_names` → manifest → TextMate grammar →
-   LSP vocabulary → reserved names, **and carry live IR constructors that
-   convert already maps** (`ECmakeSetDirectoryProperty`,
-   `ECmakeSetSourceProperty`, `ECmakeSetTestsProperties`,
-   `ECmakeGetGlobalProperty`, + ycn-side `ESetTestsProperties`).
-   Decision needed: **delete**, or **thin aliases** to the unified form.
-   Either way it is small; leaving it means ycn inherits phantom constructors.
-3. **Raw-escape unification** — one "opaque cmake code" model for
+2. ~~Dead specialized-property commands~~ — **done** (`1d70486`). Removed the
+   *text surface* only; the IR constructors stay (15 programmatic users:
+   step_common_ir, CMakeOnly generators, runcmake tests, legacy bridge) — the
+   earlier "delete them, they're redundant" plan was scoped too wide. Behavior
+   now splits on whether the name is real cmake: `get_directory_property`
+   passes through as raw (it is a builtin, in the stdlib cache), the other five
+   report "unknown command" (they were never cmake commands). Found and fixed
+   an adjacent live bug on the way (`cc196c1`): `set_source_files_properties`
+   emitted `${BMI}PROPERTIES` — token-merged, silently losing the keyword.
+3. **Raw-escape unification** ← *next* — one "opaque cmake code" model for
    `yc_raw` / `ECmakeRaw` / `ECmakeRawCmd` / hybrid `raw_cmake`. An IR
    consolidation, so it ripples through convert: doing it after ycn starts
    pays that migration twice, and ycn needs its own opacity story anyway —
