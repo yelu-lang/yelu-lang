@@ -83,6 +83,9 @@ let fatal_wellform_message : Yc_wellform.error -> string option = function
   | Yc_wellform.Unknown_kwarg { command; key } ->
     Some (Printf.sprintf "`%s` does not accept ~%s= — the argument would be \
                           silently dropped; check the label spelling" command key)
+  | Yc_wellform.Malformed_kwarg { command; key; hint } ->
+    Some (Printf.sprintf "`%s` ~%s= has the wrong shape — %s (the value would \
+                          be silently dropped)" command key hint)
   | _ -> None
 
 (* The unified parse + wellform pipeline (B1, 2026-06-21). Single source of

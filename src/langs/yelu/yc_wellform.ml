@@ -53,6 +53,15 @@ type error =
      [Yc_primitives.command_kwargs] / [allowed_kwarg]. Unknown/user commands
      are exempt (open vocabulary). CST-level (kwargs are consumed by lowering). *)
   | Unknown_kwarg of { command : string; key : string }
+  (* A `~kwarg` on a known command whose *value shape* is wrong — the key is
+     accepted, but the value is (say) a list where a record is required. The
+     shape-picking [_inner] silently falls to its `| _ -> []` default and
+     drops the payload: `set_target_properties app ~properties=[CXX_STANDARD,
+     17]` emitted NOTHING (the whole command collapsed to `ESeq []`), exit 0.
+     [Unknown_kwarg] can't catch it — the key is valid; only the shape is off.
+     CST-level (the record/list distinction is intact in the CST but gone by
+     the time the inner has run). Fatal at the compile boundary. *)
+  | Malformed_kwarg of { command : string; key : string; hint : string }
   (* A command name that is neither in [Yc_primitives.command_names] nor
      declared as a [function]/[macro] in this file. Catches typos
      (`funnn` for `fun`, `prejct` for `project`) and surfaces "this is
@@ -397,6 +406,12 @@ let collect_cst_defined_names (p : Yc_cst.program) : Set.M(String).t =
    the keys it knows and the rest vanish). Known commands only — unknown/user
    commands have an open vocabulary. Covers S_command and the `:=` command-call
    sugar (S_assign_call). Vocabulary: [Yc_primitives.allowed_kwarg]. *)
+(* Commands whose `~properties=` value must be a record. Both map the record
+   to `PROPERTIES <KEY> <value> …` and drop a non-record silently. *)
+let requires_record_properties command =
+  List.mem [ "set_target_properties"; "set_source_files_properties" ]
+    command ~equal:String.equal
+
 let check_cst_kwargs (p : Yc_cst.program) : error list =
   let check_args acc name (args : Yc_cst.arg list) =
     let command = String.lowercase name in
@@ -407,6 +422,17 @@ let check_cst_kwargs (p : Yc_cst.program) : error list =
         | Kw (k, _) | Kw_flag k | Kw_list (k, _)
           when not (Yc_primitives.allowed_kwarg ~command k) ->
           Unknown_kwarg { command; key = k } :: acc
+        (* Right key, wrong value shape. [~properties=] on the property-setters
+           must be a record `{k=v, …}`; a list or scalar is silently dropped by
+           the inner. Only [A_record] is valid, so flag everything else. *)
+        | Kw ("properties", A_record _)
+          when requires_record_properties command -> acc
+        | (Kw ("properties", _) | Kw_list ("properties", _))
+          when requires_record_properties command ->
+          Malformed_kwarg
+            { command; key = "properties";
+              hint = "expected a record ~properties={key=value, …}" }
+          :: acc
         | _ -> acc)
   in
   let rec walk_stmt acc (s : Yc_cst.stmt) =

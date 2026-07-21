@@ -181,6 +181,14 @@ let compile_yc ?(wellform = true) ?(warn = fun _ -> ()) file =
                would be silently dropped; check the label spelling\n"
               file command key;
             Stdlib.exit 1
+          | Yelu_langs.Yc_wellform.Malformed_kwarg { command; key; hint } ->
+            (* Fatal: right key, wrong value shape → the shape-picking inner
+               drops the payload silently (`~properties=[…]` → nothing). *)
+            Stdlib.Printf.eprintf
+              "yelu compile: %s: `%s` ~%s= has the wrong shape — %s (the value \
+               would be silently dropped)\n"
+              file command key hint;
+            Stdlib.exit 1
           | Yelu_langs.Yc_wellform.Unknown_command { name; closed_world = false } ->
             (* Warning: file has at least one opening construct, so the
                command set is genuinely open. Could be cross-file user
@@ -1021,6 +1029,10 @@ let () =
               Some (Printf.sprintf
                       "`%s` does not accept ~%s= (argument would be silently \
                        dropped)" command key)
+            | Yelu_langs.Yc_wellform.Malformed_kwarg { command; key; hint } ->
+              Some (Printf.sprintf
+                      "`%s` ~%s= has the wrong shape — %s (value would be \
+                       silently dropped)" command key hint)
             | _ -> None)
         in
         if not (List.is_empty fatals) then Error (String.concat ~sep:"; " fatals)

@@ -163,7 +163,12 @@ let wellform_diagnostics (content : string) : Diagnostic.t list =
                 ~message:(Printf.sprintf
                             "`%s` does not accept ~%s= — the argument would be \
                              silently dropped; check the label spelling"
-                            command key)))
+                            command key))
+      | Yelu_langs.Yc_wellform.Malformed_kwarg { command; key; hint } ->
+        Some (make ~severity:DiagnosticSeverity.Error ~name:("~" ^ key)
+                ~message:(Printf.sprintf
+                            "`%s` ~%s= has the wrong shape — %s (the value \
+                             would be silently dropped)" command key hint)))
       findings
 
 (* Combined diagnostics: parse errors take precedence (no point flagging

@@ -338,4 +338,38 @@ let () =
             "include 'X.cmake'; my_own_macro ~foo=1 'a'" ~expect:false;
           (* assignment kwargs are S_assign, not a command — exempt *)
           kcase "assignment ~parent_scope exempt"
-            "X := 1 ~parent_scope" ~expect:false ] ) ]
+            "X := 1 ~parent_scope" ~expect:false ] );
+      ( "malformed-kwarg (wrong value shape, CST-level)",
+        let has_malformed src =
+          let cst = match Yelu_langs.Yc_cst_parse.parse src with
+            | Ok c -> c
+            | Error e -> Alcotest.failf "parse %S: %s" src e
+          in
+          List.exists (W.check_cst cst) ~f:(function
+            | W.Malformed_kwarg _ -> true
+            | _ -> false)
+        in
+        let mcase name src ~expect =
+          Alcotest.test_case name `Quick (fun () ->
+            Alcotest.(check bool) name expect (has_malformed src))
+        in
+        [ (* THE bug: ~properties=[list] collapsed the whole command to
+             ESeq [] — emitted nothing, exit 0. Now a fatal reject. *)
+          mcase "set_target_properties ~properties=[list] → reject"
+            "set_target_properties app ~properties=[CXX_STANDARD, 17]" ~expect:true;
+          mcase "set_target_properties ~properties=scalar → reject"
+            "set_target_properties app ~properties=FOO" ~expect:true;
+          mcase "set_source_files_properties ~properties=[list] → reject"
+            "set_source_files_properties 'a.cpp' ~properties=[GENERATED, ON]"
+            ~expect:true;
+          (* the record form is the one true shape — accepted *)
+          mcase "set_target_properties ~properties={record} ok"
+            "set_target_properties app ~properties={cxx_standard=17}" ~expect:false;
+          mcase "set_source_files_properties ~properties={record} ok"
+            "set_source_files_properties 'a.cpp' ~properties={generated=ON}"
+            ~expect:false;
+          (* ~properties is only record-shaped on the property setters; a
+             list-valued kwarg on another command is not a malformed-properties
+             case (it'd be Unknown_kwarg territory instead) *)
+          mcase "unrelated command ~command=[list] not malformed"
+            "add_custom_target run ~command=['echo', 'hi']" ~expect:false ] ) ]
