@@ -44,7 +44,7 @@ let consumed_span (ls : ls) (rest : ls) : span =
   in
   { lo; hi }
 
-(* ── Atoms (mirror p_expr_y1, but token-faithful) ── *)
+(* ── Atoms (token-faithful) ── *)
 let rec p_atom (ls : ls) : (atom * ls) option =
   match ls with
   | (TARGET, _) :: (IDENT n, _)  :: rest -> Some (A_target n, rest)
@@ -134,7 +134,7 @@ let rec p_args (acc : arg list) (ls : ls) : arg list * ls =
      | Some (a, r) -> p_args (Pos a :: acc) r
      | None -> (List.rev acc, ls))
 
-(* ── Conditions (mirror p_cond_atom_y1 / p_cond_y1) ──
+(* ── Conditions ──
    Prefix operators are uniform `op atom*`; only not / and / or / paren /
    target are structural. The per-op typed mapping is a lowering concern. *)
 let cond_unary_ops = [ "defined"; "exists"; "is_dir"; "is_abs" ]
@@ -190,7 +190,7 @@ and p_cond (ls : ls) : (cond * ls) option =
     in
     loop c1 rest
 
-(* ── Assignment `:=` (mirror p_assign_y1) ──
+(* ── Assignment `:=` ──
    The one multi-field bespoke form: optional `cache`, comma-separated
    value list, `~type:`/`~force` kwargs, docstring after `;`, PARENT_SCOPE. *)
 let p_assign (ls : ls) : (stmt_node * ls) option =

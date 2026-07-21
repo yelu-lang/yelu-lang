@@ -348,7 +348,7 @@ let vis_of_kind k : visibility = match k with
 
 (* Detect a visibility-keyword expr; matches both bare-IDENT forms
    (EVar "PUBLIC") and string-quoted forms (EString "PUBLIC").
-   Used by the parser's [group_by_visibility_y1] and target-family
+   Used by the parser's [group_by_visibility] and target-family
    command grouping. *)
 let visibility_of_expr = function
   | EVar "PUBLIC" | EString "PUBLIC" -> Some Vis_public

@@ -124,10 +124,11 @@ let compile_ml file =
 let compile_yc ?(wellform = true) ?(warn = fun _ -> ()) file =
   let src = read_all file in
   (* B1 (2026-06-21): unified parse + wellform pipeline via Yc_driver.
-     Compile now goes through the CST path like fmt and the LSP, so
-     [check_cst] findings (notably Function_def_typo) reach compile. The
-     emit-bridge oracle (covered=194) proves the lowered expr matches the
-     legacy [parse_program_y1] path byte-for-byte at emit time. *)
+     Compile goes through the CST path like fmt and the LSP, so [check_cst]
+     findings (notably Function_def_typo) reach compile. (The CST path was
+     proven byte-identical to the now-retired legacy parser by the emit-bridge
+     oracle before Tier (b) retired both; the tripled matrix vs real cmake is
+     the current behavioral guard.) *)
   match Yelu_langs.Yc_driver.parse_and_check src with
   | Error e ->
     Stdlib.Printf.eprintf "yelu compile: parse error in %s: %s\n" file e;

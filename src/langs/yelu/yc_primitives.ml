@@ -184,7 +184,7 @@ let command_kwargs : Set.M(String).t Map.M(String).t =
   ] |> Map.of_alist_exn (module String)
 
 (* Families with out-var (`~out=VAR` / the `:=` sugar) semantics — their
-   inners read [out_var_y1]. Family-granular on purpose (a per-command split
+   inners read [out_var]. Family-granular on purpose (a per-command split
    inside e.g. the list family is a later refinement). *)
 let takes_out_var name =
   String.is_prefix name ~prefix:"string_"

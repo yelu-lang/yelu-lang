@@ -1,13 +1,12 @@
 (* yc_cst_lower — lower yc_cst → Yelu_cmake.expr (M1.2).
 
-   This is the one-directional half of the layering: the per-command
-   interpretation that yelu_parse does inline is reproduced here over the
-   CST. Commands dispatch by name (the same family guards as
-   p_stmt_inner_y1) to yelu_parse's token-free `_inner` functions; bespoke
-   forms / conditions / atoms are constructed directly. Validated against
-   the proven text→expr parser by the emit-bridge oracle
-   (emit(lower(parse_cst t)) == emit(parse_ast t)) — see
-   test_yc_cst_bridge. *)
+   This is the one-directional half of the layering: it turns the CST into
+   [Yelu_cmake.expr]. Commands dispatch by name (see [family_of]) to
+   yelu_parse's token-free `_inner` functions; bespoke forms / conditions /
+   atoms are constructed directly. Since Tier (b) this IS the production
+   parse path (`Yc_driver.parse_yc = lower_program ∘ parse_cst`); the
+   per-command goldens in test_yc_cst_bridge / test_yelu_cmake_parse and the
+   tripled matrix vs real cmake are the guards. *)
 
 open Base
 (* Same constructor scope as yelu_parse, so the ECmake* / smart ctors
@@ -25,7 +24,7 @@ open Yelu_cmake_utils
 module Cst = Yc_cst
 module P = Yelu_parse
 
-(* ── atoms (mirror p_expr_y1's expr decisions) ── *)
+(* ── atoms (CST atom → expr) ── *)
 let rec lower_atom (a : Cst.atom) : expr =
   match a with
   | A_name n   -> EVar n
@@ -51,7 +50,7 @@ let rec str_of_atom (a : Cst.atom) : string =
   | A_paren a -> str_of_atom a
   | A_list _ | A_record _ -> ""  (* not a name/string position *)
 
-(* ── conditions (mirror p_cond_atom_y1's typed construction) ── *)
+(* ── conditions (CST cond → expr) ── *)
 let rec lower_cond (c : Cst.cond) : expr =
   match c with
   | C_not c -> ENot (lower_cond c)
@@ -190,28 +189,28 @@ let family_of (name : string) : family =
   else if in_set cmake_op_names name then Fam_cmake_op
   else Fam_generic
 
-(* Dispatch a command by name to the matching family `_inner`, mirroring
-   p_stmt_inner_y1's order + guards, with raw fallback. *)
+(* Dispatch a command by name to the matching family `_inner` (see
+   [family_of]), with raw fallback. *)
 let lower_command (name : string) (args : Cst.arg list) : expr =
   let pos, kwargs = convert_args args in
-  (* Implicit target (syntax #1) is applied inside p_target_command_y1_inner,
+  (* Implicit target (syntax #1) is applied inside p_target_command_inner,
      which both this CST path and the legacy parser call — single source of
      truth, so both stay consistent. *)
   let raw () = ECmakeRawCmd { name = cmake_name_of_yelu name; args = pos; from_positional = None } in
   let via inner = match inner name pos kwargs with Some e -> e | None -> raw () in
   match family_of name with
-  | Fam_string -> via P.p_string_command_y1_inner
-  | Fam_list -> via P.p_list_command_y1_inner
-  | Fam_path -> via P.p_path_command_y1_inner
-  | Fam_file -> via P.p_file_command_y1_inner
-  | Fam_target -> via P.p_target_command_y1_inner
-  | Fam_dir -> via P.p_dir_command_y1_inner
-  | Fam_test -> via P.p_test_command_y1_inner
-  | Fam_property -> via P.p_property_command_y1_inner
-  | Fam_find -> via P.p_find_command_y1_inner
-  | Fam_install -> via P.p_install_command_y1_inner
-  | Fam_try -> via P.p_try_command_y1_inner
-  | Fam_cmake_op -> via P.p_cmake_op_command_y1_inner
+  | Fam_string -> via P.p_string_command_inner
+  | Fam_list -> via P.p_list_command_inner
+  | Fam_path -> via P.p_path_command_inner
+  | Fam_file -> via P.p_file_command_inner
+  | Fam_target -> via P.p_target_command_inner
+  | Fam_dir -> via P.p_dir_command_inner
+  | Fam_test -> via P.p_test_command_inner
+  | Fam_property -> via P.p_property_command_inner
+  | Fam_find -> via P.p_find_command_inner
+  | Fam_install -> via P.p_install_command_inner
+  | Fam_try -> via P.p_try_command_inner
+  | Fam_cmake_op -> via P.p_cmake_op_command_inner
   | Fam_generic ->
     (* var-family + generic, mirroring p_var_stmt then p_generic_command *)
     let pos_atoms =
@@ -288,7 +287,7 @@ let rec lower_stmt (s : Cst.stmt) : expr =
   (* `var := cmd args` desugars to `cmd args ~out=var`. The CST printer
      re-derives the := form at fmt time. The injection appends `~out=name`
      as a new Kw; the command's typed dispatcher then reads it via the
-     standard out_var_y1 path. *)
+     standard out_var path. *)
   | S_assign_call { cache = _; name; cmd_name; cmd_args } ->
     let cmd_args = cmd_args @ [ Cst.Kw ("out", A_name name) ] in
     lower_command cmd_name cmd_args

@@ -685,7 +685,7 @@ let tier5_path_y1 = ("t5-path-y1", [
    `out : string option` used to hardcode `out = None` in the parser, so a
    user's `~out=` was SILENTLY DROPPED and the result landed in the path
    variable instead of the requested one. Only path_normal_path read the
-   (already existing) [opt_out_y1] helper. These goldens pin OUTPUT_VARIABLE
+   (already existing) [opt_out] helper. These goldens pin OUTPUT_VARIABLE
    for all nine.
 
    The class was found by a coverage scan — path_append_string,

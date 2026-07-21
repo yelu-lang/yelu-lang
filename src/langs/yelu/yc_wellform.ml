@@ -341,9 +341,9 @@ let check_unknown_command e =
   let rec walk acc e =
     let acc = match e with
       (* Generic command dispatcher path: an unknown IDENT-headed call
-         becomes [ECmakeApply { name = EString id; _ }] in [p_generic_
-         command_y1]. A *known* command name on an ECmakeApply is the
-         escape-shadowing case caught by [check_apply_shadowing] above —
+         becomes [ECmakeApply { name = EString id; _ }] (the generic-command
+         fallback in [Yc_cst_lower]). A *known* command name on an ECmakeApply
+         is the escape-shadowing case caught by [check_apply_shadowing] above —
          we only flag the unknown case here. *)
       | ECmakeApply { name = (EString s | EVar s); _ } ->
         check_name s acc

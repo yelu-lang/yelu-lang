@@ -10,20 +10,18 @@
 
    So the contract of every export is:
 
-     p_<family>_command_y1_inner :
+     p_<family>_command_inner :
        string -> expr list -> (string * expr) list -> expr option
        (command name)  (positionals)  (~kwargs)        (None = raw fallback)
 
    [Yc_cst_lower.lower_command] dispatches to these by name; they are the
    single source of truth for "what does this cmake command mean", shared by
-   compile / fmt / LSP / the corpus gate. The `_y1` suffix is historical (Y1
-   was the early-production label) and is retained only to avoid a churn-only
-   rename across the dispatch table.
+   compile / fmt / LSP / the corpus gate.
 
    Covered families: string, list, path, file, target, dir, test, property,
    find, install, try, cmake_op — plus the shared helpers they need
-   ([split_by_keywords], [out_var_y1], [p_cmake_entity], [str_of],
-   [target_groups_to_y1], …). Test coverage: [test_yelu_cmake_parse.ml]
+   ([split_by_keywords], [out_var], [p_cmake_entity], [str_of],
+   [target_groups_to], …). Test coverage: [test_yelu_cmake_parse.ml]
    (280 per-command cases, run through the production CST path).
 
    === Legacy-compatible defaults (vestigial) ===
@@ -35,9 +33,9 @@
    Tightening them to required-keyword or explicit-syntax forms
    should be paired with regenerating the relevant goldens.
 
-   - [out_var_y1]              → "?" sentinel when ~out missing.
-   - [cvar_name_of_y1]         → "?" sentinel for non-name positions.
-   - [expr_to_int_y1]          → 0 on parse failure (math, list index).
+   - [out_var]              → "?" sentinel when ~out missing.
+   - [cvar_name_of]         → "?" sentinel for non-name positions.
+   - [expr_to_int]          → 0 on parse failure (math, list index).
    - [string_uuid]             → namespace="ns", name="n" placeholders
                                  when keyword args missing.
    - [string_compare] (2-arg)  → op="EQUAL" default.
@@ -109,7 +107,7 @@ let split_by_keywords ~(keywords : string list) (args : expr list)
 (* Match legacy [Lang_yelu_parse.out_var] sentinel: "?" when ~out
    missing. Some parser tests omit ~out and rely on this fallback;
    the pair-wise oracle requires byte-identical text. *)
-let out_var_y1 kwargs =
+let out_var kwargs =
   match List.Assoc.find kwargs ~equal:String.equal "out" with
   | Some (EVar name) -> name
   | Some (EString name) -> name
@@ -123,18 +121,18 @@ let out_var_y1 kwargs =
    to ECmakeString*.
 
    For commands that take an integer arg (substring, repeat), the
-   parser extracts the int from an EString value (since p_expr_y1
-   currently converts INT to EString — matching the legacy behavior).
+   parser extracts the int from an EString value (the CST atom
+   lowering in [Yc_cst_lower] converts an INT atom to EString).
    ============================================================ *)
 
-let expr_to_int_y1 e =
+let expr_to_int e =
   match e with
   | EString s -> (try Int.of_string s with _ -> 0)
   | EInt n -> n
   | _ -> 0
 
-let p_string_command_y1_inner name args kwargs =
-  let out = out_var_y1 kwargs in
+let p_string_command_inner name args kwargs =
+  let out = out_var kwargs in
   match name, args with
   | "string_toupper", [ s ] ->
     Some (ECmakeStringToupper { input = s; out })
@@ -174,14 +172,14 @@ let p_string_command_y1_inner name args kwargs =
   | "string_genex_strip", [ s ] ->
     Some (ECmakeStringGenexStrip { input = s; out })
   | "string_substring", [ s; b; l ] ->
-    let begin_ = expr_to_int_y1 b in
+    let begin_ = expr_to_int b in
     let length = match l with
       | EString "-1" | EInt -1 -> None
-      | _ -> Some (expr_to_int_y1 l)
+      | _ -> Some (expr_to_int l)
     in
     Some (ECmakeStringSubstring { string = s; begin_; length; out })
   | "string_repeat", [ s; c ] ->
-    Some (ECmakeStringRepeat { string = s; count = expr_to_int_y1 c; out })
+    Some (ECmakeStringRepeat { string = s; count = expr_to_int c; out })
   | "string_append", EVar cvar :: inputs
   | "string_append", EString cvar :: inputs ->
     Some (ECmakeStringAppend { cvar; inputs })
@@ -216,56 +214,56 @@ let p_string_command_y1_inner name args kwargs =
    p_command. cvar name extracted from the first positional arg.
    ============================================================ *)
 
-let cvar_name_of_y1 e =
+let cvar_name_of e =
   match e with
   | EVar n -> n
   | EString n -> n
   | _ -> "?"
 
-let p_list_command_y1_inner name args kwargs =
-  let out = out_var_y1 kwargs in
+let p_list_command_inner name args kwargs =
+  let out = out_var kwargs in
   match name, args with
   | "list_append", cvar :: values ->
-    Some (yc_list_append (cvar_name_of_y1 cvar) values)
+    Some (yc_list_append (cvar_name_of cvar) values)
   | "list_length", [ cvar ] ->
-    Some (yc_list_length (cvar_name_of_y1 cvar) out)
+    Some (yc_list_length (cvar_name_of cvar) out)
   | "list_get", cvar :: indices when not (List.is_empty indices) ->
     Some (yc_list_get
-            ~indices:(List.map indices ~f:expr_to_int_y1)
-            (cvar_name_of_y1 cvar) out)
+            ~indices:(List.map indices ~f:expr_to_int)
+            (cvar_name_of cvar) out)
   | "list_remove_item", cvar :: values ->
-    Some (yc_list_remove_item (cvar_name_of_y1 cvar) values)
+    Some (yc_list_remove_item (cvar_name_of cvar) values)
   | "list_remove_duplicates", [ cvar ] ->
-    Some (yc_list_remove_duplicates (cvar_name_of_y1 cvar))
+    Some (yc_list_remove_duplicates (cvar_name_of cvar))
   | "list_reverse", [ cvar ] ->
-    Some (yc_list_reverse (cvar_name_of_y1 cvar))
+    Some (yc_list_reverse (cvar_name_of cvar))
   | "list_sort", [ cvar ] ->
     Some (ECmakeListSort
-            { list = cvar_name_of_y1 cvar;
+            { list = cvar_name_of cvar;
               order = None; compare = None; case = None })
   | "list_join", [ cvar; glue ] ->
-    Some (yc_list_join (cvar_name_of_y1 cvar) glue out)
+    Some (yc_list_join (cvar_name_of cvar) glue out)
   | "list_find", [ cvar; value ] ->
-    Some (yc_list_find (cvar_name_of_y1 cvar) value out)
+    Some (yc_list_find (cvar_name_of cvar) value out)
   | "list_prepend", cvar :: values ->
-    Some (yc_list_prepend (cvar_name_of_y1 cvar) values)
+    Some (yc_list_prepend (cvar_name_of cvar) values)
   | "list_insert", cvar :: _ ->
     (* Legacy parser defaults index/values; preserve to match. *)
-    Some (yc_list_insert (cvar_name_of_y1 cvar) 0 [])
+    Some (yc_list_insert (cvar_name_of cvar) 0 [])
   | "list_remove_at", cvar :: _ ->
     (* Legacy parser drops the indices; preserve to match. *)
-    Some (yc_list_remove_at (cvar_name_of_y1 cvar) [])
+    Some (yc_list_remove_at (cvar_name_of cvar) [])
   | "list_pop_back", [ cvar ] ->
-    Some (yc_list_pop_back (cvar_name_of_y1 cvar))
+    Some (yc_list_pop_back (cvar_name_of cvar))
   | "list_pop_front", [ cvar ] ->
-    Some (yc_list_pop_front (cvar_name_of_y1 cvar))
+    Some (yc_list_pop_front (cvar_name_of cvar))
   | "list_sublist", [ cvar; b; l ] ->
-    Some (yc_list_sublist (cvar_name_of_y1 cvar)
-            (expr_to_int_y1 b) (expr_to_int_y1 l) out)
+    Some (yc_list_sublist (cvar_name_of cvar)
+            (expr_to_int b) (expr_to_int l) out)
   | "list_filter", [ cvar; regex ] ->
     let regex_s = str_of ~default:"" regex in
     Some (ECmakeListFilter
-            { list = cvar_name_of_y1 cvar;
+            { list = cvar_name_of cvar;
               mode = "INCLUDE";
               regex = regex_s })
   | "list_transform", [ cvar ] ->
@@ -275,7 +273,7 @@ let p_list_command_y1_inner name args kwargs =
       else "TOUPPER"
     in
     Some (ECmakeListTransform
-            { list = cvar_name_of_y1 cvar;
+            { list = cvar_name_of cvar;
               action; selector = None; output = None })
   | _ -> None
 
@@ -287,9 +285,9 @@ let p_list_command_y1_inner name args kwargs =
    so the pair-wise oracle stays byte-identical.
    ============================================================ *)
 
-let p_path_command_y1_inner name args kwargs =
-  let out = out_var_y1 kwargs in
-  let opt_out_y1 () =
+let p_path_command_inner name args kwargs =
+  let out = out_var kwargs in
+  let opt_out () =
     match List.Assoc.find kwargs ~equal:String.equal "out" with
     | Some (EVar n) -> Some n
     | Some (EString n) -> Some n
@@ -298,66 +296,66 @@ let p_path_command_y1_inner name args kwargs =
   match name, args with
   | "path_set", [ pv; input ] ->
     Some (ECmakePathSet
-            { path = cvar_name_of_y1 pv; input; normalize = false })
+            { path = cvar_name_of pv; input; normalize = false })
   | "path_get", [ pv ] ->
     Some (ECmakePathGet
-            { path = cvar_name_of_y1 pv; field = "FILENAME"; out })
+            { path = cvar_name_of pv; field = "FILENAME"; out })
   | "path_has", [ pv ] ->
     Some (ECmakePathHas
-            { path = cvar_name_of_y1 pv; field = "HAS_FILENAME"; out })
+            { path = cvar_name_of pv; field = "HAS_FILENAME"; out })
   | "path_is_absolute", [ pv ] ->
-    Some (ECmakePathIsAbsolute { path = cvar_name_of_y1 pv; out })
+    Some (ECmakePathIsAbsolute { path = cvar_name_of pv; out })
   | "path_is_relative", [ pv ] ->
-    Some (ECmakePathIsRelative { path = cvar_name_of_y1 pv; out })
+    Some (ECmakePathIsRelative { path = cvar_name_of pv; out })
   | "path_is_prefix", [ pv; input ] ->
     Some (ECmakePathIsPrefix
-            { path = cvar_name_of_y1 pv; input; normalize = false; out })
+            { path = cvar_name_of pv; input; normalize = false; out })
   | "path_compare", [ input1; input2 ] ->
     Some (ECmakePathCompare
             { input1; op = "EQUAL"; input2; out })
   (* These carry `out : string option` (cmake's optional OUTPUT_VARIABLE —
      without it cmake_path mutates <path-var> in place). They hardcoded
      `out = None`, silently DROPPING a user's `~out=` so the result landed in
-     the path var instead (fixed 2026-07-20; [opt_out_y1] already existed and
+     the path var instead (fixed 2026-07-20; [opt_out] already existed and
      was used by path_normal_path only). *)
   | "path_append", [ pv; input ] ->
     Some (ECmakePathAppend
-            { path = cvar_name_of_y1 pv; inputs = [ input ]; out = opt_out_y1 () })
+            { path = cvar_name_of pv; inputs = [ input ]; out = opt_out () })
   | "path_append_string", [ pv; input ] ->
     Some (ECmakePathAppendString
-            { path = cvar_name_of_y1 pv; inputs = [ input ]; out = opt_out_y1 () })
+            { path = cvar_name_of pv; inputs = [ input ]; out = opt_out () })
   | "path_remove_filename", [ pv ] ->
     Some (ECmakePathRemoveFilename
-            { path = cvar_name_of_y1 pv; out = opt_out_y1 () })
+            { path = cvar_name_of pv; out = opt_out () })
   | "path_replace_filename", [ pv; input ] ->
     Some (ECmakePathReplaceFilename
-            { path = cvar_name_of_y1 pv; input; out = opt_out_y1 () })
+            { path = cvar_name_of pv; input; out = opt_out () })
   | "path_remove_extension", [ pv ] ->
     Some (ECmakePathRemoveExtension
-            { path = cvar_name_of_y1 pv; last_only = false; out = opt_out_y1 () })
+            { path = cvar_name_of pv; last_only = false; out = opt_out () })
   | "path_replace_extension", [ pv; input ] ->
     Some (ECmakePathReplaceExtension
-            { path = cvar_name_of_y1 pv; last_only = false; input;
-              out = opt_out_y1 () })
+            { path = cvar_name_of pv; last_only = false; input;
+              out = opt_out () })
   | "path_normal_path", [ pv ] ->
     Some (ECmakePathNormalPath
-            { path = cvar_name_of_y1 pv; out = opt_out_y1 () })
+            { path = cvar_name_of pv; out = opt_out () })
   | "path_relative_path", [ pv ] ->
     Some (ECmakePathRelativePath
-            { path = cvar_name_of_y1 pv; base_dir = None; out = opt_out_y1 () })
+            { path = cvar_name_of pv; base_dir = None; out = opt_out () })
   | "path_absolute_path", [ pv ] ->
     Some (ECmakePathAbsolutePath
-            { path = cvar_name_of_y1 pv; base_dir = None;
-              normalize = false; out = opt_out_y1 () })
+            { path = cvar_name_of pv; base_dir = None;
+              normalize = false; out = opt_out () })
   | "path_native_path", [ pv ] ->
     Some (ECmakePathNativePath
-            { path = cvar_name_of_y1 pv; normalize = false; out })
+            { path = cvar_name_of pv; normalize = false; out })
   | "path_convert_to_cmake", [ input ] ->
     Some (ECmakePathConvertToCmake { input; normalize = false; out })
   | "path_convert_to_native", [ input ] ->
     Some (ECmakePathConvertToNative { input; normalize = false; out })
   | "path_hash", [ pv ] ->
-    Some (ECmakePathHash { path = cvar_name_of_y1 pv; out })
+    Some (ECmakePathHash { path = cvar_name_of pv; out })
   | "get_filename_component", [ filename ] ->
     Some (ECmakeGetFilenameComponent
             { var = out; filename; mode = "PATH" })
@@ -368,8 +366,8 @@ let p_path_command_y1_inner name args kwargs =
    file/path args stay as expressions.
    ============================================================ *)
 
-let p_file_command_y1_inner name args kwargs =
-  let out = out_var_y1 kwargs in
+let p_file_command_inner name args kwargs =
+  let out = out_var kwargs in
   match name, args with
   | "configure_file", [ input; output ] ->
     Some (yc_configure_file ~input output)
@@ -406,7 +404,7 @@ let p_file_command_y1_inner name args kwargs =
 (* Group a flat positional-arg list into [(visibility, items)] runs.
    Default visibility is PRIVATE. Uses [Yelu_cmake_utils.visibility_of_expr]
    for the string→enum mapping. *)
-let group_by_visibility_y1 items : (visibility * expr list) list =
+let group_by_visibility items : (visibility * expr list) list =
   let rec loop current_kind current_items groups = function
     | [] ->
       List.rev ((current_kind, List.rev current_items) :: groups)
@@ -428,13 +426,13 @@ let group_by_visibility_y1 items : (visibility * expr list) list =
    one visibility group; single-group case returns the single ctor.
    Empty-group input still produces a single PLAIN group with empty
    items (matches the bridge's invariant). *)
-let target_groups_to_y1 (ctor : visibility:visibility -> expr list -> expr) items =
-  let groups = group_by_visibility_y1 items in
+let target_groups_to (ctor : visibility:visibility -> expr list -> expr) items =
+  let groups = group_by_visibility items in
   match List.map groups ~f:(fun (vis, its) -> ctor ~visibility:vis its) with
   | [ s ] -> s
   | ss -> ESeq ss
 
-let p_target_command_y1_inner name args kwargs =
+let p_target_command_inner name args kwargs =
   let kw_str_opt key =
     List.Assoc.find kwargs ~equal:String.equal key
     |> Option.bind ~f:(function
@@ -476,7 +474,7 @@ let p_target_command_y1_inner name args kwargs =
   let try_groups_or_raw items ctor =
     if is_dynamic_first_item items
     then Some (ECmakeRawCmd { name = cmake_name_of_yelu name; args; from_positional = None })
-    else Some (target_groups_to_y1 ctor items)
+    else Some (target_groups_to ctor items)
   in
   (* Implicit target (syntax #1): the first positional arg of a target
      command is a target, with or without the explicit `target` tag. Coerce
@@ -662,7 +660,7 @@ let p_target_command_y1_inner name args kwargs =
    add_definitions, link_directories.
    ============================================================ *)
 
-let p_dir_command_y1_inner name args _kwargs =
+let p_dir_command_inner name args _kwargs =
   match name, args with
   | "add_subdirectory", dir :: _ -> Some (yc_add_subdirectory dir)
   | "include_directories", dirs -> Some (yc_include_directories dirs)
@@ -677,7 +675,7 @@ let p_dir_command_y1_inner name args _kwargs =
    Test family — enable_testing, add_test.
    ============================================================ *)
 
-let p_test_command_y1_inner name args kwargs =
+let p_test_command_inner name args kwargs =
   match name, args with
   | "enable_testing", [] -> Some yc_enable_testing
   | "add_test", args
@@ -785,8 +783,9 @@ let entity_kind_of_expr = function
      Directory branch, so this is here for symmetry with future use sites. *)
 (* In a cmake entity-NAME slot a bare identifier is the *literal* name
    (`set_property(CACHE FOO …)` — FOO is the entry name, not a var deref).
-   [p_expr_y1] lowers a bare ident to [EVar], a deref position; normalize it
-   to [EString] (literal) here, mirroring the [ETarget] branch's [EString].
+   the CST atom lowering ([Yc_cst_lower]) lowers a bare ident to [EVar], a
+   deref position; normalize it to [EString] (literal) here, mirroring the
+   [ETarget] branch's [EString].
    A `$x` (EVarLookup) stays a deref — `set_property(CACHE ${x} …)`. *)
 let entity_name = function
   | EVar n -> EString n
@@ -861,8 +860,8 @@ let entity_to_gps = function
   | Ent_global       -> Some Yelu_cmake_property.Gps_global
   | Ent_variable     -> Some Yelu_cmake_property.Gps_variable
 
-let p_property_command_y1_inner name args kwargs =
-  let out = out_var_y1 kwargs in
+let p_property_command_inner name args kwargs =
+  let out = out_var kwargs in
   let kwarg_bool ~key = List.Assoc.mem kwargs ~equal:String.equal key in
   (* `~property=[NAME, val1, val2, ...]` arrives flattened by convert_args as
      N entries with the same key. Filtering preserves source order. Returns
@@ -1066,7 +1065,7 @@ let p_property_command_y1_inner name args kwargs =
    Legacy parser defaults names/paths/hints lists to empty.
    ============================================================ *)
 
-let p_find_command_y1_inner name args kwargs =
+let p_find_command_inner name args kwargs =
   let kwarg_list ~key =
     List.filter_map kwargs ~f:(fun (k, v) ->
       if String.equal k key then Some v else None)
@@ -1144,7 +1143,7 @@ let p_find_command_y1_inner name args kwargs =
    that's empty.
    ============================================================ *)
 
-let p_install_command_y1_inner name args kwargs =
+let p_install_command_inner name args kwargs =
   let kwarg_opt ~key = List.Assoc.find kwargs ~equal:String.equal key in
   let kwarg_bool ~key = List.Assoc.mem kwargs ~equal:String.equal key in
   match name, args with
@@ -1322,13 +1321,13 @@ let p_install_command_y1_inner name args kwargs =
    non-default into [ECmakeTryCompileEx]. Mirror that here.
    ============================================================ *)
 
-let p_try_command_y1_inner name args _kwargs =
+let p_try_command_inner name args _kwargs =
   match name, args with
   | "try_compile", [ result ] ->
-    Some (yc_try_compile (cvar_name_of_y1 result) [])
+    Some (yc_try_compile (cvar_name_of result) [])
   | "try_run", [ run_result; compile_result ] ->
-    Some (yc_try_run (cvar_name_of_y1 run_result)
-            (cvar_name_of_y1 compile_result) [])
+    Some (yc_try_run (cvar_name_of run_result)
+            (cvar_name_of compile_result) [])
   | _ -> None
 
 (* ============================================================
@@ -1348,8 +1347,8 @@ let message_modes =
     "DEPRECATION"; "NOTICE"; "VERBOSE"; "DEBUG"; "TRACE";
     "CHECK_START"; "CHECK_PASS"; "CHECK_FAIL" ]
 
-let p_cmake_op_command_y1_inner name args kwargs =
-  let out = out_var_y1 kwargs in
+let p_cmake_op_command_inner name args kwargs =
+  let out = out_var kwargs in
   match name, args with
   | "cmake_minimum_required", args
     when List.exists args ~f:(function
