@@ -9,7 +9,7 @@
 > question requires it. Theory-fragment structural prerequisites
 > tracked in [`plan.md`](plan.md).
 
-> **Y17 / theory-typing doc cluster — start here.** Five docs circle the
+> **Y17 / theory-typing doc cluster — start here.** These docs circle the
 > same "types on the post-retirement IR" question; read in this order:
 > 1. **this doc** — the typing design space (types-as-data, static→dynamic).
 > 2. [`yc_ycn_boundary.md`](yc_ycn_boundary.md) — the placement
@@ -20,6 +20,9 @@
 >    and [`boolean_and_theories.md`](boolean_and_theories.md)
 >    — the two open design questions (both drafted against the *legacy* IR; the
 >    architecture carries forward, the module names don't).
+> 5. [`../lang_design.md`](../lang_design.md) — the broader language-design
+>    frame (core/pack split, the Tier 5 typed cache-var lifecycle, Tier 7
+>    staging) these typing decisions sit inside. Also legacy-vocabulary.
 >
 > Forward tracking of Y17 itself is in
 > [`status.md`](../status.md) § Y17.

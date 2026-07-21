@@ -1,7 +1,21 @@
 # Yelu Language Design
 
 Research directions and open design questions. For current implementation state see
-`lang_coverage.md`. For done history see `../worklog/worklog_2026_04.md`.
+[`lang_coverage.md`](lang_coverage.md). For done history see
+[`../worklog/worklog_2026_04.md`](../worklog/worklog_2026_04.md).
+
+> **Vocabulary note (2026-04 draft).** The code examples below use the
+> **legacy `Lang_yelu` names** (`Ycvar`, `Ytarget`, `Yc_add_library`, `yarg`,
+> `ytval`, `Ylet`, …), which were retired to `src/langs/yelu_legacy/` in May
+> 2026. Current production uses `yelu_cmake.expr` (`EVar`, `ETarget`,
+> `ECmakeAddLibrary`, …). The *design directions* carry forward unchanged —
+> and several here (the Tier 5 typed cache-var lifecycle, distinct nominal
+> library types, the propagation graph, Tier 7 staging) are **proposals**, not
+> current code. Placement is now settled: a type system on the post-retirement
+> IR is **Y17**, and it belongs to **ycn** per
+> [`typing/yc_ycn_boundary.md`](typing/yc_ycn_boundary.md). This doc is part of
+> the Y17 / theory-typing cluster — reading order in
+> [`typing/typed_design.md`](typing/typed_design.md).
 
 ---
 

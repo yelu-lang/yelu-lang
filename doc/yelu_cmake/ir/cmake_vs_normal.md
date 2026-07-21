@@ -10,6 +10,12 @@ in [`structure.md`](structure.md). This doc is the *comparison*
 between the two languages — what each has, what each is missing,
 and where the asymmetry comes from.
 
+> **Snapshot doc.** The coverage tables below are dated
+> (2026-05-31 / 2026-06-03) and drift as fragments gain ctors — verify a
+> specific cell against the code before relying on it. The *asymmetries* it
+> explains (ycn has no parser / no concrete syntax yet; the convert-debt
+> direction) are durable; the per-fragment counts are the perishable part.
+
 ## 1. What they are
 
 - **`yelu_cmake`** — cmake-faithful surface. One `ECmake*`
@@ -110,7 +116,7 @@ for explicit debt acknowledgement).
 
 ### `test_yelu_dual_eval.ml` — broader, value-only sweep
 
-Added 2026-05-31. 19 cases (growing). Programs lifted from
+Added 2026-05-31; 25 cases as of 2026-07 (growing). Programs lifted from
 `test_yelu_compile.ml` using the same ergonomic helpers (`yc_set`,
 `add_lib`, `yc_foreach`, …) but switched from emit byte-equality
 to value-only dual-eval via `check_dual_eval` in

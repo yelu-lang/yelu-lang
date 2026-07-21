@@ -21,6 +21,14 @@ design changes.
 >
 > A future rewrite pass can fold these in-line; for now the glossary
 > keeps the design intact while pointing readers at the live names.
+>
+> One design shift the glossary doesn't cover: the **checking** story moved
+> on. The per-fragment `Stage_typecheck` this doc references as the harness's
+> checking layer was **retired** with the legacy AST; production static
+> checking is now the **wellform** pass (`Yc_wellform`), and a fresh typing
+> pass over this IR is **Y17** (→ ycn, per
+> [`../typing/yc_ycn_boundary.md`](../typing/yc_ycn_boundary.md)). Read the
+> "per-fragment checking" passages below as design intent, not current code.
 
 The next theory-composition experiment should not refactor the current
 `yelu_cmake` pack first. That pack already contains CMake-specific behavior:
