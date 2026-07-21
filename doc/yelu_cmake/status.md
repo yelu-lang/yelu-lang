@@ -154,6 +154,12 @@ exclusion the audit flagged. Gated on:
 
 ### Y17 — types on yelu_cmake
 
+> Design cluster (types-as-data, the yc/ycn placement ruling, the theory
+> split, the two open expr-design questions): see
+> [`../lang/typed_design.md`](../lang/typed_design.md) § Y17 doc cluster for the
+> reading order. Placement is settled — typing is **ycn's** job
+> ([`../lang/yc_ycn_boundary.md`](../lang/yc_ycn_boundary.md)).
+
 Post-retirement typing pass. The previous attempt (per-fragment
 `Stage_typecheck`) was structurally shallow: each fragment
 validated its own expression types in isolation, with `wellform`
