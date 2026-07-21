@@ -5,8 +5,8 @@
 > Companion docs: parser/formatter/LSP *machinery* →
 > [`surface_lsp_framework.md`](surface_lsp_framework.md) §8; casing lanes →
 > [`casing_design.md`](casing_design.md); the open task list →
-> [`../status.md`](../status.md) § Parked; the shipped arc + commits →
-> [worklog 2026-06](../worklog/worklog_2026_06.md).
+> [`../status.md`](../../status.md) § Parked; the shipped arc + commits →
+> [worklog 2026-06](../../worklog/worklog_2026_06.md).
 >
 > Syntax evolution is a safe, mechanical operation: accept a cleaner form,
 > `yelu fmt -w probes/**/*.yc` to canonicalize, and the **surface-regression
@@ -94,10 +94,10 @@ The **no-ALL_CAPS `~`-half** and the **labeled-only Step 2** both shipped
 (2026-06-19): the corpus reads as `~flag` / `~label=value` / `~label=[list]` /
 `~properties={record}` or explicit `yc_raw`; positional cmake-keyword forms are
 a compile error (reject, not raw); `fmt` is pass-through. Full arc + commits in
-[worklog 2026-06](../worklog/worklog_2026_06.md); machinery in
+[worklog 2026-06](../../worklog/worklog_2026_06.md); machinery in
 [`surface_lsp_framework.md`](surface_lsp_framework.md) §8; empirical cmake
 ground truth (repeated-keyword last-wins vs accumulate) in
-[painpoints.md §11](../cmake/painpoints.md).
+[painpoints.md §11](../../cmake/painpoints.md).
 
 > **Verification reminder:** `yelu matrix probes/fmt` (real cmake configure) is
 > the only oracle that catches emit-invalid cmake — it is **NOT** in `dune
@@ -110,7 +110,7 @@ ground truth (repeated-keyword last-wins vs accumulate) in
 The concrete surface-polish backlog (version literal, per-mode `message_*`,
 `~mode=Defined`, shape-4 records, function labeled args, `~doc:`, the
 `Apply_shadows_primitive` message, …) is the task list in
-[`../status.md`](../status.md) § Parked — this doc keeps only the design
+[`../status.md`](../../status.md) § Parked — this doc keeps only the design
 *rationale* behind them.
 
 Two design directions worth stating here (the rest are one-liners in the
@@ -122,12 +122,12 @@ tracker):
   worth noting: the only corpus lines the labeled surface couldn't express were
   exactly these. Unifying the raw-escape constructors into one opaque model is
   parked into ycn (it needs ycn's opacity story; see
-  [`../status.md`](../status.md) § Raw-escape).
+  [`../status.md`](../../status.md) § Raw-escape).
 - **Records: literal is yc, value is ycn.** The record *literal as argument*
   (`~properties={k=v}`, the queued shape-4 `~library={…}`) stays **yc** — it
   erases to a keyword run. Records as *first-class values* (bind / pass /
   project a `{…}`), value-default reads, and dotted globals need a value/type
-  model → **ycn**, per [`yc_ycn_boundary.md`](yc_ycn_boundary.md). The boundary
+  model → **ycn**, per [`yc_ycn_boundary.md`](../typing/yc_ycn_boundary.md). The boundary
   is the value flow, not the braces.
 
 (Several latent emit bugs that this section used to track — the literal-target
@@ -139,7 +139,7 @@ tracker):
 - [`surface_lsp_framework.md`](surface_lsp_framework.md) §8 — the parser /
   formatter / LSP machinery this design evolves on top of.
 - [`casing_design.md`](casing_design.md) — the casing lanes in full.
-- [`../worklog/worklog_2026_06.md`](../worklog/worklog_2026_06.md) — the shipped arc.
-- [`../cmake/painpoints.md`](../cmake/painpoints.md) — cmake ground-truth (incl. §11).
-- [`../yelu_cmake/driver.md`](../yelu_cmake/driver.md) — the
+- [`../worklog/worklog_2026_06.md`](../../worklog/worklog_2026_06.md) — the shipped arc.
+- [`../cmake/painpoints.md`](../../cmake/painpoints.md) — cmake ground-truth (incl. §11).
+- [`../yelu_cmake/ir/driver.md`](../ir/driver.md) — the
   `text ↔ cst_lite ↔ expr` forms the changes touch.

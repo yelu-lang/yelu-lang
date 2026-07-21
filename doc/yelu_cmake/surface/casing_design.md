@@ -2,13 +2,13 @@
 
 > **Status: the enum-casing lanes shipped** (visibility / type / mode / language
 > constructors + property scopes + Y14 reject) as part of the no-ALL_CAPS pass —
-> arc in [worklog 2026-06](../worklog/worklog_2026_06.md); the `~`-half of
+> arc in [worklog 2026-06](../../worklog/worklog_2026_06.md); the `~`-half of
 > critique #2 it sat next to is **complete**. This doc keeps the durable
 > *design rationale* (casing-shape-tells-kind, the three variable lanes, Y14)
 > and the **remaining open lanes** (§ Status & open below). Came out of
 > critique #2 + the `EVarLookup` / `$foo` work. See
 > [`yc_syntax.md`](yc_syntax.md),
-> [`../cmake/var_reference_semantics.md`](../cmake/var_reference_semantics.md).
+> [`../cmake/var_reference_semantics.md`](../../cmake/var_reference_semantics.md).
 
 ## The idea: casing *shape* tells you the kind
 
@@ -98,16 +98,16 @@ errored (except the Y14 reserved-word collision, which is a real mistake).
 ## Status & open
 
 **Shipped** (no-ALL_CAPS pass; full detail in
-[worklog 2026-06](../worklog/worklog_2026_06.md)):
+[worklog 2026-06](../../worklog/worklog_2026_06.md)):
 
 - **Enum constructors** — visibility (`Public`/`Private`/`Interface`),
   type/mode/language (`Static`/`String`/`Name_we`/`Cxx`), property scopes
   (`Global`/`Cache`/`Source`/`Test`/`Install`/`Directory`/`Variable`) and
   get_property modes (`Set`/`Defined`/…). The lexer
-  ([`yelu_lexer.ml`](../../src/langs/yelu/yelu_lexer.ml) `constr_names` /
+  ([`yelu_lexer.ml`](../../../src/langs/yelu/yelu_lexer.ml) `constr_names` /
   `is_known_constr`) promotes a *capitalized* known constructor to the
   uppercased `KEYWORD` token; the formatter
-  ([`yc_cst_print.ml`](../../src/langs/yelu/yc_cst_print.ml)) canonicalizes back
+  ([`yc_cst_print.ml`](../../../src/langs/yelu/yc_cst_print.ml)) canonicalizes back
   to leading-cap. Both gate on the same set, so the round-trip is consistent;
   emit byte-unchanged. (All shipped enums are all-caps in cmake, so tableless.)
 - **Y14 reserved-word reject** — a var / cache / option / let *declaration*
@@ -124,7 +124,7 @@ errored (except the Y14 reserved-word collision, which is a real mistake).
   belongs in ycn. Needs `.` inside `$`-reads; the namespace prefix table
   (CMAKE/PROJECT/lang grouping) rides with it. (One of the three precedents
   behind the general triage rule in
-  [`yc_ycn_boundary.md`](yc_ycn_boundary.md).)
+  [`yc_ycn_boundary.md`](../typing/yc_ycn_boundary.md).)
 - **CamelCase compat enums** (`AnyNewerVersion ⇄ Any_newer_version`) — need the
   per-theory constructor⇄cmake-casing **table** (uppercase ≠ cmake casing),
   unlike the all-caps ones that shipped tableless.

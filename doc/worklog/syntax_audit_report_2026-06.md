@@ -169,7 +169,7 @@ Observed drift:
 
 **Some doc references are stale.**
 
-`doc/yelu_cmake/driver.md` still names `Yelu_parse.parse_program_y1`; current code uses `parse_program_legacy`. `probes/fmt/README.md` says `main.yc` is about 450 lines; actual count was 297.
+`doc/yelu_cmake/ir/driver.md` still names `Yelu_parse.parse_program_y1`; current code uses `parse_program_legacy`. `probes/fmt/README.md` says `main.yc` is about 450 lines; actual count was 297.
 
 **Migration-status `.ml` links are now historical, not live.**
 

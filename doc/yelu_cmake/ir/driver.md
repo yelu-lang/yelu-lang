@@ -1,7 +1,7 @@
 # Driver — pipelines graph + tool-interface matrix
 
 Each language in the yelu ecosystem has a driver module in
-[`src/langs/drivers/`](../../src/langs/drivers/) that exports a uniform
+[`src/langs/drivers/`](../../../src/langs/drivers) that exports a uniform
 set of operations: **parse**, **print**, **eval**, **compile**, **check**
 (+ **introspect** / **format** on yc).
 A language has two forms: **IR** (AST) and **text** (concrete syntax).
@@ -51,7 +51,7 @@ Key observations:
   debug text. Every path between cmake and ycn passes through yc.
 - **cmake→yc and yc→cmake** are mirror paths: `emit_ast` / `from_emit_top`.
 - **ycn has only one neighbour** (yc). The `.ycn` parser would add a second inbound.
-- **.yc round-trips** via the `cst_lite` form ([`Yc_cst`](../../src/langs/yelu/yc_cst.ml)):
+- **.yc round-trips** via the `cst_lite` form ([`Yc_cst`](../../../src/langs/yelu/yc_cst.ml)):
   a comment+span-bearing CST sits between `.yc` text and the `yc` IR.
   `parse_cst` / `print_cst` give text↔cst; `lower_cst` gives cst→IR.
   Since Tier (b) (2026-07-16) `parse_yc = lower_cst ∘ parse_cst` — there is no
@@ -81,7 +81,7 @@ Parse and eval on the text side are tool:*; print on the IR side is code.
 ### yc (`Yc_driver`)
 
 **Three** forms now: text (`.yc`), the `cst_lite` CST
-([`Yc_cst`](../../src/langs/yelu/yc_cst.ml) — comments + spans), and IR
+([`Yc_cst`](../../../src/langs/yelu/yc_cst.ml) — comments + spans), and IR
 (`Yelu_cmake.expr`, cmake-faithful). The formatter round-trips text↔text
 through the CST; `parse_yc` IS `lower_cst ∘ parse_cst` (Tier (b), 2026-07-16 —
 the legacy direct parser is deleted).
@@ -243,13 +243,13 @@ fatals → surfaces consume.
 
 The full per-check semantics for yc — what each finding means and when
 it's fatal — is in
-[`../lang/surface_lsp_framework.md`](../lang/surface_lsp_framework.md) §7.5.
+[`../yelu_cmake/surface/surface_lsp_framework.md`](../surface/surface_lsp_framework.md) §7.5.
 
 ## 7. Related
 
 - [`ir_tiers.md`](ir_tiers.md) — 4-tier IR fidelity: typed → cmake_lang → yc_raw → yc_apply
 - [`structure.md`](structure.md) — file-level code map
 - [`cmake_vs_normal.md`](cmake_vs_normal.md) — yc vs ycn feature comparison
-- [`ycn_concrete_syntax.md`](ycn_concrete_syntax.md) — proposal for the missing `.ycn` parser
-- [`../../probes/cache_matrix.md`](../../probes/cache_matrix.md) — matrix oracle methodology
-- [`../worklog/worklog_2026_06.md`](../worklog/worklog_2026_06.md) — parse-print oracle close (2026-05-31)
+- [`ycn_concrete_syntax.md`](../ycn/ycn_concrete_syntax.md) — proposal for the missing `.ycn` parser
+- [`../../probes/cache_matrix.md`](../../../probes/cache_matrix.md) — matrix oracle methodology
+- [`../worklog/worklog_2026_06.md`](../../worklog/worklog_2026_06.md) — parse-print oracle close (2026-05-31)

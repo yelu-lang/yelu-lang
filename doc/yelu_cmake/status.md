@@ -36,7 +36,7 @@ oracle (`.ml` path). It has not yet been wired into the `.yc` → emit
 pipeline.
 
 Related: the 4 IR fidelity tiers (typed → cmake_lang → yc_raw → yc_apply)
-in [`ir_tiers.md`](ir_tiers.md).
+in [`ir_tiers.md`](ir/ir_tiers.md).
 
 ## Open work — forward
 
@@ -113,14 +113,14 @@ The *static-semantics* half to the oracle's *dynamic* half: a
 higher-fidelity surface + language server for yc (then ycn), feeding off
 the driver's `check` op the way the oracle feeds off `eval`. Design
 exploration + decision-map in
-[`../lang/surface_lsp_framework.md`](../lang/surface_lsp_framework.md)
+[`../yelu_cmake/surface/surface_lsp_framework.md`](surface/surface_lsp_framework.md)
 (yc-first). **Milestone 0 — shipped 2026-06-10:** a server-less VS Code
 TextMate highlighter whose `.tmLanguage.json` vocabulary is generated from
 the `Yc_manifest` co-truth (test-locked to `Yc_primitives` + the lexer;
 exposed via the `Yc_driver.manifest` op; emitted by `yelu tmgrammar`).
 Extension under `editors/vscode/yc/`, verified on `probes/fmt/main.yc`
 with the real TextMate engine. Full record in
-[`../lang/surface_lsp_framework.md`](../lang/surface_lsp_framework.md)
+[`../yelu_cmake/surface/surface_lsp_framework.md`](surface/surface_lsp_framework.md)
 § Milestone 0. **Next (Milestone 1+):** parser CST/spans + error recovery,
 then the LSP itself (`linol` shell over `Yc_driver`, diagnostics ← check,
 semantic tokens). Not started.
@@ -156,9 +156,9 @@ exclusion the audit flagged. Gated on:
 
 > Design cluster (types-as-data, the yc/ycn placement ruling, the theory
 > split, the two open expr-design questions): see
-> [`../lang/typed_design.md`](../lang/typed_design.md) § Y17 doc cluster for the
+> [`../yelu_cmake/typing/typed_design.md`](typing/typed_design.md) § Y17 doc cluster for the
 > reading order. Placement is settled — typing is **ycn's** job
-> ([`../lang/yc_ycn_boundary.md`](../lang/yc_ycn_boundary.md)).
+> ([`../yelu_cmake/typing/yc_ycn_boundary.md`](typing/yc_ycn_boundary.md)).
 
 Post-retirement typing pass. The previous attempt (per-fragment
 `Stage_typecheck`) was structurally shallow: each fragment
@@ -278,7 +278,7 @@ In order of value:
 ### File loader / module system gaps
 
 Updated 2026-06-03 after fmt matrix completion. See
-[doc/yelu_cmake/io_architecture.md](io_architecture.md) §§ 5, 7
+[doc/yelu_cmake/ir/io_architecture.md](ir/io_architecture.md) §§ 5, 7
 for the full picture. Pick up as cmake-corpus expansion demands them.
 
 - **`include_guard()` + load-once cache.** Today every

@@ -7,7 +7,7 @@
 > `Yc_cst_lower` (CST → IR). The token-level grammar in `yelu_parse.ml` was
 > deleted (`cf69703`); that file is now the per-command `_inner` library. For
 > the *current* parse/format/LSP pipeline see
-> [`surface_lsp_framework.md`](../lang/surface_lsp_framework.md) §8. This doc is kept
+> [`surface_lsp_framework.md`](../yelu_cmake/surface/surface_lsp_framework.md) §8. This doc is kept
 > for the lexer/token design (still accurate) and the two-pass rationale.
 
 ## Architecture
@@ -204,7 +204,7 @@ Four issues found and fixed:
 > (`let … in { }`, `:version`, `:public { … }`, `${do_test}`, `add_test "Runs"`
 > are all old forms). Current surface: `~label=` args, leading-cap enum
 > constructors, `$foo` reads, `if … then ( … )`. See
-> [`../lang/yc_syntax.md`](../lang/yc_syntax.md) and
+> [`../yelu_cmake/surface/yc_syntax.md`](../yelu_cmake/surface/yc_syntax.md) and
 > [`../probes/fmt/main.yc`](../../probes/fmt/main.yc) for real current syntax.
 
 Based on the OCaml-Python hybrid design:

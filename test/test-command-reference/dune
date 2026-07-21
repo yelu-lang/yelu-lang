@@ -20,4 +20,4 @@
 (rule
  (alias runtest)
  (action
-  (diff ../../doc/lang/yc_command_reference.md yc_command_reference.md.gen)))
+  (diff ../../doc/yelu_cmake/surface/yc_command_reference.md yc_command_reference.md.gen)))

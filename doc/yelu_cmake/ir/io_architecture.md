@@ -248,7 +248,7 @@ Updated 2026-06-03 after the fmt-matrix-closing work.
 | cmake construct | wired? | mechanism | gap if any |
 |---|:-:|---|---|
 | `include(file)` (path) | ✓ | `include_loader` | — |
-| `include(Module)` (bare name) | ✓ | `include_loader` searches `CMAKE_MODULE_PATH` then cmake's stdlib `Modules/` (auto-probed via `cmake -P` in [cmake_bridge.ml](../../src/runner/cmake_bridge.ml)) | — |
+| `include(Module)` (bare name) | ✓ | `include_loader` searches `CMAKE_MODULE_PATH` then cmake's stdlib `Modules/` (auto-probed via `cmake -P` in [cmake_bridge.ml](../../../src/runner/cmake_bridge.ml)) | — |
 | `include(Module OPTIONAL)` | ✓ | `include_loader` | — |
 | `include_guard()` | ✗ | (no-op stub) | every `include()` re-evaluates; no load-once cache (§ 7) |
 | `add_subdirectory(dir)` | ✓ | `subdir_loader`; `push_frame` for directory scope | — |
@@ -329,8 +329,8 @@ So `include(GNUInstallDirs)` actually loads the real cmake module.
 The 3 fmt-matrix real-only entries that used to be blamed on this
 gap (DOXYGEN, FIND_PACKAGE_MESSAGE_DETAILS_Threads,
 compile_result_unused) are instead closed by per-command stubs
-([yelu_cmake_find.ml](../../src/langs/yelu/fragments/yelu_cmake_find.ml),
-[yelu_cmake_try.ml](../../src/langs/yelu/fragments/yelu_cmake_try.ml)) —
+([yelu_cmake_find.ml](../../../src/langs/yelu/fragments/yelu_cmake_find.ml),
+[yelu_cmake_try.ml](../../../src/langs/yelu/fragments/yelu_cmake_try.ml)) —
 we never actually need the real `FindThreads.cmake` to execute, we
 just emit the cache entries it would have written.
 

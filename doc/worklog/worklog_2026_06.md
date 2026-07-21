@@ -207,8 +207,8 @@ The two 2026-06-09 audit docs that fed the above were also deleted
 ## 2026-06-13: Handoff — critique #2 `~`-half (flags + value-labels) + install_targets fix
 
 One-time resume note. This session executed critique #2's `~`-modifier half
-(see [doc/lang/yc_syntax.md](../lang/yc_syntax.md) §2 and
-[doc/lang/casing_design.md](../lang/casing_design.md)) and uncovered + fixed a
+(see [doc/yelu_cmake/surface/yc_syntax.md](../yelu_cmake/surface/yc_syntax.md) §2 and
+[doc/yelu_cmake/surface/casing_design.md](../yelu_cmake/surface/casing_design.md)) and uncovered + fixed a
 pre-existing `install_targets` correctness bug.
 
 ### Shipped (all committed, all on origin/main as of `a34a26e`)
@@ -387,7 +387,7 @@ parens. Implemented in both parsers:
 
 **Y18 recorded — first-class object value.** The Pos3 prototype is
 parser-local. Open questions for promoting to a real value class are
-in [`../lang/object_value_design.md`](../lang/object_value_design.md):
+in [`../yelu_cmake/object_value_design.md`](../yelu_cmake/object_value_design.md):
 operations per kind (`target_foo.set_property(…)`), value flow
 (let-bind / args / iterands), eval semantics (forward refs, lazy vs
 eager), wellform integration, yc vs ycn placement, multi-entity calls.
@@ -407,15 +407,15 @@ groundwork for the future object-method `entity.method(args)` form.
 `yc_cst_print.ml`, `yc_cst_lower.ml`, `yelu_parse.ml`. Legacy:
 `yelu_cmake_legacy_bridge.ml`, `yelu_cmake_emit_debug.ml`. Tests:
 `test_yc_cst_bridge.ml` (+25 assertions across all four chunks).
-Docs: new `doc/lang/object_value_design.md`,
-`doc/lang/yc_syntax.md` (APPEND row updated to shipped),
+Docs: new `doc/yelu_cmake/object_value_design.md`,
+`doc/yelu_cmake/surface/yc_syntax.md` (APPEND row updated to shipped),
 this worklog entry, CLAUDE.md (Y18 + test count 923→935).
 
 ## 2026-06-19: no-ALL_CAPS surface pass complete (the `~`-half)
 
 Closure record for critique #2's `~`-modifier half — turning cmake's SHOUTY
 positional keyword args into a uniform labeled surface. Design rationale stays
-in [`../lang/yc_syntax.md`](../lang/yc_syntax.md); this
+in [`../yelu_cmake/surface/yc_syntax.md`](../yelu_cmake/surface/yc_syntax.md); this
 archives the shipped arc. Throughout: emit byte-invariant (fmt matrix 24/24),
 verified by the emit-bridge + matrix; per-command, accept-both-then-canonicalize.
 
@@ -462,7 +462,7 @@ last-wins vs accumulate, install(TARGETS) probed against cmake 4.3.1).
 express turned out to be exactly the metaprogramming/nested corners that belong
 in the raw bucket — the design's edges line up with cmake's genuinely-dynamic
 ones. Next phase (labeled-only — remove positional parsing) tracked in
-[`../lang/surface_lsp_framework.md` §8](../lang/surface_lsp_framework.md) § Open decisions.
+[`../yelu_cmake/surface/surface_lsp_framework.md` §8](../yelu_cmake/surface/surface_lsp_framework.md) § Open decisions.
 
 ## 2026-06-19: Step 2 — labeled-only surface (positional reject) + deferred commands cleared
 
@@ -531,8 +531,8 @@ as a CST shape check for `IDENT args (block)` adjacent to a standalone
 open/closed world. The CLI / fmt / LSP / corpus-gate fatality split is
 captured once in `Yc_driver.fatal_wellform_message`; per-check semantics
 + surfacing contract in
-[`../lang/surface_lsp_framework.md`](../lang/surface_lsp_framework.md)
-§7.5 and [`../yelu_cmake/driver.md`](../yelu_cmake/driver.md) §6.5.
+[`../yelu_cmake/surface/surface_lsp_framework.md`](../yelu_cmake/surface/surface_lsp_framework.md)
+§7.5 and [`../yelu_cmake/ir/driver.md`](../yelu_cmake/ir/driver.md) §6.5.
 
 **fmt is now fail-safe on fatal wellform.** Was parse-then-print only; a
 closed-world typo was happily prettified into a clean-looking unknown
@@ -548,7 +548,7 @@ heuristic but practical until findings carry token spans natively. The
 LSP now matches the diagnostic content of `yelu compile` exactly.
 
 **cmake-stdlib name cache (Plan C — the discovered-cache pattern).**
-[`../yelu_cmake/discovered_cache.md`](../yelu_cmake/discovered_cache.md)
+[`../yelu_cmake/ir/discovered_cache.md`](../yelu_cmake/ir/discovered_cache.md)
 generalizes the recipe: discover → commit TSV with version fingerprint
 → dune codegen embeds into the binary → on-demand validity (option (d),
 no automatic check). First instance is `Cmake_stdlib_names`
@@ -573,7 +573,7 @@ catches typos in compile too now. Caught a real `funs` → `fun` typo on
 [`probes/fmt/main.yc`](../../probes/fmt/main.yc) line 13 as a side
 effect of the rollout, fixed in the same commit. Plan continuation
 (soak the emit-bridge oracle, then delete the legacy parser entirely) in
-[`../lang/surface_lsp_framework.md` §8](../lang/surface_lsp_framework.md) Tier (b).
+[`../yelu_cmake/surface/surface_lsp_framework.md` §8](../yelu_cmake/surface/surface_lsp_framework.md) Tier (b).
 
 **Editor tooling (the macOS side).** `yelu-lsp` exe builds against the
 yojson-3 `linol` fork (pinned via `opam pin git+https://github.com/arbipher/linol#main`);
@@ -585,14 +585,14 @@ recommended development flow. Reload Window picks up LSP rebuilds.
 - [`../project_overview.md`](../project_overview.md) — full refresh
   (was stale since 2026-06-03; covers surface passes, LSP, wellform,
   property unification, Pos3, command-call sugar, corpus gate).
-- [`../yelu_cmake/driver.md`](../yelu_cmake/driver.md) §6.5 — the
+- [`../yelu_cmake/ir/driver.md`](../yelu_cmake/ir/driver.md) §6.5 — the
   compile/wellform/format/LSP contract that any new pack inherits.
-- [`../lang/surface_lsp_framework.md`](../lang/surface_lsp_framework.md)
+- [`../yelu_cmake/surface/surface_lsp_framework.md`](../yelu_cmake/surface/surface_lsp_framework.md)
   §7.5 — full wellform check table + open/closed-world rule + worked
   examples.
-- [`../yelu_cmake/discovered_cache.md`](../yelu_cmake/discovered_cache.md)
+- [`../yelu_cmake/ir/discovered_cache.md`](../yelu_cmake/ir/discovered_cache.md)
   — the driver-level pattern doc.
-- [`../lang/surface_lsp_framework.md` §8](../lang/surface_lsp_framework.md) — Tier (b)
+- [`../yelu_cmake/surface/surface_lsp_framework.md` §8](../yelu_cmake/surface/surface_lsp_framework.md) — Tier (b)
   active with 7-step plan + status; legacy parser retirement is the
   forcing function.
 

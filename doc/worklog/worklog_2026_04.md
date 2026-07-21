@@ -1,6 +1,6 @@
 # Yelu Worklog — April 2026
 
-Implementation history. For current state see [`../lang/lang_coverage.md`](../lang/lang_coverage.md).
+Implementation history. For current state see [`../yelu_cmake/lang_coverage.md`](../yelu_cmake/lang_coverage.md).
 
 ---
 

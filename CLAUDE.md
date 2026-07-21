@@ -163,7 +163,7 @@ All 14 `Make_*_check` modules expose `let stage = Stage_typecheck`, enforced by 
 | `test/test-file-api/`                      | —     | codemodel-v2 JSON diff                                     |
 | `test/test_deref_probes.py`                | 23    | cmake **ground-truth** deref probes (`foo`/`${foo}`/`"${foo}"`, nesting, parse-error negatives) — pinned against real cmake, run via `python3` |
 | `test/test-tmgrammar/` (dune `(diff)`)     | 1     | **freshness lock**: committed `yc.tmLanguage.json` must byte-match `yelu tmgrammar`; drift fails `dune test`, fix is `dune promote` |
-| `test/test-command-reference/` (dune `(diff)`) | 1 | **freshness lock**: committed `doc/lang/yc_command_reference.md` must byte-match `yelu command-reference` |
+| `test/test-command-reference/` (dune `(diff)`) | 1 | **freshness lock**: committed `doc/yelu_cmake/surface/yc_command_reference.md` must byte-match `yelu command-reference` |
 
 Total unit: ~1034 (dune test). Total cmake-backed: 40. (The table lists the
 load-bearing suites; the full `dune test` count includes the smaller
@@ -179,11 +179,11 @@ purposes) is [`doc/project_overview.md`](doc/project_overview.md)
 | --- | --- |
 | [`doc/status.md`](doc/status.md) | In-flight work + immediate queue. **Start here when resuming.** |
 | [`doc/project_overview.md`](doc/project_overview.md) | Full audit: architecture, milestones, gaps, Y-backlog, doc index. |
-| [`doc/lang/yc_command_reference.md`](doc/lang/yc_command_reference.md) | **Generated** yc command table (never hand-edit; `yelu command-reference`). |
-| [`doc/lang/surface_lsp_framework.md`](doc/lang/surface_lsp_framework.md) | Surface/parser/formatter/LSP design + the shipped pipeline (§8). |
-| [`doc/lang/yc_ycn_boundary.md`](doc/lang/yc_ycn_boundary.md) | yc-vs-ycn placement rule (erasability). |
+| [`doc/yelu_cmake/surface/yc_command_reference.md`](doc/yelu_cmake/surface/yc_command_reference.md) | **Generated** yc command table (never hand-edit; `yelu command-reference`). |
+| [`doc/yelu_cmake/surface/surface_lsp_framework.md`](doc/yelu_cmake/surface/surface_lsp_framework.md) | Surface/parser/formatter/LSP design + the shipped pipeline (§8). |
+| [`doc/yelu_cmake/typing/yc_ycn_boundary.md`](doc/yelu_cmake/typing/yc_ycn_boundary.md) | yc-vs-ycn placement rule (erasability). |
 | [`doc/yelu_cmake/status.md`](doc/yelu_cmake/status.md) | Harness backlog / open-work registry (IR gaps, Y17, deferred loaders). |
-| [`doc/yelu_cmake/driver.md`](doc/yelu_cmake/driver.md) | Per-language driver ops + pipelines; §6.5 the compile/wellform/format/LSP contract. |
+| [`doc/yelu_cmake/ir/driver.md`](doc/yelu_cmake/ir/driver.md) | Per-language driver ops + pipelines; §6.5 the compile/wellform/format/LSP contract. |
 
 ## Architecture
 
@@ -245,8 +245,8 @@ with the legacy AST (E1, 2026-05-14). Production static checking is now the
 **wellform** pass (`Yc_wellform`, six CST/expr checks) — full table in
 [`doc/project_overview.md`](doc/project_overview.md) § Layered checking. A fresh
 typing pass over the post-retirement IR is **Y17** (→ ycn, per
-[`doc/lang/yc_ycn_boundary.md`](doc/lang/yc_ycn_boundary.md)); the legacy
-design it builds on is in [`doc/lang/typed_design.md`](doc/lang/typed_design.md).
+[`doc/yelu_cmake/typing/yc_ycn_boundary.md`](doc/yelu_cmake/typing/yc_ycn_boundary.md)); the legacy
+design it builds on is in [`doc/yelu_cmake/typing/typed_design.md`](doc/yelu_cmake/typing/typed_design.md).
 
 ## Current State
 

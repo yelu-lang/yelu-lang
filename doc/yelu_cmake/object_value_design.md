@@ -8,7 +8,7 @@
 > before we promote.
 >
 > **§e (yc vs ycn placement) is settled (2026-07-16)** by the triage rule in
-> [`yc_ycn_boundary.md`](yc_ycn_boundary.md): the leading-cap **constructor**
+> [`yc_ycn_boundary.md`](typing/yc_ycn_boundary.md): the leading-cap **constructor**
 > is yc surface (erases to `TARGET`/`CACHE`/… — already shipped), the
 > **value class is ycn** (a value that flows through bindings needs a value
 > model, which yc cannot emit without synthesizing an encoding). The
@@ -127,8 +127,8 @@ declarations and references. With entities as a typed value:
 - Cross-theory references stop being a one-off cross-pass — every
   reference is already a kinded entity.
 
-This subsumes most of [`Y9` (cross-theory name binding)](../yelu_cmake/structure.md)
-and makes the [`Y14` reserved-word check](casing_design.md#reserved-word-shadowing--hard-reject-y14)
+This subsumes most of [`Y9` (cross-theory name binding)](ir/structure.md)
+and makes the [`Y14` reserved-word check](surface/casing_design.md#reserved-word-shadowing--hard-reject-y14)
 trivial (Y14 already shipped at the constructor level; entities are the
 runtime parallel).
 
@@ -191,7 +191,7 @@ just carries an `expr` as the name; both flow.
 - **Object-method `.` syntax** — pure surface; UFCS desugar; no IR
   change. Cheap once we want it.
 - **Record literal `{k=v, …}`** — separate parking lot (Lane shape-3
-  in [yc_syntax.md](yc_syntax.md)). Records and
+  in [yc_syntax.md](surface/yc_syntax.md)). Records and
   entities will compose for things like
   `Target foo.properties = {COMPILE_FLAGS='-O2', LINK_LIBRARIES=['fmt']}`.
 - **Lifetime / scope of entities** — when does `Target foo` go out of

@@ -81,7 +81,7 @@ The earlier per-fragment `Stage_typecheck` + `wellform` passes (legacy
 functor-based implementation) were retired during the May 2026 retirement
 of `src/langs/yelu_legacy/`. The replacement — Y17 ("Types on yelu_cmake")
 — builds on the post-retirement two-language IR and the theory-fragment
-split sketched in [`yelu_theory/plan.md`](yelu_theory/plan.md). The
+split sketched in [`yelu_cmake/typing/plan.md`](yelu_cmake/typing/plan.md). The
 syntactic round-trip on real-world cmake is the strongest currently-live
 equivalence oracle.
 

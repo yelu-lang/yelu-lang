@@ -422,7 +422,7 @@ receives a visibility parameter and calls `target_link_libraries`,
 
 **What yelu does.**
 Yelu's IR has four fidelity tiers for handling metaprogramming
-([`ir_tiers.md`](../yelu_cmake/ir_tiers.md)):
+([`ir_tiers.md`](../yelu_cmake/ir/ir_tiers.md)):
 
 | Tier | IR | Example | When |
 |---|---|---|---|
@@ -478,7 +478,7 @@ passing through as untyped strings.
 | `scope` | `string` | `GLOBAL \| DIRECTORY` |
 
 The cmake AST already has typed enums for most of these; the yc IR
-should mirror them. See [`ir_tiers.md`](../yelu_cmake/ir_tiers.md) §
+should mirror them. See [`ir_tiers.md`](../yelu_cmake/ir/ir_tiers.md) §
 "String-as-enum fields."
 
 ---

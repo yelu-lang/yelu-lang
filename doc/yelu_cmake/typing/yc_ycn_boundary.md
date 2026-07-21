@@ -3,8 +3,8 @@
 > **Status: adopted 2026-07-16.** A triage rule for "where does this feature
 > go?", promoted from three independent design threads that each reached the
 > same boundary without a stated policy. Companion to
-> [`../manifesto.md`](../manifesto.md) (the layer thesis) and
-> [`../yelu_cmake/cmake_vs_normal.md`](../yelu_cmake/cmake_vs_normal.md)
+> [`../manifesto.md`](../../manifesto.md) (the layer thesis) and
+> [`../yelu_cmake/ir/cmake_vs_normal.md`](../ir/cmake_vs_normal.md)
 > (what the two forms actually are).
 
 ## The rule
@@ -64,9 +64,9 @@ existed:
 
 | doc | conclusion |
 | --- | --- |
-| [`var_centric_design.md`](var_centric_design.md) | value-default reads (bare `foo` = value) — "**This belongs in ycn, not yc.** yc keeps the faithful explicit-`${}` model." The blocker is that a *generic cmake arg* is ambiguous between literal word and value; **ycn has typed slots, so the ambiguity doesn't exist.** |
-| [`casing_design.md`](casing_design.md) | dotted globals (`$cmake.version`) — cosmetic in yc; "real namespacing belongs in ycn." |
-| [`object_value_design.md`](object_value_design.md) §e | "yc is cmake-faithful; **ycn is the idealized algebra**… this is where the value class earns its keep at the type level." |
+| [`var_centric_design.md`](../var_centric_design.md) | value-default reads (bare `foo` = value) — "**This belongs in ycn, not yc.** yc keeps the faithful explicit-`${}` model." The blocker is that a *generic cmake arg* is ambiguous between literal word and value; **ycn has typed slots, so the ambiguity doesn't exist.** |
+| [`casing_design.md`](../surface/casing_design.md) | dotted globals (`$cmake.version`) — cosmetic in yc; "real namespacing belongs in ycn." |
+| [`object_value_design.md`](../object_value_design.md) §e | "yc is cmake-faithful; **ycn is the idealized algebra**… this is where the value class earns its keep at the type level." |
 
 Note the shared shape of the argument in all three: *yc can't type the slot, ycn
 can.*
@@ -138,7 +138,7 @@ value.
   review rather than treating them as routine.
 - **ycn has no concrete syntax yet.** Today "belongs in ycn" means "blocked on
   the ycn surface" — every ycn program in the repo is hand-built OCaml
-  (see [`../yelu_cmake/ycn_concrete_syntax.md`](../yelu_cmake/ycn_concrete_syntax.md)).
+  (see [`../yelu_cmake/ycn/ycn_concrete_syntax.md`](../ycn/ycn_concrete_syntax.md)).
   That is a real cost of the discipline, and the reason ycn concrete syntax is
   the gateway to the whole ycn agenda rather than one item among many.
 - **The rule triages, it doesn't design.** "ycn" is an answer about *placement*;

@@ -5,7 +5,7 @@
 > forward unchanged into the post-retirement `yelu_cmake` /
 > `yelu_cmake_normal` IR: extensible expression types is still the
 > open design question, and informs Y17. The code snippets below use
-> the legacy names for historical fidelity; see `yelu_theory/plan.md`
+> the legacy names for historical fidelity; see `yelu_cmake/typing/plan.md`
 > for the current structural-split plan that addresses parts of this.
 
 **Context.** I'm building yelu, a programmable configuration shell language with a
@@ -116,7 +116,7 @@ Options considered:
 
 4. **Per-theory expression fragments with pack-level GADT.** Each theory
    defines its own expression sub-type, and the pack ties them together with
-   a GADT. Rejected earlier (see `../lang/typed_design.md`) because cmake's type
+   a GADT. Rejected earlier (see `../yelu_cmake/typing/typed_design.md`) because cmake's type
    lattice has constraints OCaml can't express at the type level.
 
 **Constraints:**

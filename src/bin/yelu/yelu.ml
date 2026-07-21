@@ -59,7 +59,7 @@ USAGE:
   yelu command-reference [-o PATH]
     Generate the yc command table (family, ~out, accepted ~labels) from
     the code. Freshness-locked by dune test; fix drift with `dune promote`.
-    Default PATH: doc/lang/yc_command_reference.md
+    Default PATH: doc/yelu_cmake/surface/yc_command_reference.md
 |}
 
 (* ============================================================
@@ -857,7 +857,7 @@ let cmd_manifest () =
    `lower_command` uses, not a copy), `command_kwargs` / `takes_out_var` (the
    accepted labels).
 
-   Committed as doc/lang/yc_command_reference.md and freshness-locked by a
+   Committed as doc/yelu_cmake/surface/yc_command_reference.md and freshness-locked by a
    dune (diff) rule, same pattern as the TextMate grammar. A hand-maintained
    coverage table is exactly what rotted in lang_coverage.md — it claimed
    "~60 of ~70 commands have a test" while 15 had none and 3 had no
@@ -916,7 +916,7 @@ let command_reference_md () =
     end);
   Buffer.contents b
 
-let default_command_reference_path = "doc/lang/yc_command_reference.md"
+let default_command_reference_path = "doc/yelu_cmake/surface/yc_command_reference.md"
 
 let cmd_command_reference out =
   mkdirp (Stdlib.Filename.dirname out);

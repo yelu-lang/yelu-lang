@@ -532,7 +532,7 @@ surfaces are intentionally later.
 
    Production status:
 
-   - `doc/lang/lang_coverage.md` marks `cmake_path` as covered at the
+   - `doc/yelu_cmake/lang_coverage.md` marks `cmake_path` as covered at the
      script-pair level.
    - `test/test-runcmake/test_runcmake_yelu.ml` has inline reference-vs-Yelu
      pairs for the full current `cmake_path` surface: `ABSOLUTE_PATH`, `APPEND`,
@@ -752,7 +752,7 @@ compiler/lowerer to CMake:
 
 compatibility tests and coverage:
   test/test-runcmake/test_runcmake_yelu.ml
-  doc/lang/lang_coverage.md
+  doc/yelu_cmake/lang_coverage.md
 ```
 
 The part to retire is the earlier theory-splitting idea in

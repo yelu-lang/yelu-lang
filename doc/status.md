@@ -69,7 +69,7 @@ consolidation first. The two yc-side constructors are not causing bugs.
 **So the real next big rock is ycn concrete syntax** — the gateway to the whole
 ycn agenda (records as values, Y17 typing, Y18 entity value are all unwritable
 until ycn has a surface). Design notes:
-[`yelu_cmake/ycn_concrete_syntax.md`](yelu_cmake/ycn_concrete_syntax.md);
+[`yelu_cmake/ycn/ycn_concrete_syntax.md`](yelu_cmake/ycn/ycn_concrete_syntax.md);
 acceptance corpus already exists (65 hand-written ycn programs in
 `test_yelu_lift_lower.ml`).
 
@@ -79,7 +79,7 @@ Small, independent, and safe to pick up in any order. Each is a *surface* item
 (no IR impact) unless noted.
 
 *Surface-syntax design rationale for these lives in
-[`lang/yc_syntax.md`](lang/yc_syntax.md); this is just the
+[`yelu_cmake/surface/yc_syntax.md`](yelu_cmake/surface/yc_syntax.md); this is just the
 task list.*
 
 | item | note |
@@ -99,14 +99,14 @@ task list.*
 | **Duplicate single-value field → reject** | Y14 pattern (painpoints #11) for record / dotted-label forms. (The adjacent wrong-*shaped* `~properties=` silent drop is fixed — `Malformed_kwarg`, `1db4bd6`.) |
 | **cache docstring `~doc:`** + **property cache-semantics test** (Value vs SET vs DEFINED) | small cosmetics. |
 | **`string_json` unknown op** | Fails at emit (`emit_ast: unknown string(JSON …) op`) rather than as a wellform diagnostic. Right error, wrong surface. |
-| **"Belief" definition** | Shapes the `check` op's output type — flat diagnostics vs a richer fact stream the LSP renders. See `lang/surface_lsp_framework.md` §4. |
+| **"Belief" definition** | Shapes the `check` op's output type — flat diagnostics vs a richer fact stream the LSP renders. See `yelu_cmake/surface/surface_lsp_framework.md` §4. |
 
 **ycn-ward redesigns** (not surface polish — need a value/type model, so they
-belong to the ycn agenda per [`lang/yc_ycn_boundary.md`](lang/yc_ycn_boundary.md)):
+belong to the ycn agenda per [`yelu_cmake/typing/yc_ycn_boundary.md`](yelu_cmake/typing/yc_ycn_boundary.md)):
 records-as-first-class-values, value-default reads (bare `foo` = value), dotted
 globals (`$cmake.version`). Design context in
-[`lang/yc_syntax.md`](lang/yc_syntax.md) and
-[`lang/var_centric_design.md`](lang/var_centric_design.md).
+[`yelu_cmake/surface/yc_syntax.md`](yelu_cmake/surface/yc_syntax.md) and
+[`yelu_cmake/var_centric_design.md`](yelu_cmake/var_centric_design.md).
 
 ## Where the durable records live
 
@@ -114,11 +114,11 @@ globals (`$cmake.version`). Design context in
 | --- | --- |
 | narrative record of finished work | [`worklog/worklog_2026_06.md`](worklog/worklog_2026_06.md) |
 | project-wide audit | [`project_overview.md`](project_overview.md) |
-| surface / formatter / LSP **design** (incl. the shipped pipeline, §8) | [`lang/surface_lsp_framework.md`](lang/surface_lsp_framework.md) |
-| yc surface syntax — design & rationale (go-to) | [`lang/yc_syntax.md`](lang/yc_syntax.md) |
+| surface / formatter / LSP **design** (incl. the shipped pipeline, §8) | [`yelu_cmake/surface/surface_lsp_framework.md`](yelu_cmake/surface/surface_lsp_framework.md) |
+| yc surface syntax — design & rationale (go-to) | [`yelu_cmake/surface/yc_syntax.md`](yelu_cmake/surface/yc_syntax.md) |
 | yelu_cmake harness backlog / open-work registry | [`yelu_cmake/status.md`](yelu_cmake/status.md) |
 | numbered backlog (Y2…Y18) + handoff | [`../CLAUDE.md`](../CLAUDE.md) |
-| layer triage rule (yc vs ycn) | [`lang/yc_ycn_boundary.md`](lang/yc_ycn_boundary.md) |
+| layer triage rule (yc vs ycn) | [`yelu_cmake/typing/yc_ycn_boundary.md`](yelu_cmake/typing/yc_ycn_boundary.md) |
 
 > **One tracker.** `lang/surface_status.md` was retired 2026-07-20 and folded
 > into the three files above (design → framework §8, history → worklog,

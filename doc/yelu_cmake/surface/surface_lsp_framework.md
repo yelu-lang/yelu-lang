@@ -13,13 +13,13 @@
 
 - **Behavior-level oracle** → *dynamic* semantics: runtime output ≡ cmake,
   proven via the File API. Feeds off the driver's `eval`.
-  (See [`../yelu_cmake/status.md`](../yelu_cmake/status.md) "Open work".)
+  (See [`../yelu_cmake/status.md`](../status.md) "Open work".)
 - **Surface + LSP + ecosystem-semantic** (this doc) → *static* semantics:
   types, "beliefs", and the authoring experience. Feeds off the driver's
   `check`.
 
 Both are **driver ops** over the same uniform interface
-([`../yelu_cmake/driver.md`](../yelu_cmake/driver.md)), which is why "a
+([`../yelu_cmake/ir/driver.md`](../ir/driver.md)), which is why "a
 framework for the yelu languages" and "the driver motivation" are the
 same bet. The driver is the abstraction boundary the LSP plugs into.
 
@@ -175,11 +175,11 @@ extension for distribution.
 **Shipped (M1.5a/M1.5c, 2026-06-10).** Concrete deployment, verified
 working in-editor:
 
-- Server: [`src/bin/yelu_lsp/`](../../src/bin/yelu_lsp/) — a `linol-lwt`
+- Server: [`src/bin/yelu_lsp/`](../../../src/bin/yelu_lsp) — a `linol-lwt`
   server over stdio (`linol`/`lsp`/`jsonrpc` 1.26 via the yojson-3 linol
   fork pinned at `/home/red/code/contrib/linol`). Built with
   `dune build src/bin/yelu_lsp/`.
-- Client: [`editors/vscode/yc/extension.js`](../../editors/vscode/yc/)
+- Client: [`editors/vscode/yc/extension.js`](../../../editors/vscode/yc)
   (plain CommonJS, not TS) using `vscode-languageclient` — spawns the
   server and resolves its path from the `yc.server.path` setting, else
   `<workspace>/_build/default/src/bin/yelu_lsp/yelu_lsp.exe`.
@@ -189,7 +189,7 @@ working in-editor:
   `"[yc]": {"editor.formatOnSave": true}` route through the server's
   `textDocument/formatting` (the `Yc_driver.format` / `yelu fmt` engine),
   fail-safe (parse error → no edits). Full steps + settings in the
-  extension [README](../../editors/vscode/yc/README.md) § "Language server".
+  extension [README](../../../editors/vscode/yc/README.md) § "Language server".
 
 ### 3.7 Testing → at the driver-op level, with Alcotest
 
@@ -320,7 +320,7 @@ current command manifest. Consequences:
   which is also the most honest acknowledgement that — absent ppx over
   extensible variants — the manifest is curated, not derived;
 - it slots next to `parse / print / eval / compile / check` in
-  [`../yelu_cmake/driver.md`](../yelu_cmake/driver.md) as a sixth
+  [`../yelu_cmake/ir/driver.md`](../ir/driver.md) as a sixth
   introspection op, applicable later to `ycn` too.
 
 ## 4. ecosystem-semantic hook
@@ -350,16 +350,16 @@ needs pinning down before the `check` signature is frozen.
 ### Milestone 0 — server-less TextMate highlighter — **shipped 2026-06-10**
 
 Independent of the parser/CST/LSP work; shipped first. Delivered:
-- [`Yc_manifest`](../../src/langs/yelu/yc_manifest.ml) — the typed
+- [`Yc_manifest`](../../../src/langs/yelu/yc_manifest.ml) — the typed
   vocabulary table, test-locked to `Yc_primitives` + the lexer as a
-  co-truth ([`test_yc_manifest.ml`](../../test/test-yelu/test_yc_manifest.ml));
-- [`Yc_driver.manifest`](../../src/langs/drivers/yc_driver.ml) — the
+  co-truth ([`test_yc_manifest.ml`](../../../test/test-yelu/test_yc_manifest.ml));
+- [`Yc_driver.manifest`](../../../src/langs/drivers/yc_driver.ml) — the
   co-truth on the uniform driver interface;
-- [`Yc_tmgrammar`](../../src/langs/yelu/yc_tmgrammar.ml) — vocabulary →
+- [`Yc_tmgrammar`](../../../src/langs/yelu/yc_tmgrammar.ml) — vocabulary →
   `(regex, scope)` rules (escaping / longest-first / `\b`), unit-tested
-  ([`test_yc_tmgrammar.ml`](../../test/test-yelu/test_yc_tmgrammar.ml));
+  ([`test_yc_tmgrammar.ml`](../../../test/test-yelu/test_yc_tmgrammar.ml));
 - `yelu manifest` (print the TSV) + `yelu tmgrammar` (emit the JSON);
-- [`editors/vscode/yc/`](../../editors/vscode/yc/) — the extension
+- [`editors/vscode/yc/`](../../../editors/vscode/yc) — the extension
   (`package.json`, `language-configuration.json`, generated
   `syntaxes/yc.tmLanguage.json`), with `make tmgrammar` (regen) and
   `make tmgrammar-check` (drift guard).
@@ -367,7 +367,7 @@ Independent of the parser/CST/LSP work; shipped first. Delivered:
 Verified by tokenizing `probes/fmt/main.yc` with the real VS Code
 TextMate + Oniguruma engine (`editors/vscode/yc/test/tokenize.js`): every
 manifest class fires correctly on real source. Install/enable steps are in
-the extension [README](../../editors/vscode/yc/README.md).
+the extension [README](../../../editors/vscode/yc/README.md).
 
 Deviations from the original sketch: the generator is a CLI subcommand
 (`yelu tmgrammar`), not a dune-rule + cross-dir `promote` — simpler and
@@ -411,7 +411,7 @@ the hard prerequisite; everything below is downstream of it.
 **Implementation — fixed first, no Doc IR needed (step 2):** v1 is a naive
 *canonical* pretty-print of the AST/CST through OCaml's `Format` boxes at a
 fixed width (80), no options — reusing the exact pattern
-[`Lang_cmake_pp`](../../src/langs/cmake/lang_cmake_pp.ml) already uses for
+[`Lang_cmake_pp`](../../../src/langs/cmake/lang_cmake_pp.ml) already uses for
 cmake. `Format`'s box model *is* the underlying Doc/box layout algebra
 (hovbox ≈ `group`, break hints ≈ `line`, margin ≈ width); it is a bit
 obscure but already proven in this codebase, so v1 needs no bespoke Doc
@@ -458,8 +458,8 @@ before scaling to all theories or generalizing to `ycn`.
 
 ## 7.5 Wellform diagnostics — what we flag, and when it's fatal
 
-The wellform pass ([`Yc_wellform`](../../src/langs/yelu/yc_wellform.ml),
-called via [`Yc_driver.wellform`](../../src/langs/drivers/yc_driver.ml)) is
+The wellform pass ([`Yc_wellform`](../../../src/langs/yelu/yc_wellform.ml),
+called via [`Yc_driver.wellform`](../../../src/langs/drivers/yc_driver.ml)) is
 how the LSP turns "your file parses but won't behave" into Problems-panel
 diagnostics. Every check below surfaces through the same channel; severity
 (warning vs fatal) is the only knob.
@@ -499,7 +499,7 @@ an error squiggle, the CLI gives a "did you mean fun/function/macro?" hint.
 
 ### Worked examples (the typo class)
 
-These are the test cases in [`test_yc_wellform.ml`](../../test/test-yelu/test_yc_wellform.ml)
+These are the test cases in [`test_yc_wellform.ml`](../../../test/test-yelu/test_yc_wellform.ml)
 under the `unknown-command (closed/open world)` group:
 
 ```text
@@ -539,7 +539,7 @@ include 'Helpers.cmake'; mystery_command 'x'
 ### Follow-ups (parked)
 
 - **"Did you mean X?"** — Levenshtein distance from the unknown name against `command_names ∪ defined_names`. Cheap to add to the warning text.
-- ✅ **Cmake-stdlib name index** — shipped 2026-06-21 as `Cmake_stdlib_names` following the discovered-cache pattern ([`../yelu_cmake/discovered_cache.md`](../yelu_cmake/discovered_cache.md)). `cmake_parse_arguments` / `check_language` / `cuda_add_executable` etc. are silenced; closed-world `Unknown_command` is now fatal in `compile-corpus` again.
+- ✅ **Cmake-stdlib name index** — shipped 2026-06-21 as `Cmake_stdlib_names` following the discovered-cache pattern ([`../yelu_cmake/ir/discovered_cache.md`](../ir/discovered_cache.md)). `cmake_parse_arguments` / `check_language` / `cuda_add_executable` etc. are silenced; closed-world `Unknown_command` is now fatal in `compile-corpus` again.
 - **Cross-file collect** — for a multi-file project, walking `include`/`add_subdirectory` targets to gather their `function`/`macro` declarations would eliminate the false-positive class on real corpus projects. Today the LSP sees one file at a time.
 - **Diagnostic span** — `Unknown_command` currently carries only the name. Adding the offending token's span (the located lexer infrastructure already in use for parse-error diagnostics) lets the LSP highlight the exact identifier instead of underlining the whole file.
 
@@ -548,9 +548,9 @@ include 'Helpers.cmake'; mystery_command 'x'
 > Absorbed from the retired `surface_status.md` (2026-07-20). That file was a
 > *tracker*, but six source files cited it for durable design explanation, so
 > the durable half lives here and the in-flight half moved to
-> [`../status.md`](../status.md). Everything in this section is **shipped**;
+> [`../status.md`](../../status.md). Everything in this section is **shipped**;
 > the phase-by-phase history is in
-> [`../worklog/worklog_2026_06.md`](../worklog/worklog_2026_06.md).
+> [`../worklog/worklog_2026_06.md`](../../worklog/worklog_2026_06.md).
 
 ### 8.1 The form graph
 
@@ -633,15 +633,15 @@ workspace file. If the extension is ever reinstalled, re-symlink.
 
 ## 9. Related
 
-- [`../yelu_cmake/driver.md`](../yelu_cmake/driver.md) — the uniform
+- [`../yelu_cmake/ir/driver.md`](../ir/driver.md) — the uniform
   per-language op interface the LSP plugs into.
-- [`../archive/concrete_syntax_parser.md`](../archive/concrete_syntax_parser.md)
+- [`../archive/concrete_syntax_parser.md`](../../archive/concrete_syntax_parser.md)
   — history: the retired two-pass token parser this evolved from (§8 is the
   current pipeline).
-- [`../yelu_cmake/ycn_concrete_syntax.md`](../yelu_cmake/ycn_concrete_syntax.md)
+- [`../yelu_cmake/ycn/ycn_concrete_syntax.md`](../ycn/ycn_concrete_syntax.md)
   — surface-syntax design notes for `ycn`; the generalization target.
-- [`lang_design.md`](lang_design.md), [`typed_design.md`](typed_design.md)
+- [`lang_design.md`](../lang_design.md), [`typed_design.md`](../typing/typed_design.md)
   — language-design tradition and the (retired) typed-checking design
   that Y17 / ecosystem-semantic revisit.
-- [`../yelu_cmake/status.md`](../yelu_cmake/status.md) — the behavior-level
+- [`../yelu_cmake/status.md`](../status.md) — the behavior-level
   oracle (the other half) and the forward roadmap.

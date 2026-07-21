@@ -226,7 +226,7 @@ What's **not** needed for the pilot:
 
 ## Relationship to existing pieces
 
-- [`io_architecture.md`](io_architecture.md) — the I/O-free
+- [`io_architecture.md`](ir/io_architecture.md) — the I/O-free
   library / impure runner split that makes the hybrid strategy
   composable. Generators are pure functions of `.yc` input; the
   build system handles the I/O.

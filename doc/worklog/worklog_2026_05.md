@@ -420,8 +420,8 @@ Bar #3-lite static round-trip declared complete and archived:
 
 - `doc/yelu_cmake/status.md` — current open work (the slim living tracker).
 - `probes/parse_print_oracle.md` — Bar #3-lite final report (archived 2026-05-31).
-- `doc/yelu_cmake/design.md` — durable design notes.
-- `doc/yelu_cmake/structure.md` — code-anchored module guide.
+- `doc/yelu_cmake/ir/design.md` — durable design notes.
+- `doc/yelu_cmake/ir/structure.md` — code-anchored module guide.
 - `src/langs/yelu/` — the production language (post-retirement rename).
 - `src/langs/yelu_legacy/` — retired reference, no longer in the
   `yelu_langs` library.
