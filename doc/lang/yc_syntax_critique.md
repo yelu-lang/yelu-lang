@@ -165,9 +165,10 @@ because the matrix wasn't run; fixed `f1296a4`.)
     an unresolved bare `EVar` renders as a literal in all five renderers, so
     the deref (and the slot-dependent coercion behind it) is gone.
   - **duplicate single-value field → reject** (Y14 pattern, painpoints #11) for
-    the record / dotted-label forms. Adjacent and still open: a *wrong-shaped*
-    `~properties=` (a list where a record is expected) is silently dropped —
-    `Unknown_kwarg` can't see it because the key itself is valid.
+    the record / dotted-label forms. (The adjacent *wrong-shaped* `~properties=`
+    silent drop — a list where a record is required — is now **fixed**: a fatal
+    `Malformed_kwarg` CST check, `1db4bd6`. `Unknown_kwarg` couldn't see it
+    because the key is valid; only the value shape was wrong.)
   - `string_json` with an unrecognized op fails at **emit** time
     (`emit_ast: unknown string(JSON ...) op`) rather than as a wellform
     diagnostic. Reported cleanly, but on the wrong surface.

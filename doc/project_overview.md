@@ -279,7 +279,8 @@ in [`yelu_cmake/status.md`](yelu_cmake/status.md).
 
 | ID  | Title                                | Description                                                   |
 | --- | ------------------------------------ | ------------------------------------------------------------- |
-| —   | **Raw-escape unification** (next)    | One "opaque cmake code" model for `yc_raw` / `ECmakeRaw` / `ECmakeRawCmd` / hybrid `raw_cmake`. IR-touching, so it must precede ycn (it ripples through `Yelu_cmake_convert`). See [`status.md`](status.md). |
+| —   | **ycn concrete syntax** (next big rock) | The gateway to the whole ycn agenda (records-as-values, Y17 typing, Y18 entity value). Design notes in [`yelu_cmake/ycn_concrete_syntax.md`](yelu_cmake/ycn_concrete_syntax.md); 65-program acceptance corpus in `test_yelu_lift_lower.ml`. |
+| —   | Raw-escape unification (de-prioritized 2026-07-21) | Was framed as a hard pre-req; investigation showed it's 2 yc-side constructors (`ECmakeRaw`/`ECmakeRawCmd`), does NOT ripple through `Yelu_cmake_convert` (raw hits convert's catch-all — it can't cross into ycn at all), and isn't causing bugs. Fold into ycn's opacity-escape design rather than doing standalone. See [`status.md`](status.md). |
 | —   | 2nd probe project                    | Pick from [`../probes/candidates.md`](../probes/candidates.md) (spdlog for a real `find_package(fmt)` consumer, or nlohmann/json for the fastest clean win); next probe per [`yelu_cmake/hybrid_strategy.md`](yelu_cmake/hybrid_strategy.md). NOT gated: fmt already covers 13/15 coverage-map rows. |
 | B2  | Wellform finding token spans         | Findings carry only names; LSP scans source for whole-word match. Native spans → exact squiggle highlight + multi-occurrence diagnostics. |
 | —   | IR-printer cleanup (Bar #3-lite follow-up) | Tier 1/2/3 plan in [`yelu_cmake/status.md`](yelu_cmake/status.md). |
@@ -296,13 +297,12 @@ remaining, and the fuller list in [`status.md`](status.md) § Parked:
 
 - **Version literal** — `cmake_minimum_required 3.8...3.25` as a first-class unquoted literal (lexer token for `N(.N)*(...N(.N)*)?`). Also the `find_package Foo '9.0'` version-drop.
 - **Per-mode `message_*` aliases** — `message_fatal` / `message_warning` / `message_status` desugar to `message ~mode=…`.
-- **Orphaned `Yelu_emit_main`** — legacy `.ml`-emit helper unused after retirement; delete candidate.
-- **Wrong-shaped `~properties=`** — a list where a record is expected is silently dropped (`Unknown_kwarg` can't see it — the key is valid).
 - **`string_json` unknown op** — fails at emit rather than as a wellform diagnostic.
 
 Fixed since the last pass (were listed here): the latent `set_target_properties`
 target-deref (honest emit, `a57bcf4`); `add_custom_command` missing from
-`command_names` (`d60190f`).
+`command_names` (`d60190f`); the orphaned `Yelu_emit_main` (deleted, `c751713`);
+the wrong-shaped `~properties=` silent drop (`Malformed_kwarg`, `1db4bd6`).
 
 ### Design (before coding)
 

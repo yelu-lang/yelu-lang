@@ -6,47 +6,25 @@
 > *why* something is designed a certain way, or a full project audit, this is
 > the wrong file — see § Where the durable records live.
 >
-> Last touched: 2026-07-20.
+> Last touched: 2026-07-21.
 
 ## In flight
 
-**Doc cleanup + test enhancement, before item 3** (agreed 2026-07-20: the
-raw-escape unification touches the IR, so tighten the net first).
+*(nothing active — next is ycn concrete syntax; see the queue below)*
 
-- **Test enhancement — done.** A coverage scan found 15 of the 138
-  `command_names` entries with zero test mention; five were genuinely broken
-  (9 `cmake_path` ops silently dropping `~out=`; `add_exe_alias` /
-  `add_lib_imported` / `precompile_headers` with **no .yc surface at all**,
-  emitting their yc name as bogus cmake; `add_lib_alias` aliasing a target to
-  itself). All fixed, and a **command-coverage lock** in
-  `test_yelu_cmake_parse.ml` now fails the build if a `command_names` entry
-  has no case. 274 → 312 in that suite, ~1034 unit tests overall.
-- **Doc cleanup — done.** Test counts (994 → 1034); the `yelu_parse.ml` row
-  (it stopped being a parser at Tier (b)); a test-table row naming a file that
-  no longer exists; the now-fixed latent deref in `yc_syntax_critique.md`;
-  four already-closed rows in `project_overview.md`'s gap table; and a new
-  gotcha — *a name in `command_names` is not evidence it is implemented*
-  (adding a command takes **three** edits: `command_names`, an `_inner` arm,
-  the `yc_cst_lower` family list).
-- **One status tracker — done.** `lang/surface_status.md` retired; see the
-  note at the bottom of this file.
-- **Coverage doc — done, by generating it.**
-  [`lang/yc_command_reference.md`](lang/yc_command_reference.md) is emitted by
-  `yelu command-reference` from `command_names` × `Yc_cst_lower.family_of` ×
-  `command_kwargs`, and freshness-locked by a dune `(diff)` rule. The
-  hand-maintained rows in `lang_coverage.md` were the ones that rotted (it
-  claimed ~60/~70 commands had a test while 15 had none); that file now keeps
-  only its non-derivable half, the cmake test-suite tractability map.
-  `project_overview.md` still wants a full body pass at some point — it has a
-  delta note at the top for now.
+**Recently landed (2026-07-20..21), for context — full detail in the worklog:**
+- **Coverage/dispatch locks + 5 fixed bugs.** A scan found 15 of 138
+  `command_names` entries untested and 5 broken (9 `cmake_path` ops dropping
+  `~out=`; `add_exe_alias` / `add_lib_imported` / `precompile_headers` with no
+  `.yc` surface at all; `add_lib_alias` self-aliasing). Guards added: the
+  command-coverage lock, the dispatch lock, and a generated
+  `yc_command_reference.md`.
+- **Doc consolidation.** Counts refreshed; `surface_status.md` retired into
+  three homes (design → `surface_lsp_framework.md` §8, history → worklog, open
+  items → this file § Parked); `project_overview.md` full body pass.
+- **Wrong-shaped `~properties=` + orphan deletion** — see queue item 3.
 
-## Immediate queue (agreed order, 2026-07-16)
-
-These are the yc items that must precede ycn work, because **they touch the
-IR** — the shared substrate `Yelu_cmake_convert` (1,889 LOC) maps in both
-directions. Pure-*surface* yc items (version literal, `message_*`,
-`~mode=Defined`, shape-4 records, …) erase and don't touch the IR, so they can
-happen any time, including after ycn starts.
+## Immediate queue
 
 1. ~~Tier (b) sweep~~ — **done** (`cf69703`).
 2. ~~Dead specialized-property commands~~ — **done** (`1d70486`). Removed the
@@ -58,15 +36,39 @@ happen any time, including after ycn starts.
    report "unknown command" (they were never cmake commands). Found and fixed
    an adjacent live bug on the way (`cc196c1`): `set_source_files_properties`
    emitted `${BMI}PROPERTIES` — token-merged, silently losing the keyword.
-3. **Raw-escape unification** ← *next* — one "opaque cmake code" model for
-   `yc_raw` / `ECmakeRaw` / `ECmakeRawCmd` / hybrid `raw_cmake`. An IR
-   consolidation, so it ripples through convert: doing it after ycn starts
-   pays that migration twice, and ycn needs its own opacity story anyway —
-   better to inherit one concept than four.
+3. ~~Wrong-shaped `~properties=` silent drop~~ + ~~orphaned `yelu_emit_main.ml`~~
+   — **done** (`1db4bd6`, `c751713`). A list where a record was required
+   collapsed the whole command to `ESeq []` (emitted nothing, exit 0); now a
+   fatal `Malformed_kwarg` CST check. Deleting `yelu_emit_main.ml` also killed
+   the phantom "hybrid `raw_cmake`" concept (it was a one-line dead alias to
+   `yc_raw`).
 
-**Then:** ycn concrete syntax — the gateway to the whole ycn agenda (records
-as values, Y17 typing, Y18 entity value are all unwritable until ycn has a
-surface). Design notes:
+### Raw-escape unification — re-scoped 2026-07-21, no longer a hard pre-req
+
+The 2026-07-16 framing ("unify four concepts; IR consolidation that **ripples
+through `Yelu_cmake_convert`**; must precede ycn") was investigated and is
+**overstated**:
+
+- **Two live constructors, not four.** `ECmakeRaw` (verbatim-text codegen
+  escape) and `ECmakeRawCmd` (structured parser fallback), both yc-side.
+  `yc_raw` is just the surface command that builds `ECmakeRaw`; "hybrid
+  `raw_cmake`" was a dead alias, now deleted.
+- **It does not ripple through convert.** Neither raw constructor appears in
+  `Yelu_cmake_convert` — they hit its `| _ -> fail "cannot translate unknown
+  yelu_cmake expression"` catch-all. Raw literally cannot cross into ycn today.
+- So the real fact is **ycn has no opacity escape at all**. That is a *design*
+  question best answered *with* ycn's surface, not as a standalone gate before
+  it. Unifying `ECmakeRaw`/`ECmakeRawCmd` now, in isolation, buys little and
+  can't be validated against ycn's needs because ycn's opacity story doesn't
+  exist yet.
+
+**Decision:** de-prioritized. Fold the raw-escape design into ycn's opacity
+escape when ycn concrete syntax starts, rather than doing a standalone yc-side
+consolidation first. The two yc-side constructors are not causing bugs.
+
+**So the real next big rock is ycn concrete syntax** — the gateway to the whole
+ycn agenda (records as values, Y17 typing, Y18 entity value are all unwritable
+until ycn has a surface). Design notes:
 [`yelu_cmake/ycn_concrete_syntax.md`](yelu_cmake/ycn_concrete_syntax.md);
 acceptance corpus already exists (65 hand-written ycn programs in
 `test_yelu_lift_lower.ml`).
