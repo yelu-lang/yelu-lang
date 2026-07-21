@@ -8,7 +8,7 @@
    [test/test-yelu/test_yc_manifest.ml].
 
    Design rationale and the broader plan live in
-   [doc/lang/surface_lsp_framework.md] Sec 3.8. In short: a TextMate
+   [doc/yelu_cmake/surface/surface_lsp_framework.md] Sec 3.8. In short: a TextMate
    grammar is a *scanner*, so its natural co-truth is the lexical
    vocabulary (this module), not the parser; the parser stays the sole
    authority on syntax. We cannot derive this table by reflecting over

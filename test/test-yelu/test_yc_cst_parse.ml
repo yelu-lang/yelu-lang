@@ -1,6 +1,6 @@
 (* Tests for the yc CST parser (M1.1, first slice): atoms, the uniform
    command, kwargs, flow, blocks, and the program-level comment side-list.
-   See doc/lang/surface_lsp_framework.md §8.1. *)
+   See doc/yelu_cmake/surface/surface_lsp_framework.md §8.1. *)
 
 open Base
 module C = Yelu_langs.Yc_cst

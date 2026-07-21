@@ -16,7 +16,7 @@
      win is "ycn-eval doesn't crash on this shape".
 
    Coverage status by test_yelu_compile section
-   (see doc/yelu_cmake/cmake_vs_normal.md § "Dual-eval coverage"):
+   (see doc/yelu_cmake/ir/cmake_vs_normal.md § "Dual-eval coverage"):
    - ✅ primitives, conditions, let_bindings, iteration,
      loop_control, list_ops, string_ops
    - ⏭ skipped: find_package, genex, execute_process, file_ops,

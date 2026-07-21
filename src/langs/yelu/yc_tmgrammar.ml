@@ -7,7 +7,7 @@
    (strings, comments, `${…}` / `$<…>` interpolation, numbers) are NOT
    here — they are the hand-written template in the `yelu tmgrammar`
    emitter, per Sec 3.8 / Milestone 0 of
-   doc/lang/surface_lsp_framework.md.
+   doc/yelu_cmake/surface/surface_lsp_framework.md.
 
    Consumes a manifest entry list (passed in, normally from
    Yc_driver.manifest ()) so the driver stays the boundary. *)

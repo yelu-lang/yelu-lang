@@ -208,7 +208,7 @@ let args_to_exprs args = List.map args ~f:arg_to_expr
    decides the fallback for non-bool tokens.
 
    FUTURE (Y17 typing redesign): collapse this into eval-side
-   expect_bool only. See doc/yelu_cmake/io_architecture.md §
+   expect_bool only. See doc/yelu_cmake/ir/io_architecture.md §
    "Bool literals — parse-time vs eval-time" for the migration
    path. Until then, this is the single source of truth for
    parse-time cmake bool literals. *)

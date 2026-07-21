@@ -1,7 +1,7 @@
 (* Cmake_stdlib_names — runtime API for the cmake-stdlib name set.
 
    First instance of the discovered-cache pattern
-   (doc/yelu_cmake/discovered_cache.md). The pattern:
+   (doc/yelu_cmake/ir/discovered_cache.md). The pattern:
 
    1. discover  — generate the TSV (one-time, against cmake's Modules/)
    2. cache     — commit tool/cmake_text/cmake_stdlib_names.tsv with a

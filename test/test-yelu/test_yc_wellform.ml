@@ -183,7 +183,7 @@ let () =
           ucase "forward-ref ok (call then function)"
             "helper 'OUT'; fun helper(x) ( $x := 'v' )" ~expect:false;
           (* cmake-stdlib calls — silenced via Cmake_stdlib_names whitelist
-             (discovered-cache pattern; see doc/yelu_cmake/discovered_cache.md).
+             (discovered-cache pattern; see doc/yelu_cmake/ir/discovered_cache.md).
              Before the stdlib cache landed (2026-06-21) these fired as
              closed-world Unknown_command; the test history before that
              commit asserted ~expect:true. *)

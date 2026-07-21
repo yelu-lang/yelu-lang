@@ -8,7 +8,7 @@
    2. manifest word surfaces     ≡  Yc_primitives.reserved_names
    3. Yelu_lexer hard keywords   ⊆  manifest Control ∪ Type surfaces
 
-   See doc/lang/surface_lsp_framework.md Sec 3.8. *)
+   See doc/yelu_cmake/surface/surface_lsp_framework.md Sec 3.8. *)
 
 open Base
 module M = Yelu_langs.Yc_manifest

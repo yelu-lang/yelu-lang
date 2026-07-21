@@ -50,7 +50,7 @@ let print_cmake_debug (e : expr) : string =
 
 (* → .yc text from an [expr]: not implemented — the faithful formatter is
    text→text (it needs the CST's comments/structure, which [expr] drops).
-   See [format] below and doc/lang/surface_lsp_framework.md §8.1. *)
+   See [format] below and doc/yelu_cmake/surface/surface_lsp_framework.md §8.1. *)
 let print_yc _e =
   failwith "yc_driver.print_yc: not implemented (use [format] / text→CST→text)"
 
@@ -99,7 +99,7 @@ let fatal_wellform_message : Yc_wellform.error -> string option = function
    - [findings]  — combined check_cst ∪ check_all; per-surface fatal-vs-warning
                    split is in [fatal_wellform_message] above.
 
-   See doc/lang/surface_lsp_framework.md §8.1-8.2 (the shipped pipeline
+   See doc/yelu_cmake/surface/surface_lsp_framework.md §8.1-8.2 (the shipped pipeline
    and the Tier (b) retirement discipline). *)
 type checked = {
   expr     : expr;
@@ -143,7 +143,7 @@ let to_ycn (e : expr) : expr =
    interface so external consumers — the tm-grammar generator, the
    `yelu manifest` CLI, future tools — read it through the driver rather
    than reaching into Yc_primitives internals. See
-   doc/lang/surface_lsp_framework.md Sec 3.8. *)
+   doc/yelu_cmake/surface/surface_lsp_framework.md Sec 3.8. *)
 let manifest () : Yc_manifest.entry list = Yc_manifest.all
 
 (* ══  check  ═══════════════════════════════════ *)

@@ -1,7 +1,7 @@
 (* Tests for the lossless located scanner (Yelu_lexer.lex_located):
    comment preservation, source spans, and consistency with the existing
    token_list path. Foundation for the comment-preserving CST / formatter
-   (see doc/lang/surface_lsp_framework.md, Milestone 1). *)
+   (see doc/yelu_cmake/surface/surface_lsp_framework.md, Milestone 1). *)
 
 open Base
 open Yelu_langs.Yelu_lexer

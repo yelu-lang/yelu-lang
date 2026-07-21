@@ -4,7 +4,7 @@
    enough to reproduce source (formatter) and map ranges (LSP), but NOT a
    fully lossless tree (the canonical formatter regenerates whitespace).
 
-   Two deliberate choices (see doc/lang/surface_lsp_framework.md §3.2
+   Two deliberate choices (see doc/yelu_cmake/surface/surface_lsp_framework.md §3.2
    and §8.1):
 
    - **Comments are a program-level, span-tagged side list**, not woven
@@ -99,7 +99,7 @@ type program = { stmts : stmt list; comments : comment list } [@@deriving sexp_o
    `add_custom_command` (first arg is `OUTPUT files`, not a target) and
    `add_custom_target` (its constructor takes the name as a plain string,
    not a target expr, and it is already written bare). See
-   doc/lang/yc_syntax_critique.md item 1. *)
+   doc/yelu_cmake/surface/yc_syntax.md item 1. *)
 let target_first_arg_commands =
   [ "add_exe"; "add_lib"; "add_lib_alias";
     "link_lib"; "target_link_libraries";

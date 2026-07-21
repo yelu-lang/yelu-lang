@@ -1,7 +1,7 @@
 (* Tests for the TextMate vocabulary-rule generation (Yc_tmgrammar).
    Locks the bug-prone bits: scope coverage, longest-first ordering,
    regex escaping, and `\b` boundaries. See
-   doc/lang/surface_lsp_framework.md Sec 3.8. *)
+   doc/yelu_cmake/surface/surface_lsp_framework.md Sec 3.8. *)
 
 open Base
 module D = Yelu_langs.Yc_driver

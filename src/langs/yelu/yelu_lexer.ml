@@ -94,7 +94,7 @@ let reserved = Map.of_alist_exn (module String) [
    round-trip stays consistent. Slice 1 = visibility. A bare capitalized word
    NOT in the set stays an IDENT (var/target name) until its theory migrates
    (and Y14, eventually, rejects var names that shadow the set).
-   See doc/lang/casing_design.md. *)
+   See doc/yelu_cmake/surface/casing_design.md. *)
 let constr_names =
   Set.of_list (module String)
     [ (* slice 1: visibility *) "PUBLIC"; "PRIVATE"; "INTERFACE";
