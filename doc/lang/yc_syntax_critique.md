@@ -10,8 +10,9 @@
 > [`surface_lsp_framework.md`](surface_lsp_framework.md) §8 (the parser /
 > formatter / LSP *machinery*). Syntax evolution is a safe, mechanical operation: accept a
 > cleaner form, `yelu fmt -w probes/**/*.yc` to canonicalize, and the
-> **emit-bridge** (`test_yc_cst_bridge`) + the **fmt matrix**
-> (`yelu matrix probes/fmt`, 24/24) prove the emitted cmake is byte-unchanged.
+> **surface-regression goldens** (`test_yc_cst_bridge`, born as the
+> emit-bridge oracle) + the **fmt matrix** (`yelu matrix probes/fmt`, 24/24)
+> prove the emitted cmake is byte-unchanged.
 > Note `fmt` is now **pass-through** (no positional→labeled codemod): a
 > positional file is rejected at compile, not silently rewritten.
 

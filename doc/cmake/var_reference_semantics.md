@@ -303,9 +303,8 @@ fuse + split, 3 args, vs quoted = 1). These pin what `EVarLookup` must honor
 and why mixed-unquoted is deferred.
 
 **Verification:** emit-text unit test (`EVarLookup`→unquoted `${X}`,
-`EString`→quoted); emit-bridge stays green (change legacy + CST together);
-byte-oracle goldens reviewed; fmt matrix 24/24 (scalar-safe); the cmake
-probes as ground truth. Full list-splitting-reaches-the-build verification →
+`EString`→quoted); byte-oracle goldens reviewed; fmt matrix 24/24
+(scalar-safe); the cmake probes as ground truth. Full list-splitting-reaches-the-build verification →
 the deferred File-API behavior oracle (the cache-matrix is blind to it — this
 is its first client).
 

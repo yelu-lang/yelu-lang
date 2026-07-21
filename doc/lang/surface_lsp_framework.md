@@ -1,12 +1,13 @@
 # Surface syntax + LSP — design exploration (yc-first)
 
-> **Status (2026-06-09): exploration, no implementation.** Captures the
-> design decision-map for giving `yc` (`yelu_cmake`) a higher-fidelity
-> surface and a language server, with an eye to later reusing the same
-> framework for `ycn` and other yelu packs. Scope is deliberately
-> **yc-first**: solidify the library / span / deployment / testing
-> choices on one language before generalizing. Sibling topic to the
-> behavior-level oracle — see "Two halves" below.
+> **Status: largely shipped.** §§0–7 were written 2026-06-09 as the design
+> decision-map for giving `yc` (`yelu_cmake`) a higher-fidelity surface and a
+> language server; the choices they argue for were then built and are recorded
+> as the shipped pipeline in **§8** (highlighter → CST → lower → formatter →
+> LSP, all landed 2026-06-10..21; Tier (b) retired the legacy parser
+> 2026-07-16). Read §§0–7 as the *rationale* and §8 as *what exists*. The
+> framework was deliberately **yc-first**, to be reused for `ycn` later.
+> Sibling topic to the behavior-level oracle — see "Two halves" below.
 
 ## 0. Framing — the two halves of "is yelu a real language"
 

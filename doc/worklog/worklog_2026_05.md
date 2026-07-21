@@ -1,8 +1,8 @@
 # Yelu Worklog — May 2026
 
 Implementation history for the `yelu_tiny` composition harness.
-For current TODO see `yelu_tiny/status.md`; for project-wide
-context see `yelu_project_overview.md`.
+For current TODO see [`../yelu_cmake/status.md`](../yelu_cmake/status.md); for project-wide
+context see [`../project_overview.md`](../project_overview.md).
 
 ---
 
@@ -407,8 +407,8 @@ Bar #3-lite static round-trip declared complete and archived:
   "dynamic-only" items genuinely require cmake evaluation.
   Verdict: claim holds.
 - Audit-ready report preserved as-is at
-  [`../probes/parse_print_oracle.md`](../probes/parse_print_oracle.md)
-  with an archived banner.
+  `probes/parse_print_oracle.md` (later deleted; the closure is captured in
+  worklog_2026_06.md).
 - Forward tracking moved to
   [`../yelu_cmake/status.md`](../yelu_cmake/status.md). Lead
   next item: **behavior-level oracle** (formerly "Bar #3-full")

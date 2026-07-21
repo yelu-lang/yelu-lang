@@ -36,8 +36,9 @@ src/langs/yelu/
 The legacy-to-yelu_cmake bridge lives in
 `src/langs/yelu_legacy/yelu_cmake_legacy_bridge.ml`. The new code
 in `src/langs/yelu/` does not import it; it remains callable from
-the byte oracle in `test_yelu_compile.ml` and the pair-wise oracle
-in `test_yelu_cmake_parse.ml`.
+the still-live byte oracle in `test_yelu_compile.ml` (vs
+`Lang_yelu_compile`, covered=194). (The pair-wise-vs-legacy oracle in
+`test_yelu_cmake_parse.ml` retired with the legacy parser.)
 
 ### `yelu_cmake.ml`
 
@@ -139,20 +140,22 @@ command shape become in the IR".
 
 ### `yelu_parse.ml`
 
-Concrete-syntax parser (Angstrom-based) that consumes the shared
-`Yelu_lexer` tokens and produces `yelu_cmake.expr` directly. Covers
-all 12 cmake command families with per-family dispatchers
-(`p_var_stmt_y1`, `p_target_command_y1`, `p_string_command_y1`, …).
+**No longer a parser** (since Tier (b), 2026-07-16). It is the per-command
+argument-interpretation library: one `p_<family>_command_inner : string →
+expr list → (string * expr) list → expr option` per cmake command family,
+which `Yc_cst_lower.lower_command` dispatches to over the CST. The
+token-level Angstrom grammar it used to hold was deleted in the sweep
+(`cf69703`).
 
-The pair-wise oracle in `test_yelu_cmake_parse.ml` asserts that
-`source → Yelu_parse → emit_ast` produces byte-identical text vs
-`source → Lang_yelu_parse → Yelu_cmake_legacy_bridge → emit_ast`
-across 125 covered cases. Four legacy-parser bugs surfaced but
-deferred — see status.md.
+Per-command goldens in `test_yelu_cmake_parse.ml` pin
+`source → parse_yc → emit_ast` output. These were frozen from the old
+pair-wise-vs-legacy oracle when it was last green; that oracle retired with
+the legacy parser (once both sides are one path the comparison is a
+tautology). The command-coverage lock there now requires a case per command.
 
 ### `yelu_lexer.ml`
 
-Lexer / tokenization shared by both parsers. Historically named
+Lexer / tokenization. Historically named
 `Lang_yelu_lexer` (and re-relocated in items E-lite and G); the
 module is now in `src/langs/yelu/` since it's shared infrastructure
 that survives any future legacy deletion. The legacy parser in
@@ -293,10 +296,10 @@ test/test-runcmake/
 └── test_runcmake_yelu.ml           stdout-equiv against reference             (50)
 ```
 
-Parser tests (`test/test-yelu/test_yelu_cmake_parse.ml`, 295 incl.
-125 pair-wise oracle cases) and compile tests
-(`test/test-yelu/test_yelu_compile.ml`, 194) both verify byte-
-identical text against the legacy compile output.
+Parser tests (`test/test-yelu/test_yelu_cmake_parse.ml`, 312 — per-command
+emit goldens on the production CST path + the command-coverage lock) and
+compile tests (`test/test-yelu/test_yelu_compile.ml`, 194 — the still-live
+byte oracle against the legacy `Lang_yelu_compile` output).
 
 ## Cross-references
 

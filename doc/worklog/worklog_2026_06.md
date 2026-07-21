@@ -462,7 +462,7 @@ last-wins vs accumulate, install(TARGETS) probed against cmake 4.3.1).
 express turned out to be exactly the metaprogramming/nested corners that belong
 in the raw bucket — the design's edges line up with cmake's genuinely-dynamic
 ones. Next phase (labeled-only — remove positional parsing) tracked in
-[`../lang/surface_status.md`](../lang/surface_status.md) § Open decisions.
+[`../lang/surface_lsp_framework.md` §8](../lang/surface_lsp_framework.md) § Open decisions.
 
 ## 2026-06-19: Step 2 — labeled-only surface (positional reject) + deferred commands cleared
 
@@ -573,7 +573,7 @@ catches typos in compile too now. Caught a real `funs` → `fun` typo on
 [`probes/fmt/main.yc`](../../probes/fmt/main.yc) line 13 as a side
 effect of the rollout, fixed in the same commit. Plan continuation
 (soak the emit-bridge oracle, then delete the legacy parser entirely) in
-[`../lang/surface_status.md`](../lang/surface_status.md) Tier (b).
+[`../lang/surface_lsp_framework.md` §8](../lang/surface_lsp_framework.md) Tier (b).
 
 **Editor tooling (the macOS side).** `yelu-lsp` exe builds against the
 yojson-3 `linol` fork (pinned via `opam pin git+https://github.com/arbipher/linol#main`);
@@ -592,7 +592,7 @@ recommended development flow. Reload Window picks up LSP rebuilds.
   examples.
 - [`../yelu_cmake/discovered_cache.md`](../yelu_cmake/discovered_cache.md)
   — the driver-level pattern doc.
-- [`../lang/surface_status.md`](../lang/surface_status.md) — Tier (b)
+- [`../lang/surface_lsp_framework.md` §8](../lang/surface_lsp_framework.md) — Tier (b)
   active with 7-step plan + status; legacy parser retirement is the
   forcing function.
 

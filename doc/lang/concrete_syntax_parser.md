@@ -1,10 +1,14 @@
 # Yelu Concrete Syntax — Parser
 
-> Status: **Implemented** (2026-05-04; renamed to `yelu_lexer.ml` /
-> `yelu_parse.ml` during retirement, 2026-05-14). Two-pass architecture:
-> Angstrom lexer produces `token list`, pure OCaml parser over tokens.
-> Now part of the production path; integrated into `dune test` (~1,010
-> unit tests pass).
+> **Historical (2026-05-04) — describes the retired token-level parser.**
+> The two-pass architecture below (Angstrom lexer → `token list` → pure OCaml
+> parser over tokens) was the production parser until Tier (b) (2026-07-16)
+> replaced it with the CST path: `Yc_cst_parse` (text → CST) →
+> `Yc_cst_lower` (CST → IR). The token-level grammar in `yelu_parse.ml` was
+> deleted (`cf69703`); that file is now the per-command `_inner` library. For
+> the *current* parse/format/LSP pipeline see
+> [`surface_lsp_framework.md`](surface_lsp_framework.md) §8. This doc is kept
+> for the lexer/token design (still accurate) and the two-pass rationale.
 
 ## Architecture
 
@@ -43,7 +47,7 @@ consuming it.
 | `src/langs/yelu/yelu_lexer.ml` | ~160 | Token type, Angstrom lexer, whitespace/comment handling |
 | `src/langs/yelu/yelu_parse.ml` | ~350 | Pure OCaml parser over token list, statement/expression/condition parsing |
 | `test/test-yelu/test_yelu_lexer.ml` | ~80 | lexer tests |
-| `test/test-yelu/test_yelu_cmake_parse.ml` | — | parser tests + pair-wise oracle vs legacy parser |
+| `test/test-yelu/test_yelu_cmake_parse.ml` | — | per-command emit goldens on the production CST path + command-coverage lock (the pair-wise-vs-legacy oracle retired with the legacy parser) |
 
 ## Token type
 

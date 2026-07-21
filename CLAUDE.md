@@ -270,6 +270,16 @@ work). Details in `doc/worklog/worklog_2026_05.md` and
 
 ### Type system (key types in `lang_yelu_cmake.ml`)
 
+> **Retired / reference-only.** This section and § Compositional checking below
+> describe the **legacy** per-fragment typed checker (`Stage_typecheck` /
+> `CHECKER_BASE`, in `src/langs/yelu_legacy/`), which was retired with the
+> legacy production AST (up to E1, 2026-05-14). Production static checking is
+> now the **wellform** pass (`Yc_wellform`, six CST/expr checks — see
+> `project_overview.md` § Layered checking). A fresh typing pass over the
+> post-retirement IR is **Y17** (placement settled: ycn, per
+> `doc/lang/yc_ycn_boundary.md`). The design below is kept because it is the
+> substrate Y17 builds on, not because it runs today.
+
 - **`tc_name = { ns : cmake_namespace; name : string }`** — unified cmake named entity.
   `ns` is one of `Ns_var | Ns_target | Ns_cache | Ns_env | Ns_command | Ns_module |
   Ns_test | Ns_export | Ns_property | Ns_unknown`.

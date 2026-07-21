@@ -2,7 +2,7 @@
 
 ## Current State
 
-The `yelu_genex` type in `lang_yelu.ml` covers ~15 operators:
+The `yelu_genex` type (in the legacy `src/langs/yelu_legacy/lang_yelu.ml`; the design carries over) covers ~15 operators:
 
 | Constructor | Genex |
 |---|---|
