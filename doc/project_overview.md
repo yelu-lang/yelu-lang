@@ -328,6 +328,27 @@ the wrong-shaped `~properties=` silent drop (`Malformed_kwarg`, `1db4bd6`).
 
 ## Documentation Map
 
+**Layout (by layer, then facet):**
+
+```
+doc/
+  (top)         project meta: status, project_overview, manifesto, infra_test
+  cmake/        the TARGET language — raw cmake semantics reference (empirically pinned)
+  yelu_cmake/   OUR language — everything about yc + ycn:
+    surface/      the .yc surface: syntax design, casing, LSP/formatter, command reference
+    ir/           the IR harness: module structure, driver, IR tiers, convert, io, discovered-cache
+    typing/       Y17 substrate: typed-AST design, yc/ycn boundary, theory-split
+    ycn/          ycn (the normalized form) — concrete-syntax design
+    (top)         status backlog, hybrid strategy, misc language design
+  research/     research framing (speculative)
+  worklog/      chronological history
+  archive/      retired / historical write-ups (nothing current)
+```
+
+Rule of thumb: cmake-the-target → `cmake/`; anything about the yelu language →
+`yelu_cmake/<facet>`. New doc? pick the facet; if it's genuinely cross-cutting
+language design it goes at `yelu_cmake/` top.
+
 | File                                       | Purpose                                                            |
 | ------------------------------------------ | ------------------------------------------------------------------ |
 | `status.md`                                | **In-flight work + immediate queue only** (self-expiring). Start here when resuming. |
