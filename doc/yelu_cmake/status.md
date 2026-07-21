@@ -1,43 +1,22 @@
-# yelu_cmake — Status & Current Open Work
+# yelu_cmake — Open Work & Backlog
 
-Living tracker. Strip and update freely; durable design is in
-`design.md`, code-anchored module guide in `structure.md`,
-side-by-side comparison of `yelu_cmake` and `yelu_cmake_normal`
-ecosystem coverage in `cmake_vs_normal.md`, chronological history
-(retirement archive + Bar #3-lite audit trail) in
-`../worklog/worklog_2026_05.md` and `../worklog/worklog_2026_06.md`.
-
-## Current state (2026-05-31)
-
-- **Bar #3-lite static round-trip — shipped, audit-ready.** STRUCT=0 /
-  FORMAT=0 across tutorial (25/25), z3 (108/108), llvm (596/596).
-  Two-tier Class A name accounting (project + cmake-stdlib `Modules/`)
-  shipped 2026-05-31. Full report archived at
-  [`worklog_2026_06.md`](../../doc/worklog/worklog_2026_06.md); milestone arc in
-  [`../worklog/worklog_2026_05.md`](../worklog/worklog_2026_05.md)
-  ("Bar #3-lite" section).
-- **Tier 1–4 IR-printer cleanup — shipped.** 16 commits, 358 generic
-  shapes converted to modeled (z3 +67, llvm +291). Per-tier detail
-  archived in `worklog_2026_05.md` ("IR-printer cleanup" section).
-- **Retirement of `src/langs/yelu_legacy/` through E1 — shipped.**
-  Production routes through
-  `Yelu_cmake_utils → Yelu_cmake → Yelu_cmake_emit → Lang_cmake_pp`.
-  `src/langs/yelu_legacy/` excluded from the `yelu_langs` library;
-  no `src/` or `test/` file imports it.
-
-Verification baseline:
-- ~994 unit tests pass
-- 50/50 `make runcmake-yelu`
-- 12/12 `make cmake-only-check`
-- 12 step tests pass
-- `make cmake-commands` broken pre-E1 (unrelated cmake build issues);
-  not blocking.
-
-Parser coverage: 277 tests (126 inline-golden + 151 smoke),
-~90 commands across all 14 theories. Catch-all for unknowns →
-ECmakeApply, yc_raw fallback for known commands with dynamic args.
-fmt probe: 11/11 .yc files compile, 24/24 matrix cells pass, 3 raw escapes
-(all dynamic visibility). See `probes/fmt/README.md`.
+> **Role.** This is the durable **backlog + open-work / gaps registry** for the
+> yelu_cmake harness (forward design work, IR-shape gaps, the post-retirement
+> cleanup list, deferred loader work, known bugs). It is *not* the
+> immediate-in-flight tracker — that is [`../status.md`](../status.md), which
+> is short and self-expiring. Two files, two granularities: `../status.md`
+> answers "what is being worked on this week"; this answers "what is the
+> standing yelu_cmake backlog." Durable design is in `design.md`; code-anchored
+> module guide in `structure.md`; yc↔ycn coverage in `cmake_vs_normal.md`;
+> chronological history in `../worklog/worklog_2026_05.md` and
+> `../worklog/worklog_2026_06.md`.
+>
+> Shipped milestones (Bar #3-lite static round-trip, the Tier 1–4 IR-printer
+> cleanup, E1 legacy retirement, the cache + `-D` work) are recorded in the
+> worklogs and in `../project_overview.md` § Project-level milestones — they
+> used to be snapshotted here (frozen at 2026-05-31, ~994 tests) but that
+> snapshot is dropped to keep this file forward-only. Current test totals live
+> in `../project_overview.md` (~1034 unit).
 
 ## Architecture TODO: eval-before-emit resolve pass
 
@@ -56,8 +35,7 @@ The `yelu_cmake_eval.ml` evaluator already exists and is used by the matrix
 oracle (`.ml` path). It has not yet been wired into the `.yc` → emit
 pipeline.
 
-Related: IR fidelity tiers in [`ir_tiers.md`](ir_tiers.md).
-4 tiers (typed → cmake_lang → yc_raw → yc_apply)
+Related: the 4 IR fidelity tiers (typed → cmake_lang → yc_raw → yc_apply)
 in [`ir_tiers.md`](ir_tiers.md).
 
 ## Open work — forward
@@ -223,8 +201,8 @@ overlap and would be closed by the same cleanup pass.
   decimal.
 - **JSON ops** — `ECmakeStringJson` is opaque (op_name + path
   dropped). Helpers `failwith`.
-- **Parser sentinel defaults** — `out_var_y1` `"?"`,
-  `cvar_name_of_y1` `"?"`, `expr_to_int_y1` `0` fallback,
+- **Parser sentinel defaults** — `out_var` `"?"`,
+  `cvar_name_of` `"?"`, `expr_to_int` `0` fallback,
   `string_uuid` `"ns"`/`"n"` placeholders, `cmake_minimum_required`
   `"3.20"` fallback, `project` `"Project"` fallback,
   `policy_set` `""` fallback. Vestigial from byte-equality with
@@ -268,14 +246,14 @@ In order of value:
    (`EVar`, `EString`, `EBool`, `EInt`, `ESeq`, `ELet`,
    `ESetVar`, `EUnit`) staying in a small shared core. Pairs
    with item 6 and Y17.
-8. **Parser family dispatch split (`yelu_parse.ml`, ~2.1 k lines).**
-   One file with 12 family parsers + dispatch + shared helpers
-   (`str_of`, `collect_command_args`, `split_by_keywords`,
-   `fallback_to_raw`) and mutually-recursive dispatch. Options:
-   (A) per-family `.ml` + shared `yelu_parse_util.ml`; (B) keep whole
-   with banner sections + TOC; (C) defer until the parser stabilizes.
-   **Recommended: defer (C)** — the parser is still growing and a split
-   adds friction to each new command family.
+8. **Parser family split (`yelu_parse.ml`, ~1.5 k lines).**
+   Post-Tier-b this is the per-command `_inner` library (12
+   `p_<family>_command_inner` + shared helpers `str_of`,
+   `split_by_keywords`, `out_var`, `p_cmake_entity`), dispatched by
+   `Yc_cst_lower`. Options: (A) per-family `.ml` + shared
+   `yelu_parse_util.ml`; (B) keep whole with banner sections + TOC;
+   (C) defer until the surface stabilizes. **Recommended: defer (C)** —
+   still growing (a split adds friction to each new command family).
 9. **CLI driver split (`yelu.ml`, ~600 lines).** Move reusable logic
    into library modules. Independent of the language layer. **Defer**
    until the driver gains a second major subcommand or ~200 more lines.
@@ -379,9 +357,6 @@ because the test is skipped.
     `-D` channel is the single-configure proxy.
 - Process-env namespace (`set(ENV{FOO} val)` / `$ENV{FOO}`) — routes to
   a no-op in eval; needs an I/O callback.
-- Generator expressions as delayed values (currently flow as
-  opaque `EString`s via `Ycs_eval`; real cmake handles them at
-  generate time).
 - Generator expressions as delayed values (currently flow as
   opaque `EString`s via `Ycs_eval`; real cmake handles them at
   generate time).

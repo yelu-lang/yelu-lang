@@ -100,7 +100,7 @@ Small, independent, and safe to pick up in any order. Each is a *surface* item
 | project-wide audit | [`project_overview.md`](project_overview.md) |
 | surface / formatter / LSP **design** (incl. the shipped pipeline, §8) | [`lang/surface_lsp_framework.md`](lang/surface_lsp_framework.md) |
 | yc syntax design + open items | [`lang/yc_syntax_critique.md`](lang/yc_syntax_critique.md) |
-| yelu_cmake harness tracker | [`yelu_cmake/status.md`](yelu_cmake/status.md) |
+| yelu_cmake harness backlog / open-work registry | [`yelu_cmake/status.md`](yelu_cmake/status.md) |
 | numbered backlog (Y2…Y18) + handoff | [`../CLAUDE.md`](../CLAUDE.md) |
 | layer triage rule (yc vs ycn) | [`lang/yc_ycn_boundary.md`](lang/yc_ycn_boundary.md) |
 
