@@ -333,8 +333,7 @@ preserve: genex") that's open in the project TODO.
   constructors live.
 - [`../lang/lang_design.md`](../lang/lang_design.md) — broader
   language-design tradition this builds on.
-- [`../lang/concrete_syntax_parser.md`](../lang/concrete_syntax_parser.md) +
-  [`../lang/surface_lsp_framework.md`](../lang/surface_lsp_framework.md) §8 —
+- [`../lang/surface_lsp_framework.md`](../lang/surface_lsp_framework.md) §8 —
   yc's concrete-syntax + parser/formatter pipeline; the same template applies
   to ycn. (The old `syntax_tiers.md` tier plan was retired — superseded by the
   parser tests + probes.)

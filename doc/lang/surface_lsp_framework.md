@@ -635,8 +635,9 @@ workspace file. If the extension is ever reinstalled, re-symlink.
 
 - [`../yelu_cmake/driver.md`](../yelu_cmake/driver.md) — the uniform
   per-language op interface the LSP plugs into.
-- [`concrete_syntax_parser.md`](concrete_syntax_parser.md) — the
-  implemented two-pass `yc` parser this builds on.
+- [`../archive/concrete_syntax_parser.md`](../archive/concrete_syntax_parser.md)
+  — history: the retired two-pass token parser this evolved from (§8 is the
+  current pipeline).
 - [`../yelu_cmake/ycn_concrete_syntax.md`](../yelu_cmake/ycn_concrete_syntax.md)
   — surface-syntax design notes for `ycn`; the generalization target.
 - [`lang_design.md`](lang_design.md), [`typed_design.md`](typed_design.md)

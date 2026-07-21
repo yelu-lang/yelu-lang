@@ -89,95 +89,51 @@ express were exactly these metaprogramming/nested corners.
 **`?key=default`** reserved for later optional-with-default function params
 (arrives with `cmake_parse_arguments` codegen, not now).
 
-## Status — no-ALL_CAPS pass ✅ complete (2026-06-19)
+## Both surface passes complete
 
-The `~`-half shipped across every command in `probes/fmt/main.yc`; the full arc
-and commits are in [worklog 2026-06](../worklog/worklog_2026_06.md). The corpus
-now reads as `~flag` / `~label=value` / `~label=[list]` / `~properties={record}`
-or explicit `yc_raw`. Empirical cmake ground truth (repeated-keyword last-wins
-vs accumulate) recorded as [painpoints.md §11](../cmake/painpoints.md).
+The **no-ALL_CAPS `~`-half** and the **labeled-only Step 2** both shipped
+(2026-06-19): the corpus reads as `~flag` / `~label=value` / `~label=[list]` /
+`~properties={record}` or explicit `yc_raw`; positional cmake-keyword forms are
+a compile error (reject, not raw); `fmt` is pass-through. Full arc + commits in
+[worklog 2026-06](../worklog/worklog_2026_06.md); machinery in
+[`surface_lsp_framework.md`](surface_lsp_framework.md) §8; empirical cmake
+ground truth (repeated-keyword last-wins vs accumulate) in
+[painpoints.md §11](../cmake/painpoints.md).
 
-**Verification reminder:** `yelu matrix probes/fmt` (real cmake configure) is the
-only oracle that catches emit-invalid cmake — it is **NOT** part of `dune test`
-(which compares parse paths to each other). Run it after any emit-touching
-change. (A property-family regression shipped 0/24 yet green-on-`dune test`
-because the matrix wasn't run; fixed `f1296a4`.)
+> **Verification reminder:** `yelu matrix probes/fmt` (real cmake configure) is
+> the only oracle that catches emit-invalid cmake — it is **NOT** in `dune
+> test` (which compares parse paths to each other). Run it after any
+> emit-touching change. (A property-family regression once shipped 0/24 yet
+> green-on-`dune test` because the matrix wasn't run; `f1296a4`.)
 
-## Open / remaining
+## Open threads
 
-- ✅ **Labeled-only pass — done (2026-06-19).** Positional cmake-keyword forms
-  are a compile error (reject, not raw); `fmt` is pass-through. Every command
-  with a labeled surface is labeled-only; the deferred list is cleared. Arc in
-  [worklog 2026-06](../worklog/worklog_2026_06.md); machinery in
-  [`surface_lsp_framework.md`](surface_lsp_framework.md) §8.
-- **Surface polish (noted 2026-06-19, no hurry):**
-  - **version literal** — `cmake_minimum_required '3.8...3.25'` smuggles a cmake
-    `min...max` sub-grammar inside a string. Make a version a first-class
-    *unquoted literal* (`cmake_minimum_required 3.8...3.25`); a lexer token for
-    `N(.N)*(...N(.N)*)?`. Generalizes to `find_package` /
-    `write_basic_package_version_file` versions.
-  - **per-mode message commands** — terse aliases for the common modes
-    (`message_fatal` / `message_warning` / `message_status` / maybe
-    `message_debug`) desugaring to `message ~mode=…`, since the mode is the
-    prominent token. Curated subset only (not CHECK_*/AUTHOR_WARNING). Additive
-    sugar over the `~mode=` general form. (Rationale + boundary in
-    [`casing_design.md`](casing_design.md).)
-- **Code cleanup (noted 2026-06-19):**
-  - **`Apply_shadows_primitive` check holes** — `command_names`
-    ([`yc_primitives.ml`](../../src/langs/yelu/yc_primitives.ml)) is missing
-    `add_custom_command` (so `ECmakeApply "add_custom_command"` slips through);
-    and the error is surfaced only as a buried generic warning, unlike
-    `Raw_cmake_escape` / `Positional_form`. Give it a first-class message.
-    (Raw-cmake-name applys like `install`/`file`/`cmake_policy` can't be caught
-    by name — only proper re-encoding fixes those.) Note: `command_names` is
-    co-truth-locked to the manifest, so any addition needs `Yc_manifest` +
-    `dune promote`.
-  - **`Yelu_emit_main` orphaned** — the legacy OCaml-DSL whole-file emitters
-    (`probes/fmt/{main,test_main,compile_error_test}.ml`) were retired
-    (superseded by the `.yc` corpus); `Yelu_emit_main` now has no code
-    consumers (only `probes/fmt/migration_status.md` references it). Retire
-    candidate.
-- **Postponed structured forms:**
-  - shape-4 install_targets artifact **records** (`~library={destination=…}`) —
-    the dotted-label stopgap + the metaprogramming guard stand for now;
-  - get_property **`~mode=Defined`** micro-slice (the trailing `SET`/`DEFINED`/
-    `BRIEF_DOCS`/`FULL_DOCS` flag-as-kwarg-enum; ~30 lines, only get_property);
-  - **function labeled args** (`fun f(~x)`, call `f ~x='v'`) — a real feature
-    (yc `fun`→cmake `function()`, needs generated `cmake_parse_arguments`);
-    ties to **Y15**.
-- **Parked redesigns** (layer placement per
-  [`yc_ycn_boundary.md`](yc_ycn_boundary.md) — *yc = erases to cmake; ycn =
-  needs a value/type model*):
-  - **uniform metaprogramming / raw-escape** story — unify `yc_raw` /
-    `ECmakeRaw` / `ECmakeRawCmd` / hybrid `raw_cmake` into one "opaque cmake
-    code" model. **yc** (it's about opacity, not values). Now unblocked (the
-    pass is done).
-  - **value-default inversion** (bare `foo` = the value) → belongs in **ycn**,
-    needs a frequency study ([`var_centric_design.md`](var_centric_design.md)).
-  - **dotted globals** (`$cmake.version`) — the corpus falsified "all-caps =
-    global"; real namespacing → **ycn** ([`casing_design.md`](casing_design.md)).
-  - **records as first-class values** (bind / pass / project a `{…}`) → **ycn**.
-    The record *literal* as argument syntax (`~properties={k=v}`, and the
-    queued shape-4 `~library={…}`) stays **yc** — it erases to a keyword run.
-    The boundary is the value flow, not the braces.
-- **Latent bugs (matrix-invisible today):**
-  - ~~literal-target `${}` **deref** in `set_target_properties` (and
-    install_targets target names)~~ — **fixed** by honest emit (`a57bcf4`):
-    an unresolved bare `EVar` renders as a literal in all five renderers, so
-    the deref (and the slot-dependent coercion behind it) is gone.
-  - **duplicate single-value field → reject** (Y14 pattern, painpoints #11) for
-    the record / dotted-label forms. (The adjacent *wrong-shaped* `~properties=`
-    silent drop — a list where a record is required — is now **fixed**: a fatal
-    `Malformed_kwarg` CST check, `1db4bd6`. `Unknown_kwarg` couldn't see it
-    because the key is valid; only the value shape was wrong.)
-  - `string_json` with an unrecognized op fails at **emit** time
-    (`emit_ast: unknown string(JSON ...) op`) rather than as a wellform
-    diagnostic. Reported cleanly, but on the wrong surface.
-- **Minor / cosmetic:** ~~specialized getters~~ (removed 2026-07-20 — the
-  text surface is gone, the IR ctors stay for programmatic users) · cache
-  docstring `~doc:` · property cache-semantics test (Value vs SET vs DEFINED)
-  · **Y18** first-class object value
-  ([`object_value_design.md`](object_value_design.md)).
+The concrete surface-polish backlog (version literal, per-mode `message_*`,
+`~mode=Defined`, shape-4 records, function labeled args, `~doc:`, the
+`Apply_shadows_primitive` message, …) is the task list in
+[`../status.md`](../status.md) § Parked — this doc keeps only the design
+*rationale* behind them.
+
+Two design directions worth stating here (the rest are one-liners in the
+tracker):
+
+- **Metaprogramming → raw, not bespoke syntax.** Term-valued splices
+  (`$INSTALL_FILE_SET` → `FILE_SET;fmt;DESTINATION;…`) can't be one
+  `~key=value`, so they live in the `yc_raw` escape bucket. The convergence
+  worth noting: the only corpus lines the labeled surface couldn't express were
+  exactly these. Unifying the raw-escape constructors into one opaque model is
+  parked into ycn (it needs ycn's opacity story; see
+  [`../status.md`](../status.md) § Raw-escape).
+- **Records: literal is yc, value is ycn.** The record *literal as argument*
+  (`~properties={k=v}`, the queued shape-4 `~library={…}`) stays **yc** — it
+  erases to a keyword run. Records as *first-class values* (bind / pass /
+  project a `{…}`), value-default reads, and dotted globals need a value/type
+  model → **ycn**, per [`yc_ycn_boundary.md`](yc_ycn_boundary.md). The boundary
+  is the value flow, not the braces.
+
+(Several latent emit bugs that this section used to track — the literal-target
+`${}` deref, the wrong-shaped `~properties=` silent drop — were fixed in the
+2026-07 honest-emit / `Malformed_kwarg` work.)
 
 ## Related
 

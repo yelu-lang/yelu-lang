@@ -340,7 +340,7 @@ the wrong-shaped `~properties=` silent drop (`Malformed_kwarg`, `1db4bd6`).
 | `lang/lang_coverage.md`                    | cmake **test-suite** coverage map (RunCMake/CMakeOnly tractability, Y11 blockers). The yc-command rows moved to the generated reference. |
 | `lang/yc_ycn_boundary.md`                  | Layer triage rule: yc erases to cmake; ycn needs a value/type model. Settles Y17/Y18 placement. |
 | `lang/typed_design.md`                     | Type system design space (deferred; Y17 substrate).                |
-| `lang/concrete_syntax_parser.md`           | Implemented two-pass parser (Angstrom + pure OCaml).               |
+| `archive/concrete_syntax_parser.md`        | **Archived** — the retired token-level parser (history). Current parser: `surface_lsp_framework.md` §8. |
 | `lang/surface_lsp_framework.md`            | Surface + LSP design. §3 decision map (parser library, error recovery, deployment, testing). §8 the **shipped pipeline** (form graph, migration discipline, testing strategy, VS Code deployment gotcha) — absorbed from the retired `surface_status.md`. §7.5 wellform diagnostics — full per-check table, open/closed-world rule for `Unknown_command`, surfacing channels. |
 | `lang/yc_syntax_critique.md`               | yc surface critique + the design that fixed it. Both surface passes archived; remaining open polish items at the bottom. |
 | `lang/casing_design.md`                    | Casing lanes — enum constructors leading-cap, dotted globals, locals, Y14 reject. Shipped 2026-06-12..19. |

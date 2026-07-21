@@ -78,6 +78,10 @@ acceptance corpus already exists (65 hand-written ycn programs in
 Small, independent, and safe to pick up in any order. Each is a *surface* item
 (no IR impact) unless noted.
 
+*Surface-syntax design rationale for these lives in
+[`lang/yc_syntax_critique.md`](lang/yc_syntax_critique.md); this is just the
+task list.*
+
 | item | note |
 | --- | --- |
 | **B2 — token spans on wellform findings** | Findings carry a name, not a span; the LSP scans for the first whole-word match. Heuristic but practical. The located lexer already provides what's needed. |
@@ -86,11 +90,23 @@ Small, independent, and safe to pick up in any order. Each is a *surface* item
 | **Cross-file collect** | The LSP sees one file at a time, so `function`/`macro` declarations behind `include`/`add_subdirectory` read as unknown. Would kill the last open-world false-positive class. |
 | **"Did you mean X?"** | Levenshtein against `command_names ∪ defined_names`; cheap addition to the `Unknown_command` text. |
 | **Manifest `ctor` column** | Populate + test-lock now that `lower` makes the surface↔constructor link verifiable. |
-| **Version literal** | `find_package Foo '9.0'` — the bare version positional is still accepted-and-dropped. |
-| **Per-mode `message_*`** | vs today's `~mode=`. |
-| **Duplicate single-value field → reject** | Y14 pattern (painpoints #11) for record / dotted-label forms. Adjacent: a wrong-*shaped* `~properties=` (list where a record is expected) is silently dropped — `Unknown_kwarg` can't see it, the key is valid. |
+| **Version literal** | `cmake_minimum_required 3.8...3.25` / `find_package Foo '9.0'` — a first-class unquoted version literal (lexer token `N(.N)*(...N(.N)*)?`); the bare version positional is currently accepted-and-dropped. |
+| **Per-mode `message_*`** | terse `message_fatal`/`_warning`/`_status` aliases desugaring to `~mode=` (curated subset). |
+| **`get_property ~mode=Defined`** | the trailing `SET`/`DEFINED`/`BRIEF_DOCS`/`FULL_DOCS` flag-as-kwarg-enum; ~30 lines, get_property only. |
+| **shape-4 install_targets records** | `~library={destination=…}` — the dotted-label stopgap stands; the record form is the postponed upgrade. |
+| **function labeled args** | `fun f(~x)` / call `f ~x='v'` — needs generated `cmake_parse_arguments`; ties to **Y15**. |
+| **`Apply_shadows_primitive` first-class message** | the check fires only as a buried generic warning, unlike `Raw_cmake_escape`/`Positional_form`; give it its own message. (`add_custom_command` gap already fixed, `d60190f`.) |
+| **Duplicate single-value field → reject** | Y14 pattern (painpoints #11) for record / dotted-label forms. (The adjacent wrong-*shaped* `~properties=` silent drop is fixed — `Malformed_kwarg`, `1db4bd6`.) |
+| **cache docstring `~doc:`** + **property cache-semantics test** (Value vs SET vs DEFINED) | small cosmetics. |
 | **`string_json` unknown op** | Fails at emit (`emit_ast: unknown string(JSON …) op`) rather than as a wellform diagnostic. Right error, wrong surface. |
 | **"Belief" definition** | Shapes the `check` op's output type — flat diagnostics vs a richer fact stream the LSP renders. See `lang/surface_lsp_framework.md` §4. |
+
+**ycn-ward redesigns** (not surface polish — need a value/type model, so they
+belong to the ycn agenda per [`lang/yc_ycn_boundary.md`](lang/yc_ycn_boundary.md)):
+records-as-first-class-values, value-default reads (bare `foo` = value), dotted
+globals (`$cmake.version`). Design context in
+[`lang/yc_syntax_critique.md`](lang/yc_syntax_critique.md) and
+[`lang/var_centric_design.md`](lang/var_centric_design.md).
 
 ## Where the durable records live
 
