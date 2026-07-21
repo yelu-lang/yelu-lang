@@ -203,8 +203,8 @@ kept separate because their implementations are architecturally different.
 
 | Stage           | Checks                                                                                            | Status                                                                                 |
 | --------------- | ------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| **`typecheck`** | Expression-level type constraints: bool where string expected, path vs string, cache type mapping | ✅ done per-theory; see theory table below                                              |
-| **`wellform`**  | Name binding: cvar/target declared before use; cross-theory reference checks                      | ⏳ not started; needs a whole-program pass separate from per-theory fragments           |
+| **`typecheck`** | Expression-level type constraints: bool where string expected, path vs string, cache type mapping | retired (was per-theory `Stage_typecheck`; the fresh pass is **Y17** → ycn)             |
+| **`wellform`**  | Name binding: cvar/target declared before use; cross-theory reference checks                      | ✅ shipped 2026-05-04 (`Yc_wellform`, six checks — see project_overview § Layered checking) |
 | **`effect`**    | cmake execution-mode constraints: `target_*` only in configure mode                               | ⏳ not started; requires execution-mode context in checker                              |
 | **`lower`**     | Structural validity during AST → cmake lowering                                                   | ⚠️ partial — compiler panics on malformed input but has no systematic pass              |
 | **`configure`** | `REQUIRED` find_package fails, `math(EXPR)` malformed, policy violations                          | ✅ covered by `make runcmake-compat` and `make file-api-test` (observed, not predicted) |

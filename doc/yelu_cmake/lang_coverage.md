@@ -24,7 +24,7 @@ Runtime: cmake 4.3.1 (`/usr/bin/cmake`, Kitware apt).
 
 | Axis                      | Metric                                     | Done               | Ceiling   | Notes                                                                                     |
 | ------------------------- | ------------------------------------------ | ------------------ | --------- | ----------------------------------------------------------------------------------------- |
-| **Test depth**            | text unit tests                            | ~1,010             | unbounded | full `dune test` total; pre-retirement number was 266 (72+194) |
+| **Test depth**            | text unit tests                            | ~1,034             | unbounded | full `dune test` total; pre-retirement number was 266 (72+194) |
 | **Test depth**            | script compat tests                        | 64 / ~67           | ~67       | cmake 4.3 unblocked GET, newline, RegexEmptyMatch, KnownComponents                        |
 | **Test depth**            | script-pair tests                          | 50 / ~65           | ~65       | 12 command groups; remaining gaps blocked                                                 |
 | **Test depth**            | configure tests                            | 23 / ~30           | ~30       | Properties, try_compile, FetchContent, export                                             |

@@ -77,11 +77,13 @@ would reuse the control side and contribute its own theory set.
 | `configure` | cmake itself validates the output                    | RunCMake compat (50/50) |
 | `round-trip` | tree-sitter-cmake re-extracts the same arg sequence | Bar #3-lite (729/729)   |
 
-The earlier per-fragment `Stage_typecheck` + `wellform` passes (legacy
-functor-based implementation) were retired during the May 2026 retirement
-of `src/langs/yelu_legacy/`. The replacement — Y17 ("Types on yelu_cmake")
-— builds on the post-retirement two-language IR and the theory-fragment
-split sketched in [`plan.md`](yelu_cmake/typing/plan.md). The
+The earlier per-fragment `Stage_typecheck` (legacy functor-based
+implementation) was retired during the May 2026 retirement of
+`src/langs/yelu_legacy/`. Production static checking is now the **wellform**
+pass (`Yc_wellform`, six CST/expr checks shipped across compile / fmt / LSP /
+corpus-gate). A fresh *typing* pass over the post-retirement two-language IR is
+**Y17** ("Types on yelu_cmake"), placed in ycn and building on the
+theory-fragment split sketched in [`plan.md`](yelu_cmake/typing/plan.md). The
 syntactic round-trip on real-world cmake is the strongest currently-live
 equivalence oracle.
 
@@ -94,7 +96,7 @@ run), and Bar #3-lite syntactic round-trip on z3 + llvm
 
 **Current state.** Two-language model (`yelu_cmake` /
 `yelu_cmake_normal`) with 14 cmake-faithful + 16 normalized
-theory fragments; ~1,010 unit tests; concrete-syntax parser
+theory fragments; ~1,034 unit tests; concrete-syntax parser
 shipped; Bar #3-lite syntactic round-trip on z3 + llvm shipped
 (STRUCT=0 / FORMAT=0 across 729 files). No CI. See
 [project_overview.md](project_overview.md) for the full audit.
