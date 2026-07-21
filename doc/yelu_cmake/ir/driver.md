@@ -243,7 +243,7 @@ fatals → surfaces consume.
 
 The full per-check semantics for yc — what each finding means and when
 it's fatal — is in
-[`../yelu_cmake/surface/surface_lsp_framework.md`](../surface/surface_lsp_framework.md) §7.5.
+[`surface_lsp_framework.md`](../surface/surface_lsp_framework.md) §7.5.
 
 ## 7. Related
 
@@ -251,5 +251,5 @@ it's fatal — is in
 - [`structure.md`](structure.md) — file-level code map
 - [`cmake_vs_normal.md`](cmake_vs_normal.md) — yc vs ycn feature comparison
 - [`ycn_concrete_syntax.md`](../ycn/ycn_concrete_syntax.md) — proposal for the missing `.ycn` parser
-- [`../../probes/cache_matrix.md`](../../../probes/cache_matrix.md) — matrix oracle methodology
-- [`../worklog/worklog_2026_06.md`](../../worklog/worklog_2026_06.md) — parse-print oracle close (2026-05-31)
+- [`cache_matrix.md`](../../../probes/cache_matrix.md) — matrix oracle methodology
+- [`worklog_2026_06.md`](../../worklog/worklog_2026_06.md) — parse-print oracle close (2026-05-31)

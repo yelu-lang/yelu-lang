@@ -169,7 +169,7 @@ The hand-curated supplement covers cmake C-side builtins that
 
 - [`driver.md`](driver.md) §6.5 — the compile/wellform/format/LSP contract
   that wellform plugs into. The stdlib cache is one input to that pipeline.
-- [`../yelu_cmake/surface/surface_lsp_framework.md`](../surface/surface_lsp_framework.md)
+- [`surface_lsp_framework.md`](../surface/surface_lsp_framework.md)
   §7.5 — the open/closed-world rule for `Unknown_command`. The stdlib
   cache shifts which calls count as "known", which directly affects which
   files compile under closed-world fatal.

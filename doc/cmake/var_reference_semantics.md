@@ -313,5 +313,5 @@ is its first client).
 - [`cache_semantics.md`](cache_semantics.md) — same empirical methodology.
 - [`comparison.md`](comparison.md) — the `;`-list conflation is also noted
   there as a cmake PL property.
-- [`../yelu_cmake/surface/yc_syntax.md`](../yelu_cmake/surface/yc_syntax.md) — string
+- [`yc_syntax.md`](../yelu_cmake/surface/yc_syntax.md) — string
   syntax (`'`/`"`) item #3 interacts with the quote distinction here.

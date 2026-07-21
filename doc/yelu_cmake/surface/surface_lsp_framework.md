@@ -13,13 +13,13 @@
 
 - **Behavior-level oracle** → *dynamic* semantics: runtime output ≡ cmake,
   proven via the File API. Feeds off the driver's `eval`.
-  (See [`../yelu_cmake/status.md`](../status.md) "Open work".)
+  (See [`status.md`](../status.md) "Open work".)
 - **Surface + LSP + ecosystem-semantic** (this doc) → *static* semantics:
   types, "beliefs", and the authoring experience. Feeds off the driver's
   `check`.
 
 Both are **driver ops** over the same uniform interface
-([`../yelu_cmake/ir/driver.md`](../ir/driver.md)), which is why "a
+([`driver.md`](../ir/driver.md)), which is why "a
 framework for the yelu languages" and "the driver motivation" are the
 same bet. The driver is the abstraction boundary the LSP plugs into.
 
@@ -320,7 +320,7 @@ current command manifest. Consequences:
   which is also the most honest acknowledgement that — absent ppx over
   extensible variants — the manifest is curated, not derived;
 - it slots next to `parse / print / eval / compile / check` in
-  [`../yelu_cmake/ir/driver.md`](../ir/driver.md) as a sixth
+  [`driver.md`](../ir/driver.md) as a sixth
   introspection op, applicable later to `ycn` too.
 
 ## 4. ecosystem-semantic hook
@@ -539,7 +539,7 @@ include 'Helpers.cmake'; mystery_command 'x'
 ### Follow-ups (parked)
 
 - **"Did you mean X?"** — Levenshtein distance from the unknown name against `command_names ∪ defined_names`. Cheap to add to the warning text.
-- ✅ **Cmake-stdlib name index** — shipped 2026-06-21 as `Cmake_stdlib_names` following the discovered-cache pattern ([`../yelu_cmake/ir/discovered_cache.md`](../ir/discovered_cache.md)). `cmake_parse_arguments` / `check_language` / `cuda_add_executable` etc. are silenced; closed-world `Unknown_command` is now fatal in `compile-corpus` again.
+- ✅ **Cmake-stdlib name index** — shipped 2026-06-21 as `Cmake_stdlib_names` following the discovered-cache pattern ([`discovered_cache.md`](../ir/discovered_cache.md)). `cmake_parse_arguments` / `check_language` / `cuda_add_executable` etc. are silenced; closed-world `Unknown_command` is now fatal in `compile-corpus` again.
 - **Cross-file collect** — for a multi-file project, walking `include`/`add_subdirectory` targets to gather their `function`/`macro` declarations would eliminate the false-positive class on real corpus projects. Today the LSP sees one file at a time.
 - **Diagnostic span** — `Unknown_command` currently carries only the name. Adding the offending token's span (the located lexer infrastructure already in use for parse-error diagnostics) lets the LSP highlight the exact identifier instead of underlining the whole file.
 
@@ -548,9 +548,9 @@ include 'Helpers.cmake'; mystery_command 'x'
 > Absorbed from the retired `surface_status.md` (2026-07-20). That file was a
 > *tracker*, but six source files cited it for durable design explanation, so
 > the durable half lives here and the in-flight half moved to
-> [`../status.md`](../../status.md). Everything in this section is **shipped**;
+> [`status.md`](../../status.md). Everything in this section is **shipped**;
 > the phase-by-phase history is in
-> [`../worklog/worklog_2026_06.md`](../../worklog/worklog_2026_06.md).
+> [`worklog_2026_06.md`](../../worklog/worklog_2026_06.md).
 
 ### 8.1 The form graph
 
@@ -633,15 +633,15 @@ workspace file. If the extension is ever reinstalled, re-symlink.
 
 ## 9. Related
 
-- [`../yelu_cmake/ir/driver.md`](../ir/driver.md) — the uniform
+- [`driver.md`](../ir/driver.md) — the uniform
   per-language op interface the LSP plugs into.
-- [`../archive/concrete_syntax_parser.md`](../../archive/concrete_syntax_parser.md)
+- [`concrete_syntax_parser.md`](../../archive/concrete_syntax_parser.md)
   — history: the retired two-pass token parser this evolved from (§8 is the
   current pipeline).
-- [`../yelu_cmake/ycn/ycn_concrete_syntax.md`](../ycn/ycn_concrete_syntax.md)
+- [`ycn_concrete_syntax.md`](../ycn/ycn_concrete_syntax.md)
   — surface-syntax design notes for `ycn`; the generalization target.
 - [`lang_design.md`](../lang_design.md), [`typed_design.md`](../typing/typed_design.md)
   — language-design tradition and the (retired) typed-checking design
   that Y17 / ecosystem-semantic revisit.
-- [`../yelu_cmake/status.md`](../status.md) — the behavior-level
+- [`status.md`](../status.md) — the behavior-level
   oracle (the other half) and the forward roadmap.

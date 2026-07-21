@@ -8,7 +8,7 @@
 > and the **remaining open lanes** (§ Status & open below). Came out of
 > critique #2 + the `EVarLookup` / `$foo` work. See
 > [`yc_syntax.md`](yc_syntax.md),
-> [`../cmake/var_reference_semantics.md`](../../cmake/var_reference_semantics.md).
+> [`var_reference_semantics.md`](../../cmake/var_reference_semantics.md).
 
 ## The idea: casing *shape* tells you the kind
 

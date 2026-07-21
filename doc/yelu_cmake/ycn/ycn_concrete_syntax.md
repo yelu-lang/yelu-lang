@@ -331,9 +331,9 @@ preserve: genex") that's open in the project TODO.
   yelu_cmake harness.
 - [`structure.md`](../ir/structure.md) — code map; where the
   constructors live.
-- [`../yelu_cmake/lang_design.md`](../lang_design.md) — broader
+- [`lang_design.md`](../lang_design.md) — broader
   language-design tradition this builds on.
-- [`../yelu_cmake/surface/surface_lsp_framework.md`](../surface/surface_lsp_framework.md) §8 —
+- [`surface_lsp_framework.md`](../surface/surface_lsp_framework.md) §8 —
   yc's concrete-syntax + parser/formatter pipeline; the same template applies
   to ycn. (The old `syntax_tiers.md` tier plan was retired — superseded by the
   parser tests + probes.)

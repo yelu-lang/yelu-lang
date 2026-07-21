@@ -29,7 +29,7 @@ tracked in [`status.md`](../yelu_cmake/status.md).
 
 ## 2026-06-05: fmT probe Phase 1–7 — full project migration
 
-Full record in [`probes/fmt/migration_status.md`](../../probes/fmt/migration_status.md).
+Full record in [`migration_status.md`](../../probes/fmt/migration_status.md).
 
 **Result.** All 7 phases closed. 24/24 matrix cells matched
 (real vs predicted CMakeCache.txt). First `.ye` file in production
@@ -57,7 +57,7 @@ Phase 5 (cuda-test), Phase 6 (main CMakeLists.txt), Phase 7
 
 ## 2026-06-08: fmT probe Phase 8 — .yc concrete-syntax conversion
 
-Full record in [`probes/fmt/migration_status.md`](../../probes/fmt/migration_status.md).
+Full record in [`migration_status.md`](../../probes/fmt/migration_status.md).
 
 **Result.** 11/11 `.yc` files compile and pass the matrix oracle.
 `yc_apply` in `main.ml` dropped from ~100 → 35. Raw escapes 14 → 3
@@ -116,7 +116,7 @@ oracle cannot ground-truth `-DFOO=BAR` programs without it.
 - `-D` channel: `populate_cmd_line` + `?cmd_line:(string*string) list`
   on `eval_yelu_cmake_expr` / `eval_yelu_cmake_normal_expr`
   ([`yelu_cmake_convert.ml`](../../src/langs/yelu/yelu_cmake_convert.ml)).
-- Spec ground truth: [`../cmake/cache_semantics.md`](../cmake/cache_semantics.md)
+- Spec ground truth: [`cache_semantics.md`](../cmake/cache_semantics.md)
   (12 cases verified against cmake 4.3.1).
 
 **Tests (three tiers, all landed):**
@@ -387,7 +387,7 @@ parens. Implemented in both parsers:
 
 **Y18 recorded — first-class object value.** The Pos3 prototype is
 parser-local. Open questions for promoting to a real value class are
-in [`../yelu_cmake/object_value_design.md`](../yelu_cmake/object_value_design.md):
+in [`object_value_design.md`](../yelu_cmake/object_value_design.md):
 operations per kind (`target_foo.set_property(…)`), value flow
 (let-bind / args / iterands), eval semantics (forward refs, lazy vs
 eager), wellform integration, yc vs ycn placement, multi-entity calls.
@@ -415,7 +415,7 @@ this worklog entry, CLAUDE.md (Y18 + test count 923→935).
 
 Closure record for critique #2's `~`-modifier half — turning cmake's SHOUTY
 positional keyword args into a uniform labeled surface. Design rationale stays
-in [`../yelu_cmake/surface/yc_syntax.md`](../yelu_cmake/surface/yc_syntax.md); this
+in [`yc_syntax.md`](../yelu_cmake/surface/yc_syntax.md); this
 archives the shipped arc. Throughout: emit byte-invariant (fmt matrix 24/24),
 verified by the emit-bridge + matrix; per-command, accept-both-then-canonicalize.
 
@@ -531,8 +531,8 @@ as a CST shape check for `IDENT args (block)` adjacent to a standalone
 open/closed world. The CLI / fmt / LSP / corpus-gate fatality split is
 captured once in `Yc_driver.fatal_wellform_message`; per-check semantics
 + surfacing contract in
-[`../yelu_cmake/surface/surface_lsp_framework.md`](../yelu_cmake/surface/surface_lsp_framework.md)
-§7.5 and [`../yelu_cmake/ir/driver.md`](../yelu_cmake/ir/driver.md) §6.5.
+[`surface_lsp_framework.md`](../yelu_cmake/surface/surface_lsp_framework.md)
+§7.5 and [`driver.md`](../yelu_cmake/ir/driver.md) §6.5.
 
 **fmt is now fail-safe on fatal wellform.** Was parse-then-print only; a
 closed-world typo was happily prettified into a clean-looking unknown
@@ -548,7 +548,7 @@ heuristic but practical until findings carry token spans natively. The
 LSP now matches the diagnostic content of `yelu compile` exactly.
 
 **cmake-stdlib name cache (Plan C — the discovered-cache pattern).**
-[`../yelu_cmake/ir/discovered_cache.md`](../yelu_cmake/ir/discovered_cache.md)
+[`discovered_cache.md`](../yelu_cmake/ir/discovered_cache.md)
 generalizes the recipe: discover → commit TSV with version fingerprint
 → dune codegen embeds into the binary → on-demand validity (option (d),
 no automatic check). First instance is `Cmake_stdlib_names`
@@ -582,15 +582,15 @@ symlink install into `~/.vscode/extensions/yelu-lang.yc-0.0.1/` is the
 recommended development flow. Reload Window picks up LSP rebuilds.
 
 **Docs reorganized to reflect the new shape:**
-- [`../project_overview.md`](../project_overview.md) — full refresh
+- [`project_overview.md`](../project_overview.md) — full refresh
   (was stale since 2026-06-03; covers surface passes, LSP, wellform,
   property unification, Pos3, command-call sugar, corpus gate).
-- [`../yelu_cmake/ir/driver.md`](../yelu_cmake/ir/driver.md) §6.5 — the
+- [`driver.md`](../yelu_cmake/ir/driver.md) §6.5 — the
   compile/wellform/format/LSP contract that any new pack inherits.
-- [`../yelu_cmake/surface/surface_lsp_framework.md`](../yelu_cmake/surface/surface_lsp_framework.md)
+- [`surface_lsp_framework.md`](../yelu_cmake/surface/surface_lsp_framework.md)
   §7.5 — full wellform check table + open/closed-world rule + worked
   examples.
-- [`../yelu_cmake/ir/discovered_cache.md`](../yelu_cmake/ir/discovered_cache.md)
+- [`discovered_cache.md`](../yelu_cmake/ir/discovered_cache.md)
   — the driver-level pattern doc.
 - [`../yelu_cmake/surface/surface_lsp_framework.md` §8](../yelu_cmake/surface/surface_lsp_framework.md) — Tier (b)
   active with 7-step plan + status; legacy parser retirement is the
@@ -639,7 +639,7 @@ matrix 24/24):
 wasn't the shallow per-command coercion patch; the discussion (with the user)
 traced it to a deeper inconsistency: the emitter rendered an unresolved bare
 `EVar name` as `${name}`, injecting a read that yc's own spec
-([`../cmake/var_reference_semantics.md`](../cmake/var_reference_semantics.md))
+([`var_reference_semantics.md`](../cmake/var_reference_semantics.md))
 forbids — *bare `foo` is the literal "foo"; you must write `$foo` to read.*
 Made unresolved `EVar` a literal in `arg` + `target_arg` (the other two
 renderers already were). All four now agree; only `EVarLookup` derefs. This

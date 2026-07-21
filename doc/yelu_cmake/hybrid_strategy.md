@@ -170,14 +170,16 @@ else." No new oracle infrastructure needed.
 Everything except the build-system integration is already in
 place:
 
-- **`.yc` parser** — `src/langs/yelu/yelu_parse.ml` (Angstrom +
-  pure OCaml, 12 cmake command families covered, ~170 unit
-  tests). Partial coverage; expand as the pilot exposes gaps.
+- **`.yc` parser** — `Yc_cst_parse` (text → CST) → `Yc_cst_lower`
+  (CST → `yelu_cmake.expr`), the production path since Tier (b).
+  (`yelu_parse.ml` is now the per-command `_inner` library, not a
+  parser.) All 12 command families covered, command-coverage locked.
 - **`yelu_cmake.expr` → cmake text** — `Yelu_cmake_emit` +
   `Lang_cmake_pp`. Production path. 100% bar #3-lite passing on
   z3 / llvm / fmt.
-- **CLI** — a 30-line wrapper around the above:
-  `ycn compile helpers.yc > helpers.cmake`. Trivial.
+- **CLI** — shipped: `yelu compile <file>.yc` emits cmake text;
+  `yelu hybrid` / `yelu matrix` drive the hybrid + oracle over a
+  probe directory.
 - **Build integration** — a Makefile/dune rule that regenerates
   `.cmake` if `.yc` is newer. Project-specific; not yelu's
   responsibility.
@@ -189,8 +191,8 @@ place:
 What's **not** needed for the pilot:
 
 - Y17 typing pass (the hybrid strategy doesn't depend on types)
-- ycn → ninja or ycn → make emit modules (cmake stays the
-  backend for now; the AST is portable so this is a parallel
+- a ninja or make emit backend over `Lang_cmake.exp` (cmake stays
+  the backend for now; the AST is portable so this is a parallel
   effort)
 - `project.yc` full-project lowering (Shape C is later; Shape B
   is the pilot)
@@ -207,7 +209,7 @@ What's **not** needed for the pilot:
     truth is the `.yc`.
   - **Future / shipping**: regenerated-at-build (bazel-style), with
     a CI check that the generated output matches a fresh
-    `ycn compile`. The protobuf "commit both" convention is
+    `yelu compile`. The protobuf "commit both" convention is
     explicitly NOT what we want — we don't ship `.yc` to upstream
     projects.
 - **Not pushing `.yc` to real-world upstream projects.** Out of
@@ -230,12 +232,12 @@ What's **not** needed for the pilot:
   library / impure runner split that makes the hybrid strategy
   composable. Generators are pure functions of `.yc` input; the
   build system handles the I/O.
-- [`../worklog/worklog_2026_06.md`](../worklog/worklog_2026_06.md)
+- [`worklog_2026_06.md`](../worklog/worklog_2026_06.md)
   (§ "Cache namespace") — the `-D` cmd-line input pathway that hybrid
   projects need to handle the same way pure cmake projects do.
 - [`status.md`](status.md) — where the "deferred" items live.
   Hybrid pilot work would be tracked here once a step lands.
-- [`../../probes/cache_matrix.md`](../../probes/cache_matrix.md) —
+- [`cache_matrix.md`](../../probes/cache_matrix.md) —
   the oracle that proves a hybrid output is equivalent to the
   pure-cmake reference. No changes needed to the matrix
   infrastructure to support hybrid inputs.
@@ -256,7 +258,7 @@ resolved:
    truth, the `.cmake` lands in `_out/<proj>/` and is rebuilt
    each run. When/if shipping comes up, the regenerated-at-build
    pattern stays (with a CI check that the generated output
-   matches `ycn compile`).
+   matches `yelu compile`).
 
 3. **`.yc` files live in `probes/<proj>/`.** Per-project folder
    under the existing `probes/` cluster — keeps each project as
@@ -288,7 +290,7 @@ codegen path.
 
 - Write `probes/fmt/set_verbose.yc` reproducing fmt's
   `set_verbose` helper (~5 lines of cmake).
-- Build the `ycn compile` CLI: takes `.yc` input, emits `.cmake`
+- Build the `yelu compile` CLI: takes `.yc` input, emits `.cmake`
   text via the existing `Yelu_parse` → `yelu_cmake.expr` →
   `Yelu_cmake_emit` → `Lang_cmake_pp` chain. ~30 LOC wrapper.
 - Assert byte-equivalence to fmt's original `set_verbose` block

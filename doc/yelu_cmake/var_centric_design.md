@@ -3,7 +3,7 @@
 > **Status: postponed.** A future direction explored 2026-06-12, parked
 > pending a frequency study. Grew out of critique item #4 (`${X}` noise) and
 > the `EVarLookup` work — see [`yc_syntax.md`](surface/yc_syntax.md)
-> and [`../cmake/var_reference_semantics.md`](../cmake/var_reference_semantics.md).
+> and [`var_reference_semantics.md`](../cmake/var_reference_semantics.md).
 >
 > **Placement (2026-07-16):** this doc's "belongs in ycn, not yc" conclusion is
 > one of the three precedents behind the general triage rule now written up in

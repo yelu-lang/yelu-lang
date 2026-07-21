@@ -3,7 +3,7 @@
 > **Role.** This is the durable **backlog + open-work / gaps registry** for the
 > yelu_cmake harness (forward design work, IR-shape gaps, the post-retirement
 > cleanup list, deferred loader work, known bugs). It is *not* the
-> immediate-in-flight tracker — that is [`../status.md`](../status.md), which
+> immediate-in-flight tracker — that is [`status.md`](../status.md), which
 > is short and self-expiring. Two files, two granularities: `../status.md`
 > answers "what is being worked on this week"; this answers "what is the
 > standing yelu_cmake backlog." Durable design is in `design.md`; code-anchored
@@ -47,18 +47,12 @@ blocker (cache + `-D` cmd-line input) shipped 2026-06-01;
 (b) the language-layer cleanups that Y17 typing depends on;
 (c) E2 mechanical retirement tail.
 
-### Cache namespace + `-D` cmd-line input — *shipped 2026-06-01*
-
-`cache_vars` namespace in `env`, `?cmd_line` input channel, cache
-read-fallback, `option()` suppression, and a three-tier test suite
-(unit `test_yelu_cache.ml`, dual-eval `?cmd_line` cases, real-cmake
-oracle `test_yelu_cache_oracle.ml`) all landed. Full record — design,
-commits, residual gaps — in
-[`../worklog/worklog_2026_06.md`](../worklog/worklog_2026_06.md)
-(§ "Cache namespace + `-D` cmd-line input — shipped"). Residual gaps
-(`CACHE FORCE` vs `-D`, `$CACHE{VAR}` explicit read, cross-run
-persistence) are in Deferred below. The plan doc (`cache_plan.md`) was
-retired into the worklog.
+> The oracle's foundational blocker — cache + `-D` cmd-line input — **shipped
+> 2026-06-01** (`cache_vars` namespace, `?cmd_line` channel, `option()`
+> suppression, three-tier test suite; full record in
+> [`worklog_2026_06.md`](../worklog/worklog_2026_06.md) §
+> "Cache namespace"). Residual cache gaps (`CACHE FORCE` vs `-D`,
+> `$CACHE{VAR}` read, cross-run persistence) are in Deferred below.
 
 ### Behavior-level oracle — *lead* (foundation unblocked 2026-06-01)
 
@@ -107,23 +101,17 @@ Reference points:
 This is the manifesto-level "does it scale" test (Y16 in
 `CLAUDE.md`). Not started.
 
-### Surface syntax + LSP (sibling track)
+### Surface syntax + LSP (sibling track) — *shipped*
 
-The *static-semantics* half to the oracle's *dynamic* half: a
-higher-fidelity surface + language server for yc (then ycn), feeding off
-the driver's `check` op the way the oracle feeds off `eval`. Design
-exploration + decision-map in
-[`../yelu_cmake/surface/surface_lsp_framework.md`](surface/surface_lsp_framework.md)
-(yc-first). **Milestone 0 — shipped 2026-06-10:** a server-less VS Code
-TextMate highlighter whose `.tmLanguage.json` vocabulary is generated from
-the `Yc_manifest` co-truth (test-locked to `Yc_primitives` + the lexer;
-exposed via the `Yc_driver.manifest` op; emitted by `yelu tmgrammar`).
-Extension under `editors/vscode/yc/`, verified on `probes/fmt/main.yc`
-with the real TextMate engine. Full record in
-[`../yelu_cmake/surface/surface_lsp_framework.md`](surface/surface_lsp_framework.md)
-§ Milestone 0. **Next (Milestone 1+):** parser CST/spans + error recovery,
-then the LSP itself (`linol` shell over `Yc_driver`, diagnostics ← check,
-semantic tokens). Not started.
+The *static-semantics* half to the oracle's *dynamic* half — a
+higher-fidelity surface + language server for yc, feeding off the driver's
+`check` op the way the oracle feeds off `eval` — is **done** (M0–M1.5,
+2026-06): TextMate highlighter, CST parser + formatter (Tier b), and the
+`linol` LSP with wellform diagnostics. Full record and the shipped pipeline
+in [`surface_lsp_framework.md`](surface/surface_lsp_framework.md) §8;
+remaining surface *polish* (spans on findings, hover, semantic tokens) is in
+[`status.md`](../status.md) § Parked. The ycn surface is the next surface
+work — [`ycn_concrete_syntax.md`](ycn/ycn_concrete_syntax.md).
 
 ### Behavior-level sequels (parked, in order)
 
@@ -156,9 +144,9 @@ exclusion the audit flagged. Gated on:
 
 > Design cluster (types-as-data, the yc/ycn placement ruling, the theory
 > split, the two open expr-design questions): see
-> [`../yelu_cmake/typing/typed_design.md`](typing/typed_design.md) § Y17 doc cluster for the
+> [`typed_design.md`](typing/typed_design.md) § Y17 doc cluster for the
 > reading order. Placement is settled — typing is **ycn's** job
-> ([`../yelu_cmake/typing/yc_ycn_boundary.md`](typing/yc_ycn_boundary.md)).
+> ([`yc_ycn_boundary.md`](typing/yc_ycn_boundary.md)).
 
 Post-retirement typing pass. The previous attempt (per-fragment
 `Stage_typecheck`) was structurally shallow: each fragment

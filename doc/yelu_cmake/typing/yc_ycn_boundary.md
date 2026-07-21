@@ -3,8 +3,8 @@
 > **Status: adopted 2026-07-16.** A triage rule for "where does this feature
 > go?", promoted from three independent design threads that each reached the
 > same boundary without a stated policy. Companion to
-> [`../manifesto.md`](../../manifesto.md) (the layer thesis) and
-> [`../yelu_cmake/ir/cmake_vs_normal.md`](../ir/cmake_vs_normal.md)
+> [`manifesto.md`](../../manifesto.md) (the layer thesis) and
+> [`cmake_vs_normal.md`](../ir/cmake_vs_normal.md)
 > (what the two forms actually are).
 
 ## The rule
@@ -138,7 +138,7 @@ value.
   review rather than treating them as routine.
 - **ycn has no concrete syntax yet.** Today "belongs in ycn" means "blocked on
   the ycn surface" — every ycn program in the repo is hand-built OCaml
-  (see [`../yelu_cmake/ycn/ycn_concrete_syntax.md`](../ycn/ycn_concrete_syntax.md)).
+  (see [`ycn_concrete_syntax.md`](../ycn/ycn_concrete_syntax.md)).
   That is a real cost of the discipline, and the reason ycn concrete syntax is
   the gateway to the whole ycn agenda rather than one item among many.
 - **The rule triages, it doesn't design.** "ycn" is an answer about *placement*;

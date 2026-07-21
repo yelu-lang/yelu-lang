@@ -4,8 +4,8 @@ Docs kept for the record but no longer part of the live documentation set:
 resolved bug stories, superseded design notes. Nothing here describes current
 behavior — treat every file as a snapshot of when it was written.
 
-For current docs start at [`../status.md`](../status.md) (in-flight),
-[`../project_overview.md`](../project_overview.md) (audit + doc index), or the
+For current docs start at [`status.md`](../status.md) (in-flight),
+[`project_overview.md`](../project_overview.md) (audit + doc index), or the
 per-area trackers listed there.
 
 Contents:
