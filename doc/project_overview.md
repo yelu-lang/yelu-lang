@@ -1,20 +1,10 @@
 # Yelu — Project Overview
 
-> Last full pass: 2026-06-21. Surface track (no-ALL_CAPS `~`-half + labeled-only
-> Step 2), property-family unification, Pos3 entity prototype, `:=` command-call
-> sugar, and the LSP (formatting + wellform diagnostics + parse-error spans) all
-> landed 2026-06-13..20 and are reflected below.
->
-> **Delta since (not yet folded into the body):** the 2026-06 syntax audit
-> closed all four findings — honest emit (`a57bcf4`, bare ident is a literal in
-> all five renderers), `Unknown_kwarg`, labeled-only find/test/property, and a
-> world-aware `Function_def_typo`; the fmt matrix gained the **tripled oracle**
-> (cache + file-api codemodel-v2 + ctest, `6aae29a`); **Tier (b)** retired the
-> legacy token-level parser, so `Yc_driver.parse_yc = parse_cst ∘ lower_cst`
-> and `yelu_parse.ml` is now the per-command `_inner` library, not a parser;
-> the yc/ycn boundary rule was adopted (`lang/yc_ycn_boundary.md`); and a
-> **command-coverage lock** (2026-07-20) now enforces a parse+emit case for
-> every `Yc_primitives.command_names` entry. Current in-flight work lives in
+> Last full pass: 2026-07-20. The 2026-06 surface track (no-ALL_CAPS `~`-half +
+> labeled-only Step 2, property unification, Pos3 entity prototype, `:=`
+> sugar, LSP), the 2026-06 syntax audit closure, the Tier (b) parser
+> retirement, and the 2026-07-20 coverage-lock / doc-consolidation work are all
+> reflected in the body below. Current in-flight work lives in
 > [`status.md`](status.md).
 
 ## Scope
@@ -61,9 +51,9 @@ The language is organized in **theories** — per-domain fragments that contribu
 constructors, eval arms, and emit arms. Each theory exists in two forms (one in
 `yelu_cmake`, one in `yelu_cmake_normal`), composed via `Yelu_cmake_convert`.
 
-- 14 cmake-faithful fragments: `var`, `target`, `string`, `path`, `file`,
-  `list`, `find`, `install`, `test`, `try`, `if`, `dir`, `property`, `cmake_op`,
-  `store`.
+- 14 cmake-faithful fragments: `target`, `string`, `path`, `file`, `list`,
+  `find`, `install`, `test`, `try`, `if`, `dir`, `property`, `cmake_op`,
+  `store` (var ops live in the core, not a fragment).
 - 16 normalized fragments including the cmake-faithful set plus a small
   general-purpose subset (`bool`, `int`) that is theory-agnostic and a candidate
   for future re-use across packs.
@@ -124,7 +114,10 @@ IR — is the replacement; tracked in
 
 | Suite                              | Count    | What it verifies                                              |
 | ---------------------------------- | -------: | ------------------------------------------------------------- |
-| Unit tests (`dune test`)           | ~1034     | Pretty-printer, compile, parse, eval, lift/lower, steps, surface (lexer / parser / CST / emit-bridge oracle / co-truth locks / grammar freshness), per-theory check/compile suites. |
+| Unit tests (`dune test`)           | ~1034     | Pretty-printer, compile, parse, eval, lift/lower, steps, surface (lexer / parser / CST / co-truth locks / grammar freshness), per-theory check/compile suites. (The emit-bridge oracle retired with the legacy parser in Tier (b) — once both sides are one path the comparison is a tautology.) |
+| **Command-coverage lock** (in `dune test`) | 138 commands | `test_yelu_cmake_parse` records every command its cases exercise and asserts `command_names \ covered = {}`; a command with no parse+emit case fails the build. Added 2026-07-20 after a scan found 15 commands with no test and 5 broken. |
+| **Dispatch lock** (in `dune test`) | 138 commands | `test_yc_manifest` asserts every `command_names` entry is owned by a family `_inner` (`Yc_cst_lower.family_of ≠ Fam_generic`) — i.e. none falls through to the raw escape and emits its yc name as bogus cmake. |
+| **Command-reference freshness** (in `dune test`) | 1 | committed `doc/lang/yc_command_reference.md` must byte-match `yelu command-reference` (generated from the code). Drift fails the build; fix is `dune promote`. |
 | **Corpus compile gate** (in `dune test`) | every `.yc` under `probes/fmt` | `yelu compile-corpus probes/fmt` — parse + wellform + emit each file; fails the build on a positional cmake-keyword form, enum-shadow, parse error, or emit crash. Closes the blind spot where `compile main.yc` was byte-identical but discovered helpers (`probes/fmt/test/*/CMakeLists.yc`) had regressed. |
 | `make runcmake-yelu`               | 50 / 50  | yelu-generated scripts vs cmake reference output.             |
 | `make cmake-only-check`            | 12 / 12  | Structural equivalence for `Tests/CMakeOnly/`.                |
@@ -136,9 +129,9 @@ IR — is the replacement; tracked in
 | fmt cache matrix smoke             | 24 / 24 cells | Predicted vs real cmake cache per (option × ON/OFF); median matched=20, mismatched=0, real-only=0, pred-only=0. See [`../probes/cache_matrix.md`](../probes/cache_matrix.md). |
 | tm-grammar co-truth lock           | 1        | `dune promote` round-trip: committed `editors/vscode/yc/syntaxes/yc.tmLanguage.json` byte-matches what `yelu tmgrammar` emits from `Yc_manifest`. Surface-vocabulary drift fails the build. |
 
-`make cmake-commands` has pre-existing cmake build issues (not blocking).
-`test_yelu_compile::ylet chain` has a pre-existing single-test failure
-unrelated to recent work.
+`make cmake-commands` has pre-existing cmake build issues (not blocking). The
+`ylet chain` case in `test_yelu_compile` is commented out (a TODO, not a live
+failure — blocked by the `ylet` blanket `EVar→EString` demotion).
 
 ### Project-level milestones
 
@@ -215,6 +208,38 @@ unrelated to recent work.
   from `Yc_manifest`; the chain `Yelu_lexer.{constr_names,command_names}`
   → `Yc_manifest` → `Yc_tmgrammar` → committed `yc.tmLanguage.json` is
   fully locked. Vocabulary drift fails `dune test` until `dune promote`.
+- **Syntax audit closure + honest emit.** ✅ 2026-07-16. A two-pass audit
+  (internal 3-agent + external re-audit) of the 2026-06 syntax arc closed all
+  four findings: **honest emit** (`a57bcf4` — an unresolved bare `EVar`
+  renders as a *literal* in all five renderers, matching cmake's model, which
+  removed the target-name deref *and* the slot-dependent coercion behind it);
+  `Unknown_kwarg` (an unknown `~label=` on a known command is fatal, not a
+  silent drop); labeled-only find / add_test / property; and a world-aware
+  `Function_def_typo`. The fmt matrix gained the **tripled oracle** (`6aae29a`
+  — CMakeCache + file-api codemodel-v2 + ctest `--show-only=json-v1`), which
+  immediately caught a contaminated `vendor/fmt/CMakeLists.txt` and a
+  never-ported test block. Arc in [`worklog/worklog_2026_06.md`](worklog/worklog_2026_06.md).
+- **Tier (b) — legacy parser retired.** ✅ 2026-07-16. `Yc_driver.parse_yc =
+  parse_cst ∘ lower_cst`; the token-level grammar in `yelu_parse.ml` is
+  deleted (−1067 lines), leaving it as the per-command `_inner`
+  argument-interpretation library (name → positionals → kwargs → `expr
+  option`) that `Yc_cst_lower` dispatches to. The migration discipline (build
+  beside, lock with an oracle, retire) is written up in
+  [`lang/surface_lsp_framework.md`](lang/surface_lsp_framework.md) §8.
+- **yc/ycn boundary rule adopted.** ✅ 2026-07-16.
+  [`lang/yc_ycn_boundary.md`](lang/yc_ycn_boundary.md): yc = anything that
+  *erases* to cmake with no semantic gap; ycn = anything needing a value/type
+  model. Settles Y17 (typing → ycn) and Y18 (constructor = yc, value class =
+  ycn).
+- **Command-coverage + dispatch locks; command reference generated.** ✅
+  2026-07-20. A coverage scan found 15 of 138 commands with no test and 5
+  silently broken (9 `cmake_path` ops dropping `~out=`; `add_exe_alias` /
+  `add_lib_imported` / `precompile_headers` with no `.yc` surface at all,
+  emitting their yc name as bogus cmake; `add_lib_alias` self-aliasing). All
+  fixed and now guarded: the coverage lock (every command has a golden), the
+  dispatch lock (every command is owned by a family `_inner`), and a
+  **generated** [`lang/yc_command_reference.md`](lang/yc_command_reference.md)
+  freshness-locked against `yelu command-reference`.
 - **Bar #3 — real-world cmake hand-rewrites (z3 / llvm / torch).** ⏳ Not
   started; the manifesto-level "does this scale" test. Reframed
   2026-06-04 as a gradual hybrid adoption strategy
@@ -254,10 +279,9 @@ in [`yelu_cmake/status.md`](yelu_cmake/status.md).
 
 | ID  | Title                                | Description                                                   |
 | --- | ------------------------------------ | ------------------------------------------------------------- |
-| C   | cmake-stdlib name index → wellform   | Load the 935-callable `tool/cmake_text/` index into a separate `cmake_stdlib_names` set; silences legit-but-noisy `Unknown_command` warnings (`cmake_parse_arguments`, `check_language`, …) without forcing `yc_raw`. Lets closed-world escalation cover more files. |
-| —   | 2nd probe project                    | Pick from [`../probes/candidates.md`](../probes/candidates.md) (z3 / llvm subset / torch); next probe per [`yelu_cmake/hybrid_strategy.md`](yelu_cmake/hybrid_strategy.md). |
-| —   | `Function_def_typo` in compile path  | Today only fmt + LSP run `Yc_wellform.check_cst`; `compile` uses the legacy direct parser. Either route compile through CST or parallel-parse for this check. |
-| —   | Wellform finding token spans         | Findings carry only names; LSP scans source for whole-word match. Native spans → exact squiggle highlight + multi-occurrence diagnostics. |
+| —   | **Raw-escape unification** (next)    | One "opaque cmake code" model for `yc_raw` / `ECmakeRaw` / `ECmakeRawCmd` / hybrid `raw_cmake`. IR-touching, so it must precede ycn (it ripples through `Yelu_cmake_convert`). See [`status.md`](status.md). |
+| —   | 2nd probe project                    | Pick from [`../probes/candidates.md`](../probes/candidates.md) (spdlog for a real `find_package(fmt)` consumer, or nlohmann/json for the fastest clean win); next probe per [`yelu_cmake/hybrid_strategy.md`](yelu_cmake/hybrid_strategy.md). NOT gated: fmt already covers 13/15 coverage-map rows. |
+| B2  | Wellform finding token spans         | Findings carry only names; LSP scans source for whole-word match. Native spans → exact squiggle highlight + multi-occurrence diagnostics. |
 | —   | IR-printer cleanup (Bar #3-lite follow-up) | Tier 1/2/3 plan in [`yelu_cmake/status.md`](yelu_cmake/status.md). |
 | —   | Yelu CI                              | Build + test on push.                                         |
 | Y2  | Option combination enumeration       | 2^n boolean combos for step4+, File API diff.                 |
@@ -267,13 +291,18 @@ in [`yelu_cmake/status.md`](yelu_cmake/status.md).
 
 ### Surface polish (parked, no hurry)
 
-Open items in [`lang/yc_syntax_critique.md`](lang/yc_syntax_critique.md) § Open / remaining:
+Open items in [`lang/yc_syntax_critique.md`](lang/yc_syntax_critique.md) § Open /
+remaining, and the fuller list in [`status.md`](status.md) § Parked:
 
-- **Version literal** — `cmake_minimum_required 3.8...3.25` as a first-class unquoted literal (lexer token for `N(.N)*(...N(.N)*)?`).
+- **Version literal** — `cmake_minimum_required 3.8...3.25` as a first-class unquoted literal (lexer token for `N(.N)*(...N(.N)*)?`). Also the `find_package Foo '9.0'` version-drop.
 - **Per-mode `message_*` aliases** — `message_fatal` / `message_warning` / `message_status` desugar to `message ~mode=…`.
-- **`Apply_shadows_primitive` check holes** — `add_custom_command` missing from `command_names`; first-class error message rather than buried generic warning.
 - **Orphaned `Yelu_emit_main`** — legacy `.ml`-emit helper unused after retirement; delete candidate.
-- **Latent `set_target_properties` target-deref bug**.
+- **Wrong-shaped `~properties=`** — a list where a record is expected is silently dropped (`Unknown_kwarg` can't see it — the key is valid).
+- **`string_json` unknown op** — fails at emit rather than as a wellform diagnostic.
+
+Fixed since the last pass (were listed here): the latent `set_target_properties`
+target-deref (honest emit, `a57bcf4`); `add_custom_command` missing from
+`command_names` (`d60190f`).
 
 ### Design (before coding)
 
@@ -301,12 +330,15 @@ Open items in [`lang/yc_syntax_critique.md`](lang/yc_syntax_critique.md) § Open
 
 | File                                       | Purpose                                                            |
 | ------------------------------------------ | ------------------------------------------------------------------ |
+| `status.md`                                | **In-flight work + immediate queue only** (self-expiring). Start here when resuming. |
 | `manifesto.md`                             | Project manifesto: thesis, falsifiability, layered argument.       |
 | `infra_test.md`                            | Test harness, dune aliases, gotchas.                               |
 | `research/research_framing.md`             | Benchmark design, contamination-aware eval (distilled framing).    |
 | `research/beyond.md`                       | Multi-pack architecture, AI language stacks (speculative, 中文).   |
 | `lang/lang_design.md`                      | Language design: staging, types, surface syntax.                   |
-| `lang/lang_coverage.md`                    | cmake command coverage tracker.                                    |
+| `lang/yc_command_reference.md`             | **Generated** yc command table (138 by family, `~out`, `~labels`). Freshness-locked; never hand-edit — run `yelu command-reference`. |
+| `lang/lang_coverage.md`                    | cmake **test-suite** coverage map (RunCMake/CMakeOnly tractability, Y11 blockers). The yc-command rows moved to the generated reference. |
+| `lang/yc_ycn_boundary.md`                  | Layer triage rule: yc erases to cmake; ycn needs a value/type model. Settles Y17/Y18 placement. |
 | `lang/typed_design.md`                     | Type system design space (deferred; Y17 substrate).                |
 | `lang/concrete_syntax_parser.md`           | Implemented two-pass parser (Angstrom + pure OCaml).               |
 | `lang/surface_lsp_framework.md`            | Surface + LSP design. §3 decision map (parser library, error recovery, deployment, testing). §8 the **shipped pipeline** (form graph, migration discipline, testing strategy, VS Code deployment gotcha) — absorbed from the retired `surface_status.md`. §7.5 wellform diagnostics — full per-check table, open/closed-world rule for `Unknown_command`, surfacing channels. |
@@ -321,6 +353,8 @@ Open items in [`lang/yc_syntax_critique.md`](lang/yc_syntax_critique.md) § Open
 | `yelu_cmake/cmake_vs_normal.md`            | yc ↔ ycn ecosystem comparison: per-theory fragment coverage.       |
 | `yelu_cmake/io_architecture.md`            | I/O library/runner split + callback-via-env pattern (include_loader, subdir_loader). |
 | `yelu_cmake/hybrid_strategy.md`            | Y16 reframed: cmake-as-assembly; gradual hybrid adoption (.yc + .cmake side-by-side, or whole-file w/ raw_cmake escape). |
+| `yelu_cmake/ycn_concrete_syntax.md`        | Design notes for the future ycn concrete-syntax parser — the gateway to records-as-values / Y17 / Y18. Uses the 65-program lift_lower corpus as substrate. |
+| `yelu_cmake/discovered_cache.md`           | The discovered-cache driver pattern (committed TSV + build-time codegen + runtime API); first instance is `Cmake_stdlib_names`. |
 | `yelu_cmake/status.md`                     | Living tracker for current open work (IR cleanup, Y17, E2, etc.).  |
 | `../probes/README.md`                         | Probe cluster intro: real-world cmake projects as predictor testbeds. |
 | `../probes/candidates.md`                     | Shortlist of next projects to probe.                               |
