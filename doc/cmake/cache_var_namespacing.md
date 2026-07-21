@@ -73,7 +73,7 @@ overwhelming majority.
 | where to get reserved names | what it gives | freshness |
 |---|---|---|
 | `cmake --help-variable-list` | 800 documented vars (cmake 4.3.1 on this host); grows with cmake version | run-time, version-keyed |
-| [`tool/cmake_roundtrip/cmake_reserved.tsv`](../../tool/cmake_roundtrip/cmake_reserved.tsv) | the captured snapshot (cmake 4.3.1, 2026-06-02). Header comments skipped at load; 9 placeholder forms (`<PROJECT-NAME>`, `<LANG>`, `<CONFIG>`, …) — currently only `<PROJECT-NAME>` gets expanded, the rest fall through to the prefix-pattern rules | committed, stable for tests |
+| [`tool/cmake_roundtrip/cmake_reserved.tsv`](../../tool/cmake_text/cmake_reserved_vars.tsv) | the captured snapshot (cmake 4.3.1, 2026-06-02). Header comments skipped at load; 9 placeholder forms (`<PROJECT-NAME>`, `<LANG>`, `<CONFIG>`, …) — currently only `<PROJECT-NAME>` gets expanded, the rest fall through to the prefix-pattern rules | committed, stable for tests |
 | [cmake-variables(7)](https://cmake.org/cmake/help/latest/manual/cmake-variables.7.html) | curated docs grouped by phase / language | docs-team-curated |
 | `cmake -B build -LAH` (after configure) | everything `CMakeCache.txt` actually contains for *this configure* | post-hoc, per-project |
 | `Modules/Compiler/*.cmake` in cmake source | authoritative writers of compiler-detection vars | source-of-truth, heavy |

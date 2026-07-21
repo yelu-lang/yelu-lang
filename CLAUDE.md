@@ -174,7 +174,6 @@ per-theory and remaining-command suites not enumerated above.)
 | `doc/lang/lang_design.md`             | Language design: staging, types, surface syntax     |
 | `doc/lang/yc_command_reference.md`    | **Generated** yc command table (138 commands by family, `~out`, accepted `~labels`). Regenerate with `yelu command-reference`; freshness-locked by `dune test` (fix drift with `dune promote`). Never hand-edit |
 | `doc/lang/lang_coverage.md`           | cmake **test-suite** coverage map (RunCMake/CMakeOnly tractability, what's blocked on Y11). The yc-command rows moved to the generated reference |
-| `doc/lang/syntax_tiers.md`            | Concrete syntax tier plan                           |
 | `doc/lang/concrete_syntax_parser.md`  | Implemented two-pass parser (Angstrom + pure OCaml) |
 | `doc/lang/surface_lsp_framework.md`   | Surface syntax + LSP design exploration (yc-first): driver-as-plug, CST/spans, manifest-as-co-truth, TextMate Milestone 0 |
 | `doc/lang/yc_syntax_critique.md`      | yc surface-syntax design + open items. **Both surface passes complete**: the no-ALL_CAPS `~`-half pass *and* the labeled-only pass (Step 2 — positional cmake-keyword forms are a compile error; `fmt` is pass-through, no codemod). Shipped arc in worklog 2026-06. Keeps the design rationale + open items |

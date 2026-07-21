@@ -146,7 +146,7 @@ Pipeline layers and checkpoints:
 | **yelu AST**  | `src/langs/yelu/yelu_cmake.ml` + `src/langs/yelu/yelu_cmake_emit.ml` | Typed yelu node + emit case (pre-retirement: `lang_yelu.ml` + `lang_yelu_compile.ml`) |
 | **tests**     | see level key below                                       | Highest testing level reached                         |
 
-Testing levels — see [`cmake/comparison.md`](cmake/comparison.md) for full definitions and PL vocabulary.
+Testing levels — see [`cmake/comparison.md`](../cmake/comparison.md) for full definitions and PL vocabulary.
 
 `—` = absent, `✓` = complete, `~` = partial, `stub` = bare constructor no fields.
 

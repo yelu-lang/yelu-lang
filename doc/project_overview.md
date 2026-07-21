@@ -246,7 +246,7 @@ failure — blocked by the `ylet` blanket `EVar→EString` demotion).
   (cmake-as-assembly, per-helper migration, raw_cmake escape) —
   see [`yelu_cmake/hybrid_strategy.md`](yelu_cmake/hybrid_strategy.md).
   Next probe will pick the second project per
-  [`../probes/candidates.md`](probes/candidates.md).
+  [`../probes/candidates.md`](../probes/candidates.md).
 
 Full chronological history in [`worklog/worklog_2026_05.md`](worklog/worklog_2026_05.md)
 and [`worklog/worklog_2026_04.md`](worklog/worklog_2026_04.md). Current TODOs

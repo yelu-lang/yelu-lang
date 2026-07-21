@@ -7,17 +7,17 @@
 > spectrum, per-theory isolation before integration. Implementation
 > begins under Y17 ("Types on yelu_cmake") when a concrete research
 > question requires it. Theory-fragment structural prerequisites
-> tracked in [`yelu_theory/plan.md`](yelu_theory/plan.md).
+> tracked in [`yelu_theory/plan.md`](../yelu_theory/plan.md).
 
 > **Y17 / theory-typing doc cluster — start here.** Five docs circle the
 > same "types on the post-retirement IR" question; read in this order:
 > 1. **this doc** — the typing design space (types-as-data, static→dynamic).
 > 2. [`../lang/yc_ycn_boundary.md`](../lang/yc_ycn_boundary.md) — the placement
 >    ruling: **typing is ycn's job**, not yc's (settled 2026-07-16).
-> 3. [`yelu_theory/plan.md`](yelu_theory/plan.md) — the *structural* theory
+> 3. [`yelu_theory/plan.md`](../yelu_theory/plan.md) — the *structural* theory
 >    split (prerequisite; the type-level split is deferred to Y17).
-> 4. [`yelu_theory/extensible_expr_design.md`](yelu_theory/extensible_expr_design.md)
->    and [`yelu_theory/boolean_and_theories.md`](yelu_theory/boolean_and_theories.md)
+> 4. [`yelu_theory/extensible_expr_design.md`](../yelu_theory/extensible_expr_design.md)
+>    and [`yelu_theory/boolean_and_theories.md`](../yelu_theory/boolean_and_theories.md)
 >    — the two open design questions (both drafted against the *legacy* IR; the
 >    architecture carries forward, the module names don't).
 >
