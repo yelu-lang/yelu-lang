@@ -292,7 +292,7 @@ in [`yelu_cmake/status.md`](yelu_cmake/status.md).
 
 ### Surface polish (parked, no hurry)
 
-Open items in [`lang/yc_syntax_critique.md`](lang/yc_syntax_critique.md) § Open /
+Open items in [`lang/yc_syntax.md`](lang/yc_syntax.md) § Open /
 remaining, and the fuller list in [`status.md`](status.md) § Parked:
 
 - **Version literal** — `cmake_minimum_required 3.8...3.25` as a first-class unquoted literal (lexer token for `N(.N)*(...N(.N)*)?`). Also the `find_package Foo '9.0'` version-drop.
@@ -342,7 +342,7 @@ the wrong-shaped `~properties=` silent drop (`Malformed_kwarg`, `1db4bd6`).
 | `lang/typed_design.md`                     | Type system design space (deferred; Y17 substrate).                |
 | `archive/concrete_syntax_parser.md`        | **Archived** — the retired token-level parser (history). Current parser: `surface_lsp_framework.md` §8. |
 | `lang/surface_lsp_framework.md`            | Surface + LSP design. §3 decision map (parser library, error recovery, deployment, testing). §8 the **shipped pipeline** (form graph, migration discipline, testing strategy, VS Code deployment gotcha) — absorbed from the retired `surface_status.md`. §7.5 wellform diagnostics — full per-check table, open/closed-world rule for `Unknown_command`, surfacing channels. |
-| `lang/yc_syntax_critique.md`               | yc surface critique + the design that fixed it. Both surface passes archived; remaining open polish items at the bottom. |
+| `lang/yc_syntax.md`                        | **The go-to `.yc` surface doc**: what the syntax is + design rationale (both surface passes shipped). Open task list is in `status.md` § Parked. |
 | `lang/casing_design.md`                    | Casing lanes — enum constructors leading-cap, dotted globals, locals, Y14 reject. Shipped 2026-06-12..19. |
 | `lang/var_centric_design.md`               | Postponed direction: value-default reads (`foo` = value, name explicit). Belongs in ycn not yc. |
 | `lang/object_value_design.md`              | Y18 design questions for promoting the Pos3 parser-local `cmake_entity` to a real value class. |

@@ -7,7 +7,7 @@
 > *design rationale* (casing-shape-tells-kind, the three variable lanes, Y14)
 > and the **remaining open lanes** (§ Status & open below). Came out of
 > critique #2 + the `EVarLookup` / `$foo` work. See
-> [`yc_syntax_critique.md`](yc_syntax_critique.md),
+> [`yc_syntax.md`](yc_syntax.md),
 > [`../cmake/var_reference_semantics.md`](../cmake/var_reference_semantics.md).
 
 ## The idea: casing *shape* tells you the kind

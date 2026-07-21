@@ -41,7 +41,7 @@ Code:
 - `src/bin/yelu_lsp/yelu_lsp.ml`        (LSP diagnostics + fail-safe-on-fatal)
 
 Docs:
-- `doc/lang/{yc_syntax_critique,casing_design,surface_status,surface_lsp_framework}.md`
+- `doc/lang/{yc_syntax,casing_design,surface_status,surface_lsp_framework}.md`
 - `doc/yelu_cmake/{driver,discovered_cache}.md`
 - `doc/worklog/worklog_2026_06.md`, `doc/project_overview.md`, `CLAUDE.md`
 - `probes/fmt/{README,migration_status}.md`

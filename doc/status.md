@@ -79,7 +79,7 @@ Small, independent, and safe to pick up in any order. Each is a *surface* item
 (no IR impact) unless noted.
 
 *Surface-syntax design rationale for these lives in
-[`lang/yc_syntax_critique.md`](lang/yc_syntax_critique.md); this is just the
+[`lang/yc_syntax.md`](lang/yc_syntax.md); this is just the
 task list.*
 
 | item | note |
@@ -105,7 +105,7 @@ task list.*
 belong to the ycn agenda per [`lang/yc_ycn_boundary.md`](lang/yc_ycn_boundary.md)):
 records-as-first-class-values, value-default reads (bare `foo` = value), dotted
 globals (`$cmake.version`). Design context in
-[`lang/yc_syntax_critique.md`](lang/yc_syntax_critique.md) and
+[`lang/yc_syntax.md`](lang/yc_syntax.md) and
 [`lang/var_centric_design.md`](lang/var_centric_design.md).
 
 ## Where the durable records live
@@ -115,7 +115,7 @@ globals (`$cmake.version`). Design context in
 | narrative record of finished work | [`worklog/worklog_2026_06.md`](worklog/worklog_2026_06.md) |
 | project-wide audit | [`project_overview.md`](project_overview.md) |
 | surface / formatter / LSP **design** (incl. the shipped pipeline, §8) | [`lang/surface_lsp_framework.md`](lang/surface_lsp_framework.md) |
-| yc syntax design + open items | [`lang/yc_syntax_critique.md`](lang/yc_syntax_critique.md) |
+| yc surface syntax — design & rationale (go-to) | [`lang/yc_syntax.md`](lang/yc_syntax.md) |
 | yelu_cmake harness backlog / open-work registry | [`yelu_cmake/status.md`](yelu_cmake/status.md) |
 | numbered backlog (Y2…Y18) + handoff | [`../CLAUDE.md`](../CLAUDE.md) |
 | layer triage rule (yc vs ycn) | [`lang/yc_ycn_boundary.md`](lang/yc_ycn_boundary.md) |

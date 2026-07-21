@@ -204,7 +204,7 @@ Four issues found and fixed:
 > (`let … in { }`, `:version`, `:public { … }`, `${do_test}`, `add_test "Runs"`
 > are all old forms). Current surface: `~label=` args, leading-cap enum
 > constructors, `$foo` reads, `if … then ( … )`. See
-> [`../lang/yc_syntax_critique.md`](../lang/yc_syntax_critique.md) and
+> [`../lang/yc_syntax.md`](../lang/yc_syntax.md) and
 > [`../probes/fmt/main.yc`](../../probes/fmt/main.yc) for real current syntax.
 
 Based on the OCaml-Python hybrid design:

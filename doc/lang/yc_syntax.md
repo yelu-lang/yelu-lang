@@ -1,20 +1,19 @@
-# yc surface syntax — critique & design
+# yc surface syntax — design & rationale
 
-> Where the `.yc` surface read well, where it read badly, and the design that
-> fixed it. **Both surface passes are complete:** the no-ALL_CAPS pass (the
-> `~`-half) *and* the labeled-only pass (Step 2 — positional cmake-keyword forms
-> are a compile error; every command with a labeled surface is labeled-only).
-> The shipped arc + commits are archived in
-> [worklog 2026-06](../worklog/worklog_2026_06.md). This doc keeps the durable
-> *design rationale* and the *open items*; it is the syntax-design companion to
-> [`surface_lsp_framework.md`](surface_lsp_framework.md) §8 (the parser /
-> formatter / LSP *machinery*). Syntax evolution is a safe, mechanical operation: accept a
-> cleaner form, `yelu fmt -w probes/**/*.yc` to canonicalize, and the
-> **surface-regression goldens** (`test_yc_cst_bridge`, born as the
-> emit-bridge oracle) + the **fmt matrix** (`yelu matrix probes/fmt`, 24/24)
-> prove the emitted cmake is byte-unchanged.
-> Note `fmt` is now **pass-through** (no positional→labeled codemod): a
-> positional file is rejected at compile, not silently rewritten.
+> **The go-to doc for the `.yc` surface.** What the syntax is, why it's shaped
+> that way, and where it read badly before the two surface passes fixed it.
+> Companion docs: parser/formatter/LSP *machinery* →
+> [`surface_lsp_framework.md`](surface_lsp_framework.md) §8; casing lanes →
+> [`casing_design.md`](casing_design.md); the open task list →
+> [`../status.md`](../status.md) § Parked; the shipped arc + commits →
+> [worklog 2026-06](../worklog/worklog_2026_06.md).
+>
+> Syntax evolution is a safe, mechanical operation: accept a cleaner form,
+> `yelu fmt -w probes/**/*.yc` to canonicalize, and the **surface-regression
+> goldens** (`test_yc_cst_bridge`) + the **fmt matrix** (`yelu matrix
+> probes/fmt`, 24/24) prove the emitted cmake is byte-unchanged. `fmt` is
+> **pass-through** (no positional→labeled codemod): a positional file is
+> rejected at compile, not silently rewritten.
 
 ## What works (keep)
 

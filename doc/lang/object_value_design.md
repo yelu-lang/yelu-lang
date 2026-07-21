@@ -191,7 +191,7 @@ just carries an `expr` as the name; both flow.
 - **Object-method `.` syntax** — pure surface; UFCS desugar; no IR
   change. Cheap once we want it.
 - **Record literal `{k=v, …}`** — separate parking lot (Lane shape-3
-  in [yc_syntax_critique.md](yc_syntax_critique.md)). Records and
+  in [yc_syntax.md](yc_syntax.md)). Records and
   entities will compose for things like
   `Target foo.properties = {COMPILE_FLAGS='-O2', LINK_LIBRARIES=['fmt']}`.
 - **Lifetime / scope of entities** — when does `Target foo` go out of

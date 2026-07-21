@@ -207,7 +207,7 @@ The two 2026-06-09 audit docs that fed the above were also deleted
 ## 2026-06-13: Handoff — critique #2 `~`-half (flags + value-labels) + install_targets fix
 
 One-time resume note. This session executed critique #2's `~`-modifier half
-(see [doc/lang/yc_syntax_critique.md](../lang/yc_syntax_critique.md) §2 and
+(see [doc/lang/yc_syntax.md](../lang/yc_syntax.md) §2 and
 [doc/lang/casing_design.md](../lang/casing_design.md)) and uncovered + fixed a
 pre-existing `install_targets` correctness bug.
 
@@ -408,14 +408,14 @@ groundwork for the future object-method `entity.method(args)` form.
 `yelu_cmake_legacy_bridge.ml`, `yelu_cmake_emit_debug.ml`. Tests:
 `test_yc_cst_bridge.ml` (+25 assertions across all four chunks).
 Docs: new `doc/lang/object_value_design.md`,
-`doc/lang/yc_syntax_critique.md` (APPEND row updated to shipped),
+`doc/lang/yc_syntax.md` (APPEND row updated to shipped),
 this worklog entry, CLAUDE.md (Y18 + test count 923→935).
 
 ## 2026-06-19: no-ALL_CAPS surface pass complete (the `~`-half)
 
 Closure record for critique #2's `~`-modifier half — turning cmake's SHOUTY
 positional keyword args into a uniform labeled surface. Design rationale stays
-in [`../lang/yc_syntax_critique.md`](../lang/yc_syntax_critique.md); this
+in [`../lang/yc_syntax.md`](../lang/yc_syntax.md); this
 archives the shipped arc. Throughout: emit byte-invariant (fmt matrix 24/24),
 verified by the emit-bridge + matrix; per-command, accept-both-then-canonicalize.
 
