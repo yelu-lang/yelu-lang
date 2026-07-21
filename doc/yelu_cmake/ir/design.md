@@ -27,7 +27,7 @@ design changes.
 > checking layer was **retired** with the legacy AST; production static
 > checking is now the **wellform** pass (`Yc_wellform`), and a fresh typing
 > pass over this IR is **Y17** (→ ycn, per
-> [`../typing/yc_ycn_boundary.md`](../typing/yc_ycn_boundary.md)). Read the
+> [`yc_ycn_boundary.md`](../../yelu_cmake_normal/typing/yc_ycn_boundary.md)). Read the
 > "per-fragment checking" passages below as design intent, not current code.
 
 The next theory-composition experiment should not refactor the current

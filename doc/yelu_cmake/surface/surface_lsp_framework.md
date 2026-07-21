@@ -638,9 +638,9 @@ workspace file. If the extension is ever reinstalled, re-symlink.
 - [`concrete_syntax_parser.md`](../../archive/concrete_syntax_parser.md)
   — history: the retired two-pass token parser this evolved from (§8 is the
   current pipeline).
-- [`ycn_concrete_syntax.md`](../ycn/ycn_concrete_syntax.md)
+- [`ycn_concrete_syntax.md`](../../yelu_cmake_normal/ycn_concrete_syntax.md)
   — surface-syntax design notes for `ycn`; the generalization target.
-- [`lang_design.md`](../lang_design.md), [`typed_design.md`](../typing/typed_design.md)
+- [`lang_design.md`](../lang_design.md), [`typed_design.md`](../../yelu_cmake_normal/typing/typed_design.md)
   — language-design tradition and the (retired) typed-checking design
   that Y17 / ecosystem-semantic revisit.
 - [`status.md`](../status.md) — the behavior-level

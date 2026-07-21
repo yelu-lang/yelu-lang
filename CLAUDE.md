@@ -172,18 +172,18 @@ per-theory and remaining-command suites not enumerated above.)
 ### Documentation
 
 The **full doc index** (every design/reference/worklog doc, with one-line
-purposes) is [`doc/project_overview.md`](doc/project_overview.md)
+purposes) is [`project_overview.md`](doc/project_overview.md)
 § Documentation Map. Most-reached-for while working:
 
 | File | Purpose |
 | --- | --- |
-| [`doc/status.md`](doc/status.md) | In-flight work + immediate queue. **Start here when resuming.** |
-| [`doc/project_overview.md`](doc/project_overview.md) | Full audit: architecture, milestones, gaps, Y-backlog, doc index. |
-| [`doc/yelu_cmake/surface/yc_command_reference.md`](doc/yelu_cmake/surface/yc_command_reference.md) | **Generated** yc command table (never hand-edit; `yelu command-reference`). |
-| [`doc/yelu_cmake/surface/surface_lsp_framework.md`](doc/yelu_cmake/surface/surface_lsp_framework.md) | Surface/parser/formatter/LSP design + the shipped pipeline (§8). |
-| [`doc/yelu_cmake/typing/yc_ycn_boundary.md`](doc/yelu_cmake/typing/yc_ycn_boundary.md) | yc-vs-ycn placement rule (erasability). |
-| [`doc/yelu_cmake/status.md`](doc/yelu_cmake/status.md) | Harness backlog / open-work registry (IR gaps, Y17, deferred loaders). |
-| [`doc/yelu_cmake/ir/driver.md`](doc/yelu_cmake/ir/driver.md) | Per-language driver ops + pipelines; §6.5 the compile/wellform/format/LSP contract. |
+| [`status.md`](doc/status.md) | In-flight work + immediate queue. **Start here when resuming.** |
+| [`project_overview.md`](doc/project_overview.md) | Full audit: architecture, milestones, gaps, Y-backlog, doc index. |
+| [`yc_command_reference.md`](doc/yelu_cmake/surface/yc_command_reference.md) | **Generated** yc command table (never hand-edit; `yelu command-reference`). |
+| [`surface_lsp_framework.md`](doc/yelu_cmake/surface/surface_lsp_framework.md) | Surface/parser/formatter/LSP design + the shipped pipeline (§8). |
+| [`yc_ycn_boundary.md`](doc/yelu_cmake_normal/typing/yc_ycn_boundary.md) | yc-vs-ycn placement rule (erasability). |
+| [`status.md`](doc/yelu_cmake/status.md) | Harness backlog / open-work registry (IR gaps, Y17, deferred loaders). |
+| [`driver.md`](doc/yelu_cmake/ir/driver.md) | Per-language driver ops + pipelines; §6.5 the compile/wellform/format/LSP contract. |
 
 ## Architecture
 
@@ -243,18 +243,18 @@ The per-fragment typed checker (`Stage_typecheck` / `CHECKER_BASE`, key types
 `tc_name` / `yc_string` / `yelu_expr` in `src/langs/yelu_legacy/`) was retired
 with the legacy AST (E1, 2026-05-14). Production static checking is now the
 **wellform** pass (`Yc_wellform`, six CST/expr checks) — full table in
-[`doc/project_overview.md`](doc/project_overview.md) § Layered checking. A fresh
+[`project_overview.md`](doc/project_overview.md) § Layered checking. A fresh
 typing pass over the post-retirement IR is **Y17** (→ ycn, per
-[`doc/yelu_cmake/typing/yc_ycn_boundary.md`](doc/yelu_cmake/typing/yc_ycn_boundary.md)); the legacy
-design it builds on is in [`doc/yelu_cmake/typing/typed_design.md`](doc/yelu_cmake/typing/typed_design.md).
+[`yc_ycn_boundary.md`](doc/yelu_cmake_normal/typing/yc_ycn_boundary.md)); the legacy
+design it builds on is in [`typed_design.md`](doc/yelu_cmake_normal/typing/typed_design.md).
 
 ## Current State
 
 Three homes, no duplication:
-- **In flight + immediate queue** → [`doc/status.md`](doc/status.md) (short, self-expiring).
+- **In flight + immediate queue** → [`status.md`](doc/status.md) (short, self-expiring).
 - **Full audit** — architecture, per-suite test totals, project-level
   milestones, gaps, and the numbered **Y2–Y18 backlog** →
-  [`doc/project_overview.md`](doc/project_overview.md).
+  [`project_overview.md`](doc/project_overview.md).
 - **Chronological history** → [`doc/worklog/`](doc/worklog/).
 
 One-line summary: wellform pass (Y1); concrete-syntax parser + both surface
@@ -267,10 +267,10 @@ lower_cst ∘ parse_cst`); the 2026-06 syntax audit closed (honest emit,
 
 The numbered **Y2–Y18** items (Implementation / Design / Research), with
 descriptions and status, live in
-[`doc/project_overview.md`](doc/project_overview.md) § Implementation Queue.
+[`project_overview.md`](doc/project_overview.md) § Implementation Queue.
 IDs are stable (never renumbered). Immediate/in-flight work is in
-[`doc/status.md`](doc/status.md). Done: Y1, Y9, Y10 (see
-[`doc/worklog/worklog_2026_04.md`](doc/worklog/worklog_2026_04.md)).
+[`status.md`](doc/status.md). Done: Y1, Y9, Y10 (see
+[`worklog_2026_04.md`](doc/worklog/worklog_2026_04.md)).
 
 ## Design Vision
 
@@ -401,9 +401,9 @@ CLAUDE.md holds only what a session needs *operationally* (build, file
 navigation, architecture summary, gotchas) — **project state is not
 duplicated here**. Update the right home:
 
-- **In-flight work / immediate queue** → [`doc/status.md`](doc/status.md).
+- **In-flight work / immediate queue** → [`status.md`](doc/status.md).
 - **Milestones, gaps, the Y-backlog, per-suite test totals** →
-  [`doc/project_overview.md`](doc/project_overview.md).
+  [`project_overview.md`](doc/project_overview.md).
 - **Chronological narrative** → [`doc/worklog/`](doc/worklog/).
 
 Update **this file** only for operational drift: new make targets or build

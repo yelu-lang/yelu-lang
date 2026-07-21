@@ -9,9 +9,9 @@
 
 There is **no concrete-syntax parser for `yelu_cmake_normal`**.
 
-- `yelu_cmake` (yc) has [`yelu_parse.ml`](../../../src/langs/yelu/yelu_parse.ml)
+- `yelu_cmake` (yc) has [`yelu_parse.ml`](../../src/langs/yelu/yelu_parse.ml)
   + the `parse_program_y1` entry point, consumed for `.yc` files
-  in [`probes/fmt/`](../../../probes/fmt) and elsewhere.
+  in [`probes/fmt/`](../../probes/fmt) and elsewhere.
 - `yelu_cmake_normal` (ycn) has no parser. Every ycn program in
   the repo is hand-built in OCaml using fragment constructors.
 
@@ -19,10 +19,10 @@ The lift_lower test corpus is the natural design substrate:
 
 | file | shape |
 |---|---|
-| [`test/test-yelu/test_yelu_lift_lower.ml`](../../../test/test-yelu/test_yelu_lift_lower.ml) | 65 paired yc↔ycn tests across all 14 theories + bool + int |
-| [`test/test-yelu/test_yelu_dual_eval.ml`](../../../test/test-yelu/test_yelu_dual_eval.ml) | dual evaluator (same program through both eval paths) |
-| [`test/test-yelu/test_yelu_function.ml`](../../../test/test-yelu/test_yelu_function.ml) | F2 dynamic-scope, ycn side |
-| [`test/test-yelu/test_yelu_cache.ml`](../../../test/test-yelu/test_yelu_cache.ml) | one ycn-side cache test |
+| [`test/test-yelu/test_yelu_lift_lower.ml`](../../test/test-yelu/test_yelu_lift_lower.ml) | 65 paired yc↔ycn tests across all 14 theories + bool + int |
+| [`test/test-yelu/test_yelu_dual_eval.ml`](../../test/test-yelu/test_yelu_dual_eval.ml) | dual evaluator (same program through both eval paths) |
+| [`test/test-yelu/test_yelu_function.ml`](../../test/test-yelu/test_yelu_function.ml) | F2 dynamic-scope, ycn side |
+| [`test/test-yelu/test_yelu_cache.ml`](../../test/test-yelu/test_yelu_cache.ml) | one ycn-side cache test |
 
 Together: **>65 hand-written ycn programs** ready to use as
 acceptance tests for any proposed concrete syntax. Pick the
@@ -31,7 +31,7 @@ parse to the same OCaml AST.
 
 ## 1. What ycn surface needs to express that yc's doesn't
 
-Three deltas from [`cmake_vs_normal.md`](../ir/cmake_vs_normal.md) drive
+Three deltas from [`cmake_vs_normal.md`](../yelu_cmake/ir/cmake_vs_normal.md) drive
 the syntax design:
 
 ### 1.a `ESetVar` is primitive — no command-side-effect sugar
@@ -61,8 +61,8 @@ computation is the expression.)
 ### 1.b bool / int as first-class expressions
 
 ycn has `bool` and `int` theory fragments that yc lacks
-([`fragments/yelu_cmake_normal_bool.ml`](../../../src/langs/yelu/fragments/yelu_cmake_normal_bool.ml),
-[`fragments/yelu_cmake_normal_int.ml`](../../../src/langs/yelu/fragments/yelu_cmake_normal_int.ml)).
+([`fragments/yelu_cmake_normal_bool.ml`](../../src/langs/yelu/fragments/yelu_cmake_normal_bool.ml),
+[`fragments/yelu_cmake_normal_int.ml`](../../src/langs/yelu/fragments/yelu_cmake_normal_int.ml)).
 These let conditions and arithmetic compose as expressions
 instead of cmake-command shapes:
 
@@ -236,7 +236,7 @@ NORMAL
 ```
 
 The `path`/`target`/`cvar` newtypes from
-[`yelu_cmake.ml`](../../../src/langs/yelu/yelu_cmake.ml) (`tc_name`)
+[`yelu_cmake.ml`](../../src/langs/yelu/yelu_cmake.ml) (`tc_name`)
 could surface as type-tagged constructors or stay implicit.
 
 ## 3. Open design questions
@@ -324,16 +324,16 @@ preserve: genex") that's open in the project TODO.
 
 ## 5. Related
 
-- [`cmake_vs_normal.md`](../ir/cmake_vs_normal.md) — the broader yc/ycn
+- [`cmake_vs_normal.md`](../yelu_cmake/ir/cmake_vs_normal.md) — the broader yc/ycn
   comparison (this doc dives into one slice of it: surface
   syntax).
-- [`design.md`](../ir/design.md) — the durable design notes for the
+- [`design.md`](../yelu_cmake/ir/design.md) — the durable design notes for the
   yelu_cmake harness.
-- [`structure.md`](../ir/structure.md) — code map; where the
+- [`structure.md`](../yelu_cmake/ir/structure.md) — code map; where the
   constructors live.
-- [`lang_design.md`](../lang_design.md) — broader
+- [`lang_design.md`](../yelu_cmake/lang_design.md) — broader
   language-design tradition this builds on.
-- [`surface_lsp_framework.md`](../surface/surface_lsp_framework.md) §8 —
+- [`surface_lsp_framework.md`](../yelu_cmake/surface/surface_lsp_framework.md) §8 —
   yc's concrete-syntax + parser/formatter pipeline; the same template applies
   to ycn. (The old `syntax_tiers.md` tier plan was retired — superseded by the
   parser tests + probes.)

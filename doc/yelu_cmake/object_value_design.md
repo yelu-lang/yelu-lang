@@ -8,7 +8,7 @@
 > before we promote.
 >
 > **§e (yc vs ycn placement) is settled (2026-07-16)** by the triage rule in
-> [`yc_ycn_boundary.md`](typing/yc_ycn_boundary.md): the leading-cap **constructor**
+> [`yc_ycn_boundary.md`](../yelu_cmake_normal/typing/yc_ycn_boundary.md): the leading-cap **constructor**
 > is yc surface (erases to `TARGET`/`CACHE`/… — already shipped), the
 > **value class is ycn** (a value that flows through bindings needs a value
 > model, which yc cannot emit without synthesizing an encoding). The

@@ -127,7 +127,7 @@ tracker):
   (`~properties={k=v}`, the queued shape-4 `~library={…}`) stays **yc** — it
   erases to a keyword run. Records as *first-class values* (bind / pass /
   project a `{…}`), value-default reads, and dotted globals need a value/type
-  model → **ycn**, per [`yc_ycn_boundary.md`](../typing/yc_ycn_boundary.md). The boundary
+  model → **ycn**, per [`yc_ycn_boundary.md`](../../yelu_cmake_normal/typing/yc_ycn_boundary.md). The boundary
   is the value flow, not the braces.
 
 (Several latent emit bugs that this section used to track — the literal-target

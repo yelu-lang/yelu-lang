@@ -3,7 +3,7 @@ open Lang_yelu_type
 
 (* cmake_path operations: pure path manipulation (GET/HAS/APPEND/...).
    File IO (file(READ/WRITE/...)) lives in lang_yelu_file.ml.
-   path_var inputs are T.var — not checkable via type_of (see yelu_typed_design.md). *)
+   path_var inputs are T.var — not checkable via type_of (see doc/yelu_cmake_normal/typing/typed_design.md). *)
 
 module Make_path_op (T : LANG_TYPES) = struct
   type yelu_path_stmt =

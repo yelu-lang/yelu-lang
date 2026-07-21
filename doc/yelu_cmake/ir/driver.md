@@ -250,6 +250,6 @@ it's fatal — is in
 - [`ir_tiers.md`](ir_tiers.md) — 4-tier IR fidelity: typed → cmake_lang → yc_raw → yc_apply
 - [`structure.md`](structure.md) — file-level code map
 - [`cmake_vs_normal.md`](cmake_vs_normal.md) — yc vs ycn feature comparison
-- [`ycn_concrete_syntax.md`](../ycn/ycn_concrete_syntax.md) — proposal for the missing `.ycn` parser
+- [`ycn_concrete_syntax.md`](../../yelu_cmake_normal/ycn_concrete_syntax.md) — proposal for the missing `.ycn` parser
 - [`cache_matrix.md`](../../../probes/cache_matrix.md) — matrix oracle methodology
 - [`worklog_2026_06.md`](../../worklog/worklog_2026_06.md) — parse-print oracle close (2026-05-31)

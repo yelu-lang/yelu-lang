@@ -83,7 +83,7 @@ implementation) was retired during the May 2026 retirement of
 pass (`Yc_wellform`, six CST/expr checks shipped across compile / fmt / LSP /
 corpus-gate). A fresh *typing* pass over the post-retirement two-language IR is
 **Y17** ("Types on yelu_cmake"), placed in ycn and building on the
-theory-fragment split sketched in [`plan.md`](yelu_cmake/typing/plan.md). The
+theory-fragment split sketched in [`plan.md`](yelu_cmake_normal/typing/plan.md). The
 syntactic round-trip on real-world cmake is the strongest currently-live
 equivalence oracle.
 

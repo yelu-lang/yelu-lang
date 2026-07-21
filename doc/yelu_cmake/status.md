@@ -111,7 +111,7 @@ higher-fidelity surface + language server for yc, feeding off the driver's
 in [`surface_lsp_framework.md`](surface/surface_lsp_framework.md) §8;
 remaining surface *polish* (spans on findings, hover, semantic tokens) is in
 [`status.md`](../status.md) § Parked. The ycn surface is the next surface
-work — [`ycn_concrete_syntax.md`](ycn/ycn_concrete_syntax.md).
+work — [`ycn_concrete_syntax.md`](../yelu_cmake_normal/ycn_concrete_syntax.md).
 
 ### Behavior-level sequels (parked, in order)
 
@@ -144,9 +144,9 @@ exclusion the audit flagged. Gated on:
 
 > Design cluster (types-as-data, the yc/ycn placement ruling, the theory
 > split, the two open expr-design questions): see
-> [`typed_design.md`](typing/typed_design.md) § Y17 doc cluster for the
+> [`typed_design.md`](../yelu_cmake_normal/typing/typed_design.md) § Y17 doc cluster for the
 > reading order. Placement is settled — typing is **ycn's** job
-> ([`yc_ycn_boundary.md`](typing/yc_ycn_boundary.md)).
+> ([`yc_ycn_boundary.md`](../yelu_cmake_normal/typing/yc_ycn_boundary.md)).
 
 Post-retirement typing pass. The previous attempt (per-fragment
 `Stage_typecheck`) was structurally shallow: each fragment

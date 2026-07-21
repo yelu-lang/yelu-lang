@@ -124,7 +124,7 @@ errored (except the Y14 reserved-word collision, which is a real mistake).
   belongs in ycn. Needs `.` inside `$`-reads; the namespace prefix table
   (CMAKE/PROJECT/lang grouping) rides with it. (One of the three precedents
   behind the general triage rule in
-  [`yc_ycn_boundary.md`](../typing/yc_ycn_boundary.md).)
+  [`yc_ycn_boundary.md`](../../yelu_cmake_normal/typing/yc_ycn_boundary.md).)
 - **CamelCase compat enums** (`AnyNewerVersion ⇄ Any_newer_version`) — need the
   per-theory constructor⇄cmake-casing **table** (uppercase ≠ cmake casing),
   unlike the all-caps ones that shipped tableless.

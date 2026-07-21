@@ -44,7 +44,7 @@ module Make_find_op (T : LANG_TYPES) = struct
         required : bool;
       }
     (* find_package sets implicit variables (<Name>_FOUND, <Name>_INCLUDE_DIRS, etc.)
-       that are not representable as a single typed output — see yelu_typed_design.md *)
+       that are not representable as a single typed output — see doc/yelu_cmake_normal/typing/typed_design.md *)
     | Yfind_package of {
         name : string;
         version : string option;

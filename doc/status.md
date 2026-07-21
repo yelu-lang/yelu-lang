@@ -69,7 +69,7 @@ consolidation first. The two yc-side constructors are not causing bugs.
 **So the real next big rock is ycn concrete syntax** — the gateway to the whole
 ycn agenda (records as values, Y17 typing, Y18 entity value are all unwritable
 until ycn has a surface). Design notes:
-[`ycn_concrete_syntax.md`](yelu_cmake/ycn/ycn_concrete_syntax.md);
+[`ycn_concrete_syntax.md`](yelu_cmake_normal/ycn_concrete_syntax.md);
 acceptance corpus already exists (65 hand-written ycn programs in
 `test_yelu_lift_lower.ml`).
 
@@ -102,7 +102,7 @@ task list.*
 | **"Belief" definition** | Shapes the `check` op's output type — flat diagnostics vs a richer fact stream the LSP renders. See `yelu_cmake/surface/surface_lsp_framework.md` §4. |
 
 **ycn-ward redesigns** (not surface polish — need a value/type model, so they
-belong to the ycn agenda per [`yc_ycn_boundary.md`](yelu_cmake/typing/yc_ycn_boundary.md)):
+belong to the ycn agenda per [`yc_ycn_boundary.md`](yelu_cmake_normal/typing/yc_ycn_boundary.md)):
 records-as-first-class-values, value-default reads (bare `foo` = value), dotted
 globals (`$cmake.version`). Design context in
 [`yc_syntax.md`](yelu_cmake/surface/yc_syntax.md) and
@@ -118,7 +118,7 @@ globals (`$cmake.version`). Design context in
 | yc surface syntax — design & rationale (go-to) | [`yc_syntax.md`](yelu_cmake/surface/yc_syntax.md) |
 | yelu_cmake harness backlog / open-work registry | [`status.md`](yelu_cmake/status.md) |
 | numbered backlog (Y2…Y18) + handoff | [`CLAUDE.md`](../CLAUDE.md) |
-| layer triage rule (yc vs ycn) | [`yc_ycn_boundary.md`](yelu_cmake/typing/yc_ycn_boundary.md) |
+| layer triage rule (yc vs ycn) | [`yc_ycn_boundary.md`](yelu_cmake_normal/typing/yc_ycn_boundary.md) |
 
 > **One tracker.** `lang/surface_status.md` was retired 2026-07-20 and folded
 > into the three files above (design → framework §8, history → worklog,

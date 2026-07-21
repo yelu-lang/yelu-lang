@@ -4,7 +4,7 @@ open Lang_yelu_type
 module Make_property_op (T : LANG_TYPES) = struct
   (* Property namespace: get/set_property, define_property, get/set_target_property, … *)
   (* Property value types are stringly-keyed and dynamic; T.var outputs from get
-     operations are not yet tracked (all return Ty_any — see yelu_typed_design.md). *)
+     operations are not yet tracked (all return Ty_any — see doc/yelu_cmake_normal/typing/typed_design.md). *)
   type yelu_property_stmt =
     | Yprop_get of {
         var : T.var;
@@ -61,6 +61,6 @@ module Make_property_check (T : LANG_TYPES) = struct
       : yelu_property_stmt -> type_error list * (T.var * yelu_type) list =
     ignore type_of;
     (* Property value types are dynamic (stringly-keyed schema);
-       deeper typing requires a property registry — see yelu_typed_design.md. *)
+       deeper typing requires a property registry — see doc/yelu_cmake_normal/typing/typed_design.md. *)
     function _ -> [], []
 end

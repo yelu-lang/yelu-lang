@@ -7,7 +7,7 @@
 >
 > **Placement (2026-07-16):** this doc's "belongs in ycn, not yc" conclusion is
 > one of the three precedents behind the general triage rule now written up in
-> [`yc_ycn_boundary.md`](typing/yc_ycn_boundary.md) — *yc = erases to cmake; ycn =
+> [`yc_ycn_boundary.md`](../yelu_cmake_normal/typing/yc_ycn_boundary.md) — *yc = erases to cmake; ycn =
 > needs a value/type model*. Both ideas here (A syntax inversion, B
 > var-as-typed-handle) are ycn-side under that rule.
 

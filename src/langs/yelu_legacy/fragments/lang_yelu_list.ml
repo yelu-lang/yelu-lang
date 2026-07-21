@@ -43,7 +43,7 @@ module Make_list_check (T : LANG_TYPES) = struct
   (* cvar inputs are T.var, not T.expr — they cannot be checked via type_of.
      Only T.expr inputs (values, glue, value) and output vars are typed here.
      Ylist_transform: output→Ty_list Ty_any when present; transform semantics deferred.
-     See yelu_typed_design.md for the cvar-as-T.var checker-extension design question. *)
+     See doc/yelu_cmake_normal/typing/typed_design.md for the cvar-as-T.var checker-extension design question. *)
   let check ~(type_of : T.expr -> yelu_type)
       : yelu_list_stmt -> type_error list * (T.var * yelu_type) list =
     let strs es ctx = List.concat_map es ~f:(fun e -> check_compat ~context:ctx Ty_string (type_of e)) in
