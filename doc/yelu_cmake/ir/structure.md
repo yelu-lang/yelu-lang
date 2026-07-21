@@ -1,7 +1,7 @@
 # yelu_cmake — Module Structure
 
 Code-anchored guide to `src/langs/yelu/`. For the *why* see
-`design.md`; for current open work see `status.md`.
+`design.md`; for current open work see the single tracker [`status.md`](../../status.md).
 
 The project hosts two distinct cmake-domain languages:
 
@@ -65,7 +65,7 @@ propagated }`. See `../cmake/scope_and_control_flow.md`.
 
 Currently both languages share this same `expr` extensible type via
 `type expr += ...`. Splitting it into two distinct types (per language)
-is queued as a post-retirement cleanup — see status.md item 7.
+is queued as a post-retirement cleanup — see [`status.md`](../../status.md) § IR/harness cleanups.
 
 ### `yelu_cmake_eval.ml` / `yelu_cmake_normal_eval.ml`
 
@@ -134,7 +134,7 @@ dispatchers.
 The helper module reuses `Lang_cmake_strings.of_*` for cmake
 enum→string conversion (`message_mode`, `supported_lang`,
 `compatibility`, etc.). Long-tail post-retirement cleanup
-(tracked in `status.md`): have the parser call these helpers too,
+(tracked in [`status.md`](../../status.md)): have the parser call these helpers too,
 so the project has one source of truth for "what does this
 command shape become in the IR".
 
@@ -307,7 +307,7 @@ byte oracle against the legacy `Lang_yelu_compile` output).
   invariants, let-binding architecture, F2 function semantics.
 - `../../doc/worklog/worklog_2026_06.md` — parse-print oracle close
   (claim, oracles, per-parser contract sheet, code-quality posture).
-- `status.md` — living tracker for current work.
+- [`status.md`](../../status.md) — the single open-work tracker.
 - `../worklog/worklog_2026_05.md` — chronological history of the
   harness (uses older "Yelu1 / Yelu2 / yelu_tiny" vocabulary; left
   as historical record).

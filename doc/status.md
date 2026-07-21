@@ -1,132 +1,203 @@
-# Status — what is being worked on right now
+# Status — project progress & open work
 
-> **Scope: in-flight work and the immediate queue. Nothing else.**
-> This file is deliberately short and self-expiring: when an item finishes it
-> leaves here and its record lives in the worklog. If you are looking for
-> *why* something is designed a certain way, or a full project audit, this is
-> the wrong file — see § Where the durable records live.
+> **The single tracker for what's unfinished.** Every open task lives here,
+> grouped by area, so "what's left?" is answerable in one scan. Rules:
+> - **Done → out.** When an item lands, delete it here and write it up in the
+>   [worklog](worklog/). Shipped milestones are audited in
+>   [`project_overview.md`](project_overview.md) § Project-level milestones.
+> - **Rationale → the design docs.** This file is the task list, not the
+>   *why*; each item points at its design home when there is one.
+> - If a task isn't here, it's either shipped or not yet a task.
 >
 > Last touched: 2026-07-21.
 
-## In flight
+## Now
 
-*(nothing active — next is ycn concrete syntax; see the queue below)*
+- **In flight:** *(nothing active)*
+- **Next big rock: ycn concrete syntax** — the gateway to the whole ycn agenda
+  (records-as-values, Y17 typing, Y18 entity value are all unwritable until ycn
+  has a surface). Design notes:
+  [`ycn_concrete_syntax.md`](yelu_cmake_normal/ycn_concrete_syntax.md);
+  65-program acceptance corpus already in `test_yelu_lift_lower.ml`.
+- **Then (unordered):** a 2nd probe project (spdlog for a real
+  `find_package(fmt)` consumer, or nlohmann/json for the fastest clean win —
+  *not* gated on anything; fmt already covers 13/15 coverage-map rows), and the
+  behavior-level oracle (§ Backlog 2).
 
-**Recently landed (2026-07-20..21), for context — full detail in the worklog:**
-- **Coverage/dispatch locks + 5 fixed bugs.** A scan found 15 of 138
-  `command_names` entries untested and 5 broken (9 `cmake_path` ops dropping
-  `~out=`; `add_exe_alias` / `add_lib_imported` / `precompile_headers` with no
-  `.yc` surface at all; `add_lib_alias` self-aliasing). Guards added: the
-  command-coverage lock, the dispatch lock, and a generated
-  `yc_command_reference.md`.
-- **Doc consolidation.** Counts refreshed; `surface_status.md` retired into
-  three homes (design → `surface_lsp_framework.md` §8, history → worklog, open
-  items → this file § Parked); `project_overview.md` full body pass.
-- **Wrong-shaped `~properties=` + orphan deletion** — see queue item 3.
+**Recently landed** (rolling; full history in the worklog): coverage/dispatch
+locks + 5 fixed bugs, the wrong-shaped `~properties=` fix + orphan deletion, the
+Tier (b) parser retirement, the doc reorg (layer+facet, then the yc/ycn split).
 
-## Immediate queue
+## Backlog
 
-1. ~~Tier (b) sweep~~ — **done** (`cf69703`).
-2. ~~Dead specialized-property commands~~ — **done** (`1d70486`). Removed the
-   *text surface* only; the IR constructors stay (15 programmatic users:
-   step_common_ir, CMakeOnly generators, runcmake tests, legacy bridge) — the
-   earlier "delete them, they're redundant" plan was scoped too wide. Behavior
-   now splits on whether the name is real cmake: `get_directory_property`
-   passes through as raw (it is a builtin, in the stdlib cache), the other five
-   report "unknown command" (they were never cmake commands). Found and fixed
-   an adjacent live bug on the way (`cc196c1`): `set_source_files_properties`
-   emitted `${BMI}PROPERTIES` — token-merged, silently losing the keyword.
-3. ~~Wrong-shaped `~properties=` silent drop~~ + ~~orphaned `yelu_emit_main.ml`~~
-   — **done** (`1db4bd6`, `c751713`). A list where a record was required
-   collapsed the whole command to `ESeq []` (emitted nothing, exit 0); now a
-   fatal `Malformed_kwarg` CST check. Deleting `yelu_emit_main.ml` also killed
-   the phantom "hybrid `raw_cmake`" concept (it was a one-line dead alias to
-   `yc_raw`).
+### 1. ycn + typing — the forward agenda
 
-### Raw-escape unification — re-scoped 2026-07-21, no longer a hard pre-req
+- **ycn concrete syntax** — see § Now. The gateway.
+- **Y17 — a typing pass over the post-retirement IR.** Placement settled:
+  typing is **ycn's** job ([`yc_ycn_boundary.md`](yelu_cmake_normal/typing/yc_ycn_boundary.md)).
+  Design cluster + reading order in
+  [`typed_design.md`](yelu_cmake_normal/typing/typed_design.md). Gating question
+  before it starts: how much theory-fragment `expr`-split to bake in first
+  (cleanup items 6–7 below).
+- **Raw-escape unification** — *de-prioritized 2026-07-21.* It's 2 yc-side
+  constructors (`ECmakeRaw`/`ECmakeRawCmd`), does **not** ripple through
+  `Yelu_cmake_convert` (raw hits its catch-all — can't cross into ycn today),
+  and isn't causing bugs. Fold into ycn's opacity-escape design when ycn
+  syntax starts, rather than a standalone yc-side pass.
+- **ycn-ward redesigns** (need a value/type model → ycn per the boundary rule):
+  records-as-first-class-values, value-default reads (bare `foo` = value),
+  dotted globals (`$cmake.version`). Context in
+  [`yc_syntax.md`](yelu_cmake/surface/yc_syntax.md) and
+  [`var_centric_design.md`](yelu_cmake/var_centric_design.md).
 
-The 2026-07-16 framing ("unify four concepts; IR consolidation that **ripples
-through `Yelu_cmake_convert`**; must precede ycn") was investigated and is
-**overstated**:
+### 2. Behavior-level oracle (Y16 — "does it scale")
 
-- **Two live constructors, not four.** `ECmakeRaw` (verbatim-text codegen
-  escape) and `ECmakeRawCmd` (structured parser fallback), both yc-side.
-  `yc_raw` is just the surface command that builds `ECmakeRaw`; "hybrid
-  `raw_cmake`" was a dead alias, now deleted.
-- **It does not ripple through convert.** Neither raw constructor appears in
-  `Yelu_cmake_convert` — they hit its `| _ -> fail "cannot translate unknown
-  yelu_cmake expression"` catch-all. Raw literally cannot cross into ycn today.
-- So the real fact is **ycn has no opacity escape at all**. That is a *design*
-  question best answered *with* ycn's surface, not as a standalone gate before
-  it. Unifying `ECmakeRaw`/`ECmakeRawCmd` now, in isolation, buys little and
-  can't be validated against ycn's needs because ycn's opacity story doesn't
-  exist yet.
+The *lead* forward item after Bar #3-lite (syntactic round-trip) shipped. Its
+foundational blocker (cache + `-D` cmd-line input) shipped 2026-06-01. Proves
+**runtime semantics** match real cmake, not just syntax. Scope:
 
-**Decision:** de-prioritized. Fold the raw-escape design into ycn's opacity
-escape when ycn concrete syntax starts, rather than doing a standalone yc-side
-consolidation first. The two yc-side constructors are not causing bugs.
+- **Configure-time evaluation oracle** — run real cmake on source + yelu-emitted
+  output; diff the File API (codemodel-v2 + cache-v2) JSON.
+- **Dynamic-dispatch resolution** — walk `include()`/`find_package()` chains at
+  configure time to populate the function table the static walker can't see
+  (379 generic on z3 / 621 on llvm are runtime-loaded-helper calls).
+- **Macro vs function scope** — `yelu_cmake_eval` treats scope opaquely; needs
+  explicit modeling once running side-by-side with real cmake.
+- **Genex `$<…>` delay** — currently opaque `EString`; must eval at the right
+  stage.
 
-**So the real next big rock is ycn concrete syntax** — the gateway to the whole
-ycn agenda (records as values, Y17 typing, Y18 entity value are all unwritable
-until ycn has a surface). Design notes:
-[`ycn_concrete_syntax.md`](yelu_cmake_normal/ycn_concrete_syntax.md);
-acceptance corpus already exists (65 hand-written ycn programs in
-`test_yelu_lift_lower.ml`).
+Adoption framing (per-rewrite verification chain, not all-or-nothing) is in
+[`hybrid_strategy.md`](yelu_cmake/hybrid_strategy.md). Sequels, in order:
+real-world z3/llvm/torch rewrites → optimize-and-prove-equivalent → decide macro
+elimination (Y15 data).
 
-## Parked — not queued, but not forgotten
+### 3. IR / harness cleanups
 
-Small, independent, and safe to pick up in any order. Each is a *surface* item
-(no IR impact) unless noted.
+Post-retirement cleanup, in value order (detail was in the old yelu_cmake
+status; several pair with Y17):
 
-*Surface-syntax design rationale for these lives in
-[`yc_syntax.md`](yelu_cmake/surface/yc_syntax.md); this is just the
-task list.*
+1. **Split `cmake_op`** into smaller surfaces — largest single fragment.
+2. **Generated fragment coverage table** (eval/lift/lower/emit/test per fragment).
+3. **Move emit/convert arms next to each fragment** — `yelu_cmake_convert.ml`
+   (~1.7k) and `yelu_cmake_emit_debug.ml` (~964) are central registries.
+4. **Y17** (§ Backlog 1).
+5. **Promote compat surfaces to real theories** (genex first, then find/try/cmake_op subsets) — pairs with Y17.
+6. **Categorize `yelu_cmake_normal_*` theories** general vs cmake-specific (`bool`/`int`/`string`/`list`/`store` are reusable).
+7. **Split the shared `expr` type** between `yelu_cmake` and `yelu_cmake_normal` (small shared core) — pairs with 6 + Y17.
+8. **Parser family split** (`yelu_parse.ml`, ~1.5k `_inner` library) — **defer** until the surface stabilizes.
+9. **CLI driver split** (`yelu.ml`, ~600 lines) — **defer** until a 2nd major subcommand.
+10. **Escape registry** — track every `ECmakeRaw`/`ECmakeApply`/raw-fallback site (reason, location, coverage); start as markdown, code-level waits for Y17.
+
+**Known IR shape gaps (emit side)** — pinned by `test_yelu_utils_stubs.ml`; each
+is `failwith` or accept-and-discard:
+STRLESS/STRGREATER conds (only STREQUAL modeled) · `EXCLUDE_FROM_ALL` on
+add_executable/library (discarded) · `target_link_libraries` multi-target
+(caller splits) · `add_custom_command(TARGET …)` (only OUTPUT-form) ·
+`math ~output_format` (discarded; Hexdecimal→decimal) · JSON ops
+(`ECmakeStringJson` opaque) · parser sentinel defaults (`out_var`/`cvar_name_of`
+`"?"`, `expr_to_int` `0`, `string_uuid`/`cmake_minimum_required`/`project`/`policy_set`
+placeholders — vestigial, tighten with Y17).
+
+### 4. Deferred — file-loader / module system + eval residuals
+
+Pick up as cmake-corpus expansion demands. Full picture in
+[`io_architecture.md`](yelu_cmake/ir/io_architecture.md) §§ 5, 7.
+
+- **`include_guard()` load-once cache** — ~20 LOC; bites when modules accumulate state.
+- **`find_package(X)` real recursion** — today a `Threads` whitelist; real =
+  `package_loader` callback + `<Pkg>Config.cmake`/`Find<Pkg>.cmake` search
+  (200–400 LOC). The big missing piece for llvm/z3/torch scale; own milestone.
+- **`find_program/path/library/file` real `$PATH`/`HINTS`/`PATHS` search** — today always-NOTFOUND stub.
+- **`try_compile`/`try_run` real probes** — today always-FALSE stub; needs a compiler runner.
+- **`file(READ/WRITE/STRINGS/GLOB)`** — per-subcommand callbacks; `file(READ)` most load-bearing (configure-time templates).
+- **`execute_process`** — today result=0/empty; needs subprocess runner callback.
+- **`configure_file`** — read template, substitute `${X}`, write.
+- **Cache residuals:** `CACHE … FORCE` vs `-D` precedence (`force` bit unhonored) · `$CACHE{VAR}` explicit read (not in IR) · cross-run `CMakeCache.txt` persistence.
+- **Env namespace** `set(ENV{FOO})`/`$ENV{FOO}` — no-op in eval; needs I/O callback.
+- **Genex as delayed values** — flow as opaque `EString` via `Ycs_eval`.
+- Misc: fragment-owned parser composition · `add_subdirectory` binary_dir arg · `PARENT_SCOPE` from subdir (works, untested) · property scope beyond target · bool-literal dual-site (`bool_literal_of_string` + `expect_bool`, Y17 follow-up) · a purer functional function-theory (Y15) · property/random testing + formal proof.
+
+### 5. Retirement tail
+
+- **E2 — delete `src/langs/yelu_legacy/`.** `git rm -r`, revert `src/langs/dune`
+  to plain `(include_subdirs unqualified)`, drop the negative-module list. Gated
+  on: E1 green soak + Y17 not needing legacy as a reference.
+
+### 6. Known bugs
+
+- **`ylet` alias chain (`EVar→EString` demotion).** `ylet` demotes `EVar n` to
+  `EString n`, so a chained alias binds to the literal string, not the prior
+  binding. The un-demoted form loops (no cycle detection in `target_arg`/`arg`).
+  The `ylet chain` test is **commented out** (`test_yelu_compile.ml:149`); fix
+  needs cycle detection. `dune test` is green only because it's skipped.
+
+### 7. Surface polish (Parked — small, independent, any order)
+
+Design rationale in [`yc_syntax.md`](yelu_cmake/surface/yc_syntax.md); this is
+the task list.
 
 | item | note |
 | --- | --- |
-| **B2 — token spans on wellform findings** | Findings carry a name, not a span; the LSP scans for the first whole-word match. Heuristic but practical. The located lexer already provides what's needed. |
-| **LSP hover / semantic tokens** (M1.5b tail) | Parse-error spans shipped; these two did not. |
-| **Statement-level error recovery** (M1.4) | Deferred into the LSP work — only the LSP consumes partial trees, and the formatter is already fail-safe (parse error → no overwrite). Do the light top-level version when the LSP needs it. |
-| **Cross-file collect** | The LSP sees one file at a time, so `function`/`macro` declarations behind `include`/`add_subdirectory` read as unknown. Would kill the last open-world false-positive class. |
-| **"Did you mean X?"** | Levenshtein against `command_names ∪ defined_names`; cheap addition to the `Unknown_command` text. |
-| **Manifest `ctor` column** | Populate + test-lock now that `lower` makes the surface↔constructor link verifiable. |
-| **Version literal** | `cmake_minimum_required 3.8...3.25` / `find_package Foo '9.0'` — a first-class unquoted version literal (lexer token `N(.N)*(...N(.N)*)?`); the bare version positional is currently accepted-and-dropped. |
-| **Per-mode `message_*`** | terse `message_fatal`/`_warning`/`_status` aliases desugaring to `~mode=` (curated subset). |
-| **`get_property ~mode=Defined`** | the trailing `SET`/`DEFINED`/`BRIEF_DOCS`/`FULL_DOCS` flag-as-kwarg-enum; ~30 lines, get_property only. |
-| **shape-4 install_targets records** | `~library={destination=…}` — the dotted-label stopgap stands; the record form is the postponed upgrade. |
-| **function labeled args** | `fun f(~x)` / call `f ~x='v'` — needs generated `cmake_parse_arguments`; ties to **Y15**. |
-| **`Apply_shadows_primitive` first-class message** | the check fires only as a buried generic warning, unlike `Raw_cmake_escape`/`Positional_form`; give it its own message. (`add_custom_command` gap already fixed, `d60190f`.) |
-| **Duplicate single-value field → reject** | Y14 pattern (painpoints #11) for record / dotted-label forms. (The adjacent wrong-*shaped* `~properties=` silent drop is fixed — `Malformed_kwarg`, `1db4bd6`.) |
-| **cache docstring `~doc:`** + **property cache-semantics test** (Value vs SET vs DEFINED) | small cosmetics. |
-| **`string_json` unknown op** | Fails at emit (`emit_ast: unknown string(JSON …) op`) rather than as a wellform diagnostic. Right error, wrong surface. |
-| **"Belief" definition** | Shapes the `check` op's output type — flat diagnostics vs a richer fact stream the LSP renders. See `yelu_cmake/surface/surface_lsp_framework.md` §4. |
+| **B2 — token spans on wellform findings** | Findings carry a name, not a span; LSP scans for the first whole-word match. Located lexer already has what's needed. |
+| **LSP hover / semantic tokens** (M1.5b tail) | Parse-error spans shipped; these didn't. |
+| **Statement-level error recovery** (M1.4) | Only the LSP needs partial trees; formatter is already fail-safe. Do the light version when the LSP needs it. |
+| **Cross-file collect** | LSP sees one file; `function`/`macro` behind `include`/`add_subdirectory` read as unknown. Kills the last open-world false-positive class. |
+| **"Did you mean X?"** | Levenshtein vs `command_names ∪ defined_names`; cheap `Unknown_command` add-on. |
+| **Manifest `ctor` column** | Populate + test-lock now that `lower` makes the surface↔ctor link verifiable. |
+| **Version literal** | `cmake_minimum_required 3.8...3.25` / `find_package Foo '9.0'` — first-class unquoted version token; bare version positional is accepted-and-dropped today. |
+| **Per-mode `message_*`** | terse `message_fatal`/`_warning`/`_status` → `~mode=` (curated subset). |
+| **`get_property ~mode=Defined`** | trailing `SET`/`DEFINED`/`BRIEF_DOCS`/`FULL_DOCS` flag-as-kwarg-enum; ~30 lines. |
+| **shape-4 install_targets records** | `~library={destination=…}` — dotted-label stopgap stands. |
+| **function labeled args** | `fun f(~x)` / `f ~x='v'` — needs generated `cmake_parse_arguments`; ties to **Y15**. |
+| **`Apply_shadows_primitive` first-class message** | fires only as a buried generic warning; give it its own. |
+| **Duplicate single-value field → reject** | Y14 pattern (painpoints #11) for record/dotted-label forms. |
+| **cache docstring `~doc:`** + **property cache-semantics test** | small cosmetics. |
+| **`string_json` unknown op** | fails at emit rather than as a wellform diagnostic (right error, wrong surface). |
+| **"Belief" definition** | shapes the `check` op's output type (flat diagnostics vs a richer fact stream). See `surface_lsp_framework.md` §4. |
 
-**ycn-ward redesigns** (not surface polish — need a value/type model, so they
-belong to the ycn agenda per [`yc_ycn_boundary.md`](yelu_cmake_normal/typing/yc_ycn_boundary.md)):
-records-as-first-class-values, value-default reads (bare `foo` = value), dotted
-globals (`$cmake.version`). Design context in
-[`yc_syntax.md`](yelu_cmake/surface/yc_syntax.md) and
-[`var_centric_design.md`](yelu_cmake/var_centric_design.md).
+### 8. Infra
 
-## Where the durable records live
+- **No CI** — Yelu CI: build + test on push (repo has none).
+- **Y2** option-combination enumeration (2^n boolean combos for step4+, File API diff).
+- **Y5** File API cache-v2 diff (extend the oracle beyond codemodel-v2).
+- **Y12** cmake-layer test mirroring (sync cmake PP tests with yelu coverage).
+
+## Numbered backlog (Y-IDs — stable, never renumbered)
+
+Quick reference; each maps to an area above. Done: **Y1, Y9, Y10** (worklog 04).
+
+| ID | title | where / status |
+| --- | --- | --- |
+| Y2 | Option combination enumeration | § 8 |
+| Y3 | Z3 symbolic equivalence | research (needs behavior oracle) |
+| Y4 | E-graph investigation | research |
+| Y5 | File API cache-v2 diff | § 8 |
+| Y6 | Semantics hardest to preserve (genex, policy, find) | design |
+| Y7 | Cache-sensitivity annotations | design; ties to Y17 |
+| Y8 | Multi-stage core (quote/splice) | research; ties to Y17 |
+| Y11 | Policy-aware compiler | design |
+| Y13 | Persistent value primitive (`@cached`) | design |
+| Y14 | Reserved keyword validation | ⚠️ partial (enum-shadow fatal; broader clashes open) |
+| Y15 | Binding feature library | design; ties to function labeled args |
+| Y16 | Real-world cmake rewrite | § 2 (behavior oracle / hybrid) |
+| Y17 | Types on **ycn** | § 1 |
+| Y18 | First-class object value | § 1 (ycn); [`object_value_design.md`](yelu_cmake/object_value_design.md) |
+
+## Where done work + design rationale live
 
 | kind | file |
 | --- | --- |
-| narrative record of finished work | [`worklog_2026_06.md`](worklog/worklog_2026_06.md) |
-| project-wide audit | [`project_overview.md`](project_overview.md) |
-| surface / formatter / LSP **design** (incl. the shipped pipeline, §8) | [`surface_lsp_framework.md`](yelu_cmake/surface/surface_lsp_framework.md) |
-| yc surface syntax — design & rationale (go-to) | [`yc_syntax.md`](yelu_cmake/surface/yc_syntax.md) |
-| yelu_cmake harness backlog / open-work registry | [`status.md`](yelu_cmake/status.md) |
-| numbered backlog (Y2…Y18) + handoff | [`CLAUDE.md`](../CLAUDE.md) |
+| finished-work narrative (history) | [`worklog/`](worklog/) |
+| shipped-milestone audit + architecture | [`project_overview.md`](project_overview.md) |
+| yc surface design & rationale (go-to) | [`yc_syntax.md`](yelu_cmake/surface/yc_syntax.md) |
+| surface / formatter / LSP design + shipped pipeline | [`surface_lsp_framework.md`](yelu_cmake/surface/surface_lsp_framework.md) §8 |
 | layer triage rule (yc vs ycn) | [`yc_ycn_boundary.md`](yelu_cmake_normal/typing/yc_ycn_boundary.md) |
+| Y17 / theory-typing design cluster | [`typed_design.md`](yelu_cmake_normal/typing/typed_design.md) |
+| harness design + module guide | [`design.md`](yelu_cmake/ir/design.md) · [`structure.md`](yelu_cmake/ir/structure.md) |
+| numbered-backlog descriptions + handoff | [`../CLAUDE.md`](../CLAUDE.md) |
 
-> **One tracker.** `lang/surface_status.md` was retired 2026-07-20 and folded
-> into the three files above (design → framework §8, history → worklog,
-> open items → this file). It had become ~95% finished work, and a second
-> "living tracker" is exactly how the Tier (b) state ended up recorded in
-> three drifting places. If a surface question needs a tracker again, it
-> belongs *here*, not in a new file.
-
-**Keeping this honest:** when an item lands, delete it from here and write it
-up in the worklog. If this file ever describes something already shipped, it
-has failed at its one job.
+> **One tracker.** This file replaced two others (`lang/surface_status.md`,
+> retired 2026-07-20; `yelu_cmake/status.md`, folded in 2026-07-21) plus the
+> Implementation Queue in `project_overview.md`. A second "living tracker" is
+> exactly how open state drifts across files — if you need to track something,
+> it belongs *here*, grouped under the right area, not in a new doc.

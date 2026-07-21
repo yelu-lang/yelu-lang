@@ -95,7 +95,7 @@ The earlier per-fragment `Stage_typecheck` pass was retired alongside
 the legacy production AST (commits up to E1, 2026-05-14). Y17 — a fresh
 typing pass over the post-retirement `yelu_cmake` / `yelu_cmake_normal`
 IR — is the replacement; tracked in
-[`status.md`](yelu_cmake/status.md) "Open work".
+[`status.md`](status.md) "Open work".
 
 ## Current State
 
@@ -250,81 +250,23 @@ failure — blocked by the `ylet` blanket `EVar→EString` demotion).
 
 Full chronological history in [`worklog_2026_05.md`](worklog/worklog_2026_05.md)
 and [`worklog_2026_04.md`](worklog/worklog_2026_04.md). Current TODOs
-in [`status.md`](yelu_cmake/status.md).
+in [`status.md`](status.md).
 
-## Gaps
+## Open work
 
-| Gap                              | Category     | Notes                                                |
-| -------------------------------- | ------------ | ---------------------------------------------------- |
-| No CI                            | Infra        | Yelu can break silently.                             |
-| ~~No concrete-syntax parser~~    | Language     | ✅ `Yelu_parse` (Angstrom + pure OCaml, 2026-05-04). |
-| ~~Retirement of yelu_legacy~~    | Refactor     | ✅ Through E1 (2026-05-14); E2 (delete) pending Y17. |
-| ~~No surface-syntax canonical form~~ | Language | ✅ no-ALL_CAPS + Step 2 labeled-only complete (2026-06-19). |
-| ~~No LSP / formatter~~           | Tooling      | ✅ `yelu-lsp` + VS Code extension (2026-06-10..20).  |
-| No fresh typing pass             | Checker      | Y17 — design ground prepared by theory-fragment split. |
-| Lossy `Lang_cmake_pp` arms       | Compiler     | Surfaced by Bar #3-lite; tracked in `yelu_cmake/status.md`. |
-| No effect pass                   | Checker      | No execution-mode validation.                        |
-| No systematic lower pass         | Compiler     | Panics on malformed input.                           |
-| Comments inside argument lists   | IR shape     | Currently dropped; whether IR should carry them is open. |
-| ~~cmake-stdlib not in `command_names`~~ | — | **Closed** (Plan C): the discovered-cache driver pattern — TSV at `tool/cmake_text/cmake_stdlib_names.tsv`, embedded by a dune codegen rule, runtime API `Cmake_stdlib_names`. |
-| Wellform findings carry no spans | LSP UX     | LSP scans source text for first whole-word match. Heuristic but practical; native spans → exact squiggle highlight. Parked as B2. |
-| ~~`Function_def_typo` not in compile~~ | — | **Closed** by B1: `Yc_driver.parse_and_check` is the single parse+wellform site for compile / fmt / LSP / corpus-gate, and (Tier b) there is no legacy parser left to bypass the CST. |
-| ~~Open-world false positives in corpus~~ | — | **Closed** by the stdlib cache; the corpus gate runs closed-world and is 11/11. |
-| Single-file LSP                  | Tooling      | LSP sees one file at a time; no cross-file `function`/`macro` collection across `include`/`add_subdirectory`. |
-| First-class cmake entity is parser-local | Language | Pos3 prototype (`cmake_entity` in `yelu_parse.ml`) — promoting to a real IR value class is Y18, design in `yelu_cmake/object_value_design.md`. Placement settled: the leading-cap *constructor* is yc, the *value class* is ycn ([`yc_ycn_boundary.md`](yelu_cmake_normal/typing/yc_ycn_boundary.md)). |
+All open / unfinished work — the ycn agenda, Y17 typing, the behavior-level
+oracle, IR/harness cleanups, deferred loaders, surface polish, and the numbered
+**Y2–Y18** backlog — lives in the single tracker: **[`status.md`](status.md)**.
+This overview records what's *shipped* (§ Project-level milestones) and the
+architecture; open items are **not** duplicated here.
 
-## Implementation Queue
-
-### Code-ready next steps
-
-| ID  | Title                                | Description                                                   |
-| --- | ------------------------------------ | ------------------------------------------------------------- |
-| —   | **ycn concrete syntax** (next big rock) | The gateway to the whole ycn agenda (records-as-values, Y17 typing, Y18 entity value). Design notes in [`ycn_concrete_syntax.md`](yelu_cmake_normal/ycn_concrete_syntax.md); 65-program acceptance corpus in `test_yelu_lift_lower.ml`. |
-| —   | Raw-escape unification (de-prioritized 2026-07-21) | Was framed as a hard pre-req; investigation showed it's 2 yc-side constructors (`ECmakeRaw`/`ECmakeRawCmd`), does NOT ripple through `Yelu_cmake_convert` (raw hits convert's catch-all — it can't cross into ycn at all), and isn't causing bugs. Fold into ycn's opacity-escape design rather than doing standalone. See [`status.md`](status.md). |
-| —   | 2nd probe project                    | Pick from [`candidates.md`](../probes/candidates.md) (spdlog for a real `find_package(fmt)` consumer, or nlohmann/json for the fastest clean win); next probe per [`hybrid_strategy.md`](yelu_cmake/hybrid_strategy.md). NOT gated: fmt already covers 13/15 coverage-map rows. |
-| B2  | Wellform finding token spans         | Findings carry only names; LSP scans source for whole-word match. Native spans → exact squiggle highlight + multi-occurrence diagnostics. |
-| —   | IR-printer cleanup (Bar #3-lite follow-up) | Tier 1/2/3 plan in [`status.md`](yelu_cmake/status.md). |
-| —   | Yelu CI                              | Build + test on push.                                         |
-| Y2  | Option combination enumeration       | 2^n boolean combos for step4+, File API diff.                 |
-| Y5  | File API cache-v2 diff               | Extend oracle beyond codemodel-v2.                            |
-| Y12 | Cmake-layer test mirroring           | Sync cmake PP tests with yelu coverage.                       |
-| E2  | Delete `yelu_legacy/`                | Mechanical follow-up to E1; gated on Y17 not needing it.      |
-
-### Surface polish (parked, no hurry)
-
-Open items in [`yc_syntax.md`](yelu_cmake/surface/yc_syntax.md) § Open /
-remaining, and the fuller list in [`status.md`](status.md) § Parked:
-
-- **Version literal** — `cmake_minimum_required 3.8...3.25` as a first-class unquoted literal (lexer token for `N(.N)*(...N(.N)*)?`). Also the `find_package Foo '9.0'` version-drop.
-- **Per-mode `message_*` aliases** — `message_fatal` / `message_warning` / `message_status` desugar to `message ~mode=…`.
-- **`string_json` unknown op** — fails at emit rather than as a wellform diagnostic.
-
-Fixed since the last pass (were listed here): the latent `set_target_properties`
-target-deref (honest emit, `a57bcf4`); `add_custom_command` missing from
-`command_names` (`d60190f`); the orphaned `Yelu_emit_main` (deleted, `c751713`);
-the wrong-shaped `~properties=` silent drop (`Malformed_kwarg`, `1db4bd6`).
-
-### Design (before coding)
-
-| ID  | Title                          | Description                                                          |
-| --- | ------------------------------ | -------------------------------------------------------------------- |
-| Y6  | Semantics hardest to preserve  | Genex, policy stack, find_package search.                            |
-| Y7  | Cache-sensitivity annotations  | `Cache_breaking | Cache_safe | Cache_partial`.                       |
-| Y11 | Policy-aware compiler          | Auto-emit policy preamble per construct.                             |
-| Y13 | Persistent value primitive     | `@cached` with content-addressed store.                              |
-| Y14 | Reserved keyword validation    | ⚠️ partial — `Enum_shadow` shipped fatal at wellform; `Unknown_command` + `Function_def_typo` shipped 2026-06-20. Broader cmake-keyword clashes still open. |
-| Y15 | Binding feature library        | Design space (lexical/global, mutable/immutable, expr/stmt).         |
-| Y16 | Real-world cmake hand-rewrite  | z3 / llvm / torch builds in yelu, prove structural equivalence. Reframed as hybrid adoption — see [`hybrid_strategy.md`](yelu_cmake/hybrid_strategy.md). |
-| Y17 | Types on yelu_cmake            | Fresh typing pass over post-retirement IR (replaces retired per-fragment `Stage_typecheck`). |
-| Y18 | First-class object value       | Promote the Pos3 parser-local `cmake_entity` to a real value class. Design questions in [`object_value_design.md`](yelu_cmake/object_value_design.md). Operations per kind, value flow, eval semantics, wellform integration, yc vs ycn placement, UFCS `x.f y ≡ f x y` for object-method syntax. |
-
-### Research (likely papers / material)
-
-| ID  | Title                   | Description                                          |
-| --- | ----------------------- | ---------------------------------------------------- |
-| Y3  | Z3 symbolic equivalence | Prove equivalence for all boolean-option inputs.     |
-| Y4  | E-graph investigation   | Equality saturation over state-transformers.         |
-| Y8  | Multi-stage core        | Quote/splice staging across compile/configure.       |
+**Known architectural limitations** (all tracked in `status.md`): no CI; no
+`effect` or systematic `lower` checking pass; lossy `Lang_cmake_pp` arms
+(surfaced by Bar #3-lite); comments inside argument lists are dropped;
+single-file LSP; the Pos3 `cmake_entity` is parser-local (→ Y18 value class,
+ycn). Closed since the previous audit: concrete-syntax parser, yelu_legacy E1
+retirement, surface canonical form, LSP/formatter, the cmake-stdlib name cache,
+`Function_def_typo`-in-compile, open-world corpus false positives.
 
 ## Documentation Map
 
@@ -356,7 +298,7 @@ split.) New doc? pick the facet; cross-cutting yc language design goes at
 
 | File                                       | Purpose                                                            |
 | ------------------------------------------ | ------------------------------------------------------------------ |
-| `status.md`                                | **In-flight work + immediate queue only** (self-expiring). Start here when resuming. |
+| `status.md`                                | **The single open-work tracker** — all unfinished work by area (ycn, Y17, oracle, IR cleanups, deferred loaders, surface polish, the Y2–Y18 backlog). Start here when resuming. |
 | `manifesto.md`                             | Project manifesto: thesis, falsifiability, layered argument.       |
 | `infra_test.md`                            | Test harness, dune aliases, gotchas.                               |
 | `research/research_framing.md`             | Benchmark design, contamination-aware eval (distilled framing).    |
@@ -381,7 +323,6 @@ split.) New doc? pick the facet; cross-cutting yc language design goes at
 | `yelu_cmake/hybrid_strategy.md`            | Y16 reframed: cmake-as-assembly; gradual hybrid adoption (.yc + .cmake side-by-side, or whole-file w/ raw_cmake escape). |
 | `yelu_cmake_normal/ycn_concrete_syntax.md`        | Design notes for the future ycn concrete-syntax parser — the gateway to records-as-values / Y17 / Y18. Uses the 65-program lift_lower corpus as substrate. |
 | `yelu_cmake/ir/discovered_cache.md`           | The discovered-cache driver pattern (committed TSV + build-time codegen + runtime API); first instance is `Cmake_stdlib_names`. |
-| `yelu_cmake/status.md`                     | Harness **backlog / open-work registry** (behavior oracle, Y17, E2, IR-shape gaps, 10-item cleanup list, deferred loaders). Distinct from `status.md` (immediate in-flight).  |
 | `../probes/README.md`                         | Probe cluster intro: real-world cmake projects as predictor testbeds. |
 | `../probes/candidates.md`                     | Shortlist of next projects to probe.                               |
 | `doc/worklog/worklog_2026_06.md` | Parse-print oracle close (2026-05-31) + fmT migration + driver architecture. |

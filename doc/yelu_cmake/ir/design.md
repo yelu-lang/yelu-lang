@@ -1,7 +1,7 @@
 # yelu_cmake — Theory Composition Design Notes
 
 Durable reference for the yelu_cmake theory-composition harness.
-For current open work see `status.md`; for the file-by-file module
+For current open work see [`status.md`](../../status.md); for the file-by-file module
 guide see `structure.md`. Update this file only when the underlying
 design changes.
 

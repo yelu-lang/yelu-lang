@@ -157,7 +157,7 @@ per-rewrite verification chain:
 | 1 | One fmt helper as `.yc`. Generated `.cmake` is byte-identical (or matrix-cache-identical) to the original. | hours |
 | 2 | All fmt helpers as `.yc`. fmt's `CMakeLists.txt` includes them; matrix oracle (real-vs-real-with-generated-helpers) shows zero divergence. | days |
 | 3 | Some fmt subdir (test/, support/cmake/) as Shape C. raw_cmake escape covers what we don't model. Matrix passes. | weeks |
-| 4 | All of fmt in Shape C. raw_cmake usage is minimized; whatever we couldn't avoid is documented in [`status.md`](status.md). | weeks to months |
+| 4 | All of fmt in Shape C. raw_cmake usage is minimized; whatever we couldn't avoid is documented in [`status.md`](../status.md). | weeks to months |
 | 5 | z3 / llvm / torch at step 4. The original Y16 claim, now reachable via composition. | months |
 
 Each step is **independently verifiable** by the existing matrix
@@ -235,7 +235,7 @@ What's **not** needed for the pilot:
 - [`worklog_2026_06.md`](../worklog/worklog_2026_06.md)
   (§ "Cache namespace") — the `-D` cmd-line input pathway that hybrid
   projects need to handle the same way pure cmake projects do.
-- [`status.md`](status.md) — where the "deferred" items live.
+- [`status.md`](../status.md) — where the "deferred" items live.
   Hybrid pilot work would be tracked here once a step lands.
 - [`cache_matrix.md`](../../probes/cache_matrix.md) —
   the oracle that proves a hybrid output is equivalent to the

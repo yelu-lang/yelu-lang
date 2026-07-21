@@ -23,7 +23,7 @@ generator expressions — out of scope for a tree-sitter-only pass.
 - Per-command parser contract sheet (§8 of the audit doc)
 
 **Successor.** Behavior-level oracle (matrix: yc-eval vs real cmake)
-tracked in [`status.md`](../yelu_cmake/status.md).
+tracked in [`status.md`](../status.md).
 
 ---
 

@@ -209,11 +209,11 @@ will operate on it:
 - **Y17 — types on yelu_cmake.** Namespace separation, explicit
   `ESetVar`, and the smaller surface area make typing rules
   easier to state on ycn than on cmake-shape sugar. See
-  [`status.md`](../status.md) "Y17 — types on yelu_cmake".
+  [`status.md`](../../status.md) "Y17 — types on yelu_cmake".
 - **Behavior-level oracle / "prove optimized ≡ original".**
   Optimization passes rewrite ycn; the from_normal → emit →
   cmake configure → File API JSON chain is the verification
-  harness. See [`status.md`](../status.md) "Behavior-level oracle".
+  harness. See [`status.md`](../../status.md) "Behavior-level oracle".
 - **Y15 — binding feature library.** ycn's explicit `ESetVar`
   vs `ELet` makes it the natural substrate for exploring
   lexical / global, immutable / mutable, expression / statement

@@ -13,7 +13,7 @@
 
 - **Behavior-level oracle** → *dynamic* semantics: runtime output ≡ cmake,
   proven via the File API. Feeds off the driver's `eval`.
-  (See [`status.md`](../status.md) "Open work".)
+  (See [`status.md`](../../status.md) "Open work".)
 - **Surface + LSP + ecosystem-semantic** (this doc) → *static* semantics:
   types, "beliefs", and the authoring experience. Feeds off the driver's
   `check`.
@@ -643,5 +643,5 @@ workspace file. If the extension is ever reinstalled, re-symlink.
 - [`lang_design.md`](../lang_design.md), [`typed_design.md`](../../yelu_cmake_normal/typing/typed_design.md)
   — language-design tradition and the (retired) typed-checking design
   that Y17 / ecosystem-semantic revisit.
-- [`status.md`](../status.md) — the behavior-level
+- [`status.md`](../../status.md) — the behavior-level
   oracle (the other half) and the forward roadmap.

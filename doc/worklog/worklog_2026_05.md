@@ -1,7 +1,7 @@
 # Yelu Worklog — May 2026
 
 Implementation history for the `yelu_tiny` composition harness.
-For current TODO see [`status.md`](../yelu_cmake/status.md); for project-wide
+For current TODO see [`status.md`](../status.md); for project-wide
 context see [`project_overview.md`](../project_overview.md).
 
 ---
@@ -410,7 +410,7 @@ Bar #3-lite static round-trip declared complete and archived:
   `probes/parse_print_oracle.md` (later deleted; the closure is captured in
   worklog_2026_06.md).
 - Forward tracking moved to
-  [`status.md`](../yelu_cmake/status.md). Lead
+  [`status.md`](../status.md). Lead
   next item: **behavior-level oracle** (formerly "Bar #3-full")
   (configure-time File API JSON diff against real cmake;
   resolves the remaining generic by walking `include()` /

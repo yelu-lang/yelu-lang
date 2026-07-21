@@ -37,7 +37,7 @@ reference. Watch for the `[emit_ast oracle] covered=194 uncovered=0`
 line at the end of `dune test` — any drift is a Phase 1 regression. The
 retirement journey is archived in
 [doc/worklog/worklog_2026_05.md](doc/worklog/worklog_2026_05.md);
-[doc/yelu_cmake/status.md](doc/yelu_cmake/status.md) tracks any
+[doc/status.md](doc/status.md) tracks any
 remaining items (E2, Y17).
 
 Make targets (from repo root):
@@ -177,12 +177,11 @@ purposes) is [`project_overview.md`](doc/project_overview.md)
 
 | File | Purpose |
 | --- | --- |
-| [`status.md`](doc/status.md) | In-flight work + immediate queue. **Start here when resuming.** |
+| [`status.md`](doc/status.md) | **The single open-work tracker** (all unfinished work by area + the Y2–Y18 backlog). Start here when resuming. |
 | [`project_overview.md`](doc/project_overview.md) | Full audit: architecture, milestones, gaps, Y-backlog, doc index. |
 | [`yc_command_reference.md`](doc/yelu_cmake/surface/yc_command_reference.md) | **Generated** yc command table (never hand-edit; `yelu command-reference`). |
 | [`surface_lsp_framework.md`](doc/yelu_cmake/surface/surface_lsp_framework.md) | Surface/parser/formatter/LSP design + the shipped pipeline (§8). |
 | [`yc_ycn_boundary.md`](doc/yelu_cmake_normal/typing/yc_ycn_boundary.md) | yc-vs-ycn placement rule (erasability). |
-| [`status.md`](doc/yelu_cmake/status.md) | Harness backlog / open-work registry (IR gaps, Y17, deferred loaders). |
 | [`driver.md`](doc/yelu_cmake/ir/driver.md) | Per-language driver ops + pipelines; §6.5 the compile/wellform/format/LSP contract. |
 
 ## Architecture
@@ -251,7 +250,7 @@ design it builds on is in [`typed_design.md`](doc/yelu_cmake_normal/typing/typed
 ## Current State
 
 Three homes, no duplication:
-- **In flight + immediate queue** → [`status.md`](doc/status.md) (short, self-expiring).
+- **Open work** (in-flight + queue + full backlog) → [`status.md`](doc/status.md).
 - **Full audit** — architecture, per-suite test totals, project-level
   milestones, gaps, and the numbered **Y2–Y18 backlog** →
   [`project_overview.md`](doc/project_overview.md).
@@ -265,11 +264,10 @@ lower_cst ∘ parse_cst`); the 2026-06 syntax audit closed (honest emit,
 
 ## Backlog
 
-The numbered **Y2–Y18** items (Implementation / Design / Research), with
-descriptions and status, live in
-[`project_overview.md`](doc/project_overview.md) § Implementation Queue.
-IDs are stable (never renumbered). Immediate/in-flight work is in
-[`status.md`](doc/status.md). Done: Y1, Y9, Y10 (see
+**All open work lives in the single tracker [`doc/status.md`](doc/status.md)** —
+grouped by area (ycn, Y17, behavior oracle, IR cleanups, deferred loaders,
+surface polish) with the numbered **Y2–Y18** items (stable IDs) in its
+§ Numbered backlog. Done: Y1, Y9, Y10 (see
 [`worklog_2026_04.md`](doc/worklog/worklog_2026_04.md)).
 
 ## Design Vision
@@ -401,7 +399,7 @@ CLAUDE.md holds only what a session needs *operationally* (build, file
 navigation, architecture summary, gotchas) — **project state is not
 duplicated here**. Update the right home:
 
-- **In-flight work / immediate queue** → [`status.md`](doc/status.md).
+- **All open work** (in-flight, queue, backlog) → [`status.md`](doc/status.md).
 - **Milestones, gaps, the Y-backlog, per-suite test totals** →
   [`project_overview.md`](doc/project_overview.md).
 - **Chronological narrative** → [`doc/worklog/`](doc/worklog/).

@@ -25,7 +25,7 @@
 >    staging) these typing decisions sit inside. Also legacy-vocabulary.
 >
 > Forward tracking of Y17 itself is in
-> [`status.md`](../../yelu_cmake/status.md) § Y17.
+> [`status.md`](../../status.md) § Y17.
 
 ## Why deferred
 
@@ -305,7 +305,7 @@ arguably closer to Level 1 than to `message`/`include_guard`.
 
 **Level 3 — Generator expressions** (currently flow as opaque
 `EString` via `Ycs_eval` in `yelu_cmake`; a dedicated `genex`
-fragment is deferred — see `yelu_cmake/status.md` "Deferred"):
+fragment is deferred — see [`status.md`](../../status.md) § Deferred):
 Generator expressions are cmake's embedded *functional* sublanguage — composed
 at configure-time, evaluated lazily at build-time. They are structurally
 different from both Level 1 and Level 2: pure, applicative, no side effects,
