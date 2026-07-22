@@ -1,8 +1,8 @@
 # Yelu Language Design
 
 Research directions and open design questions. For current implementation state see
-[`lang_coverage.md`](lang_coverage.md). For done history see
-[`worklog_2026_04.md`](../worklog/worklog_2026_04.md).
+[`lang_coverage.md`](../../yelu_cmake/lang_coverage.md). For done history see
+[`worklog_2026_04.md`](../../worklog/worklog_2026_04.md).
 
 > **Vocabulary note (2026-04 draft).** The code examples below use the
 > **legacy `Lang_yelu` names** (`Ycvar`, `Ytarget`, `Yc_add_library`, `yarg`,
@@ -13,9 +13,9 @@ Research directions and open design questions. For current implementation state 
 > library types, the propagation graph, Tier 7 staging) are **proposals**, not
 > current code. Placement is now settled: a type system on the post-retirement
 > IR is **Y17**, and it belongs to **ycn** per
-> [`yc_ycn_boundary.md`](../yelu_cmake_normal/typing/yc_ycn_boundary.md). This doc is part of
+> [`yc_ycn_boundary.md`](../typing/yc_ycn_boundary.md). This doc is part of
 > the Y17 / theory-typing cluster — reading order in
-> [`typed_design.md`](../yelu_cmake_normal/typing/typed_design.md).
+> [`typed_design.md`](../typing/typed_design.md).
 
 ---
 

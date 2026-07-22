@@ -64,9 +64,9 @@ existed:
 
 | doc | conclusion |
 | --- | --- |
-| [`var_centric_design.md`](../../yelu_cmake/var_centric_design.md) | value-default reads (bare `foo` = value) — "**This belongs in ycn, not yc.** yc keeps the faithful explicit-`${}` model." The blocker is that a *generic cmake arg* is ambiguous between literal word and value; **ycn has typed slots, so the ambiguity doesn't exist.** |
+| [`value_reads.md`](../design/value_reads.md) | value-default reads (bare `foo` = value) — "**This belongs in ycn, not yc.** yc keeps the faithful explicit-`${}` model." The blocker is that a *generic cmake arg* is ambiguous between literal word and value; **ycn has typed slots, so the ambiguity doesn't exist.** |
 | [`casing_design.md`](../../yelu_cmake/surface/casing_design.md) | dotted globals (`$cmake.version`) — cosmetic in yc; "real namespacing belongs in ycn." |
-| [`object_value_design.md`](../../yelu_cmake/object_value_design.md) §e | "yc is cmake-faithful; **ycn is the idealized algebra**… this is where the value class earns its keep at the type level." |
+| [`object_value.md`](../design/object_value.md) §e | "yc is cmake-faithful; **ycn is the idealized algebra**… this is where the value class earns its keep at the type level." |
 
 Note the shared shape of the argument in all three: *yc can't type the slot, ycn
 can.*

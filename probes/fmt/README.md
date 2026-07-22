@@ -127,8 +127,8 @@ Two options (`FMT_OS`, `FMT_PEDANTIC`) have cache-invisible effects
 - [`migration_status.md`](migration_status.md) — full phase log, `yc_apply`
   footprint, known limitations detail
 - [`main.json`](main.json) — hybrid driver configuration
-- [`../../doc/worklog/worklog_2026_06.md`](../../doc/worklog/worklog_2026_06.md) —
+- [`worklog_2026_06.md`](../../doc/worklog/worklog_2026_06.md) —
   Phase 8 archival entry
-- [`../../doc/yelu_cmake/hybrid_strategy.md`](../../doc/yelu_cmake/hybrid_strategy.md) —
+- [`hybrid_strategy.md`](../../doc/yelu_cmake/hybrid_strategy.md) —
   strategy doc (cmake-as-assembly)
-- [`../cache_matrix.md`](../cache_matrix.md) — matrix oracle methodology
+- [`cache_matrix.md`](../cache_matrix.md) — matrix oracle methodology

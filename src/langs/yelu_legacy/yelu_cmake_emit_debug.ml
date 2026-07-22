@@ -9,7 +9,8 @@
    specific bridge format conventions.
 
    Removal is gated on AST parity holding through at least one R3 /
-   Y17 milestone — see [doc/yelu_cmake/retirement_plan.md]. *)
+   Y17 milestone (E2 in doc/status.md; retirement history in
+   doc/worklog/worklog_2026_05.md). *)
 open Base
 open Yelu_cmake
 open Yelu_cmake_store

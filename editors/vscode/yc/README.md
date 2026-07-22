@@ -2,7 +2,7 @@
 
 TextMate-grammar **highlighting** plus a **language server** (`yelu-lsp`)
 providing **formatting** and **parse diagnostics** for yelu-cmake (`.yc`)
-files. Design: [`doc/lang/surface_lsp_framework.md`](../../../doc/lang/surface_lsp_framework.md).
+files. Design: [`surface_lsp_framework.md`](../../../doc/yelu_cmake/surface/surface_lsp_framework.md).
 
 ## Language server (formatting + diagnostics)
 

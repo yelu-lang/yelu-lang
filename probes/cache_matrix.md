@@ -62,7 +62,7 @@
 
 ## Phase 1 — Static option discovery
 
-[`tool/cmake_roundtrip/cache_vars.ml`](../tool/cmake_roundtrip/cache_vars.ml)
+[`cmake_cache_scan.ml`](../tool/cmake_text/cmake_cache_scan.ml)
 statically walks the cmake CST (parse.py → JSON) and emits one TSV
 row per cache-writing site:
 
@@ -278,7 +278,7 @@ Three pieces are load-bearing but invisible inside the test file:
    `loader` and `subdir_loader` as values registered into the
    pure `Yelu_cmake.env`. The library never spawns processes;
    the runner does. See
-   [io_architecture.md § 3](../doc/yelu_cmake/io_architecture.md#3-the-callback-via-env-pattern).
+   [io_architecture.md § 3](../doc/framework/module_system.md#3-the-callback-via-env-pattern).
 2. **Reserved-name index** — 1597 entries in
    `cmake_reserved.tsv` make tier filtering meaningful. Without
    it the matrix would drown in false positives.
@@ -497,9 +497,9 @@ necessary:
 
 ## Related docs
 
-- [../doc/yelu_cmake/io_architecture.md](../doc/yelu_cmake/io_architecture.md) —
+- [module system and loader architecture](../doc/framework/module_system.md) —
   the library/runner split this whole thing depends on
-- [../doc/yelu_cmake/status.md](../doc/yelu_cmake/status.md) — what's
+- [project status](../doc/status.md) — what's
   still deferred and what's loader-stub-only
 - [worklog_2026_06.md](../doc/worklog/worklog_2026_06.md) — parse-print oracle close
   oracle (parse → print → tree-sitter-diff round-trip)

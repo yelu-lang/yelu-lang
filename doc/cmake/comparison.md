@@ -1,10 +1,10 @@
 # CMake Equivalence — Language, Semantics, and Test Coverage
 
-This document is the theory companion to `../infra_test.md`. It grounds the
+This document is the theory companion to [`testing.md`](../framework/testing.md). It grounds the
 yelu equivalence question in the properties of cmake as a language, defines the
 PL vocabulary, states what each equivalence level proves, and maps each level to
 the concrete test observations in the harness. For symbolic/SMT approaches to
-full equivalence see `equiv_research.md`.
+full equivalence see [`cmake_equivalence.md`](../research/cmake_equivalence.md).
 
 ---
 
@@ -84,7 +84,7 @@ test observable behavior, not text.
 **The fundamental gap**: both `interp` and `run` hold for a given concrete `i`.
 With n option variables there are 2^n inputs; none of these levels can prove
 equivalence for all configurations. Closing that gap requires symbolic methods;
-see `equiv_research.md`.
+see [`cmake_equivalence.md`](../research/cmake_equivalence.md).
 
 ---
 

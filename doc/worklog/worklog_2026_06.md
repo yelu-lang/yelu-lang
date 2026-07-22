@@ -387,7 +387,7 @@ parens. Implemented in both parsers:
 
 **Y18 recorded — first-class object value.** The Pos3 prototype is
 parser-local. Open questions for promoting to a real value class are
-in [`object_value_design.md`](../yelu_cmake/object_value_design.md):
+in [`object_value.md`](../yelu_cmake_normal/design/object_value.md):
 operations per kind (`target_foo.set_property(…)`), value flow
 (let-bind / args / iterands), eval semantics (forward refs, lazy vs
 eager), wellform integration, yc vs ycn placement, multi-entity calls.

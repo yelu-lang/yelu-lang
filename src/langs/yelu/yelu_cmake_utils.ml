@@ -9,9 +9,9 @@
    legacy surface took a typed enum live in
    [Lang_cmake_strings] (in the cmake layer).
 
-   See doc/yelu_cmake/retirement_plan.md for the migration history.
+   Migration history is in doc/worklog/worklog_2026_05.md.
 
-   === Stub helpers (track in doc/yelu_cmake/status.md "Known IR
+   === Stub helpers (track in doc/status.md "Known IR
    shape gaps") ===
 
    Some helpers in this file accept arguments the IR cannot yet

@@ -172,13 +172,12 @@ per-theory and remaining-command suites not enumerated above.)
 ### Documentation
 
 The **full doc index** (every design/reference/worklog doc, with one-line
-purposes) is [`project_overview.md`](doc/project_overview.md)
-§ Documentation Map. Most-reached-for while working:
+purposes) is [`doc/README.md`](doc/README.md). Most-reached-for while working:
 
 | File | Purpose |
 | --- | --- |
 | [`status.md`](doc/status.md) | **The single open-work tracker** (all unfinished work by area + the Y2–Y18 backlog). Start here when resuming. |
-| [`project_overview.md`](doc/project_overview.md) | Full audit: architecture, milestones, gaps, Y-backlog, doc index. |
+| [`project_overview.md`](doc/project_overview.md) | Full audit: architecture, milestones, test evidence, and known gaps. |
 | [`yc_command_reference.md`](doc/yelu_cmake/surface/yc_command_reference.md) | **Generated** yc command table (never hand-edit; `yelu command-reference`). |
 | [`surface_lsp_framework.md`](doc/yelu_cmake/surface/surface_lsp_framework.md) | Surface/parser/formatter/LSP design + the shipped pipeline (§8). |
 | [`yc_ycn_boundary.md`](doc/yelu_cmake_normal/typing/yc_ycn_boundary.md) | yc-vs-ycn placement rule (erasability). |

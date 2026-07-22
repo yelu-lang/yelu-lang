@@ -1,9 +1,9 @@
 # Yelu — Project Overview
 
-> Last full pass: 2026-07-20. The 2026-06 surface track (no-ALL_CAPS `~`-half +
+> Last full pass: 2026-07-22. The 2026-06 surface track (no-ALL_CAPS `~`-half +
 > labeled-only Step 2, property unification, Pos3 entity prototype, `:=`
 > sugar, LSP), the 2026-06 syntax audit closure, the Tier (b) parser
-> retirement, and the 2026-07-20 coverage-lock / doc-consolidation work are all
+> retirement, and the 2026-07-20..22 coverage-lock / doc-consolidation work are all
 > reflected in the body below. Current in-flight work lives in
 > [`status.md`](status.md).
 
@@ -126,7 +126,7 @@ IR — is the replacement; tracked in
 | `make file-api-test`               | 12 / 12  | codemodel-v2 JSON diff on tutorial steps.                     |
 | End-to-end (`make step1`–`step12`) | 12       | Generate → configure → build → run.                           |
 | Bar #3-lite parse-print round-trip | 740 / 740 (canonical) + 3004 / 3035 (full llvm-project) | tutorial 25/25 + fmt 11/11 + z3 108/108 + llvm/llvm 596/596 = canonical 740. Full llvm-project (3035 files) adds 3004 OK + 1 FORMAT + 30 STRUCT pre-existing. See [`worklog_2026_06.md`](worklog/worklog_2026_06.md). |
-| fmt cache matrix smoke             | 24 / 24 cells | Predicted vs real cmake cache per (option × ON/OFF); median matched=20, mismatched=0, real-only=0, pred-only=0. See [`cache_matrix.md`](../probes/cache_matrix.md). |
+| fmt full-project matrix            | 24 / 24 cells × 3 channels | All 11 `.yc` files compile; predicted cache has 0 semantic differences; 29 codemodel keys have 0 differences; CTest definitions including full command args match. See [`fmt/README.md`](../probes/fmt/README.md). |
 | tm-grammar co-truth lock           | 1        | `dune promote` round-trip: committed `editors/vscode/yc/syntaxes/yc.tmLanguage.json` byte-matches what `yelu tmgrammar` emits from `Yc_manifest`. Surface-vocabulary drift fails the build. |
 
 `make cmake-commands` has pre-existing cmake build issues (not blocking). The
@@ -150,9 +150,11 @@ failure — blocked by the `ylet` blanket `EVar→EString` demotion).
   `option()` is correctly a NO-OP when the entry exists. Record in
   [`worklog_2026_06.md`](worklog/worklog_2026_06.md)
   (§ "Cache namespace + `-D` cmd-line input — shipped").
-- **fmt predictor probe complete.** ✅ Shipped 2026-06-03. 24-cell matrix
-  (11 options × ON/OFF) — all cells perfect: real-only=0, mismatched=0,
-  pred-only=0, median matched 20. Closing it required:
+- **fmt full-project yelu-cmake probe complete.** ✅ The predictor matrix
+  shipped 2026-06-03, all 11 CMake files gained `.yc` equivalents by
+  2026-06-08, and the tripled oracle closed the audit on 2026-07-16. Every
+  source is guarded by the corpus compile gate; all 24 option cells match in
+  cache, File API codemodel, and CTest-definition channels. Closing it required:
   - `include()` recursive eval + cmake stdlib `Modules/` path search
   - `add_subdirectory()` recursion via `subdir_loader` callback
   - `${X}` substitution unified via `substitute env s`
@@ -240,8 +242,9 @@ failure — blocked by the `ylet` blanket `EVar→EString` demotion).
   dispatch lock (every command is owned by a family `_inner`), and a
   **generated** [`yc_command_reference.md`](yelu_cmake/surface/yc_command_reference.md)
   freshness-locked against `yelu command-reference`.
-- **Bar #3 — real-world cmake hand-rewrites (z3 / llvm / torch).** ⏳ Not
-  started; the manifesto-level "does this scale" test. Reframed
+- **Bar #3 — scale beyond fmt (z3 / llvm / torch).** ⏳ Not started; fmt is
+  the first completed whole-project proof, while this is the manifesto-level
+  generalization test. Reframed
   2026-06-04 as a gradual hybrid adoption strategy
   (cmake-as-assembly, per-helper migration, raw_cmake escape) —
   see [`hybrid_strategy.md`](yelu_cmake/hybrid_strategy.md).
@@ -268,82 +271,18 @@ ycn). Closed since the previous audit: concrete-syntax parser, yelu_legacy E1
 retirement, surface canonical form, LSP/formatter, the cmake-stdlib name cache,
 `Function_def_typo`-in-compile, open-world corpus false positives.
 
-## Documentation Map
+## Documentation
 
-**Layout (by layer, then facet):**
+The documentation landing page and complete categorized index live in
+[`doc/README.md`](README.md). Its placement rule is the short version of the
+architecture above: CMake ground truth → `cmake/`; reusable machinery →
+`framework/`; faithfully erasable CMake constructs → `yelu_cmake/`; constructs
+that need a value/type model → `yelu_cmake_normal/`.
 
-```
-doc/
-  (top)         project meta: status, project_overview, manifesto, infra_test
-  cmake/        the TARGET language — raw cmake semantics reference (empirically pinned)
-  framework/    language-AGNOSTIC machinery (shared by every pack): the per-language
-                driver / tool-interface / pipelines, the discovered-cache codegen
-                pattern, the module_system (include/find_package/subdir loaders),
-                and the yc↔ycn comparison
-  yelu_cmake/   yc — the cmake-faithful language + its IR/harness:
-    surface/      the .yc surface: syntax design, casing, LSP/formatter, command reference
-    ir/           the yc/ycn IR internals: module structure, theory-composition design, IR tiers
-    (top)         hybrid strategy, forward language design
-                  (lang_design, object_value_design, var_centric_design), lang_coverage
-  yelu_cmake_normal/   ycn — the normalized form + theory + typing (the forward agenda):
-    (top)         ycn_concrete_syntax
-    typing/       Y17 substrate: typed-AST design, yc/ycn boundary, theory-split
-                  (plan, boolean_and_theories, extensible_expr_design)
-  research/     research framing (speculative)
-  worklog/      chronological history
-  archive/      retired / historical write-ups (nothing current)
-```
+Document ownership is deliberately narrow:
 
-Rule of thumb: cmake-the-target → `cmake/`; language-agnostic machinery (driver,
-patterns, loaders) → `framework/`; the yc language + its IR → `yelu_cmake/<facet>`;
-ycn, theory, and the Y17 typing agenda → `yelu_cmake_normal/`. (The two `yelu_*`
-dirs mirror the code's `yelu_cmake` / `yelu_cmake_normal` split.)
-
-| File                                       | Purpose                                                            |
-| ------------------------------------------ | ------------------------------------------------------------------ |
-| `status.md`                                | **The single open-work tracker** — all unfinished work by area (ycn, Y17, oracle, IR cleanups, deferred loaders, surface polish, the Y2–Y18 backlog). Start here when resuming. |
-| `manifesto.md`                             | Project manifesto: thesis, falsifiability, layered argument.       |
-| `infra_test.md`                            | Test harness, dune aliases, gotchas.                               |
-| `research/research_framing.md`             | Benchmark design, contamination-aware eval (distilled framing).    |
-| `research/beyond.md`                       | Multi-pack architecture, AI language stacks (speculative, 中文).   |
-| `yelu_cmake/lang_design.md`                      | Language design: staging, types, surface syntax.                   |
-| `yelu_cmake/surface/yc_command_reference.md`             | **Generated** yc command table (138 by family, `~out`, `~labels`). Freshness-locked; never hand-edit — run `yelu command-reference`. |
-| `yelu_cmake/lang_coverage.md`                    | cmake **test-suite** coverage map (RunCMake/CMakeOnly tractability, Y11 blockers). The yc-command rows moved to the generated reference. |
-| `yelu_cmake_normal/typing/yc_ycn_boundary.md`                  | Layer triage rule: yc erases to cmake; ycn needs a value/type model. Settles Y17/Y18 placement. |
-| `yelu_cmake_normal/typing/typed_design.md`                     | Type system design space (deferred; Y17 substrate).                |
-| `archive/concrete_syntax_parser.md`        | **Archived** — the retired token-level parser (history). Current parser: `surface_lsp_framework.md` §8. |
-| `yelu_cmake/surface/surface_lsp_framework.md`            | Surface + LSP design. §3 decision map (parser library, error recovery, deployment, testing). §8 the **shipped pipeline** (form graph, migration discipline, testing strategy, VS Code deployment gotcha) — absorbed from the retired `surface_status.md`. §7.5 wellform diagnostics — full per-check table, open/closed-world rule for `Unknown_command`, surfacing channels. |
-| `yelu_cmake/surface/yc_syntax.md`                        | **The go-to `.yc` surface doc**: what the syntax is + design rationale (both surface passes shipped). Open task list is in `status.md` § Parked. |
-| `yelu_cmake/surface/casing_design.md`                    | Casing lanes — enum constructors leading-cap, dotted globals, locals, Y14 reject. Shipped 2026-06-12..19. |
-| `yelu_cmake/var_centric_design.md`               | Postponed direction: value-default reads (`foo` = value, name explicit). Belongs in ycn not yc. |
-| `yelu_cmake/object_value_design.md`              | Y18 design questions for promoting the Pos3 parser-local `cmake_entity` to a real value class. |
-| `framework/driver.md`                         | Per-language driver modules + cross-lang pipelines + tool interface. §6.5 the compile/wellform/format/LSP contract that any new pack inherits. |
-| `framework/module_system.md`                  | The include()/find_package()/subdir loader + module-import design (the I/O library/runner split is the mechanism). |
-| `framework/discovered_cache.md`               | The discovered-cache build-time codegen pattern (committed TSV + codegen + runtime API); first instance is `Cmake_stdlib_names`. |
-| `framework/cmake_vs_normal.md`                | yc ↔ ycn ecosystem comparison: per-theory fragment coverage, what each form has/lacks. |
-| `yelu_cmake/ir/design.md`                     | Theory-composition design notes for the yc/ycn IR harness.         |
-| `yelu_cmake/ir/ir_tiers.md`                   | 4-tier IR fidelity: typed → `cmake_lang` → `yc_raw` → `yc_apply`. Parser fallback strategy, string-as-enum plan. |
-| `yelu_cmake/ir/structure.md`                  | Code-anchored guide to the `src/langs/yelu/` modules.              |
-| `yelu_cmake/hybrid_strategy.md`            | Y16 reframed: cmake-as-assembly; gradual hybrid adoption (.yc + .cmake side-by-side, or whole-file w/ raw_cmake escape). |
-| `yelu_cmake_normal/ycn_concrete_syntax.md`        | Design notes for the future ycn concrete-syntax parser — the gateway to records-as-values / Y17 / Y18. Uses the 65-program lift_lower corpus as substrate. |
-| `../probes/README.md`                         | Probe cluster intro: real-world cmake projects as predictor testbeds. |
-| `../probes/candidates.md`                     | Shortlist of next projects to probe.                               |
-| `doc/worklog/worklog_2026_06.md` | Parse-print oracle close (2026-05-31) + fmT migration + driver architecture. |
-| `probes/cache_matrix.md`       | fmt matrix smoke coverage pipeline walkthrough.                    |
-| `../probes/fmt/README.md`            | fmt probe status — 24/24 cells perfect; project spec; adaptation footprint; hybrid pilot result. |
-| `../probes/fmt/migration_status.md`  | fmt full-project migration status — all 7 phases closed; configure-time oracle + raw_cmake + unverified Windows/CUDA limits documented. |
-| `../probes/z3/README.md`             | z3 probe — 108/108 parse-print OK; matrix not yet built.           |
-| `../probes/llvm/README.md`           | llvm probe — 3004/3035 parse-print OK; matrix not yet built.       |
-| `yelu_cmake_normal/typing/plan.md`                      | Theory-fragment structural split plan.                             |
-| `yelu_cmake_normal/typing/boolean_and_theories.md`      | Post-mortem of the `yelu_cond` / `yelu_expr` merge; design conclusions. |
-| `yelu_cmake_normal/typing/extensible_expr_design.md`    | Original framing of the extensible-expression problem.             |
-| `cmake/painpoints.md`                      | 27 documented cmake pain points.                                   |
-| `cmake/comparison.md`                      | cmake PL properties, equivalence levels.                           |
-| `cmake/policy.md`                          | cmake policy system, CMP* history.                                 |
-| `cmake/genex.md`                           | Generator expressions design.                                      |
-| `cmake/script.md`                          | cmake -P script vs configure mode.                                 |
-| `cmake/cache_semantics.md`                 | Cache vs normal variable namespace.                                |
-| `cmake/scope_and_control_flow.md`          | Block / return / PARENT_SCOPE / macro semantics.                   |
-| `cmake/equiv_research.md`                  | Z3 / e-graph equivalence research prompts.                         |
-| `worklog/worklog_2026_04.md`               | Completed items (Y1, Y9, Y10).                                     |
-| `worklog/worklog_2026_05.md`               | yelu_cmake harness Tier A–F + retirement + Bar #3-lite archive.    |
+- unfinished work → [`status.md`](status.md)
+- shipped architecture, evidence, and milestones → this overview
+- navigation and document authority → [`README.md`](README.md)
+- chronological completion record → [`worklog/`](worklog/)
+- resolved or superseded notes → [`archive/`](archive/)

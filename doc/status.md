@@ -9,7 +9,7 @@
 >   *why*; each item points at its design home when there is one.
 > - If a task isn't here, it's either shipped or not yet a task.
 >
-> Last touched: 2026-07-21.
+> Last touched: 2026-07-22.
 
 ## Now
 
@@ -48,7 +48,7 @@ Tier (b) parser retirement, the doc reorg (layer+facet, then the yc/ycn split).
   records-as-first-class-values, value-default reads (bare `foo` = value),
   dotted globals (`$cmake.version`). Context in
   [`yc_syntax.md`](yelu_cmake/surface/yc_syntax.md) and
-  [`var_centric_design.md`](yelu_cmake/var_centric_design.md).
+  [`value_reads.md`](yelu_cmake_normal/design/value_reads.md).
 
 ### 2. Behavior-level oracle (Y16 — "does it scale")
 
@@ -181,7 +181,7 @@ Quick reference; each maps to an area above. Done: **Y1, Y9, Y10** (worklog 04).
 | Y15 | Binding feature library | design; ties to function labeled args |
 | Y16 | Real-world cmake rewrite | § 2 (behavior oracle / hybrid) |
 | Y17 | Types on **ycn** | § 1 |
-| Y18 | First-class object value | § 1 (ycn); [`object_value_design.md`](yelu_cmake/object_value_design.md) |
+| Y18 | First-class object value | § 1 (ycn); [`object_value.md`](yelu_cmake_normal/design/object_value.md) |
 
 ## Where done work + design rationale live
 

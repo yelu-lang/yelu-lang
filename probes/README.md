@@ -6,19 +6,21 @@ test and gain-adapt the yelu_cmake predictor**.
 ## What's a "probe"?
 
 A probe is a real cmake project (fmt, z3, llvm, …) pointed at the
-predictor to surface gaps the unit tests can't. Each probe runs two
-oracles:
+predictor to surface gaps the unit tests can't. A mature probe can exercise
+three verification layers:
 
--- **Parse-print oracle** (completed 2026-05-31, see [worklog](../doc/worklog/worklog_2026_06.md))
+- **Parse-print oracle** (completed 2026-05-31, see [worklog](../doc/worklog/worklog_2026_06.md))
   — `cmake_source → parse.py → Lang_cmake.exp → pp → text`. Does the
   AST round-trip byte-equivalently? Catches printer bugs and parser
   drops.
-- **Cache matrix oracle** ([cache_matrix.md](cache_matrix.md))
-  — `cmake_source → yc-eval → predicted cache_vars` compared against
-  `cmake -DOPT=val → CMakeCache.txt` for each option × {ON, OFF}.
-  Catches eval-level fidelity gaps.
+- **`.yc` corpus compile gate** — parse, wellform-check, and emit every
+  migrated source. This is part of `dune test` for fmt.
+- **Hybrid semantic matrix** ([cache_matrix.md](cache_matrix.md)) — compare
+  upstream CMake with a yelu-generated worktree for each option × {ON, OFF}.
+  The completed fmt probe checks three channels per cell: `CMakeCache.txt`,
+  File API codemodel-v2, and CTest definitions.
 
-Both oracles are diff-based and need cmake on the host. Both are
+The parse-print and hybrid oracles need CMake on the host. All layers are
 per-project — each project's gaps are different.
 
 ## Layout
@@ -32,7 +34,7 @@ probes/
   <project>/               # one folder per project
     README.md              # current status — landing page
     migration_status.md    # full-project hybrid migration status report
-    <helper>.ml            # per-helper yelu IR (Phase 1+; ad-hoc as needed)
+    <path>.yc              # yelu source mirroring the upstream CMake path
     main.json               # driver configuration (per project; read by `yelu hybrid`)
 ```
 
@@ -71,17 +73,17 @@ Small projects may stay at just README.md.
 
 ## Current per-project state
 
-| project | parse-print | cache matrix | adaptation status |
-|---|---|---|---|
-| [fmt](fmt/) | 11/11 OK | 24/24 cells matched, median 20 | complete; whitelist + stubs added |
-| [z3](z3/) | 108/108 OK | not yet built | parse-print only |
-| [llvm](llvm/) | 3004/3035 OK (30 pre-existing STRUCT) | not yet built | parse-print only |
+| project | parse-print | `.yc` corpus | semantic matrix | status |
+|---|---|---|---|---|
+| [fmt](fmt/) | 11/11 OK | 11/11 compile | 24/24 × cache + codemodel + CTest | complete first whole-project probe |
+| [z3](z3/) | 108/108 OK | — | not yet built | parse-print only |
+| [llvm](llvm/) | 3004/3035 OK (30 pre-existing STRUCT) | — | not yet built | parse-print only |
 
 ## Related docs
 
-- [../doc/yelu_cmake/io_architecture.md](../doc/yelu_cmake/io_architecture.md) —
+- [module system and loader architecture](../doc/framework/module_system.md) —
   the library/runner I/O split that enables both oracles
-- [../doc/yelu_cmake/status.md](../doc/yelu_cmake/status.md) — predictor-wide
+- [project status](../doc/status.md) — predictor-wide
   open work (cross-cuts all probes)
-- [../doc/yelu_cmake/structure.md](../doc/yelu_cmake/structure.md) — fragment
+- [../doc/yelu_cmake/ir/structure.md](../doc/yelu_cmake/ir/structure.md) — fragment
   map showing what's wired vs deferred

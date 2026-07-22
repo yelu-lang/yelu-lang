@@ -640,7 +640,7 @@ workspace file. If the extension is ever reinstalled, re-symlink.
   current pipeline).
 - [`ycn_concrete_syntax.md`](../../yelu_cmake_normal/ycn_concrete_syntax.md)
   — surface-syntax design notes for `ycn`; the generalization target.
-- [`lang_design.md`](../lang_design.md), [`typed_design.md`](../../yelu_cmake_normal/typing/typed_design.md)
+- [`language.md`](../../yelu_cmake_normal/design/language.md), [`typed_design.md`](../../yelu_cmake_normal/typing/typed_design.md)
   — language-design tradition and the (retired) typed-checking design
   that Y17 / ecosystem-semantic revisit.
 - [`status.md`](../../status.md) — the behavior-level

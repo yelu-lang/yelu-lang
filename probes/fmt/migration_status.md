@@ -1,7 +1,7 @@
 # fmt migration status — full-project hybrid coverage
 
 > Status snapshot for the fmt → yelu migration. Covers Phases 0–8.
-> Phase log archived in [`doc/worklog/worklog_2026_06.md`](../../doc/worklog/worklog_2026_06.md).
+> Phase log archived in [`worklog_2026_06.md`](../../doc/worklog/worklog_2026_06.md).
 > Current-state overview in [`README.md`](README.md).
 >
 > **Historical note (2026-06-19):** this is a closed record of the `.ml`→`.yc`
@@ -20,20 +20,21 @@ hybrid driver with auto-discovered helpers from a 5-line main.json.
 
 | file | lines | migrator (.ml) | migrator (.yc) |
 |---|---:|---|---|
-| `CMakeLists.txt` | 593 | [`main.ml`](main.ml) | [`main.yc`](main.yc) |
-| `test/compile-error-test/CMakeLists.txt` | 276 | [`compile_error_test.ml`](compile_error_test.ml) | [`compile_error_test.yc`](compile_error_test.yc) |
-| `test/CMakeLists.txt` | 247 | [`test_main.ml`](test_main.ml) | [`test_main.yc`](test_main.yc) |
-| `test/cuda-test/CMakeLists.txt` | 77 | [`cuda_test.ml`](cuda_test.ml) | [`cuda_test.yc`](cuda_test.yc) |
-| `test/fuzzing/CMakeLists.txt` | 32 | [`fuzzing.ml`](fuzzing.ml) | [`fuzzing.yc`](fuzzing.yc) |
-| `test/static-export-test/CMakeLists.txt` | 30 | [`static_export_test.ml`](static_export_test.ml) | [`static_export_test.yc`](static_export_test.yc) |
-| `support/cmake/JoinPaths.cmake` | 28 | — | [`join_paths.yc`](join_paths.yc) |
-| `test/gtest/CMakeLists.txt` | 26 | [`gtest.ml`](gtest.ml) | [`gtest.yc`](gtest.yc) |
-| `test/find-package-test/CMakeLists.txt` | 17 | [`find_package_test.ml`](find_package_test.ml) | [`find_package_test.yc`](find_package_test.yc) |
-| `test/add-subdirectory-test/CMakeLists.txt` | 17 | [`add_subdirectory_test.ml`](add_subdirectory_test.ml) | [`add_subdirectory_test.yc`](add_subdirectory_test.yc) |
-| `support/cmake/FindSetEnv.cmake` | 11 | [`find_setenv.ml`](find_setenv.ml) | [`find_setenv.yc`](find_setenv.yc) |
+| `CMakeLists.txt` | 593 | `main.ml` | [`main.yc`](main.yc) |
+| `test/compile-error-test/CMakeLists.txt` | 276 | `compile_error_test.ml` | [`CMakeLists.yc`](test/compile-error-test/CMakeLists.yc) |
+| `test/CMakeLists.txt` | 247 | `test_main.ml` | [`CMakeLists.yc`](test/CMakeLists.yc) |
+| `test/cuda-test/CMakeLists.txt` | 77 | `cuda_test.ml` | [`CMakeLists.yc`](test/cuda-test/CMakeLists.yc) |
+| `test/fuzzing/CMakeLists.txt` | 32 | `fuzzing.ml` | [`CMakeLists.yc`](test/fuzzing/CMakeLists.yc) |
+| `test/static-export-test/CMakeLists.txt` | 30 | `static_export_test.ml` | [`CMakeLists.yc`](test/static-export-test/CMakeLists.yc) |
+| `support/cmake/JoinPaths.cmake` | 28 | — | [`join_paths.yc`](support/cmake/join_paths.yc) |
+| `test/gtest/CMakeLists.txt` | 26 | `gtest.ml` | [`CMakeLists.yc`](test/gtest/CMakeLists.yc) |
+| `test/find-package-test/CMakeLists.txt` | 17 | `find_package_test.ml` | [`CMakeLists.yc`](test/find-package-test/CMakeLists.yc) |
+| `test/add-subdirectory-test/CMakeLists.txt` | 17 | `add_subdirectory_test.ml` | [`CMakeLists.yc`](test/add-subdirectory-test/CMakeLists.yc) |
+| `support/cmake/FindSetEnv.cmake` | 11 | `find_setenv.ml` | [`find_set_env.yc`](support/cmake/find_set_env.yc) |
 
 All 11 files have `.yc` concrete-syntax versions. All compile via the parser and pass
-the matrix oracle. The `.ml` OCaml DSL versions are retained as reference/source-of-truth.
+the matrix oracle. The `.ml` names record the Phase 0–7 migrators; those files
+were later retired and the linked `.yc` corpus is now the sole source.
 
 10 user-defined cmake helper functions — all migrated:
 `join`, `set_verbose`, `setup_target`, `add_module_library`,
@@ -90,9 +91,8 @@ build-test-install rig per platform.
 
 ### 1. The `raw_cmake` escape — what it is and why we have it
 
-`Yelu_emit_main.raw_cmake "<verbatim cmake text>"` (in
-[`src/langs/yelu/yelu_emit_main.ml`](../../src/langs/yelu/yelu_emit_main.ml))
-is an emit-time escape hatch. The string is dropped into the
+`Yelu_emit_main.raw_cmake "<verbatim cmake text>"` was an emit-time escape
+hatch in the now-retired `yelu_emit_main.ml`. The string was dropped into the
 generated `CMakeLists.txt` exactly as written — no IR, no
 evaluator, no checker pass touches it.
 
@@ -104,7 +104,7 @@ containing literal `"`, `\`, or newlines can't always be
 round-tripped through a `ystr s → ECmakeSet → pretty-print`
 chain.
 
-We use `raw_cmake` once in [`main.ml`](main.ml), for the
+The retired `main.ml` used `raw_cmake` once, for the
 WINSDK / netfxpath / `run-msbuild.bat` block: a Windows-only
 path that has both backslash-laden absolute paths
 (`C:\\Program Files\\...`) and a multi-line bat-file body with
@@ -215,7 +215,7 @@ project-defined functions `set_verbose`/`join`/`setup_target`/
 ## Phase log
 
 Full phase-by-phase record (Phases 0–8) archived in
-[`doc/worklog/worklog_2026_06.md`](../../doc/worklog/worklog_2026_06.md).
+[`worklog_2026_06.md`](../../doc/worklog/worklog_2026_06.md).
 Key milestones:
 
 - **Phase 0–7** (2026-06-04): all 11 files migrated as `.ml` OCaml DSL emits.
@@ -264,9 +264,9 @@ Key milestones:
   `yelu hybrid`. Each entry now says `whole_file: true`.
 - `yelu hybrid` ([`src/bin/yelu/yelu.ml`](../../src/bin/yelu/yelu.ml))
   — the universal driver.
-- [`../../doc/yelu_cmake/hybrid_strategy.md`](../../doc/yelu_cmake/hybrid_strategy.md)
+- [`hybrid_strategy.md`](../../doc/yelu_cmake/hybrid_strategy.md)
   — strategy doc (cmake-as-assembly, shapes B/C).
-- [`../../doc/yelu_cmake/status.md`](../../doc/yelu_cmake/status.md)
+- [`status.md`](../../doc/status.md)
   — predictor-wide open work.
-- [`../cache_matrix.md`](../cache_matrix.md) — matrix oracle
+- [`cache_matrix.md`](../cache_matrix.md) — matrix oracle
   methodology.

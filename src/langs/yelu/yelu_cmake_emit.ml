@@ -737,7 +737,7 @@ let rec emit_exp ~env (e : expr) : C.exp =
          Synthesize a placeholder Jop_get so emit doesn't crash; the
          resulting cmake text is not semantically faithful to the
          original. Tracked as a bridge gap in
-         [doc/yelu_cmake/status.md]. *)
+         [doc/status.md]. *)
       | "JSON_op" -> C.Jop_get { json = C.Bare ""; path = [] }
       | _ -> fail "emit_ast: unknown string(JSON ...) op %S" op_name
     in

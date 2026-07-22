@@ -99,7 +99,8 @@ The strongest axes are **benchmark suite coverage** (CMakeOnly and RunCMake both
 
 ### Blocked — `cmake_policy` (Y11)
 
-Design pass needed before touching code. See `lang_design.md` policy section.
+Design pass needed before touching code. See
+[`language.md`](../yelu_cmake_normal/design/language.md) policy section.
 
 Unlocks: CMP0186 (regex empty match), CMP0140 (`return(PROPAGATE)`), CMP0124 (`foreach` scoping), `try_compile` policy variants, `PolicyScope` build test.
 

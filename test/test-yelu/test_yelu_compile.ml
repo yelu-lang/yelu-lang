@@ -8,8 +8,8 @@ open Yelu_langs.Lang_cmake_pp
    deadcode; we test the new emit path directly against the inline
    expected strings (which were the legacy output frozen at oracle-
    green = 194/194). The cross-implementation comparison is gone;
-   golden-style snapshots are the new ground truth. See
-   doc/yelu_cmake/retirement_plan.md item E1. *)
+   golden-style snapshots are the new ground truth. Retirement history
+   (E1) is in doc/worklog/worklog_2026_05.md. *)
 
 let pp_to_string ast = Fmt.str "%a" pp ast
 let pp_vbox_to_string ast = Fmt.str "%a" (Fmt.vbox pp) ast

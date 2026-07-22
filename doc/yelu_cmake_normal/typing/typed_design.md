@@ -20,7 +20,7 @@
 >    and [`boolean_and_theories.md`](boolean_and_theories.md)
 >    — the two open design questions (both drafted against the *legacy* IR; the
 >    architecture carries forward, the module names don't).
-> 5. [`lang_design.md`](../../yelu_cmake/lang_design.md) — the broader language-design
+> 5. [`language.md`](../design/language.md) — the broader language-design
 >    frame (core/pack split, the Tier 5 typed cache-var lifecycle, Tier 7
 >    staging) these typing decisions sit inside. Also legacy-vocabulary.
 >

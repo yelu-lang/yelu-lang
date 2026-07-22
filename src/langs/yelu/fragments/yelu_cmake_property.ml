@@ -73,7 +73,7 @@ type expr +=
   (* Unified [get_property] — mirrors Lang_cmake.Get_property exactly.
      The legacy TARGET-only / single-bool shape collapsed 2026-06-14 in
      parallel with the set_property unification (see
-     doc/yelu_cmake/object_value_design.md). Pos3 entity dispatch produces the
+     doc/yelu_cmake_normal/design/object_value.md). Pos3 entity dispatch produces the
      scope sum; the mode enum replaces the prior [set_form : bool]. *)
   | ECmakeGetProperty of {
       var : string;

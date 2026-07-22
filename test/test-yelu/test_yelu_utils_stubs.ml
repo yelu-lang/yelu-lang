@@ -1,5 +1,5 @@
 (* Pinning tests for the "Known IR shape gaps" set documented in
-   doc/yelu_cmake/status.md and the Yelu_cmake_utils header.
+   doc/status.md and the Yelu_cmake_utils header.
 
    Two stub flavors are exercised:
    - **Accept-and-discard**: helper accepts the unmodeled argument
