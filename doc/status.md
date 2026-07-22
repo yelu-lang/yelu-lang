@@ -101,7 +101,7 @@ placeholders — vestigial, tighten with Y17).
 ### 4. Deferred — file-loader / module system + eval residuals
 
 Pick up as cmake-corpus expansion demands. Full picture in
-[`io_architecture.md`](yelu_cmake/ir/io_architecture.md) §§ 5, 7.
+[`module_system.md`](framework/module_system.md) §§ 5, 7.
 
 - **`include_guard()` load-once cache** — ~20 LOC; bites when modules accumulate state.
 - **`find_package(X)` real recursion** — today a `Threads` whitelist; real =
@@ -194,7 +194,7 @@ Quick reference; each maps to an area above. Done: **Y1, Y9, Y10** (worklog 04).
 | layer triage rule (yc vs ycn) | [`yc_ycn_boundary.md`](yelu_cmake_normal/typing/yc_ycn_boundary.md) |
 | Y17 / theory-typing design cluster | [`typed_design.md`](yelu_cmake_normal/typing/typed_design.md) |
 | harness design + module guide | [`design.md`](yelu_cmake/ir/design.md) · [`structure.md`](yelu_cmake/ir/structure.md) |
-| numbered-backlog descriptions + handoff | [`../CLAUDE.md`](../CLAUDE.md) |
+| numbered-backlog descriptions + handoff | [`CLAUDE.md`](../CLAUDE.md) |
 
 > **One tracker.** This file replaced two others (`lang/surface_status.md`,
 > retired 2026-07-20; `yelu_cmake/status.md`, folded in 2026-07-21) plus the

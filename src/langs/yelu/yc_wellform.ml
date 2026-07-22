@@ -330,7 +330,7 @@ let check_unknown_command e =
     (* Three-tier lookup:
        1. yc typed primitives (Yc_primitives.command_names)
        2. in-file function/macro declarations (whole-program collect)
-       3. cmake stdlib (discovered-cache; see doc/yelu_cmake/ir/discovered_cache.md)
+       3. cmake stdlib (discovered-cache; see doc/framework/discovered_cache.md)
        A name in any of these is silent; only true unknowns flow through. *)
     if Yc_primitives.is_known_command nl
     || Set.mem defined nl

@@ -532,7 +532,7 @@ open/closed world. The CLI / fmt / LSP / corpus-gate fatality split is
 captured once in `Yc_driver.fatal_wellform_message`; per-check semantics
 + surfacing contract in
 [`surface_lsp_framework.md`](../yelu_cmake/surface/surface_lsp_framework.md)
-§7.5 and [`driver.md`](../yelu_cmake/ir/driver.md) §6.5.
+§7.5 and [`driver.md`](../framework/driver.md) §6.5.
 
 **fmt is now fail-safe on fatal wellform.** Was parse-then-print only; a
 closed-world typo was happily prettified into a clean-looking unknown
@@ -548,7 +548,7 @@ heuristic but practical until findings carry token spans natively. The
 LSP now matches the diagnostic content of `yelu compile` exactly.
 
 **cmake-stdlib name cache (Plan C — the discovered-cache pattern).**
-[`discovered_cache.md`](../yelu_cmake/ir/discovered_cache.md)
+[`discovered_cache.md`](../framework/discovered_cache.md)
 generalizes the recipe: discover → commit TSV with version fingerprint
 → dune codegen embeds into the binary → on-demand validity (option (d),
 no automatic check). First instance is `Cmake_stdlib_names`
@@ -585,12 +585,12 @@ recommended development flow. Reload Window picks up LSP rebuilds.
 - [`project_overview.md`](../project_overview.md) — full refresh
   (was stale since 2026-06-03; covers surface passes, LSP, wellform,
   property unification, Pos3, command-call sugar, corpus gate).
-- [`driver.md`](../yelu_cmake/ir/driver.md) §6.5 — the
+- [`driver.md`](../framework/driver.md) §6.5 — the
   compile/wellform/format/LSP contract that any new pack inherits.
 - [`surface_lsp_framework.md`](../yelu_cmake/surface/surface_lsp_framework.md)
   §7.5 — full wellform check table + open/closed-world rule + worked
   examples.
-- [`discovered_cache.md`](../yelu_cmake/ir/discovered_cache.md)
+- [`discovered_cache.md`](../framework/discovered_cache.md)
   — the driver-level pattern doc.
 - [`../yelu_cmake/surface/surface_lsp_framework.md` §8](../yelu_cmake/surface/surface_lsp_framework.md) — Tier (b)
   active with 7-step plan + status; legacy parser retirement is the

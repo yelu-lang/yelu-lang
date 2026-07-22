@@ -5,8 +5,8 @@ A side-by-side snapshot of the two surface languages defined under
 directory to find out whether (e.g.) `yelu_cmake_normal` has a
 parser yet.
 
-Durable concept lives in [`design.md`](design.md); code map lives
-in [`structure.md`](structure.md). This doc is the *comparison*
+Durable concept lives in [`design.md`](../yelu_cmake/ir/design.md); code map lives
+in [`structure.md`](../yelu_cmake/ir/structure.md). This doc is the *comparison*
 between the two languages — what each has, what each is missing,
 and where the asymmetry comes from.
 
@@ -111,7 +111,7 @@ Two test files exercise ycn directly:
   env (every variable, every target, every install rule).
 
 The file name retains pre-rename "lift_lower" vocab (see
-[`yelu_cmake_convert.ml:22-23`](../../../src/langs/yelu/yelu_cmake_convert.ml#L22)
+[`yelu_cmake_convert.ml:22-23`](../../src/langs/yelu/yelu_cmake_convert.ml#L22)
 for explicit debt acknowledgement).
 
 ### `test_yelu_dual_eval.ml` — broader, value-only sweep
@@ -120,7 +120,7 @@ Added 2026-05-31; 25 cases as of 2026-07 (growing). Programs lifted from
 `test_yelu_compile.ml` using the same ergonomic helpers (`yc_set`,
 `add_lib`, `yc_foreach`, …) but switched from emit byte-equality
 to value-only dual-eval via `check_dual_eval` in
-[`yelu_test_helpers.ml`](../../../test/test-yelu/yelu_test_helpers.ml).
+[`yelu_test_helpers.ml`](../../test/test-yelu/yelu_test_helpers.ml).
 For stmt-level programs that return VUnit, the helper reduces to
 a fate-sharing check ("ycn-eval doesn't crash on this shape") —
 which is exactly what catches `to_normal` lazy-passthrough bugs.
@@ -209,11 +209,11 @@ will operate on it:
 - **Y17 — types on yelu_cmake.** Namespace separation, explicit
   `ESetVar`, and the smaller surface area make typing rules
   easier to state on ycn than on cmake-shape sugar. See
-  [`status.md`](../../status.md) "Y17 — types on yelu_cmake".
+  [`status.md`](../status.md) "Y17 — types on yelu_cmake".
 - **Behavior-level oracle / "prove optimized ≡ original".**
   Optimization passes rewrite ycn; the from_normal → emit →
   cmake configure → File API JSON chain is the verification
-  harness. See [`status.md`](../../status.md) "Behavior-level oracle".
+  harness. See [`status.md`](../status.md) "Behavior-level oracle".
 - **Y15 — binding feature library.** ycn's explicit `ESetVar`
   vs `ELet` makes it the natural substrate for exploring
   lexical / global, immutable / mutable, expression / statement

@@ -31,7 +31,7 @@ parse to the same OCaml AST.
 
 ## 1. What ycn surface needs to express that yc's doesn't
 
-Three deltas from [`cmake_vs_normal.md`](../yelu_cmake/ir/cmake_vs_normal.md) drive
+Three deltas from [`cmake_vs_normal.md`](../framework/cmake_vs_normal.md) drive
 the syntax design:
 
 ### 1.a `ESetVar` is primitive — no command-side-effect sugar
@@ -324,7 +324,7 @@ preserve: genex") that's open in the project TODO.
 
 ## 5. Related
 
-- [`cmake_vs_normal.md`](../yelu_cmake/ir/cmake_vs_normal.md) — the broader yc/ycn
+- [`cmake_vs_normal.md`](../framework/cmake_vs_normal.md) — the broader yc/ycn
   comparison (this doc dives into one slice of it: surface
   syntax).
 - [`design.md`](../yelu_cmake/ir/design.md) — the durable design notes for the

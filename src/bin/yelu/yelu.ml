@@ -1014,7 +1014,7 @@ let () =
               Some (Printf.sprintf "%S shadows the %s constructor" name constructor)
             (* Closed-world Unknown_command IS fatal in the corpus gate as of
                2026-06-21, after the cmake-stdlib name-cache landed
-               (Cmake_stdlib_names; doc/yelu_cmake/ir/discovered_cache.md).
+               (Cmake_stdlib_names; doc/framework/discovered_cache.md).
                Legitimate stdlib calls (`cmake_parse_arguments`,
                `check_language`, `cuda_add_executable`, …) are now silenced
                via the stdlib whitelist, so the only closed-world unknowns

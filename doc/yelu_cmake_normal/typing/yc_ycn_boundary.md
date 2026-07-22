@@ -4,7 +4,7 @@
 > go?", promoted from three independent design threads that each reached the
 > same boundary without a stated policy. Companion to
 > [`manifesto.md`](../../manifesto.md) (the layer thesis) and
-> [`cmake_vs_normal.md`](../../yelu_cmake/ir/cmake_vs_normal.md)
+> [`cmake_vs_normal.md`](../../framework/cmake_vs_normal.md)
 > (what the two forms actually are).
 
 ## The rule

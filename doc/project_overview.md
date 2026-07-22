@@ -86,7 +86,7 @@ Forward architectural plan (theory-fragment split) at
 | `Function_def_typo`          | CST shape  | **fatal**               | `IDENT args (block)` adjacent to standalone block — only valid as fun-def; flags typo'd `fun`/`function`/`macro` keyword regardless of open/closed world |
 
 Surfacing is uniform across compile / fmt / LSP / corpus-gate per the
-contract in [`driver.md`](yelu_cmake/ir/driver.md) §6.5: fatal
+contract in [`driver.md`](framework/driver.md) §6.5: fatal
 findings exit the per-file compile, refuse format, become Error
 diagnostics in the LSP. Warnings appear in stderr / Problems panel but
 don't block.
@@ -202,7 +202,7 @@ failure — blocked by the `ylet` blanket `EVar→EString` demotion).
   `fmt` is fail-safe (refuses to overwrite on fatal wellform — typos
   stay visible). VS Code client at
   [`editors/vscode/yc/`](../editors/vscode/yc/); cross-pack contract in
-  [`driver.md`](yelu_cmake/ir/driver.md) §6.5. Design in
+  [`driver.md`](framework/driver.md) §6.5. Design in
   [`surface_lsp_framework.md`](yelu_cmake/surface/surface_lsp_framework.md).
 - **TextMate grammar + co-truth lock.** ✅ Shipped 2026-06-10. Generated
   from `Yc_manifest`; the chain `Yelu_lexer.{constr_names,command_names}`
@@ -276,10 +276,14 @@ retirement, surface canonical form, LSP/formatter, the cmake-stdlib name cache,
 doc/
   (top)         project meta: status, project_overview, manifesto, infra_test
   cmake/        the TARGET language — raw cmake semantics reference (empirically pinned)
-  yelu_cmake/   yc — the cmake-faithful language + the shared production harness:
+  framework/    language-AGNOSTIC machinery (shared by every pack): the per-language
+                driver / tool-interface / pipelines, the discovered-cache codegen
+                pattern, the module_system (include/find_package/subdir loaders),
+                and the yc↔ycn comparison
+  yelu_cmake/   yc — the cmake-faithful language + its IR/harness:
     surface/      the .yc surface: syntax design, casing, LSP/formatter, command reference
-    ir/           the IR harness: module structure, driver, IR tiers, convert, io, discovered-cache
-    (top)         status backlog, hybrid strategy, forward language design
+    ir/           the yc/ycn IR internals: module structure, theory-composition design, IR tiers
+    (top)         hybrid strategy, forward language design
                   (lang_design, object_value_design, var_centric_design), lang_coverage
   yelu_cmake_normal/   ycn — the normalized form + theory + typing (the forward agenda):
     (top)         ycn_concrete_syntax
@@ -290,11 +294,10 @@ doc/
   archive/      retired / historical write-ups (nothing current)
 ```
 
-Rule of thumb: cmake-the-target → `cmake/`; the yc language + shared harness →
-`yelu_cmake/<facet>`; ycn, theory, and the Y17 typing agenda →
-`yelu_cmake_normal/`. (The two mirror the code's `yelu_cmake` / `yelu_cmake_normal`
-split.) New doc? pick the facet; cross-cutting yc language design goes at
-`yelu_cmake/` top.
+Rule of thumb: cmake-the-target → `cmake/`; language-agnostic machinery (driver,
+patterns, loaders) → `framework/`; the yc language + its IR → `yelu_cmake/<facet>`;
+ycn, theory, and the Y17 typing agenda → `yelu_cmake_normal/`. (The two `yelu_*`
+dirs mirror the code's `yelu_cmake` / `yelu_cmake_normal` split.)
 
 | File                                       | Purpose                                                            |
 | ------------------------------------------ | ------------------------------------------------------------------ |
@@ -314,15 +317,15 @@ split.) New doc? pick the facet; cross-cutting yc language design goes at
 | `yelu_cmake/surface/casing_design.md`                    | Casing lanes — enum constructors leading-cap, dotted globals, locals, Y14 reject. Shipped 2026-06-12..19. |
 | `yelu_cmake/var_centric_design.md`               | Postponed direction: value-default reads (`foo` = value, name explicit). Belongs in ycn not yc. |
 | `yelu_cmake/object_value_design.md`              | Y18 design questions for promoting the Pos3 parser-local `cmake_entity` to a real value class. |
-| `yelu_cmake/ir/design.md`                     | Durable design notes for the yelu_cmake harness.                   |
-| `yelu_cmake/ir/driver.md`                     | Per-language driver modules + cross-lang pipelines + tool interface. §6.5 the compile/wellform/format/LSP contract that any new pack inherits. |
+| `framework/driver.md`                         | Per-language driver modules + cross-lang pipelines + tool interface. §6.5 the compile/wellform/format/LSP contract that any new pack inherits. |
+| `framework/module_system.md`                  | The include()/find_package()/subdir loader + module-import design (the I/O library/runner split is the mechanism). |
+| `framework/discovered_cache.md`               | The discovered-cache build-time codegen pattern (committed TSV + codegen + runtime API); first instance is `Cmake_stdlib_names`. |
+| `framework/cmake_vs_normal.md`                | yc ↔ ycn ecosystem comparison: per-theory fragment coverage, what each form has/lacks. |
+| `yelu_cmake/ir/design.md`                     | Theory-composition design notes for the yc/ycn IR harness.         |
 | `yelu_cmake/ir/ir_tiers.md`                   | 4-tier IR fidelity: typed → `cmake_lang` → `yc_raw` → `yc_apply`. Parser fallback strategy, string-as-enum plan. |
-| `yelu_cmake/ir/structure.md`                  | Code-anchored guide to the yelu_cmake modules.                     |
-| `yelu_cmake/ir/cmake_vs_normal.md`            | yc ↔ ycn ecosystem comparison: per-theory fragment coverage.       |
-| `yelu_cmake/ir/io_architecture.md`            | I/O library/runner split + callback-via-env pattern (include_loader, subdir_loader). |
+| `yelu_cmake/ir/structure.md`                  | Code-anchored guide to the `src/langs/yelu/` modules.              |
 | `yelu_cmake/hybrid_strategy.md`            | Y16 reframed: cmake-as-assembly; gradual hybrid adoption (.yc + .cmake side-by-side, or whole-file w/ raw_cmake escape). |
 | `yelu_cmake_normal/ycn_concrete_syntax.md`        | Design notes for the future ycn concrete-syntax parser — the gateway to records-as-values / Y17 / Y18. Uses the 65-program lift_lower corpus as substrate. |
-| `yelu_cmake/ir/discovered_cache.md`           | The discovered-cache driver pattern (committed TSV + build-time codegen + runtime API); first instance is `Cmake_stdlib_names`. |
 | `../probes/README.md`                         | Probe cluster intro: real-world cmake projects as predictor testbeds. |
 | `../probes/candidates.md`                     | Shortlist of next projects to probe.                               |
 | `doc/worklog/worklog_2026_06.md` | Parse-print oracle close (2026-05-31) + fmT migration + driver architecture. |

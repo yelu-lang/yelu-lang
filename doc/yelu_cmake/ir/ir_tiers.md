@@ -142,7 +142,7 @@ Dynamic values (`${kind}`) in these positions fall back to `yc_raw` (Tier 3).
 
 ## Related
 
-- [`driver.md`](driver.md) — pipelines graph and driver modules
+- [`driver.md`](../../framework/driver.md) — pipelines graph and driver modules
 - [`painpoints.md`](../../cmake/painpoints.md) — cmake pain points
 - [`../../src/langs/yelu/yc_primitives.ml`](../../../src/langs/yelu/yc_primitives.ml) — command name registry
 - [`../../src/langs/yelu/yc_wellform.ml`](../../../src/langs/yelu/yc_wellform.ml) — wellform checks

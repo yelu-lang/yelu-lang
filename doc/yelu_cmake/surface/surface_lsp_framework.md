@@ -19,7 +19,7 @@
   `check`.
 
 Both are **driver ops** over the same uniform interface
-([`driver.md`](../ir/driver.md)), which is why "a
+([`driver.md`](../../framework/driver.md)), which is why "a
 framework for the yelu languages" and "the driver motivation" are the
 same bet. The driver is the abstraction boundary the LSP plugs into.
 
@@ -320,7 +320,7 @@ current command manifest. Consequences:
   which is also the most honest acknowledgement that — absent ppx over
   extensible variants — the manifest is curated, not derived;
 - it slots next to `parse / print / eval / compile / check` in
-  [`driver.md`](../ir/driver.md) as a sixth
+  [`driver.md`](../../framework/driver.md) as a sixth
   introspection op, applicable later to `ycn` too.
 
 ## 4. ecosystem-semantic hook
@@ -539,7 +539,7 @@ include 'Helpers.cmake'; mystery_command 'x'
 ### Follow-ups (parked)
 
 - **"Did you mean X?"** — Levenshtein distance from the unknown name against `command_names ∪ defined_names`. Cheap to add to the warning text.
-- ✅ **Cmake-stdlib name index** — shipped 2026-06-21 as `Cmake_stdlib_names` following the discovered-cache pattern ([`discovered_cache.md`](../ir/discovered_cache.md)). `cmake_parse_arguments` / `check_language` / `cuda_add_executable` etc. are silenced; closed-world `Unknown_command` is now fatal in `compile-corpus` again.
+- ✅ **Cmake-stdlib name index** — shipped 2026-06-21 as `Cmake_stdlib_names` following the discovered-cache pattern ([`discovered_cache.md`](../../framework/discovered_cache.md)). `cmake_parse_arguments` / `check_language` / `cuda_add_executable` etc. are silenced; closed-world `Unknown_command` is now fatal in `compile-corpus` again.
 - **Cross-file collect** — for a multi-file project, walking `include`/`add_subdirectory` targets to gather their `function`/`macro` declarations would eliminate the false-positive class on real corpus projects. Today the LSP sees one file at a time.
 - **Diagnostic span** — `Unknown_command` currently carries only the name. Adding the offending token's span (the located lexer infrastructure already in use for parse-error diagnostics) lets the LSP highlight the exact identifier instead of underlining the whole file.
 
@@ -633,7 +633,7 @@ workspace file. If the extension is ever reinstalled, re-symlink.
 
 ## 9. Related
 
-- [`driver.md`](../ir/driver.md) — the uniform
+- [`driver.md`](../../framework/driver.md) — the uniform
   per-language op interface the LSP plugs into.
 - [`concrete_syntax_parser.md`](../../archive/concrete_syntax_parser.md)
   — history: the retired two-pass token parser this evolved from (§8 is the

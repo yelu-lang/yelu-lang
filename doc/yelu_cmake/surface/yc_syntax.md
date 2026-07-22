@@ -141,5 +141,5 @@ tracker):
 - [`casing_design.md`](casing_design.md) — the casing lanes in full.
 - [`worklog_2026_06.md`](../../worklog/worklog_2026_06.md) — the shipped arc.
 - [`painpoints.md`](../../cmake/painpoints.md) — cmake ground-truth (incl. §11).
-- [`driver.md`](../ir/driver.md) — the
+- [`driver.md`](../../framework/driver.md) — the
   `text ↔ cst_lite ↔ expr` forms the changes touch.

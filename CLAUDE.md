@@ -182,7 +182,7 @@ purposes) is [`project_overview.md`](doc/project_overview.md)
 | [`yc_command_reference.md`](doc/yelu_cmake/surface/yc_command_reference.md) | **Generated** yc command table (never hand-edit; `yelu command-reference`). |
 | [`surface_lsp_framework.md`](doc/yelu_cmake/surface/surface_lsp_framework.md) | Surface/parser/formatter/LSP design + the shipped pipeline (§8). |
 | [`yc_ycn_boundary.md`](doc/yelu_cmake_normal/typing/yc_ycn_boundary.md) | yc-vs-ycn placement rule (erasability). |
-| [`driver.md`](doc/yelu_cmake/ir/driver.md) | Per-language driver ops + pipelines; §6.5 the compile/wellform/format/LSP contract. |
+| [`driver.md`](doc/framework/driver.md) | Per-language driver ops + pipelines; §6.5 the compile/wellform/format/LSP contract. |
 
 ## Architecture
 
@@ -264,7 +264,7 @@ lower_cst ∘ parse_cst`); the 2026-06 syntax audit closed (honest emit,
 
 ## Backlog
 
-**All open work lives in the single tracker [`doc/status.md`](doc/status.md)** —
+**All open work lives in the single tracker [`status.md`](doc/status.md)** —
 grouped by area (ycn, Y17, behavior oracle, IR cleanups, deferred loaders,
 surface polish) with the numbered **Y2–Y18** items (stable IDs) in its
 § Numbered backlog. Done: Y1, Y9, Y10 (see

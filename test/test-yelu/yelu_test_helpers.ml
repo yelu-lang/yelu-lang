@@ -137,7 +137,7 @@ let check_yelu1_lift_lower_roundtrip name expr =
    shape" regressions that 75-case lift_lower can't surface.
 
    Future: value-only → observable-env (declared per-test) →
-   structural env-equiv. Tracked in cmake_vs_normal.md § 5 and
+   structural env-equiv. Tracked in doc/framework/cmake_vs_normal.md § 5 and
    the broader test-coverage plan. *)
 let check_dual_eval ?(cmd_line = []) name expr =
   Alcotest.test_case name `Quick (fun () ->
