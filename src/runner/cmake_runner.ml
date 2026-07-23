@@ -535,7 +535,54 @@ let compare_file_api ?(files = []) left_cmake right_cmake =
 type artifact = {
   rel_path : string;   (* path relative to build root, using '/' separator *)
   size     : int;      (* file size in bytes *)
+  symbols  : string list option;
+  (* exported symbol set (nm), sorted+deduped; None = not a binary / no symbols.
+     Captured at enumeration time — the build dir is cleaned before the caller
+     compares, so symbols must be read while the artifact still exists. *)
 }
+
+let read_lines_of_cmd cmd =
+  let ic = Unix.open_process_in cmd in
+  let lines = ref [] in
+  (try while true do lines := input_line ic :: !lines done
+   with End_of_file -> ());
+  ignore (Unix.close_process_in ic);
+  List.rev !lines
+
+let is_elf abs =
+  try
+    let ic = open_in_bin abs in
+    let b = Bytes.create 4 in
+    let n = input ic b 0 4 in
+    close_in ic;
+    n = 4 && Bytes.get b 0 = '\x7f' && Bytes.sub_string b 1 3 = "ELF"
+  with _ -> false
+
+(* Exported symbol set of a build artifact — the binary-equivalence check.
+   Mirrors build_equiv.py: nm -D for shared objects / exes; for a static archive
+   (no dynamic table) fall back to nm --extern-only --defined-only. Symbol names
+   are path-independent (unlike file size / bytes, which embed the build path),
+   so this stays a strict comparison across ref and yelu. *)
+let dyn_symbols abs =
+  let parse lines =
+    List.filter_map (fun line ->
+      let line = String.trim line in
+      if line = "" || (String.length line > 0 && line.[String.length line - 1] = ':')
+      then None  (* blank / archive-member header (`foo.o:`) *)
+      else match List.filter (fun s -> s <> "") (String.split_on_char ' ' line) with
+        | [_addr; _typ; name] -> Some name  (* addr type name *)
+        | [_typ; name] -> Some name          (* (no addr) type name *)
+        | _ -> None) lines
+  in
+  let q = Filename.quote abs in
+  let dyn = parse (read_lines_of_cmd (Printf.sprintf "nm -D --defined-only %s 2>/dev/null" q)) in
+  let syms =
+    if dyn <> [] then dyn
+    else if Filename.check_suffix abs ".a"
+    then parse (read_lines_of_cmd (Printf.sprintf "nm --extern-only --defined-only %s 2>/dev/null" q))
+    else []
+  in
+  match syms with [] -> None | l -> Some (List.sort_uniq String.compare l)
 
 (* Walk build_dir, skip cmake-internal paths, return artifact list sorted by rel_path. *)
 let enumerate_build_outputs build_dir =
@@ -557,7 +604,11 @@ let enumerate_build_outputs build_dir =
     end else begin
       if not (is_cmake_file (Filename.basename abs)) then begin
         let st = Unix.stat abs in
-        results := { rel_path = rel; size = st.Unix.st_size } :: !results
+        let symbols =
+          if is_elf abs || Filename.check_suffix abs ".a"
+             || Filename.check_suffix abs ".so" || Filename.check_suffix abs ".dylib"
+          then dyn_symbols abs else None in
+        results := { rel_path = rel; size = st.Unix.st_size; symbols } :: !results
       end
     end
   in
@@ -577,12 +628,27 @@ let check_artifacts_match ref_arts yelu_arts =
   (* Layer 2b: size comparison — reported but not a hard failure.
      GCC embeds source file paths in ELF .strtab even without -g, so sizes
      differ by a small constant proportional to path length difference between
-     the ref source dir and the yelu temp dir. Symbol-level comparison is
-     deferred to layer 3 (nm inspection). *)
+     the ref source dir and the yelu temp dir. *)
   List.iter2 (fun r y ->
     if r.size <> y.size then
       Printf.printf "  [size] %s: ref %d, yelu %d (diff %+d)\n%!"
         r.rel_path r.size y.size (y.size - r.size)
+  ) ref_arts yelu_arts;
+  (* Layer 3: exported-symbol set per artifact — strict (nm names are
+     path-independent, unlike sizes). The binary-equivalence check, promoted
+     from the old "deferred to nm inspection" TODO; same approach as
+     build_equiv.py. Names already match (2a), so ref/yelu artifacts align. *)
+  List.iter2 (fun r y ->
+    match r.symbols, y.symbols with
+    | None, None -> ()
+    | Some rs, Some ys when rs = ys -> ()
+    | rs, ys ->
+      let l = function None -> [] | Some l -> l in
+      let only a b = List.filter (fun s -> not (List.mem s b)) a in
+      Alcotest.failf "%s: exported symbols differ\n  ref-only : %s\n  yelu-only: %s"
+        r.rel_path
+        (String.concat ", " (only (l rs) (l ys)))
+        (String.concat ", " (only (l ys) (l rs)))
   ) ref_arts yelu_arts
 
 type build_result = {

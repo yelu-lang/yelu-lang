@@ -17,7 +17,7 @@ Each level subsumes all levels below it (a `build` test also passes `configure`,
 | `script`      | `cmake -P script.cmake`         | cmake interpreter accepts it; exit 0; stdout patterns match                                                         | `test-runcmake/` (runcmake-test alias)                        |
 | `script-pair` | `cmake -P` run twice            | Ref cmake and yelu cmake are observationally equivalent under the interpreter (identical stdout, normalized stderr) | `test_runcmake_yelu.ml` (runcmake-yelu alias)                 |
 | `configure`   | `cmake -S . -B _build`          | cmake compiles CMakeLists.txt into a build system; exits 0; specific cache variable bindings correct                | `test-runcmake/` configure tests; showcase `make cmake-check` |
-| `build`       | `cmake -S -B` + `cmake --build` | Running the compiled build system (make/ninja) produces identical artifact names; sizes reported                    | `test_cmake_commands.ml` (cmake-commands alias)               |
+| `build`       | `cmake -S -B` + `cmake --build` | Running the compiled build system (make/ninja) produces identical artifact names **and identical exported symbols** (`nm`); sizes reported | `test_cmake_commands.ml` (cmake-commands alias)               |
 | `file-api`    | configure + File API query      | Full binding environment (target → flags, includes, deps) identical between ref and yelu                            | `test-file-api/` (file-api-test alias)                        |
 
 | `build-equiv` | build ref + yelu + control (per cell) | Artifacts, **exported symbols** (`nm -D`), **runtime**, **bytes** (byte-identical where the build is reproducible), and a per-cell **consume script** all match between reference-cmake and yelu-emitted-cmake builds | `test-build/build_equiv.py` (`make build-equiv`) |
@@ -218,16 +218,29 @@ the test blocked.
 ### Artifact comparison (check_artifacts_match)
 
 Walk the build directory, skip cmake internals (`CMakeFiles/`, `*.cmake`, `*.d`,
-`build.ninja`, `Makefile`, etc.), collect `(rel_path, size)` pairs.
+`build.ninja`, `Makefile`, etc.), collect `(rel_path, size, symbols)` per
+artifact — the exported symbol set (`nm`) is read **at enumeration time**,
+because the build dir is cleaned before the caller compares.
 
 - **Layer 2a (strict):** same set of relative artifact paths must match.
   If ref builds `libtarget_link_options.so` then yelu must too, at the same
   relative path within the build tree.
 - **Layer 2b (informational):** sizes are reported but not a hard failure.
   GCC embeds source file paths in ELF `.strtab` even without `-g`, causing
-  constant-offset size differences (~8 bytes) proportional to temp dir path
-  lengths. Strict size equality is a future enhancement once stripped-binary
-  or symbol-level comparison is in place.
+  constant-offset size differences proportional to temp dir path lengths — so
+  bytes/sizes can't be strict here (ref and yelu build in different paths).
+- **Layer 3 (strict):** exported-symbol set per artifact — `nm -D --defined-only`
+  for shared objects / exes, `nm --extern-only --defined-only` for static
+  archives (the same approach as `build_equiv.py`). Symbol *names* are
+  path-independent, so unlike sizes they compare strictly across ref and yelu.
+  This is the binary-equivalence check; it was a deferred TODO until 2026-07-23.
+  Exes usually export no defined dynamic symbols (→ skipped); the meaningful
+  comparison is on the `lib*.so` / `lib*.a` a test builds.
+
+> For *byte*-level equivalence on a whole real project — where the same-path
+> trick makes even the bytes reproducible — see Level 7 `build-equiv`, which
+> also adds runtime + consume-script layers. Level 4 stays symbol-level because
+> its reference and yelu builds are in different paths by construction.
 
 ### Multi-file yelu source trees (`~files` + mkdirp)
 
