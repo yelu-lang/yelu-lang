@@ -77,10 +77,22 @@ in `make coverage`) builds from reference vs yelu-emitted cmake and compares
 artifacts, `nm -D` exported symbols, and runtime stdout/exit, with a control
 build for the compiler noise floor. 4 fixtures (`hello`, `static_lib`,
 `multi_target`, `compile_defs` — the last a behavioral def-reaches-compiler
-check); it already caught the SHARED/MODULE library-type emit bug. The remaining
-oracle work above is the *configure-time* File API diff. Next: promote the
-tutorial steps + the fmt probe into `test/fixtures/build_equiv/`; supersede or
-fix the stale-path `run_build_check.py`.
+check); it already caught the SHARED/MODULE library-type emit bug.
+
+*Harnesses repaired (2026-07-22, `877c3df`):* the tola→standalone extraction
+had broken the tutorial-step harnesses (monorepo `TOLA/yelu/...` paths, flat
+`src/bin/*.exe`). Fixed `run_file_api.py`/`run_build_check.py` path derivation
+(exes now read from `_build/.../{cmake,yelu}/{v1,v2}/`) and repointed
+`make file-api-test` to python3-direct (the dune sandbox alias only sees a
+relative `%{workspace_root}`). Re-running them re-exposed a **real production
+emit bug**: `ECmakeSetTestsProperties` (every ctest-bearing step 5–12) had no
+`emit_ast` arm and crashed the catch-all — now emitted to
+`Lang_cmake.Set_tests_properties`. `make file-api-test` 12/12, `make
+build-check` 12/12.
+
+The remaining oracle work above is the *configure-time* File API diff. Next
+(optional): promote the fmt probe into `test/fixtures/build_equiv/` (tutorial
+steps are already covered by file-api + build-check).
 
 ### 3. IR / harness cleanups
 
