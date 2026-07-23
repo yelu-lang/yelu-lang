@@ -124,6 +124,8 @@ IR — is the replacement; tracked in
 | `make cmake-check-v1`              | 24 / 24  | Tutorial v1 structural-equivalence via gersemi.               |
 | `make cmake-check-v2`              | 11 / 11  | Tutorial v2 structural-equivalence via gersemi.               |
 | `make file-api-test`               | 12 / 12  | codemodel-v2 JSON diff on tutorial steps.                     |
+| `make build-check`                 | 12 / 12  | build-artifact existence + ELF-magic check on tutorial steps. |
+| `make build-equiv`                 | 5 / 5    | build ref-cmake vs yc-cmake; compare artifacts / `nm` symbols / runtime / bytes / consume-script. Incl. `fmt`: real `libfmt` **byte-identical** (1000/1000 symbols). Level 7 in [`framework/testing.md`](framework/testing.md). |
 | End-to-end (`make step1`–`step12`) | 12       | Generate → configure → build → run.                           |
 | Bar #3-lite parse-print round-trip | 740 / 740 (canonical) + 3004 / 3035 (full llvm-project) | tutorial 25/25 + fmt 11/11 + z3 108/108 + llvm/llvm 596/596 = canonical 740. Full llvm-project (3035 files) adds 3004 OK + 1 FORMAT + 30 STRUCT pre-existing. See [`worklog_2026_06.md`](worklog/worklog_2026_06.md). |
 | fmt full-project matrix            | 24 / 24 cells × 3 channels | All 11 `.yc` files compile; predicted cache has 0 semantic differences; 29 codemodel keys have 0 differences; CTest definitions including full command args match. See [`fmt/README.md`](../probes/fmt/README.md). |

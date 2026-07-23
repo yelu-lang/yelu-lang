@@ -18,10 +18,18 @@ three verification layers:
 - **Hybrid semantic matrix** ([cache_matrix.md](cache_matrix.md)) — compare
   upstream CMake with a yelu-generated worktree for each option × {ON, OFF}.
   The completed fmt probe checks three channels per cell: `CMakeCache.txt`,
-  File API codemodel-v2, and CTest definitions.
+  File API codemodel-v2, and CTest definitions. This is a *configure-time*
+  oracle.
+- **Build-level equivalence** (`build_equiv`, Level 7 in
+  [framework/testing.md](../doc/framework/testing.md)) — actually *build* the
+  project from vanilla-cmake vs yc-emitted cmake and compare artifacts, exported
+  symbols, bytes, and a downstream consume script. The fmt probe has a fixture
+  at [test/fixtures/build_equiv/fmt/](../test/fixtures/build_equiv/fmt/README.md)
+  (byte-identical `libfmt`). Structured as a per-cell matrix; the intended
+  endpoint is a **three-way** cell — vanilla cmake / yc / ycn.
 
-The parse-print and hybrid oracles need CMake on the host. All layers are
-per-project — each project's gaps are different.
+The parse-print, hybrid, and build-level oracles need CMake on the host. All
+layers are per-project — each project's gaps are different.
 
 ## Layout
 

@@ -71,65 +71,39 @@ Adoption framing (per-rewrite verification chain, not all-or-nothing) is in
 real-world z3/llvm/torch rewrites → optimize-and-prove-equivalent → decide macro
 elimination (Y15 data).
 
-*Down-payment shipped (2026-07-22):* the **build/symbol/runtime** half — a
-`build-equiv` checker (`test/test-build/build_equiv.py`, `make build-equiv`, now
-in `make coverage`) builds from reference vs yelu-emitted cmake and compares
-artifacts, `nm -D` exported symbols, and runtime stdout/exit, with a control
-build for the compiler noise floor. 4 fixtures (`hello`, `static_lib`,
-`multi_target`, `compile_defs` — the last a behavioral def-reaches-compiler
-check); it already caught the SHARED/MODULE library-type emit bug.
+**Shipped — the build-level half** (2026-07-22 → 07-23), now **Level 7
+`build-equiv`** (`make build-equiv`, in `make coverage`). Full design in
+[`framework/testing.md`](framework/testing.md) (§ Level 7); probe angle in
+[`probes/fmt/README.md`](../probes/fmt/README.md). It builds reference cmake vs
+yc-emitted cmake (+ a control) and compares artifacts, `nm` exported symbols,
+runtime, a per-cell consume script, and — where the build is reproducible —
+**bytes**. 5 fixtures: 4 self-contained (`hello` / `static_lib` /
+`multi_target` / `compile_defs`; the batch caught the SHARED/MODULE emit bug)
+plus `fmt`, which builds the real `libfmt` from `vendor/fmt` both ways
+**byte-identical** (1000/1000 symbols) with a consume script linking a downstream
+program. The fmt fixture is a **per-cell matrix** (each cell = its own `-D`
+flags + check strategy + consume hook), pristine-from-git reference,
+SKIP-on-missing-dep.
 
-*Real-project fixture added (2026-07-22):* a 5th fixture `fmt` builds the actual
-[{fmt}](https://github.com/fmtlib/fmt) library from `vendor/fmt` **both ways** —
-fmt's own pristine `CMakeLists.txt` (git HEAD) vs the yelu-emitted cmake
-(`probes/fmt/main.yc` compiled) — and compares the produced `libfmt.so` /
-`libfmt-c.a`: **1000/1000 exported symbols identical** on the shared object.
-This required an *external-source-tree* fixture mode in the checker (`fixture.json`
-with `source_tree` / `yc` / `configure_args`; ref read pristine from git to dodge
-the working-tree-contamination gotcha; SKIP not FAIL when `vendor/fmt` absent).
-It is the build-level counterpart to fmt's configure-time matrix oracle. Same
-pass also gave static archives (`.a`) real symbol comparison via
-`nm --extern-only`, and fixed a stderr-merge bug that spliced yelu warnings into
-the emitted cmake.
+**Forward from here:**
 
-*Byte-identical + per-cell matrix (2026-07-23):* established that fmt's build is
-**bit-reproducible** — its only non-determinism is embedded `__FILE__`/build
-paths, so building ref/yelu/control through the *same* source+build path in
-sequence makes them byte-for-byte identical (`libfmt.so.12.1.1` and `libfmt-c.a`
-both). The fmt fixture is now a **matrix of cells**: each cell (`fixture.json` →
-`cells`) sets its own `-D` flags and its check strategy (`strict_bytes` →
-same-path byte-identity), because coverage is cell-dependent (core lib is
-byte-reproducible; test/fuzz/cuda cells need external deps → SKIP-on-ref-fail).
-Seeded with one cell (`core-lib`, byte-identical); the framework is ready to grow
-toward per-option matrix parity. Groundwork toward mirroring the configure-time
-24-cell matrix at build level.
+- **Three-way cells** — extend each cell from {vanilla cmake, yc} to
+  {vanilla cmake, **yc, ycn**}, so one cell proves all three lower to an
+  identical build. The checker's `sides` list is already list-shaped; ycn is a
+  fourth build label, not a rewrite.
+- **Per-option build matrix** — grow the fmt fixture toward the configure-time
+  24-cell matrix at build level (build-affecting options `FMT_OS` / `FMT_MODULE`
+  / `FMT_SYSTEM_HEADERS` / `FMT_UNICODE` / `FMT_PEDANTIC` / `FMT_WERROR` are
+  byte-comparable; test/fuzz/cuda cells self-skip on missing deps). Each new cell
+  is a pure `fixture.json` addition.
+- **Configure-time oracle** (File API codemodel-v2 + cache-v2 diff) — unchanged,
+  still the other half of this item.
 
-*Per-cell consume/check hook (2026-07-23):* a cell is a **group** — its config
-drives both the vanilla-cmake and yelu-cmake builds — and now carries an optional
-shared **consume declaration** (`check_script`, relative path; the lightweight
-hack standing in for a real dep/consume manifest). The *same* script runs against
-each side's live build tree (`argv[1]`=build dir, `BE_BLD`/`BE_SRC` in env) and
-the harness compares its `(exit, stdout)` across sides — identical ⇒ equivalent
-to a downstream consumer. The fmt core-lib cell's `consume_fmt.sh` compiles+links
-a tiny program against the freshly-built `libfmt` and runs it (`42-ok-0d4d`,
-matching both sides): proof the lib is not just byte-identical on disk but
-identical *in behavior when linked*. Same pass also fixed a `stage_tree` src-dir
-leak and gave it back its source path so non-strict cells can run the hook too.
-
-*Harnesses repaired (2026-07-22, `877c3df`):* the tola→standalone extraction
-had broken the tutorial-step harnesses (monorepo `TOLA/yelu/...` paths, flat
-`src/bin/*.exe`). Fixed `run_file_api.py`/`run_build_check.py` path derivation
-(exes now read from `_build/.../{cmake,yelu}/{v1,v2}/`) and repointed
-`make file-api-test` to python3-direct (the dune sandbox alias only sees a
-relative `%{workspace_root}`). Re-running them re-exposed a **real production
-emit bug**: `ECmakeSetTestsProperties` (every ctest-bearing step 5–12) had no
-`emit_ast` arm and crashed the catch-all — now emitted to
-`Lang_cmake.Set_tests_properties`. `make file-api-test` 12/12, `make
-build-check` 12/12.
-
-The remaining oracle work above is the *configure-time* File API diff (tutorial
-steps are covered by file-api + build-check; the fmt build-level fixture is
-done).
+*Harness repair (done, `877c3df`):* the tola→standalone extraction had broken the
+tutorial-step harnesses; fixed (`make file-api-test` 12/12, `make build-check`
+12/12). Re-running them re-exposed and fixed a real production emit bug
+(`ECmakeSetTestsProperties` had no `emit_ast` arm → ctest-bearing steps 5–12
+crashed at emit).
 
 ### 3. IR / harness cleanups
 

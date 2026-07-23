@@ -20,7 +20,7 @@ Each level subsumes all levels below it (a `build` test also passes `configure`,
 | `build`       | `cmake -S -B` + `cmake --build` | Running the compiled build system (make/ninja) produces identical artifact names; sizes reported                    | `test_cmake_commands.ml` (cmake-commands alias)               |
 | `file-api`    | configure + File API query      | Full binding environment (target → flags, includes, deps) identical between ref and yelu                            | `test-file-api/` (file-api-test alias)                        |
 
-| `build-equiv` | build ref + yelu + control | Artifacts, **exported symbols** (`nm -D`), and **runtime behavior** all match between reference-cmake and yelu-emitted-cmake builds, tolerating compiler non-determinism | `test-build/build_equiv.py` (`make build-equiv`) |
+| `build-equiv` | build ref + yelu + control (per cell) | Artifacts, **exported symbols** (`nm -D`), **runtime**, **bytes** (byte-identical where the build is reproducible), and a per-cell **consume script** all match between reference-cmake and yelu-emitted-cmake builds | `test-build/build_equiv.py` (`make build-equiv`) |
 
 ---
 
@@ -284,51 +284,99 @@ codemodel-v2 JSON between the cmake-generated reference and yelu-generated outpu
 
 ---
 
-## Level 7 — `build-equiv`: build/symbol/runtime equivalence (added 2026-07-22)
+## Level 7 — `build-equiv`: build/symbol/runtime/byte equivalence (added 2026-07-22)
 
 **Runner:** `python3 test/test-build/build_equiv.py [fixture ...]` (`make build-equiv`)
 
 The level above the matrix oracle: the matrix proves the emitted cmake
-*configures* the same; this proves it *builds* and *runs* the same. It is what
-would have caught (and now regression-guards) the `SHARED`/`MODULE` library-type
-emit bug — configure-clean, build-broken.
+*configures* the same; this proves it *builds*, *runs*, and (where the build is
+reproducible) is *byte-for-byte* the same. It is what would have caught (and now
+regression-guards) the `SHARED`/`MODULE` library-type emit bug — configure-clean,
+build-broken.
 
-For each fixture under `test/fixtures/build_equiv/<name>/` (a `CMakeLists.txt`
-reference, a `main.yc`, shared C/C++ sources, and an optional `check.json` giving
-per-executable argv), it builds three trees — **ref** (the reference cmake),
-**yelu** (`yelu compile main.yc`), and **control** (the reference built again in
-a different path) — then compares ref vs yelu at four layers:
+### What it proves, and the roadmap
 
-1. **artifact set** — the relative paths of build outputs must match (strict).
-2. **symbol set** — `nm -D --defined-only` per artifact, compared as a set (strict).
+Today each fixture compares two sides: **vanilla cmake** (reference) vs **yc**
+(`yelu compile` → cmake). The intended endpoint is a **three-way** cell —
+**vanilla cmake, yc, and ycn** — so a single cell proves all three lower to an
+identical build. The side machinery (`sides` list in `build_cell_strict`) is
+already list-shaped; adding ycn is adding a fourth build label, not a rewrite.
+
+### Fixture kinds
+
+**Self-contained** (`test/fixtures/build_equiv/<name>/`): a `CMakeLists.txt`
+reference, a `main.yc`, shared C/C++ sources (may nest under `include/`, `src/`;
+collected recursively), and an optional `check.json` giving per-executable argv.
+
+**External source tree** (a `fixture.json`): build a real vendored project (fmt)
+both ways. The reference cmake is read **pristine from git HEAD** (not the
+working tree — a stray yelu emit can contaminate it; documented gotcha), the yc
+side from compiling a `.yc` elsewhere in the repo. SKIP (not FAIL) when the tree
+is absent (vendored trees are external, Linux-only).
+
+### Cells — a fixture is a matrix
+
+An external-tree fixture is a **matrix of cells** (`fixture.json` → `cells`).
+A cell is a **group**: its config drives *every* side, and it declares *how* it
+is checked — because coverage is cell-dependent. Each cell carries its own `-D`
+flags (appended to `base_configure_args`), a check strategy, and an optional
+consume hook:
+
+- `strict_bytes: true` → **same-path sequential** build: copy the tree once, build
+  each side through the *same* source dir + *same* build dir (wiped between),
+  snapshotting artifacts after each. Holding both paths constant removes the only
+  source of a reproducible compiler's non-determinism (embedded `__FILE__` /
+  build paths), so a byte difference is a genuine finding — the **control** side
+  (reference rebuilt) going byte-identical is what proves the compiler was
+  reproducible here. fmt is bit-reproducible this way: `libfmt.so.12.1.1` and
+  `libfmt-c.a` come out byte-identical across all three of ref/yc/control.
+- `strict_bytes: false` → independent paths; bytes are **control-gated** (a
+  byte-diff fails only if the control build *was* byte-identical, else it's
+  compiler noise), leaning on the deterministic symbol / runtime layers.
+
+A cell whose *reference* build fails (e.g. `FMT_TEST=ON` needs gtest, `FMT_FUZZ`
+libFuzzer, `FMT_CUDA_TEST` CUDA) is **SKIPPED** — no baseline to compare against.
+
+### Comparison layers (per cell, ref vs yc)
+
+1. **artifact set** — relative paths of build outputs must match (strict).
+2. **symbol set** — `nm -D --defined-only` per artifact (shared objects / exes);
+   for a static archive with no dynamic table, `nm --extern-only --defined-only`.
+   Compared as a set (strict). fmt's `libfmt.so`: **1000/1000 identical**.
 3. **runtime** — run each executable, diff exit code + stdout (strict).
-4. **bytes** — sha256 / size, **control-gated**: a byte difference is only a
-   failure when the *control* build was byte-identical (the compiler was
-   reproducible here) yet yelu still differs — otherwise it's compiler noise
-   (embedded paths / timestamps / hash-ordering) and reported as info, not a
-   failure.
+4. **bytes** — sha256, strict-or-control-gated per the cell's `strict_bytes`.
+5. **consume script** — a per-cell `check_script` (relative path): the shared
+   *dep/consume declaration* (hacked as a script for now). The **same** script
+   runs against each side's *live* build tree — `argv[1]` = build dir, with
+   `BE_BLD` (build tree: `libfoo.so` + dev symlinks) and `BE_SRC` (configured
+   source: headers) in the env — and its `(exit, stdout)` must match across
+   sides. fmt's `consume_fmt.sh` compiles a downstream program against the
+   freshly-built `libfmt`, links `-lfmt`, and runs it (`42-ok-0d4d`): proof the
+   library is identical *in behavior when linked*, not just on disk. A
+   control-vs-ref difference is reported as script non-determinism, not a finding.
 
-The control build is the key to the non-determinism problem: it measures the
-compiler's own noise floor so "yelu differs from cmake" is distinguished from
-"cmake differs from itself." Symbol-set and runtime comparisons are inherently
-deterministic, so they stay strict regardless.
+Symbol-set, runtime, and consume-script comparisons are inherently deterministic,
+so they stay strict regardless of the byte strategy.
 
-Current fixtures (all pass; part of `make coverage`):
+### Fixtures (all pass; part of `make coverage`)
 
-| Fixture | Exercises |
-| --- | --- |
-| `hello` | SHARED lib + exe (regression for the `~type=Shared` fix) |
-| `static_lib` | STATIC lib + a header under `include/` (PUBLIC-propagated) + exe |
-| `multi_target` | one SHARED lib + two executables (3-artifact set, two runtime checks) |
-| `compile_defs` | **behavioral**: `target_compile_definitions … VERSION=42` changes the program's output, so a dropped/mangled `-D` is caught by the runtime diff, not just the emitted text |
+| Fixture | Kind | Exercises |
+| --- | --- | --- |
+| `hello` | self-contained | SHARED lib + exe (regression for the `~type=Shared` fix) |
+| `static_lib` | self-contained | STATIC lib + a header under `include/` (PUBLIC-propagated) + exe |
+| `multi_target` | self-contained | one SHARED lib + two executables (3-artifact set, two runtime checks) |
+| `compile_defs` | self-contained | **behavioral**: `target_compile_definitions … VERSION=42` changes the program's output, so a dropped/mangled `-D` is caught by the runtime diff, not just the emitted text |
+| `fmt` | external tree | real `libfmt` from `vendor/fmt`, built both ways; cell `core-lib` byte-identical + `consume_fmt.sh` link-and-run. Build-level counterpart to the configure-time fmt matrix (Level 6). |
 
-Source trees may nest (`include/`, `src/`); the runner collects fixture files
-recursively, preserving relative paths.
+The fmt fixture is seeded with one cell (`core-lib`); more cells (per option ×
+{ON,OFF}, mirroring the configure-time 24-cell matrix at build level) are pure
+`fixture.json` additions — the build-affecting options (`FMT_OS`, `FMT_MODULE`,
+`FMT_SYSTEM_HEADERS`, `FMT_UNICODE`, `FMT_PEDANTIC`, `FMT_WERROR`) are
+byte-comparable; the heavy ones self-skip on missing deps.
 
 > The older `run_build_check.py` (File-API artifact-existence + magic-byte
-> check) predates the tola→standalone extraction and still has monorepo paths
-> (`_build/default/yelu/src/bin`); `build_equiv.py` supersedes it for the
-> ref-vs-yelu build comparison.
+> check) predates the tola→standalone extraction; `build_equiv.py` supersedes it
+> for the ref-vs-yelu build comparison.
 
 ---
 

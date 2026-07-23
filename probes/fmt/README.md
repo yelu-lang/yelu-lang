@@ -115,12 +115,29 @@ Two options (`FMT_OS`, `FMT_PEDANTIC`) have cache-invisible effects
 - **Windows / MSVC / CUDA branches** are migrated but never exercised
   (matrix runs on Linux). Codegen is verified (cmake parses them without
   error); semantic correctness is untested.
-- **Build / test / install oracles** not yet implemented. The matrix only
-  proves configure-time equivalence.
+- **Build-level oracle** now exists as a `build_equiv` fixture (see below);
+  it builds the real `libfmt` from vanilla-cmake vs yc-emitted cmake and
+  proves them byte-identical + link-behavior-identical. The configure-time
+  **matrix** here still only proves configure-time equivalence per cell.
+  **Test / install oracles** are not yet implemented.
 - **3 dynamic-visibility raw escapes** remain — `${kind}` in `setup_target`
   can't be a static `Vis_public | Vis_private | Vis_interface`. By design.
 - **cmake_parse_arguments** and **FILE_SET CXX_MODULES** still route
   through `yc_apply` — no typed IR yet.
+
+## Build-level oracle (counterpart to the configure-time matrix)
+
+The configure-time matrix here proves the emitted cmake *configures* the same.
+Its build-level counterpart lives as a `build_equiv` fixture at
+[`test/fixtures/build_equiv/fmt/`](../../test/fixtures/build_equiv/fmt/README.md):
+it builds the real `libfmt` from `vendor/fmt` both ways — fmt's pristine
+`CMakeLists.txt` (git HEAD) vs `main.yc` compiled — and compares the produced
+`libfmt.so` / `libfmt-c.a` at the artifact / symbol / **byte** / consume-script
+levels (`make build-equiv`; Level 7 in
+[`framework/testing.md`](../../doc/framework/testing.md)). fmt is
+bit-reproducible, so ref and yc come out **byte-identical**, and a downstream
+consumer linked against either behaves identically. The fixture is a per-cell
+matrix; the intended endpoint is a **three-way** cell (vanilla cmake / yc / ycn).
 
 ## Related
 
