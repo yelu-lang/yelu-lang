@@ -165,6 +165,17 @@ Pick up as cmake-corpus expansion demands. Full picture in
   The `ylet chain` test is **commented out** (`test_yelu_compile.ml:149`); fix
   needs cycle detection. `dune test` is green only because it's skipped.
 
+- **Emit / semantic coverage gaps (argument-level).** yc surface accepts a
+  program but production emit crashes or misbuilds — a command exists yet
+  doesn't cover all its argument syntax. Tracked in the registry in
+  [`lang_coverage.md`](yelu_cmake/lang_coverage.md) § Emit / semantic coverage
+  gaps; the live detector is `make cmake-commands` (not in `dune test` — needs
+  cmake). The 2026-07 dig fixed 4 classes (genex-in-name, `get_property GLOBAL`,
+  `set_property DIRECTORY`, `EXCLUDE_FROM_ALL`); **3 open**: compile-definition
+  value escaping (`-DX=\"…\"` → stray `\`), genex inside a compile option
+  (`-D$<…>`), and a `link_line` lib-not-built. Plus 1 ycn gap: `exclude_from_all`
+  doesn't survive the normal-form round-trip.
+
 ### 7. Surface polish (Parked — small, independent, any order)
 
 Design rationale in [`yc_syntax.md`](yelu_cmake/surface/yc_syntax.md); this is

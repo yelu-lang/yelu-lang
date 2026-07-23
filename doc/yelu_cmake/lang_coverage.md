@@ -34,7 +34,8 @@ Runtime: cmake 4.3.1 (`/usr/bin/cmake`, Kitware apt).
 | **Command breadth**       | commands at `script-pair` level            | ~15                | ~20       | all scripting core; gap: `cmake_policy` (Y11)                                             |
 | **Command breadth**       | commands with any test                     | 138 / 138 ✓        | —         | **enforced** by the command-coverage lock (2026-07-20); every `command_names` entry has a parse+emit case. Live table: [`yc_command_reference.md`](surface/yc_command_reference.md) (generated). |
 | **Benchmark suites**      | `Tests/CMakeOnly/`                         | 12 / 12 ✓          | 12        | all tractable dirs done                                                                   |
-| **Benchmark suites**      | `Tests/CMakeCommands/`                     | 11 / 12            | 12        | `target_link_libraries` deferred                                                          |
+| **Benchmark suites**      | `Tests/CMakeCommands/` (written)           | 11 / 12            | 12        | `target_link_libraries` deferred                                                          |
+| **Benchmark suites**      | `Tests/CMakeCommands/` (build-verified)    | 23 / 26            | 26        | `make cmake-commands`; 3 open emit gaps in the registry below (2026-07: was 12 failing)   |
 | **Benchmark suites**      | `Tests/RunCMake/` compat                   | 64 / ~67           | ~67       | cmake 4.3 unblocked 3 tests                                                               |
 | **Benchmark suites**      | `Tests/RunCMake/` pairs                    | 50 / ~65           | ~65       | all tractable dirs done; `get_filename_component` pair todo                               |
 | **Benchmark suites**      | `Tests/` Group 2/3/5 build                 | 15 / ~26 tractable | ~26       | next: ObjectLibrary/Transitive (re-verify 4.3), StringFileTest (Sc_regex_quote)           |
@@ -84,6 +85,39 @@ The strongest axes are **benchmark suite coverage** (CMakeOnly and RunCMake both
 ---
 
 ## Gaps
+
+### Emit / semantic coverage gaps (argument-level)
+
+The breadth tables above track whether a **command** exists. A separate class of
+gap is when a command exists but does **not** cover all of its *argument syntax
+or semantics* — the yc surface accepts a program, but production emit crashes or
+produces cmake that misbuilds. These are invisible to `dune test` (they need a
+real `cmake --build`) and were long mislabelled "pre-existing cmake build
+issues"; the 2026-07 dig into `make cmake-commands` showed they are real yc
+gaps.
+
+**How these are tracked**
+
+- **`make cmake-commands`** is the live detector: each failing build-pair *is* a
+  tracked gap (build ref vs yc, compare artifacts + `nm` symbols). Not in
+  `dune test` — it needs cmake + a compiler — so run it when touching emit.
+- **Emit diagnostics name the constructor**: `emit_ast` errors now read e.g.
+  `uncovered expr constructor: Yelu_cmake_property.ECmakeGetGlobalProperty` /
+  `cannot erase expression to target name (…ECmakeGenex)`, so a crash
+  self-identifies the missing arm.
+- **This registry** gives human-visible status. A gap leaves the table only when
+  its repro test passes (artifacts + symbols).
+
+| Construct (cmake syntax) | Repro (cmake-commands) | Root cause | Status |
+| --- | --- | --- | --- |
+| Generator expr `$<…>` in a name / cond position (e.g. `$<TARGET_OBJECTS:o>` as a `target_sources` source) | add_compile_definitions, target_sources, alias_target, object_library, visibility | `ECmakeGenex` unhandled in `target_arg` / `cond_text` erase | ✅ fixed `1c1293a` |
+| `get_property(<v> GLOBAL PROPERTY p)` | compile_options | `ECmakeGetGlobalProperty` had no emit arm | ✅ fixed `1c1293a` |
+| `set_property(DIRECTORY …)` | compile_definitions | `ECmakeSetDirectoryProperty` had no emit arm | ✅ fixed `1c1293a` |
+| `EXCLUDE_FROM_ALL` on `add_library` / `add_executable` | target_link_options, add_link_options, link_directories, target_link_directories | flag dropped end-to-end (utils `?exclude_from_all:_` → IR had no field → emit hardcoded `false`) | ✅ fixed `1ffc95c` |
+| Compile-definition value with embedded quotes (`-DNAME=\"…\"`) | compile_definitions | `arg` quoting mis-escapes `\` / `"` → `stray '\'` at compile | ⬜ open |
+| Generator expr inside a compile option (`-D$<…>`) | compile_options | genex-in-option not resolved → `macro names must be identifiers`, def never reaches compiler | ⬜ open |
+| Link-line multi-lib ordering | link_line | yc links a library the program never builds (`mold: cannot open One`) — needs investigation | ⬜ open |
+| `exclude_from_all` through the normal form (ycn) | — | `EExecutable`/`ELibrary` don't carry it; `to_normal` drops it, `from_normal` reconstructs `false` | ⬜ open (ycn) |
 
 ### Trackable — no language blocker
 
@@ -163,7 +197,7 @@ Testing levels — see [`comparison.md`](../cmake/comparison.md) for full defini
 | ---------------------- | ----------------------------------- | ---------------------------------------------- |
 | `Tests/CMakeOnly/`     | Full CMakeLists.txt, NONE compiler  | ✓ 12/12 done (`file-api`); `MajorVersionSelection` uses concrete instantiation (no gersemi string check); `CheckSymbolExists`/`CheckCXXCompilerFlag` not tractable (need C compiler) |
 | `Tests/RunCMake/`      | Per-command `.cmake` snippets, NONE | ✓ 64 compat + 50 pairs done                    |
-| `Tests/CMakeCommands/` | 12 subdirs, one command each, ~50 L | ✓ 11/12 done; `target_link_libraries` deferred |
+| `Tests/CMakeCommands/` | 12 subdirs, one command each, ~50 L | ✓ 11/12 *written*; `target_link_libraries` deferred. Build-verified 23/26 (`make cmake-commands`) — 3 open argument-level emit gaps, see § Emit / semantic coverage gaps |
 
 #### Group 2 — New tractable, all done (small, focused, C/CXX)
 
