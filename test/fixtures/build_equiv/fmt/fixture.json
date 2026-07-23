@@ -1,0 +1,14 @@
+{
+  "source_tree": "vendor/fmt",
+  "yc": "probes/fmt/main.yc",
+  "ref_from_git": true,
+  "configure_args": [
+    "-DBUILD_SHARED_LIBS=ON",
+    "-DFMT_MASTER_PROJECT=OFF",
+    "-DFMT_TEST=OFF",
+    "-DFMT_DOC=OFF",
+    "-DFMT_INSTALL=OFF",
+    "-DFMT_FUZZ=OFF",
+    "-DFMT_CUDA_TEST=OFF"
+  ]
+}

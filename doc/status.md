@@ -79,6 +79,19 @@ build for the compiler noise floor. 4 fixtures (`hello`, `static_lib`,
 `multi_target`, `compile_defs` — the last a behavioral def-reaches-compiler
 check); it already caught the SHARED/MODULE library-type emit bug.
 
+*Real-project fixture added (2026-07-22):* a 5th fixture `fmt` builds the actual
+[{fmt}](https://github.com/fmtlib/fmt) library from `vendor/fmt` **both ways** —
+fmt's own pristine `CMakeLists.txt` (git HEAD) vs the yelu-emitted cmake
+(`probes/fmt/main.yc` compiled) — and compares the produced `libfmt.so` /
+`libfmt-c.a`: **1000/1000 exported symbols identical** on the shared object.
+This required an *external-source-tree* fixture mode in the checker (`fixture.json`
+with `source_tree` / `yc` / `configure_args`; ref read pristine from git to dodge
+the working-tree-contamination gotcha; SKIP not FAIL when `vendor/fmt` absent).
+It is the build-level counterpart to fmt's configure-time matrix oracle. Same
+pass also gave static archives (`.a`) real symbol comparison via
+`nm --extern-only`, and fixed a stderr-merge bug that spliced yelu warnings into
+the emitted cmake.
+
 *Harnesses repaired (2026-07-22, `877c3df`):* the tola→standalone extraction
 had broken the tutorial-step harnesses (monorepo `TOLA/yelu/...` paths, flat
 `src/bin/*.exe`). Fixed `run_file_api.py`/`run_build_check.py` path derivation
@@ -90,9 +103,9 @@ emit bug**: `ECmakeSetTestsProperties` (every ctest-bearing step 5–12) had no
 `Lang_cmake.Set_tests_properties`. `make file-api-test` 12/12, `make
 build-check` 12/12.
 
-The remaining oracle work above is the *configure-time* File API diff. Next
-(optional): promote the fmt probe into `test/fixtures/build_equiv/` (tutorial
-steps are already covered by file-api + build-check).
+The remaining oracle work above is the *configure-time* File API diff (tutorial
+steps are covered by file-api + build-check; the fmt build-level fixture is
+done).
 
 ### 3. IR / harness cleanups
 

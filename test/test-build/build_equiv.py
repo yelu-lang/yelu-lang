@@ -28,10 +28,29 @@ byte-identical (compiler was reproducible here) yet yelu still differs.
 
 ## Fixture layout  (test/fixtures/build_equiv/<name>/)
 
+Two kinds of fixture:
+
+**Self-contained** — sources live in the fixture dir:
+
   CMakeLists.txt   the reference (raw cmake)
   main.yc          the yelu source (compiled to the yelu-side cmake)
   <sources>        C/C++ shared by both sides
   check.json       optional: { "run": { "<exe-basename>": ["argv", ...] } }
+
+**External source tree** — build a real vendored project (e.g. fmt) both ways.
+A `fixture.json` selects this mode; the reference cmake comes from the tree
+itself (pristine from git, to dodge working-tree contamination), the yelu cmake
+from compiling a `.yc` elsewhere in the repo:
+
+  fixture.json     { "source_tree": "vendor/fmt",          # copied as the build base
+                     "yc": "probes/fmt/main.yc",           # compiled → root CMakeLists.txt
+                     "configure_args": ["-DBUILD_SHARED_LIBS=ON", ...],
+                     "ref_from_git": true,                 # ref CMakeLists = git HEAD (default true)
+                     "run": { "<exe>": [argv] } }          # optional
+  <overlay files>  optional: extra files laid over the tree copy
+
+If `source_tree` is absent from disk (vendored trees are external and Linux-only)
+the fixture is SKIPPED, not failed.
 
 ## Usage  (from repo root, after `dune build`)
 
@@ -61,10 +80,14 @@ def run(cmd, cwd=None):
 def yelu_compile(yc_path):
     if not os.path.exists(YELU):
         sys.exit(f"{RED}yelu.exe not found at {YELU} — run `dune build` first{RESET}")
-    rc, out = run([YELU, "compile", yc_path])
-    if rc != 0:
-        raise RuntimeError(f"yelu compile failed:\n{out}")
-    return out
+    # Capture stdout ONLY: yelu prints by-design warnings (raw-cmake escapes,
+    # unknown-command notices) to stderr — merging them into stdout would splice
+    # `[yelu][...]` text into the emitted CMakeLists and break the cmake parse.
+    p = subprocess.run([YELU, "compile", yc_path], stdout=subprocess.PIPE,
+                       stderr=subprocess.PIPE, text=True)
+    if p.returncode != 0:
+        raise RuntimeError(f"yelu compile failed:\n{p.stdout}{p.stderr}")
+    return p.stdout
 
 
 def stage_and_build(cmakelists_text, sources, label):
@@ -80,6 +103,34 @@ def stage_and_build(cmakelists_text, sources, label):
         os.makedirs(os.path.dirname(dst), exist_ok=True)
         shutil.copy(abspath, dst)
     rc, out = run(["cmake", "-S", src, "-B", bld])
+    if rc != 0:
+        return bld, False, f"configure failed:\n{out}"
+    rc, out = run(["cmake", "--build", bld])
+    if rc != 0:
+        return bld, False, f"build failed:\n{out}"
+    return bld, True, ""
+
+
+def stage_tree(tree_abs, cmakelists_text, overlay, configure_args, label):
+    """Copy an external source tree into a fresh temp dir, overwrite its root
+    CMakeLists.txt with cmakelists_text, lay any overlay files on top, then
+    configure (with configure_args) and build. Returns (build_dir, ok, log).
+    Dereferences symlinks (`vendor/fmt` is one) and drops .git / build junk."""
+    src = tempfile.mkdtemp(prefix=f"be_{label}_src_")
+    bld = tempfile.mkdtemp(prefix=f"be_{label}_bld_")
+    # cp -rL: dereference the vendor symlink; then strip VCS / stray build dirs
+    rc, out = run(["cp", "-rL", tree_abs + "/.", src])
+    if rc != 0:
+        return bld, False, f"tree copy failed:\n{out}"
+    for junk in (".git", "build", "build2", "_out"):
+        shutil.rmtree(os.path.join(src, junk), ignore_errors=True)
+    with open(os.path.join(src, "CMakeLists.txt"), "w") as h:
+        h.write(cmakelists_text)
+    for rel, abspath in overlay:
+        dst = os.path.join(src, rel)
+        os.makedirs(os.path.dirname(dst), exist_ok=True)
+        shutil.copy(abspath, dst)
+    rc, out = run(["cmake", "-S", src, "-B", bld, *configure_args])
     if rc != 0:
         return bld, False, f"configure failed:\n{out}"
     rc, out = run(["cmake", "--build", bld])
@@ -129,18 +180,36 @@ def artifacts(build_dir):
     return out
 
 
-def dyn_symbols(path):
-    rc, out = run(["nm", "-D", "--defined-only", path])
-    if rc != 0:
-        return None
+def _parse_nm(out):
     syms = set()
     for line in out.splitlines():
+        line = line.strip()
+        if not line or line.endswith(":"):   # blank / archive-member header (`foo.o:`)
+            continue
         parts = line.split()
         if len(parts) >= 3:               # addr type name
             syms.add(parts[2])
         elif len(parts) == 2:             # (no addr) type name
             syms.add(parts[1])
     return syms
+
+
+def dyn_symbols(path):
+    """Exported symbol set: dynamic (`nm -D`) for shared objects / exes; for a
+    static archive (no dynamic table) fall back to the external defined symbols
+    (`nm --extern-only`), which is the equivalent 'what this lib exports' set."""
+    rc, out = run(["nm", "-D", "--defined-only", path])
+    if rc == 0:
+        syms = _parse_nm(out)
+        if syms:
+            return syms
+    if path.endswith(".a"):
+        rc, out = run(["nm", "--extern-only", "--defined-only", path])
+        if rc == 0:
+            syms = _parse_nm(out)
+            if syms:
+                return syms
+    return None
 
 
 def sha(path):
@@ -206,9 +275,67 @@ def compare(name, ref_bld, yelu_bld, ctrl_bld, run_spec):
     return fails, notes
 
 
+def git_show(tree_abs, rev_path):
+    rc, out = run(["git", "-C", tree_abs, "show", rev_path])
+    if rc != 0:
+        raise RuntimeError(f"git show {rev_path} in {tree_abs} failed:\n{out}")
+    return out
+
+
+def check_external_tree(name, fdir, cfg):
+    """Build a real vendored source tree from its own (pristine) cmake vs
+    yelu-emitted cmake, and compare. Returns True/False, or None if skipped."""
+    tree_abs = os.path.join(ROOT, cfg["source_tree"])
+    if not os.path.isdir(tree_abs):
+        print(f"  {YEL}SKIP{RESET} source tree {cfg['source_tree']} not present "
+              f"(external / Linux-only)")
+        return None
+    yc = os.path.join(ROOT, cfg["yc"])
+    cfg_args = cfg.get("configure_args", [])
+    run_spec = cfg.get("run", {})
+    overlay = [(os.path.relpath(os.path.join(dp, fn), fdir), os.path.join(dp, fn))
+               for dp, _, files in os.walk(fdir) for fn in files
+               if os.path.relpath(os.path.join(dp, fn), fdir) not in
+                  ("fixture.json", "README.md")]
+
+    try:
+        # Reference cmake: pristine from git HEAD by default — the working tree
+        # can be contaminated by a stray yelu emit (documented gotcha), which
+        # would make ref==yelu trivially and hide real divergence.
+        if cfg.get("ref_from_git", True):
+            ref_cmake = git_show(tree_abs, "HEAD:CMakeLists.txt")
+        else:
+            ref_cmake = open(os.path.join(tree_abs, "CMakeLists.txt")).read()
+        yelu_cmake = yelu_compile(yc)
+    except RuntimeError as e:
+        print(f"  {RED}FAIL{RESET} {e}")
+        return False
+
+    ref_bld,  ref_ok,  ref_log  = stage_tree(tree_abs, ref_cmake,  overlay, cfg_args, "ref")
+    yelu_bld, yelu_ok, yelu_log = stage_tree(tree_abs, yelu_cmake, overlay, cfg_args, "yelu")
+    ctrl_bld, ctrl_ok, _        = stage_tree(tree_abs, ref_cmake,  overlay, cfg_args, "ctrl")
+
+    fails = []
+    if not ref_ok:
+        print(f"  {RED}FAIL{RESET} reference build failed:\n{ref_log}"); fails.append("ref build")
+    if not yelu_ok:
+        print(f"  {RED}FAIL{RESET} yelu build failed (yelu-emitted cmake):\n{yelu_log}"); fails.append("yelu build")
+    if ref_ok and yelu_ok:
+        f, _ = compare(name, ref_bld, yelu_bld, ctrl_bld, run_spec)
+        fails += f
+
+    for d in (ref_bld, yelu_bld, ctrl_bld):
+        shutil.rmtree(d, ignore_errors=True)
+    print(f"  {GRN}PASS{RESET}" if not fails else f"  {RED}{len(fails)} failure(s){RESET}")
+    return not fails
+
+
 def check_fixture(fdir):
     name = os.path.basename(fdir.rstrip("/"))
     print(f"\n{YEL}▶ {name}{RESET}")
+    fj = os.path.join(fdir, "fixture.json")
+    if os.path.exists(fj):
+        return check_external_tree(name, fdir, json.load(open(fj)))
     ref_cmake = open(os.path.join(fdir, "CMakeLists.txt")).read()
     yc = os.path.join(fdir, "main.yc")
     run_spec = {}
@@ -258,9 +385,13 @@ def main():
     if not dirs:
         sys.exit(f"no fixtures under {FIXTURES}" + (f" matching {wanted}" if wanted else ""))
     results = [check_fixture(d) for d in dirs]
-    npass = sum(results)
-    print(f"\n{'='*50}\nbuild-equiv: {npass}/{len(results)} fixtures pass")
-    sys.exit(0 if all(results) else 1)
+    npass = sum(1 for r in results if r is True)
+    nskip = sum(1 for r in results if r is None)
+    nfail = sum(1 for r in results if r is False)
+    ran = len(results) - nskip
+    tail = f" ({nskip} skipped)" if nskip else ""
+    print(f"\n{'='*50}\nbuild-equiv: {npass}/{ran} fixtures pass{tail}")
+    sys.exit(0 if nfail == 0 else 1)
 
 
 if __name__ == "__main__":
