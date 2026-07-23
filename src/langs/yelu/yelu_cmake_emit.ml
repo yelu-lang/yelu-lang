@@ -699,6 +699,15 @@ let rec emit_exp ~env (e : expr) : C.exp =
     C.Project_cmd (C.Set_source_files_properties
       { files; directories = []; target_directories = []; properties = props })
 
+  | Yelu_cmake_property.ECmakeSetTestsProperties { tests; properties } ->
+    (* test names are bare strings (`set_tests_properties(Usage PROPERTIES …)`) *)
+    let tests = List.map tests ~f:(function
+      | EString s | EVar s -> s
+      | _ -> "") in
+    let props = List.map properties ~f:(fun (p, v) ->
+      { C.prop = p; value = arg ~env v }) in
+    C.Project_cmd (C.Set_tests_properties { tests; dir = None; properties = props })
+
   (* cmake_op tail *)
   | ECmakeEnableLanguage { langs; optional } ->
     C.Project_cmd (C.Enable_language { langs; optional })

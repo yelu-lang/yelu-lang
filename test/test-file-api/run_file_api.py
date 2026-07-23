@@ -16,26 +16,37 @@ Exit code: 0 if all steps pass, 1 if any fail.
 
 import os, shutil, subprocess, sys, tempfile
 
-TOLA = os.environ.get("TOLA") or os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..")
-FIXTURES = os.path.join(TOLA, "yelu", "test", "fixtures", "tutorial")
-CMP = os.path.join(TOLA, "yelu", "test", "cmake_file_api_cmp.py")
-# Both cmake and yelu step exes are promoted to their source directories.
-BUILD = os.path.join(TOLA, "yelu", "src", "bin")
+# yelu repo root. Standalone yelu IS the workspace root; the old monorepo had
+# yelu as a subdir (TOLA/yelu/...). Support both, and prefer an explicit $TOLA
+# (dune passes %{workspace_root}).
+_TOLA = os.path.abspath(os.environ.get("TOLA") or os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".."))
+YELU = _TOLA if os.path.isdir(os.path.join(_TOLA, "src", "bin")) else os.path.join(_TOLA, "yelu")
+FIXTURES = os.path.join(YELU, "test", "fixtures", "tutorial")
+CMP = os.path.join(YELU, "test", "cmake_file_api_cmp.py")
+# Step exes are dune-built under _build/.../src/bin/{cmake,yelu}/{v1,v2}/ — not
+# promoted to source. Read them from _build (absolute path; works from a plain
+# `make` run and from a non-sandboxed dune rule alike).
+BUILD = os.path.join(YELU, "_build", "default", "src", "bin")
 
 
 def exe(subdir, name):
-    """Path to a dune-built executable."""
-    return os.path.join(BUILD, subdir, name + ".exe")
+    """Path to a dune-built step executable — under v1/, falling back to v2/."""
+    for ver in ("v1", "v2"):
+        p = os.path.join(BUILD, subdir, ver, name + ".exe")
+        if os.path.isfile(p):
+            return p
+    return os.path.join(BUILD, subdir, "v1", name + ".exe")  # for the not-found error
 
 
 def run_exe(path):
-    """Run an executable and return its stdout, or None if it doesn't exist."""
+    """Run a step emitter; return (stdout, None) on success or (None, reason)."""
     if not os.path.isfile(path):
-        return None
+        return None, f"executable not found: {path}"
     r = subprocess.run([path], capture_output=True, text=True)
     if r.returncode != 0:
-        return None
-    return r.stdout
+        first = (r.stderr or r.stdout).strip().splitlines()
+        return None, f"emitter exited {r.returncode}: {first[0] if first else '(no output)'}"
+    return r.stdout, None
 
 
 def write(dest_dir, rel_path, content):
@@ -140,9 +151,9 @@ def assemble(step, side, dest_dir):
     for (subdir, exe_name, rel_path) in STEP_FILES[step]:
         if subdir != side:
             continue
-        content = run_exe(exe(subdir, exe_name))
+        content, err = run_exe(exe(subdir, exe_name))
         if content is None:
-            return False, f"missing executable: {subdir}/{exe_name}"
+            return False, f"{subdir}/{exe_name}: {err}"
         write(dest_dir, rel_path, content)
     # Fixtures
     if step in NEEDS_CONFIG_HIN:

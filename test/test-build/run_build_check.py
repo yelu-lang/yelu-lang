@@ -25,8 +25,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "test-file-api"))
 from run_file_api import assemble, STEP_FILES
 
-TOLA = os.path.join(os.path.dirname(__file__), "..", "..", "..")
-BUILD = os.path.join(TOLA, "_build", "default", "yelu", "src", "bin")
+# Step-exe discovery + fixture paths are inherited from run_file_api (the
+# `assemble` import); this harness only adds artifact/binary-magic checks on top.
 
 
 # ── Binary magic byte checks ──────────────────────────────────────────────────

@@ -78,7 +78,8 @@ cmake-commands:
 	$(DUNE) dune build @test/test-runcmake/cmake-commands
 
 file-api-test:
-	$(DUNE) dune build @test/test-file-api/file-api-test
+	$(DUNE) dune build src/bin/cmake/v1/ src/bin/cmake/v2/ src/bin/yelu/v1/ src/bin/yelu/v2/
+	$(DUNE) python3 test/test-file-api/run_file_api.py
 
 coverage: test cmake-check yelu-check-v2 cmake-only-check runcmake-compat runcmake-yelu cmake-commands file-api-test build-equiv
 	@echo "=== Coverage sweep complete ==="

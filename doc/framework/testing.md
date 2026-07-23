@@ -276,7 +276,7 @@ compile-time macro state is wrong.
 
 ## Level 5 — `file-api`: File API tests
 
-**Alias:** `dune build @yelu/test/test-file-api/file-api-test`
+**Entry:** `make file-api-test` (builds the step exes, then runs `run_file_api.py` python3-direct)
 
 Runs cmake configure for each step1–12 pair, queries the cmake File API
 (`-DCMAKE_EXPORT_COMPILE_COMMANDS=ON` + `.cmake/api/v1/query/`), and compares
