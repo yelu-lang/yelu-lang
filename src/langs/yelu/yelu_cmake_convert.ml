@@ -557,7 +557,11 @@ let rec to_normal = function
   (* CMake target surface -> Yelu target theory. Keep statement result as unit.
      Phase 2b: surface target-name fields are now [expr], so [lift] just
      recurses (no more EString wrapping). *)
-  | ECmakeAddExecutable { name; sources } ->
+  (* NOTE: the normal form (EExecutable/ELibrary) does not yet carry
+     exclude_from_all, so it is dropped in the yc→ycn direction (round-trips
+     back as false). Tracked as a ycn coverage gap; production emit is yc→emit
+     and preserves it. *)
+  | ECmakeAddExecutable { name; sources; _ } ->
     ESeq
       [
         EExecutable
@@ -565,7 +569,7 @@ let rec to_normal = function
             sources = List.map sources ~f:to_normal };
         EUnit;
       ]
-  | ECmakeAddLibrary { name; type_; sources } ->
+  | ECmakeAddLibrary { name; type_; sources; _ } ->
     ESeq
       [
         ELibrary
@@ -1111,24 +1115,25 @@ let rec from_normal = function
      [EString target_name] cases stay so that the surrounding ESetVar
      pattern can produce a literal [ETarget _] value. *)
   | ETarget name -> ETarget name
+  (* ycn does not carry exclude_from_all yet → reconstruct yc with false. *)
   | EExecutable { name = EString target_name; sources } ->
     ESeq
       [
         ECmakeAddExecutable
-          { name = EString target_name;
+          { name = EString target_name; exclude_from_all = false;
             sources = List.map sources ~f:from_normal };
         ETarget target_name;
       ]
   | EExecutable { name; sources } ->
     ECmakeAddExecutable
-      { name = from_normal name;
+      { name = from_normal name; exclude_from_all = false;
         sources = List.map sources ~f:from_normal }
   | ELibrary { name = EString target_name; type_; sources } ->
     ESeq
       [
         ECmakeAddLibrary
           { name = EString target_name;
-            type_;
+            type_; exclude_from_all = false;
             sources = List.map sources ~f:from_normal };
         ETarget target_name;
       ]
@@ -1136,7 +1141,7 @@ let rec from_normal = function
     ECmakeAddLibrary
       {
         name = from_normal name;
-        type_;
+        type_; exclude_from_all = false;
         sources = List.map sources ~f:from_normal;
       }
   | ETargetExists target ->
@@ -1592,7 +1597,7 @@ let rec from_normal = function
     ESeq
       [
         ECmakeAddExecutable
-          { name = EString target_name;
+          { name = EString target_name; exclude_from_all = false;
             sources = List.map sources ~f:from_normal };
         ESetVar (var, ETarget target_name);
       ]
@@ -1601,10 +1606,11 @@ let rec from_normal = function
       [
         ECmakeAddLibrary
           { name = EString target_name;
-            type_;
+            type_; exclude_from_all = false;
             sources = List.map sources ~f:from_normal };
         ESetVar (var, ETarget target_name);
       ]
+
 
   (* Yelu string theory -> CMake string surface. *)
   | EStringEqual (left, right) ->

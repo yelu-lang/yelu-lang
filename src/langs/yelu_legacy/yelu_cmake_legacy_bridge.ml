@@ -691,19 +691,18 @@ let library_type_name = function
   | Lang_cmake.Lib_global -> "GLOBAL"
 
 let target_statement : Old.yelu_target_stmt -> Yelu_cmake.expr = function
-  | Ytgt_add_executable { name; sources; exclude_from_all = false } ->
-    ECmakeAddExecutable { name = target_name name; sources = List.map sources ~f:expr }
-  | Ytgt_add_executable { exclude_from_all = true; _ } ->
-    fail "add_executable(EXCLUDE_FROM_ALL) is outside the first Yelu1 bridge slice"
-  | Ytgt_add_library { name; type_; sources; exclude_from_all = false } ->
+  | Ytgt_add_executable { name; sources; exclude_from_all } ->
+    ECmakeAddExecutable
+      { name = target_name name; exclude_from_all;
+        sources = List.map sources ~f:expr }
+  | Ytgt_add_library { name; type_; sources; exclude_from_all } ->
     ECmakeAddLibrary
       {
         name = target_name name;
         type_ = Option.map type_ ~f:library_type_name;
+        exclude_from_all;
         sources = List.map sources ~f:expr;
       }
-  | Ytgt_add_library { exclude_from_all = true; _ } ->
-    fail "add_library(EXCLUDE_FROM_ALL) is outside the current Yelu1 bridge slice"
   | Ytgt_sources { target; items } ->
     items
     |> List.map ~f:(fun ({ kind; items } : Old.yelu_items_with_kind) ->

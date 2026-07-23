@@ -35,8 +35,8 @@ let provides =
    positions. Eval extracts the string via [eval_string]; emit consults
    the substitution env via the new [target_arg] helper. *)
 type expr +=
-  | ECmakeAddExecutable of { name : expr; sources : expr list }
-  | ECmakeAddLibrary of { name : expr; type_ : string option; sources : expr list }
+  | ECmakeAddExecutable of { name : expr; exclude_from_all : bool; sources : expr list }
+  | ECmakeAddLibrary of { name : expr; type_ : string option; exclude_from_all : bool; sources : expr list }
   | ECmakeTargetSources of { target : expr; visibility : visibility; sources : expr list }
   | ECmakeTargetLinkLibraries of { target : expr; visibility : visibility; items : expr list }
   | ECmakeTargetIncludeDirectories of
@@ -99,7 +99,7 @@ type expr +=
     }
 
 let eval_case ~eval env = function
-  | ECmakeAddExecutable { name; sources } ->
+  | ECmakeAddExecutable { name; sources; _ } ->
     let env, name = eval_string ~eval env name in
     let env, sources = eval_string_list ~eval env sources in
     let env = declare_target ~kind:TargetExecutable env name in
@@ -112,7 +112,7 @@ let eval_case ~eval env = function
        doc/yelu_cmake/fmt_probe_report.md § 4). *)
     let env = add_target_sources env name ~visibility:Vis_private sources in
     Some (env, VUnit)
-  | ECmakeAddLibrary { name; type_; sources } ->
+  | ECmakeAddLibrary { name; type_; sources; _ } ->
     let env, name = eval_string ~eval env name in
     let env, sources = eval_string_list ~eval env sources in
     let env = declare_target ~kind:(TargetLibrary type_) env name in

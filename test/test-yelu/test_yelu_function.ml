@@ -185,7 +185,7 @@ let function_target_decls_leak_across_call =
                 params = [];
                 body =
                   ECmakeAddExecutable
-                    { name = EString "app";
+                    { name = EString "app"; exclude_from_all = false;
                       sources = [ EString "main.c" ] };
               };
             ECmakeApply { name = EString "declare_app"; args = [] };

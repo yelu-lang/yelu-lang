@@ -493,11 +493,13 @@ let p_target_command_inner name args kwargs =
   in
   match name, args with
   | "add_exe", name_arg :: sources ->
-    Some (ECmakeAddExecutable { name = name_arg; sources })
+    let exclude_from_all = kw_bool "exclude_from_all" in
+    Some (ECmakeAddExecutable { name = name_arg; exclude_from_all; sources })
   | "add_lib", name_arg :: sources ->
     let type_ = kw_str_opt "type" in
+    let exclude_from_all = kw_bool "exclude_from_all" in
     Some (ECmakeAddLibrary
-            { name = name_arg; type_; sources })
+            { name = name_arg; type_; exclude_from_all; sources })
   | ("link_lib" | "target_link_libraries"), target :: items ->
     try_groups_or_raw items
       (fun ~visibility items ->

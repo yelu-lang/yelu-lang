@@ -100,7 +100,7 @@ let parity =
           let prog =
             ESeq [
               Yelu_langs.Yelu_cmake_target.ECmakeAddExecutable
-                { name = ETarget "Tutorial";
+                { name = ETarget "Tutorial"; exclude_from_all = false;
                   sources = [ EString "tutorial.cxx" ] };
               Yelu_langs.Yelu_cmake_target.ECmakeTargetLinkLibraries
                 { target = ETarget "Tutorial";

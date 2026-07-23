@@ -144,7 +144,7 @@ let yelu1_to_yelu2 =
              [ "EXISTS", VBool true; "OUT", VString "hello file" ]);
       check_yelu1_to_yelu2 "target declaration and existence"
         (ESeq [
-          ECmakeAddExecutable { name = EString "app"; sources = [ EString "main.c" ] };
+          ECmakeAddExecutable { name = EString "app"; exclude_from_all = false; sources = [ EString "main.c" ] };
           ESetVar ("OUT", ECmakeTargetExists (EString "app"));
           EVar "OUT";
         ])
@@ -155,7 +155,7 @@ let yelu1_to_yelu2 =
              [ "OUT", VBool true ]);
       check_yelu1_to_yelu2 "library declaration"
         (ESeq [
-          ECmakeAddLibrary { name = EString "core"; type_ = Some "STATIC"; sources = [ EString "core.c" ] };
+          ECmakeAddLibrary { name = EString "core"; type_ = Some "STATIC"; exclude_from_all = false; sources = [ EString "core.c" ] };
           ESetVar ("OUT", ECmakeTargetExists (EString "core"));
           EVar "OUT";
         ])
@@ -166,7 +166,7 @@ let yelu1_to_yelu2 =
              [ "OUT", VBool true ]);
       check_yelu1_to_yelu2 "target sources mutation"
         (ESeq [
-          ECmakeAddExecutable { name = EString "app"; sources = [ EString "main.c" ] };
+          ECmakeAddExecutable { name = EString "app"; exclude_from_all = false; sources = [ EString "main.c" ] };
           ECmakeTargetSources { target = EString "app"; visibility = Vis_public; sources = [ EString "extra.c" ] };
           ETarget "app";
         ])
@@ -181,7 +181,7 @@ let yelu1_to_yelu2 =
              []);
       check_yelu1_to_yelu2 "target link libraries mutation"
         (ESeq [
-          ECmakeAddExecutable { name = EString "app"; sources = [ EString "main.c" ] };
+          ECmakeAddExecutable { name = EString "app"; exclude_from_all = false; sources = [ EString "main.c" ] };
           ECmakeTargetLinkLibraries { target = EString "app"; visibility = Vis_private; items = [ EString "m" ] };
           ETarget "app";
         ])
@@ -197,7 +197,7 @@ let yelu1_to_yelu2 =
              []);
       check_yelu1_to_yelu2 "target include directories mutation"
         (ESeq [
-          ECmakeAddExecutable { name = EString "app"; sources = [ EString "main.c" ] };
+          ECmakeAddExecutable { name = EString "app"; exclude_from_all = false; sources = [ EString "main.c" ] };
           ECmakeTargetIncludeDirectories
             { target = EString "app"; visibility = Vis_public;
               before = false; system = false;
@@ -216,7 +216,7 @@ let yelu1_to_yelu2 =
              []);
       check_yelu1_to_yelu2 "target compile definitions mutation"
         (ESeq [
-          ECmakeAddExecutable { name = EString "app"; sources = [ EString "main.c" ] };
+          ECmakeAddExecutable { name = EString "app"; exclude_from_all = false; sources = [ EString "main.c" ] };
           ECmakeTargetCompileDefinitions
             { target = EString "app"; visibility = Vis_private; definitions = [ EString "USE_FEATURE" ] };
           ETarget "app";
@@ -234,7 +234,7 @@ let yelu1_to_yelu2 =
              []);
       check_yelu1_to_yelu2 "target compile options mutation"
         (ESeq [
-          ECmakeAddExecutable { name = EString "app"; sources = [ EString "main.c" ] };
+          ECmakeAddExecutable { name = EString "app"; exclude_from_all = false; sources = [ EString "main.c" ] };
           ECmakeTargetCompileOptions
             { target = EString "app"; visibility = Vis_private;
               before = false;
@@ -255,7 +255,7 @@ let yelu1_to_yelu2 =
       check_yelu1_to_yelu2 "target compile features mutation"
         (ESeq [
           ECmakeAddLibrary
-            { name = EString "flags"; type_ = Some "INTERFACE"; sources = [] };
+            { name = EString "flags"; type_ = Some "INTERFACE"; exclude_from_all = false; sources = [] };
           ECmakeTargetCompileFeatures
             { target = EString "flags"; visibility = Vis_interface; features = [ EString "cxx_std_11" ] };
           ETarget "flags";
@@ -273,7 +273,7 @@ let yelu1_to_yelu2 =
              []);
       check_yelu1_to_yelu2 "target link options mutation"
         (ESeq [
-          ECmakeAddExecutable { name = EString "app"; sources = [ EString "main.c" ] };
+          ECmakeAddExecutable { name = EString "app"; exclude_from_all = false; sources = [ EString "main.c" ] };
           ECmakeTargetLinkOptions
             { target = EString "app"; visibility = Vis_private;
               before = false;
@@ -293,7 +293,7 @@ let yelu1_to_yelu2 =
              []);
       check_yelu1_to_yelu2 "target link directories mutation"
         (ESeq [
-          ECmakeAddExecutable { name = EString "app"; sources = [ EString "main.c" ] };
+          ECmakeAddExecutable { name = EString "app"; exclude_from_all = false; sources = [ EString "main.c" ] };
           ECmakeTargetLinkDirectories
             { target = EString "app"; visibility = Vis_public;
               before = false;
@@ -362,7 +362,7 @@ let yelu1_to_yelu2 =
              []);
       check_yelu1_to_yelu2 "install targets and files declarations"
         (ESeq [
-          ECmakeAddExecutable { name = EString "app"; sources = [ EString "main.c" ] };
+          ECmakeAddExecutable { name = EString "app"; exclude_from_all = false; sources = [ EString "main.c" ] };
           ECmakeInstallTargets
             { targets = [ EString "app" ]; destination = Some (EString "bin"); export = None; component = None; artifact_clauses = [] };
           ECmakeInstallFiles
@@ -417,7 +417,7 @@ let yelu1_to_yelu2 =
              []);
       check_yelu1_to_yelu2 "property set/get round trip"
         (ESeq [
-          ECmakeAddExecutable { name = EString "app"; sources = [ EString "main.c" ] };
+          ECmakeAddExecutable { name = EString "app"; exclude_from_all = false; sources = [ EString "main.c" ] };
           ECmakeSetTargetProperty
             { target = EString "app"; property = "OUTPUT_NAME"; value = EString "myapp" };
           ECmakeGetTargetProperty

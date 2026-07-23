@@ -418,17 +418,17 @@ let rec emit_exp ~env (e : expr) : C.exp =
         args = List.map call_args ~f:(arg ~env) }
 
   (* Target / build graph *)
-  | ECmakeAddExecutable { name; sources } ->
+  | ECmakeAddExecutable { name; exclude_from_all; sources } ->
     C.Project_cmd
       (C.Add_executable
          { name = target_arg ~env name;
-           options = [];
+           options = (if exclude_from_all then [ C.Ae_exclude_from_all ] else []);
            sources = List.map sources ~f:(target_arg ~env) })
-  | ECmakeAddLibrary { name; type_; sources } ->
+  | ECmakeAddLibrary { name; type_; exclude_from_all; sources } ->
     C.Project_cmd
       (C.Add_library
          { name = target_arg ~env name;
-           exclude_from_all = false;
+           exclude_from_all;
            type_;
            sources = List.map sources ~f:(target_arg ~env) })
   | ECmakeTargetLinkLibraries { target; visibility; items } ->

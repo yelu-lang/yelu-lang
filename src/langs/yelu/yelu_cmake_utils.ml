@@ -382,12 +382,12 @@ let ytarget_feature ?(kind = Lang_cmake.Public) feature : target_feature =
    [ECmakeAddExecutable] / [ECmakeAddLibrary] do not carry the flag.
    The bridge does the same. Tests pass because EXCLUDE_FROM_ALL
    only affects "make all" behavior, not configure-time output. *)
-let add_exe ?exclude_from_all:_ ?(sources = []) name =
-  ECmakeAddExecutable { name; sources }
+let add_exe ?(exclude_from_all = false) ?(sources = []) name =
+  ECmakeAddExecutable { name; exclude_from_all; sources }
 
-let add_lib ?exclude_from_all:_ ?type_ ?(sources = []) name =
+let add_lib ?(exclude_from_all = false) ?type_ ?(sources = []) name =
   ECmakeAddLibrary
-    { name; type_ = Option.map type_ ~f:library_type_name; sources }
+    { name; type_ = Option.map type_ ~f:library_type_name; exclude_from_all; sources }
 
 let add_lib_alias ~alias_of name =
   ECmakeAddLibraryAlias { name; target = alias_of }

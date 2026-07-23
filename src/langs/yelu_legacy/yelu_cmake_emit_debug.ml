@@ -462,9 +462,9 @@ let rec emit_expr_impl ~env e =
     let cd = if configure_depends then " CONFIGURE_DEPENDS" else "" in
     [ Fmt.str "file(%s %s%s%s %s)" cmd out rel cd
         (String.concat ~sep:" " (List.map patterns ~f:arg)) ]
-  | ECmakeAddExecutable { name; sources } ->
+  | ECmakeAddExecutable { name; sources; _ } ->
     [ Fmt.str "add_executable(%s %s)" (target_arg name) (String.concat ~sep:" " (List.map sources ~f:arg)) ]
-  | ECmakeAddLibrary { name; type_; sources } ->
+  | ECmakeAddLibrary { name; type_; sources; _ } ->
     let args =
       Option.to_list type_ @ List.map sources ~f:arg
       |> String.concat ~sep:" "
