@@ -40,17 +40,36 @@ Two kinds of fixture:
 **External source tree** — build a real vendored project (e.g. fmt) both ways.
 A `fixture.json` selects this mode; the reference cmake comes from the tree
 itself (pristine from git, to dodge working-tree contamination), the yelu cmake
-from compiling a `.yc` elsewhere in the repo:
+from compiling a `.yc` elsewhere in the repo. The fixture is a **matrix of
+cells**: each cell carries its own `-D` flags AND how it is checked, because
+coverage is cell-dependent (the core library is byte-reproducible; a cell that
+enables tests/fuzz/cuda needs external deps and may not build at all):
 
-  fixture.json     { "source_tree": "vendor/fmt",          # copied as the build base
-                     "yc": "probes/fmt/main.yc",           # compiled → root CMakeLists.txt
-                     "configure_args": ["-DBUILD_SHARED_LIBS=ON", ...],
-                     "ref_from_git": true,                 # ref CMakeLists = git HEAD (default true)
-                     "run": { "<exe>": [argv] } }          # optional
-  <overlay files>  optional: extra files laid over the tree copy
+  fixture.json {
+    "source_tree": "vendor/fmt",            # copied as the build base
+    "yc": "probes/fmt/main.yc",             # compiled → root CMakeLists.txt
+    "ref_from_git": true,                   # ref CMakeLists = git HEAD (default)
+    "base_configure_args": ["-DBUILD_SHARED_LIBS=ON", ...],   # applied to every cell
+    "cells": [
+      { "name": "core-lib",
+        "configure_args": ["-DFMT_TEST=OFF", ...],  # appended to base for this cell
+        "strict_bytes": true,               # same-path sequential → demand byte-identity
+        "run": { "<exe>": [argv] } }        # optional per-cell runtime check
+    ]
+  }
+  <overlay files>  optional: extra files laid over each tree copy
 
-If `source_tree` is absent from disk (vendored trees are external and Linux-only)
-the fixture is SKIPPED, not failed.
+`strict_bytes` picks the build strategy: true → build ref/yelu/control through
+the SAME source+build path in sequence, so the only variable is the CMakeLists
+content and a byte difference is a genuine finding (the control side going
+byte-identical proves the compiler was reproducible here). false → independent
+paths, where byte-diffs are control-gated (compiler path-noise tolerated) and
+the symbol set + runtime carry the verdict.
+
+A cell whose *reference* build fails (e.g. a missing external dep for that
+option) is SKIPPED, not failed — there is no baseline to compare against. If
+`source_tree` is absent from disk (vendored trees are external and Linux-only)
+the whole fixture is SKIPPED.
 
 ## Usage  (from repo root, after `dune build`)
 
@@ -282,17 +301,110 @@ def git_show(tree_abs, rev_path):
     return out
 
 
+def snapshot_artifacts(bld):
+    """Copy a build's real artifacts (ELF/libs, preserving relative paths) into a
+    fresh temp dir. Needed by the same-path strict-byte mode, where each side is
+    built through the SAME build dir in sequence, so its outputs must be stashed
+    before the next side overwrites them."""
+    dst = tempfile.mkdtemp(prefix="be_snap_")
+    for rel, info in artifacts(bld).items():
+        d = os.path.join(dst, rel)
+        os.makedirs(os.path.dirname(d) or dst, exist_ok=True)
+        shutil.copy(info["abs"], d)
+    return dst
+
+
+def build_cell_strict(tree_abs, sides, overlay, cfg_args):
+    """Same-path strict-byte build: copy the tree ONCE, then build each side
+    sequentially through the SAME source dir + SAME build dir (wiped between),
+    stashing artifacts after each. Holding both paths constant removes the only
+    source of fmt's build non-determinism (embedded __FILE__ / build paths), so
+    a byte difference between sides is real — the control side (ref rebuilt) going
+    byte-identical is what proves that.  `sides` = [(label, cmakelists_text), ...].
+    Returns (stashes: {label: dir}, error: str|None)."""
+    src = tempfile.mkdtemp(prefix="be_strict_src_")
+    bld = tempfile.mkdtemp(prefix="be_strict_bld_")
+    rc, out = run(["cp", "-rL", tree_abs + "/.", src])
+    if rc != 0:
+        return {}, f"tree copy failed:\n{out}"
+    for junk in (".git", "build", "build2", "_out"):
+        shutil.rmtree(os.path.join(src, junk), ignore_errors=True)
+    for rel, abspath in overlay:
+        dst = os.path.join(src, rel)
+        os.makedirs(os.path.dirname(dst), exist_ok=True)
+        shutil.copy(abspath, dst)
+
+    stashes = {}
+    err = None
+    for label, text in sides:
+        shutil.rmtree(bld, ignore_errors=True)
+        os.makedirs(bld)                     # reuse the SAME path string
+        with open(os.path.join(src, "CMakeLists.txt"), "w") as h:
+            h.write(text)
+        rc, out = run(["cmake", "-S", src, "-B", bld, *cfg_args])
+        if rc != 0:
+            err = (label, f"configure failed:\n{out}"); break
+        rc, out = run(["cmake", "--build", bld])
+        if rc != 0:
+            err = (label, f"build failed:\n{out}"); break
+        stashes[label] = snapshot_artifacts(bld)
+    shutil.rmtree(src, ignore_errors=True)
+    shutil.rmtree(bld, ignore_errors=True)
+    return stashes, err
+
+
+def run_cell(name, tree_abs, ref_cmake, yelu_cmake, overlay, cfg_args, strict, run_spec):
+    """Build + compare one matrix cell. Returns True (pass) / False (fail) /
+    None (skipped — the reference build itself failed, e.g. a missing external
+    dep for this option, so there is no baseline to compare against)."""
+    if strict:
+        stashes, err = build_cell_strict(
+            tree_abs, [("ref", ref_cmake), ("yelu", yelu_cmake), ("ctrl", ref_cmake)],
+            overlay, cfg_args)
+        if err:
+            side, msg = err
+            if side == "ref":
+                print(f"  {YEL}SKIP{RESET} reference build failed for this cell "
+                      f"(no baseline — likely a missing dep): {msg.splitlines()[0]}")
+                for d in stashes.values(): shutil.rmtree(d, ignore_errors=True)
+                return None
+            print(f"  {RED}FAIL{RESET} {side} build failed:\n{msg}")
+            for d in stashes.values(): shutil.rmtree(d, ignore_errors=True)
+            return False
+        fails, _ = compare(name, stashes["ref"], stashes["yelu"], stashes["ctrl"], run_spec)
+        for d in stashes.values(): shutil.rmtree(d, ignore_errors=True)
+        return not fails
+
+    # non-strict: independent paths (control measures the compiler noise floor)
+    ref_bld,  ref_ok,  ref_log  = stage_tree(tree_abs, ref_cmake,  overlay, cfg_args, "ref")
+    yelu_bld, yelu_ok, yelu_log = stage_tree(tree_abs, yelu_cmake, overlay, cfg_args, "yelu")
+    ctrl_bld, ctrl_ok, _        = stage_tree(tree_abs, ref_cmake,  overlay, cfg_args, "ctrl")
+    try:
+        if not ref_ok:
+            print(f"  {YEL}SKIP{RESET} reference build failed (no baseline):\n{ref_log}")
+            return None
+        fails = []
+        if not yelu_ok:
+            print(f"  {RED}FAIL{RESET} yelu build failed (yelu-emitted cmake):\n{yelu_log}")
+            fails.append("yelu build")
+        f, _ = compare(name, ref_bld, yelu_bld, ctrl_bld, run_spec)
+        return not (fails + f)
+    finally:
+        for d in (ref_bld, yelu_bld, ctrl_bld):
+            shutil.rmtree(d, ignore_errors=True)
+
+
 def check_external_tree(name, fdir, cfg):
     """Build a real vendored source tree from its own (pristine) cmake vs
-    yelu-emitted cmake, and compare. Returns True/False, or None if skipped."""
+    yelu-emitted cmake across one or more matrix cells, and compare. Returns
+    True (all ran cells pass), False (any failed), or None (skipped entirely)."""
     tree_abs = os.path.join(ROOT, cfg["source_tree"])
     if not os.path.isdir(tree_abs):
         print(f"  {YEL}SKIP{RESET} source tree {cfg['source_tree']} not present "
               f"(external / Linux-only)")
         return None
     yc = os.path.join(ROOT, cfg["yc"])
-    cfg_args = cfg.get("configure_args", [])
-    run_spec = cfg.get("run", {})
+    base_args = cfg.get("base_configure_args", cfg.get("configure_args", []))
     overlay = [(os.path.relpath(os.path.join(dp, fn), fdir), os.path.join(dp, fn))
                for dp, _, files in os.walk(fdir) for fn in files
                if os.path.relpath(os.path.join(dp, fn), fdir) not in
@@ -311,23 +423,39 @@ def check_external_tree(name, fdir, cfg):
         print(f"  {RED}FAIL{RESET} {e}")
         return False
 
-    ref_bld,  ref_ok,  ref_log  = stage_tree(tree_abs, ref_cmake,  overlay, cfg_args, "ref")
-    yelu_bld, yelu_ok, yelu_log = stage_tree(tree_abs, yelu_cmake, overlay, cfg_args, "yelu")
-    ctrl_bld, ctrl_ok, _        = stage_tree(tree_abs, ref_cmake,  overlay, cfg_args, "ctrl")
+    # A fixture is a matrix of cells. Each cell = its own -D flags + how it's
+    # checked (byte-identical vs symbol-set), because coverage is cell-dependent.
+    # Absent an explicit `cells` list, the whole fixture is one cell from the
+    # top-level configure_args (non-strict, back-compat).
+    cells = cfg.get("cells") or [{
+        "name": name, "configure_args": [],
+        "strict_bytes": cfg.get("strict_bytes", False),
+        "run": cfg.get("run", {}),
+    }]
 
-    fails = []
-    if not ref_ok:
-        print(f"  {RED}FAIL{RESET} reference build failed:\n{ref_log}"); fails.append("ref build")
-    if not yelu_ok:
-        print(f"  {RED}FAIL{RESET} yelu build failed (yelu-emitted cmake):\n{yelu_log}"); fails.append("yelu build")
-    if ref_ok and yelu_ok:
-        f, _ = compare(name, ref_bld, yelu_bld, ctrl_bld, run_spec)
-        fails += f
+    npass = nfail = nskip = 0
+    for cell in cells:
+        cname = cell.get("name", "cell")
+        args = base_args + cell.get("configure_args", [])
+        strict = cell.get("strict_bytes", True)
+        run_spec = cell.get("run", {})
+        tag = "byte-identical" if strict else "symbol/runtime"
+        print(f"  {DIM}· cell {cname} [{tag}]{RESET}")
+        r = run_cell(f"{name}/{cname}", tree_abs, ref_cmake, yelu_cmake,
+                     overlay, args, strict, run_spec)
+        if   r is True:  npass += 1
+        elif r is False: nfail += 1
+        else:            nskip += 1
 
-    for d in (ref_bld, yelu_bld, ctrl_bld):
-        shutil.rmtree(d, ignore_errors=True)
-    print(f"  {GRN}PASS{RESET}" if not fails else f"  {RED}{len(fails)} failure(s){RESET}")
-    return not fails
+    tail = f", {nskip} skipped" if nskip else ""
+    if nfail:
+        print(f"  {RED}{nfail} cell failure(s){RESET} ({npass} passed{tail})")
+        return False
+    if npass == 0:
+        print(f"  {YEL}all cells skipped{RESET}")
+        return None
+    print(f"  {GRN}PASS{RESET} ({npass} cells{tail})")
+    return True
 
 
 def check_fixture(fdir):

@@ -92,6 +92,18 @@ pass also gave static archives (`.a`) real symbol comparison via
 `nm --extern-only`, and fixed a stderr-merge bug that spliced yelu warnings into
 the emitted cmake.
 
+*Byte-identical + per-cell matrix (2026-07-23):* established that fmt's build is
+**bit-reproducible** — its only non-determinism is embedded `__FILE__`/build
+paths, so building ref/yelu/control through the *same* source+build path in
+sequence makes them byte-for-byte identical (`libfmt.so.12.1.1` and `libfmt-c.a`
+both). The fmt fixture is now a **matrix of cells**: each cell (`fixture.json` →
+`cells`) sets its own `-D` flags and its check strategy (`strict_bytes` →
+same-path byte-identity), because coverage is cell-dependent (core lib is
+byte-reproducible; test/fuzz/cuda cells need external deps → SKIP-on-ref-fail).
+Seeded with one cell (`core-lib`, byte-identical); the framework is ready to grow
+toward per-option matrix parity. Groundwork toward mirroring the configure-time
+24-cell matrix at build level.
+
 *Harnesses repaired (2026-07-22, `877c3df`):* the tola→standalone extraction
 had broken the tutorial-step harnesses (monorepo `TOLA/yelu/...` paths, flat
 `src/bin/*.exe`). Fixed `run_file_api.py`/`run_build_check.py` path derivation
