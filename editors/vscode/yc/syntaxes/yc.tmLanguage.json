@@ -12,7 +12,7 @@
     { "match": ":[A-Za-z0-9_-]+", "name": "entity.other.attribute-name.yc" },
     { "match": "\\b(OFF|ON)\\b", "name": "constant.language.boolean.yc" },
     {
-      "match": "\\b(Brief_docs|Directory|Full_docs|Interface|Variable|Defined|Install|Name_we|Private|Global|Public|Source|Static|String|Cache|Test|Cxx|Set)\\b",
+      "match": "\\b(Brief_docs|Directory|Full_docs|Interface|Variable|Defined|Install|Name_we|Private|Unknown|Global|Module|Object|Public|Shared|Source|Static|String|Cache|Test|Cxx|Set)\\b",
       "name": "constant.language.yc"
     },
     {

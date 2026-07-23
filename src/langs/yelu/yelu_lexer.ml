@@ -99,7 +99,8 @@ let constr_names =
   Set.of_list (module String)
     [ (* slice 1: visibility *) "PUBLIC"; "PRIVATE"; "INTERFACE";
       (* slice 2: library/cache type, fc mode, language *)
-      "STATIC"; "STRING"; "NAME_WE"; "CXX";
+      "STATIC"; "SHARED"; "MODULE"; "OBJECT"; "UNKNOWN";
+      "STRING"; "NAME_WE"; "CXX";
       (* slice 3 (Pos3 entity prototype): set_property / get_property scope
          discriminators. Each pairs with an optional name positional to form a
          first-class kinded cmake entity (Source 'main.c', Cache FOO, Global,
