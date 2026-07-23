@@ -2016,7 +2016,7 @@ let compile_options_yelu =
     add_exe ~sources:[ystr "main.cpp"] co;
     (* macro: appends per-compiler genex flags; _COMPILER_FRONTEND_VARIANT stripped for cmake 3.28 compat *)
     yc_macro (ystr "get_compiler_test_genex") ~args:["lst"; "lang"] [
-      yc_list_append (ycvar "${lst}") [ystr_eval {|-DTEST_${lang}_COMPILER_VERSION=\"$<${lang}_COMPILER_VERSION>\"|}];
+      yc_list_append (ycvar "${lst}") [ystr_eval {|-DTEST_${lang}_COMPILER_VERSION="$<${lang}_COMPILER_VERSION>"|}];
       yc_list_append (ycvar "${lst}") [ystr_eval {|-DTEST_${lang}_COMPILER_VERSION_EQUALITY=$<${lang}_COMPILER_VERSION:${CMAKE_${lang}_COMPILER_VERSION}>|}];
     ];
     yc_apply (ystr "get_compiler_test_genex") [ycstr "c_tests"; ystr "C"];
@@ -2025,7 +2025,7 @@ let compile_options_yelu =
     compile_opts co [
       ytarget_def ~kind:Private [
         ystr "-DTEST_DEFINE";
-        ystr_eval {|-DNEEDS_ESCAPE=\"E$CAPE\"|};
+        ystr_eval {|-DNEEDS_ESCAPE="E$CAPE"|};
         ystr_eval {|$<$<CXX_COMPILER_ID:GNU,LCC>:-DTEST_DEFINE_GNU>|};
         ystr_eval {|$<$<COMPILE_LANG_AND_ID:CXX,GNU,LCC>:-DTEST_DEFINE_CXX_AND_GNU>|};
         ystr "SHELL:";
@@ -2040,13 +2040,13 @@ let compile_options_yelu =
         ytarget_def ~kind:Private [
           ystr {|SHELL:-D DEF_A|};
           ystr_eval {|$<1:SHELL:-D DEF_B>|};
-          ystr_eval {|SHELL:-D 'DEF_C' -D \"DEF_D\"|};
-          ystr_eval {|[=[SHELL:-D "DEF_STR=\"string with spaces\""]=]|};
+          ystr_eval {|SHELL:-D 'DEF_C' -D "DEF_D"|};
+          ystr_eval {|SHELL:-D "DEF_STR=\"string with spaces\""|};
         ]
       ]);
     (* octothorpe define: GNU/LCC/Clang compilers, not NMake *)
     yifthen (yand (ymatches (ycstr "CMAKE_CXX_COMPILER_ID") {|GNU|LCC|Clang|Borland|Embarcadero|}) (ynot (ymatches (ycstr "CMAKE_GENERATOR") "NMake Makefiles")))
-      (compile_opts co [ ytarget_def ~kind:Private [ystr_eval {|-DTEST_OCTOTHORPE=\"#\"|}] ]);
+      (compile_opts co [ ytarget_def ~kind:Private [ystr_eval {|-DTEST_OCTOTHORPE="#"|}] ]);
     (* flag tests: GNU/LCC/AppleClang/MSVC compilers *)
     yifthen (ymatches (ycstr "CMAKE_CXX_COMPILER_ID") {|^(GNU|LCC|AppleClang|MSVC)$|})
       (ESeq [
@@ -2073,8 +2073,8 @@ let compile_options_yelu =
       (compile_defs co [ ytarget_def ~kind:Private [ystr "DO_GNU_TESTS"] ]);
     compile_defs co [
       ytarget_def ~kind:Private [
-        ystr_eval {|EXPECTED_C_COMPILER_VERSION=\"${CMAKE_C_COMPILER_VERSION}\"|};
-        ystr_eval {|EXPECTED_CXX_COMPILER_VERSION=\"${CMAKE_CXX_COMPILER_VERSION}\"|};
+        ystr_eval {|EXPECTED_C_COMPILER_VERSION="${CMAKE_C_COMPILER_VERSION}"|};
+        ystr_eval {|EXPECTED_CXX_COMPILER_VERSION="${CMAKE_CXX_COMPILER_VERSION}"|};
 
       ]
     ];

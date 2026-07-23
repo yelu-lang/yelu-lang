@@ -172,10 +172,10 @@ Pick up as cmake-corpus expansion demands. Full picture in
   gaps; the live detector is `make cmake-commands` (not in `dune test` — needs
   cmake). The 2026-07 dig fixed 4 emit classes (genex-in-name, `get_property GLOBAL`,
   `set_property DIRECTORY`, `EXCLUDE_FROM_ALL`) + 1 test-authoring bug
-  (compile-definition value was over-escaped in the fixture; yelu escaping is
-  correct). **2 open**: genex inside a compile option (`-D$<…>`), and a
-  `link_line` lib-not-built. Plus 1 ycn gap: `exclude_from_all` doesn't survive
-  the normal-form round-trip.
+  (compile-definition value over-escaped in the fixture) + 1 more emit bug (`arg`
+  under-quoted bare args with `"`/`#`, e.g. `-DX="#"` — cmake dropped the
+  quotes). **1 open**: `link_line` lib-not-built (needs discussion). Plus 1 ycn
+  gap: `exclude_from_all` doesn't survive the normal-form round-trip.
 
 ### 7. Surface polish (Parked — small, independent, any order)
 

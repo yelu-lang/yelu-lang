@@ -45,24 +45,26 @@ let math_output_format_discarded =
     Alcotest.(check bool) "is math call" true
       (String.is_substring t1 ~substring:"math(EXPR"))
 
-let add_exe_exclude_from_all_discarded =
-  Alcotest.test_case "add_exe ~exclude_from_all silently dropped" `Quick (fun () ->
+(* exclude_from_all is now MODELLED end-to-end (was silently dropped before the
+   2026-07 emit fix). The flag must change the output and emit EXCLUDE_FROM_ALL. *)
+let add_exe_exclude_from_all_honored =
+  Alcotest.test_case "add_exe ~exclude_from_all honored" `Quick (fun () ->
     let with_flag = add_exe ~exclude_from_all:true ~sources:[EString "a.c"] (ETarget "T") in
     let without = add_exe ~sources:[EString "a.c"] (ETarget "T") in
-    Alcotest.(check string) "flag discarded"
-      (emit_text without) (emit_text with_flag);
-    Alcotest.(check bool) "no EXCLUDE_FROM_ALL in output" false
+    Alcotest.(check bool) "flag changes output" false
+      (String.equal (emit_text without) (emit_text with_flag));
+    Alcotest.(check bool) "EXCLUDE_FROM_ALL in output" true
       (String.is_substring (emit_text with_flag) ~substring:"EXCLUDE_FROM_ALL"))
 
-let add_lib_exclude_from_all_discarded =
-  Alcotest.test_case "add_lib ~exclude_from_all silently dropped" `Quick (fun () ->
+let add_lib_exclude_from_all_honored =
+  Alcotest.test_case "add_lib ~exclude_from_all honored" `Quick (fun () ->
     let with_flag =
       add_lib ~exclude_from_all:true ~sources:[EString "a.c"] (ETarget "T") in
     let without =
       add_lib ~sources:[EString "a.c"] (ETarget "T") in
-    Alcotest.(check string) "flag discarded"
-      (emit_text without) (emit_text with_flag);
-    Alcotest.(check bool) "no EXCLUDE_FROM_ALL in output" false
+    Alcotest.(check bool) "flag changes output" false
+      (String.equal (emit_text without) (emit_text with_flag));
+    Alcotest.(check bool) "EXCLUDE_FROM_ALL in output" true
       (String.is_substring (emit_text with_flag) ~substring:"EXCLUDE_FROM_ALL"))
 
 (* ============================================================
@@ -110,8 +112,10 @@ let () =
   Alcotest.run "Yelu_cmake_utils stubs" [
     "accept-and-discard", [
       math_output_format_discarded;
-      add_exe_exclude_from_all_discarded;
-      add_lib_exclude_from_all_discarded;
+    ];
+    "exclude-from-all-honored", [
+      add_exe_exclude_from_all_honored;
+      add_lib_exclude_from_all_honored;
     ];
     "failwith", [
       ystrless_raises;

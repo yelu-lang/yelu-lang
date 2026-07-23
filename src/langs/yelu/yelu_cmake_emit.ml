@@ -97,6 +97,11 @@ let rec arg ?(env = empty_subst) (e : expr) : C.arg =
     || String.is_substring s ~substring:"$<"
     || String.is_substring s ~substring:"${"
     || String.exists s ~f:(Char.equal '\\')
+    (* A literal quote or `#` in a bare arg mis-tokenizes: cmake consumes `"…"`
+       as a quoted section (dropping the quotes) and `#` starts a comment. Quote
+       so the chars survive to the compiler (e.g. `-DX="#"`). *)
+    || String.exists s ~f:(Char.equal '"')
+    || String.exists s ~f:(Char.equal '#')
     then C.Quoted s
     else C.Bare s
   | EInt n -> C.Bare (Int.to_string n)
