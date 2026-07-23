@@ -104,6 +104,18 @@ Seeded with one cell (`core-lib`, byte-identical); the framework is ready to gro
 toward per-option matrix parity. Groundwork toward mirroring the configure-time
 24-cell matrix at build level.
 
+*Per-cell consume/check hook (2026-07-23):* a cell is a **group** — its config
+drives both the vanilla-cmake and yelu-cmake builds — and now carries an optional
+shared **consume declaration** (`check_script`, relative path; the lightweight
+hack standing in for a real dep/consume manifest). The *same* script runs against
+each side's live build tree (`argv[1]`=build dir, `BE_BLD`/`BE_SRC` in env) and
+the harness compares its `(exit, stdout)` across sides — identical ⇒ equivalent
+to a downstream consumer. The fmt core-lib cell's `consume_fmt.sh` compiles+links
+a tiny program against the freshly-built `libfmt` and runs it (`42-ok-0d4d`,
+matching both sides): proof the lib is not just byte-identical on disk but
+identical *in behavior when linked*. Same pass also fixed a `stage_tree` src-dir
+leak and gave it back its source path so non-strict cells can run the hook too.
+
 *Harnesses repaired (2026-07-22, `877c3df`):* the tola→standalone extraction
 had broken the tutorial-step harnesses (monorepo `TOLA/yelu/...` paths, flat
 `src/bin/*.exe`). Fixed `run_file_api.py`/`run_build_check.py` path derivation

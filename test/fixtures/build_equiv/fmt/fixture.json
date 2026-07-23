@@ -17,7 +17,8 @@
         "-DFMT_FUZZ=OFF",
         "-DFMT_CUDA_TEST=OFF"
       ],
-      "strict_bytes": true
+      "strict_bytes": true,
+      "check_script": "consume_fmt.sh"
     }
   ]
 }

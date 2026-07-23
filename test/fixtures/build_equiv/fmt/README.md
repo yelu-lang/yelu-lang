@@ -16,13 +16,33 @@ checked, because coverage is cell-dependent — the core library is byte-for-byt
 reproducible, but a cell that turns on `FMT_TEST` / `FMT_FUZZ` / `FMT_CUDA_TEST`
 needs external toolchains and may not build at all.
 
-| cell | options | check | needs |
-|---|---|---|---|
-| `core-lib` | all optional targets OFF, `BUILD_SHARED_LIBS=ON` | **byte-identical** | just a C++ compiler |
+| cell | options | check | consume | needs |
+|---|---|---|---|---|
+| `core-lib` | all optional targets OFF, `BUILD_SHARED_LIBS=ON` | **byte-identical** | `consume_fmt.sh` | just a C++ compiler |
 
 More cells (per option × {ON,OFF}, mirroring the configure-time matrix) can be
 added by dropping entries into `cells`. A cell whose *reference* build fails
 (missing dep) is **SKIPPED**, not failed — there is no baseline to compare.
+
+### Consume / check script (`check_script`)
+
+A cell is a **group**: its config drives *both* the vanilla-cmake and yelu-cmake
+builds, and it can carry a shared **consume declaration** — what depends on the
+build output and how it's exercised. The proper form is a lightweight dep/consume
+manifest; for now it's hacked as a **script** (`check_script`, relative to this
+dir). The *same* script runs against each side's build, and the harness compares
+its `(exit, stdout)` — identical ⇒ the two builds are equivalent from a
+downstream consumer's view.
+
+The script gets the build dir as `argv[1]`, with `BE_BLD` (build tree — the
+`libfoo.so` + dev symlinks) and `BE_SRC` (configured source tree — headers) in
+the env. It runs against the *live* build tree (the strict mode snapshots only
+final artifacts, but a consumer needs the symlinks and headers too).
+
+`consume_fmt.sh` compiles a tiny program against the freshly-built `libfmt`,
+links it (`-lfmt`), runs it, and prints a deterministic payload — proving the
+library isn't just byte-identical on disk but *usable and identical in behavior*
+when actually linked. Same output on both sides ⇒ equivalent.
 
 ## Checks per cell
 

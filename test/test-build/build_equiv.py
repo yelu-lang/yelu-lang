@@ -54,10 +54,19 @@ enables tests/fuzz/cuda needs external deps and may not build at all):
       { "name": "core-lib",
         "configure_args": ["-DFMT_TEST=OFF", ...],  # appended to base for this cell
         "strict_bytes": true,               # same-path sequential → demand byte-identity
-        "run": { "<exe>": [argv] } }        # optional per-cell runtime check
+        "run": { "<exe>": [argv] },         # optional per-cell runtime check
+        "check_script": "consume_fmt.sh" }  # optional consume/check hook (below)
     ]
   }
   <overlay files>  optional: extra files laid over each tree copy
+
+A cell is a *group* — its config drives BOTH the vanilla-cmake and yelu-cmake
+sides. `check_script` (relative to the fixture dir) is a shared consume/check
+declaration, hacked as a script for now: the SAME script runs against each
+side's build (argv[1] = build dir; env BE_BLD = build tree, BE_SRC = configured
+source tree), and its (exit, stdout) must match across sides. Use it to link a
+downstream consumer against the built lib, or run a test — the equivalence
+assertion is that the consumer behaves identically whichever cmake built the lib.
 
 `strict_bytes` picks the build strategy: true → build ref/yelu/control through
 the SAME source+build path in sequence, so the only variable is the CMakeLists
@@ -151,11 +160,11 @@ def stage_tree(tree_abs, cmakelists_text, overlay, configure_args, label):
         shutil.copy(abspath, dst)
     rc, out = run(["cmake", "-S", src, "-B", bld, *configure_args])
     if rc != 0:
-        return bld, False, f"configure failed:\n{out}"
+        return src, bld, False, f"configure failed:\n{out}"
     rc, out = run(["cmake", "--build", bld])
     if rc != 0:
-        return bld, False, f"build failed:\n{out}"
-    return bld, True, ""
+        return src, bld, False, f"build failed:\n{out}"
+    return src, bld, True, ""
 
 
 # ── artifact discovery ────────────────────────────────────────────────────────
@@ -314,19 +323,39 @@ def snapshot_artifacts(bld):
     return dst
 
 
-def build_cell_strict(tree_abs, sides, overlay, cfg_args):
+def run_check(script_abs, src, bld):
+    """Run a cell's consume/check script against ONE side's build. The same
+    script drives both the vanilla-cmake and yelu-cmake sides — it is the shared,
+    lightweight 'what depends on this and how do we exercise it' declaration
+    (hacked, for now, as a script rather than a real dep/consume manifest). It
+    gets the build dir as argv[1], with BE_SRC / BE_BLD in the env (so it can
+    reach headers in the source tree and libraries in the build tree), and its
+    (exit, stdout) is the observable that must match across sides. Run against
+    the LIVE build tree — the strict builder snapshots only artifacts, but a
+    consumer needs `libfoo.so` dev symlinks and headers, present only here."""
+    ext = os.path.splitext(script_abs)[1]
+    interp = {".sh": ["bash"], ".py": ["python3"]}.get(ext, [])
+    env = dict(os.environ, BE_SRC=src, BE_BLD=bld)
+    p = subprocess.run([*interp, script_abs, bld], cwd=bld, env=env,
+                       stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    return p.returncode, p.stdout
+
+
+def build_cell_strict(tree_abs, sides, overlay, cfg_args, check_script=None):
     """Same-path strict-byte build: copy the tree ONCE, then build each side
     sequentially through the SAME source dir + SAME build dir (wiped between),
     stashing artifacts after each. Holding both paths constant removes the only
     source of fmt's build non-determinism (embedded __FILE__ / build paths), so
     a byte difference between sides is real — the control side (ref rebuilt) going
     byte-identical is what proves that.  `sides` = [(label, cmakelists_text), ...].
-    Returns (stashes: {label: dir}, error: str|None)."""
+    If check_script is given, it is run against each side's live build tree and
+    its (exit, stdout) recorded in `probes`.
+    Returns (stashes: {label: dir}, probes: {label: (exit, out)}, error)."""
     src = tempfile.mkdtemp(prefix="be_strict_src_")
     bld = tempfile.mkdtemp(prefix="be_strict_bld_")
     rc, out = run(["cp", "-rL", tree_abs + "/.", src])
     if rc != 0:
-        return {}, f"tree copy failed:\n{out}"
+        return {}, {}, f"tree copy failed:\n{out}"
     for junk in (".git", "build", "build2", "_out"):
         shutil.rmtree(os.path.join(src, junk), ignore_errors=True)
     for rel, abspath in overlay:
@@ -334,7 +363,7 @@ def build_cell_strict(tree_abs, sides, overlay, cfg_args):
         os.makedirs(os.path.dirname(dst), exist_ok=True)
         shutil.copy(abspath, dst)
 
-    stashes = {}
+    stashes, probes = {}, {}
     err = None
     for label, text in sides:
         shutil.rmtree(bld, ignore_errors=True)
@@ -347,38 +376,61 @@ def build_cell_strict(tree_abs, sides, overlay, cfg_args):
         rc, out = run(["cmake", "--build", bld])
         if rc != 0:
             err = (label, f"build failed:\n{out}"); break
+        if check_script:
+            probes[label] = run_check(check_script, src, bld)  # live tree
         stashes[label] = snapshot_artifacts(bld)
     shutil.rmtree(src, ignore_errors=True)
     shutil.rmtree(bld, ignore_errors=True)
-    return stashes, err
+    return stashes, probes, err
 
 
-def run_cell(name, tree_abs, ref_cmake, yelu_cmake, overlay, cfg_args, strict, run_spec):
+def compare_probes(probes):
+    """Compare the consume/check-script observable across sides. ref vs yelu must
+    match (the equivalence assertion); ctrl vs ref is a reproducibility note.
+    Returns a list of failure messages."""
+    if not probes or "ref" not in probes or "yelu" not in probes:
+        return []
+    def line(msg, tag, col): print(f"  {col}{tag}{RESET} {msg}")
+    fails = []
+    (re, ro), (ye, yo) = probes["ref"], probes["yelu"]
+    if (re, ro) == (ye, yo):
+        line(f"check-script: ref==yelu (exit={re}, {ro.strip()!r})", "ok", GRN)
+    else:
+        line(f"check-script differs: ref=(exit {re}, {ro!r}) yelu=(exit {ye}, {yo!r})", "FAIL", RED)
+        fails.append("check-script")
+    if "ctrl" in probes and probes["ctrl"] != probes["ref"]:
+        line("check-script: control differs from ref — the script itself is "
+             "non-deterministic here (not a yelu finding)", "info", DIM)
+    return fails
+
+
+def run_cell(name, tree_abs, ref_cmake, yelu_cmake, overlay, cfg_args, strict,
+             run_spec, check_script=None):
     """Build + compare one matrix cell. Returns True (pass) / False (fail) /
     None (skipped — the reference build itself failed, e.g. a missing external
     dep for this option, so there is no baseline to compare against)."""
     if strict:
-        stashes, err = build_cell_strict(
+        stashes, probes, err = build_cell_strict(
             tree_abs, [("ref", ref_cmake), ("yelu", yelu_cmake), ("ctrl", ref_cmake)],
-            overlay, cfg_args)
+            overlay, cfg_args, check_script=check_script)
         if err:
             side, msg = err
+            for d in stashes.values(): shutil.rmtree(d, ignore_errors=True)
             if side == "ref":
                 print(f"  {YEL}SKIP{RESET} reference build failed for this cell "
                       f"(no baseline — likely a missing dep): {msg.splitlines()[0]}")
-                for d in stashes.values(): shutil.rmtree(d, ignore_errors=True)
                 return None
             print(f"  {RED}FAIL{RESET} {side} build failed:\n{msg}")
-            for d in stashes.values(): shutil.rmtree(d, ignore_errors=True)
             return False
         fails, _ = compare(name, stashes["ref"], stashes["yelu"], stashes["ctrl"], run_spec)
+        fails += compare_probes(probes)
         for d in stashes.values(): shutil.rmtree(d, ignore_errors=True)
         return not fails
 
     # non-strict: independent paths (control measures the compiler noise floor)
-    ref_bld,  ref_ok,  ref_log  = stage_tree(tree_abs, ref_cmake,  overlay, cfg_args, "ref")
-    yelu_bld, yelu_ok, yelu_log = stage_tree(tree_abs, yelu_cmake, overlay, cfg_args, "yelu")
-    ctrl_bld, ctrl_ok, _        = stage_tree(tree_abs, ref_cmake,  overlay, cfg_args, "ctrl")
+    ref_src,  ref_bld,  ref_ok,  ref_log  = stage_tree(tree_abs, ref_cmake,  overlay, cfg_args, "ref")
+    yelu_src, yelu_bld, yelu_ok, yelu_log = stage_tree(tree_abs, yelu_cmake, overlay, cfg_args, "yelu")
+    ctrl_src, ctrl_bld, ctrl_ok, _        = stage_tree(tree_abs, ref_cmake,  overlay, cfg_args, "ctrl")
     try:
         if not ref_ok:
             print(f"  {YEL}SKIP{RESET} reference build failed (no baseline):\n{ref_log}")
@@ -388,9 +440,16 @@ def run_cell(name, tree_abs, ref_cmake, yelu_cmake, overlay, cfg_args, strict, r
             print(f"  {RED}FAIL{RESET} yelu build failed (yelu-emitted cmake):\n{yelu_log}")
             fails.append("yelu build")
         f, _ = compare(name, ref_bld, yelu_bld, ctrl_bld, run_spec)
-        return not (fails + f)
+        fails += f
+        if check_script and yelu_ok:
+            probes = {"ref": run_check(check_script, ref_src, ref_bld),
+                      "yelu": run_check(check_script, yelu_src, yelu_bld)}
+            if ctrl_ok:
+                probes["ctrl"] = run_check(check_script, ctrl_src, ctrl_bld)
+            fails += compare_probes(probes)
+        return not fails
     finally:
-        for d in (ref_bld, yelu_bld, ctrl_bld):
+        for d in (ref_src, ref_bld, yelu_src, yelu_bld, ctrl_src, ctrl_bld):
             shutil.rmtree(d, ignore_errors=True)
 
 
@@ -405,10 +464,14 @@ def check_external_tree(name, fdir, cfg):
         return None
     yc = os.path.join(ROOT, cfg["yc"])
     base_args = cfg.get("base_configure_args", cfg.get("configure_args", []))
+    # Fixture-dir files are laid over the tree copy — EXCEPT metadata and the
+    # per-cell consume/check scripts (those are run against the build, not
+    # spliced into the source).
+    non_overlay = {"fixture.json", "README.md"}
+    non_overlay |= {c["check_script"] for c in cfg.get("cells", []) if c.get("check_script")}
     overlay = [(os.path.relpath(os.path.join(dp, fn), fdir), os.path.join(dp, fn))
                for dp, _, files in os.walk(fdir) for fn in files
-               if os.path.relpath(os.path.join(dp, fn), fdir) not in
-                  ("fixture.json", "README.md")]
+               if os.path.relpath(os.path.join(dp, fn), fdir) not in non_overlay]
 
     try:
         # Reference cmake: pristine from git HEAD by default — the working tree
@@ -439,10 +502,14 @@ def check_external_tree(name, fdir, cfg):
         args = base_args + cell.get("configure_args", [])
         strict = cell.get("strict_bytes", True)
         run_spec = cell.get("run", {})
+        check_script = cell.get("check_script")
+        check_abs = os.path.join(fdir, check_script) if check_script else None
         tag = "byte-identical" if strict else "symbol/runtime"
+        if check_script:
+            tag += f" +consume:{check_script}"
         print(f"  {DIM}· cell {cname} [{tag}]{RESET}")
         r = run_cell(f"{name}/{cname}", tree_abs, ref_cmake, yelu_cmake,
-                     overlay, args, strict, run_spec)
+                     overlay, args, strict, run_spec, check_script=check_abs)
         if   r is True:  npass += 1
         elif r is False: nfail += 1
         else:            nskip += 1
