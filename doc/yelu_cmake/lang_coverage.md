@@ -114,7 +114,7 @@ gaps.
 | `get_property(<v> GLOBAL PROPERTY p)` | compile_options | `ECmakeGetGlobalProperty` had no emit arm | ✅ fixed `1c1293a` |
 | `set_property(DIRECTORY …)` | compile_definitions | `ECmakeSetDirectoryProperty` had no emit arm | ✅ fixed `1c1293a` |
 | `EXCLUDE_FROM_ALL` on `add_library` / `add_executable` | target_link_options, add_link_options, link_directories, target_link_directories | flag dropped end-to-end (utils `?exclude_from_all:_` → IR had no field → emit hardcoded `false`) | ✅ fixed `1ffc95c` |
-| Compile-definition value with embedded quotes (`-DNAME=\"…\"`) | compile_definitions | `arg` quoting mis-escapes `\` / `"` → `stray '\'` at compile | ⬜ open |
+| Compile-definition value with embedded quotes (`-DNAME="…"`) | compile_definitions | *not a yc gap* — `escape_quoted` (`\`→`\\`, `"`→`\"`) is correct; the **test** input was over-escaped (`\"` source form vs the semantic `"`). Fixed the fixture. | ✅ fixed `<pending>` |
 | Generator expr inside a compile option (`-D$<…>`) | compile_options | genex-in-option not resolved → `macro names must be identifiers`, def never reaches compiler | ⬜ open |
 | Link-line multi-lib ordering | link_line | yc links a library the program never builds (`mold: cannot open One`) — needs investigation | ⬜ open |
 | `exclude_from_all` through the normal form (ycn) | — | `EExecutable`/`ELibrary` don't carry it; `to_normal` drops it, `from_normal` reconstructs `false` | ⬜ open (ycn) |

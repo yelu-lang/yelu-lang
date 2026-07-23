@@ -2089,8 +2089,11 @@ let compile_defs_yelu =
         yc_set (ycvar "CMAKE_C_FLAGS_${c}") [ystr_eval "${CMAKE_C_FLAGS_${c}} -DTEST_CONFIG_${c}"];
         yc_set (ycvar "CMAKE_CXX_FLAGS_${c}") [ystr_eval "${CMAKE_CXX_FLAGS_${c}} -DTEST_CONFIG_${c}"];
       ]);
+    (* Semantic value — literal quote chars, NOT source-level `\"` escaping.
+       yelu's emit escapes them back to `\"` in the quoted cmake arg, matching
+       the reference's `"BUILD_CONFIG_NAME=\"$<CONFIGURATION>\""`. *)
     yc_set_directory_property ~append:true "COMPILE_DEFINITIONS"
-      [ystr_eval {|BUILD_CONFIG_NAME=\"$<CONFIGURATION>\"|}];
+      [ystr_eval {|BUILD_CONFIG_NAME="$<CONFIGURATION>"|}];
     yc_add_subdirectory (ystr "add_def_cmd");
     yc_add_subdirectory (ystr "target_prop");
     yc_add_subdirectory (ystr "add_def_cmd_tprop");
