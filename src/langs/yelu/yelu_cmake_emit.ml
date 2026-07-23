@@ -105,6 +105,11 @@ let rec arg ?(env = empty_subst) (e : expr) : C.arg =
   | ETarget name -> C.Bare name
   | _ -> fail "emit_ast: cannot erase expression to cmake arg"
 
+(* Name the (extensible-variant) constructor of an expr, for actionable emit
+   errors — e.g. which ECmake* the erase/coverage gap is on. *)
+let ctor_name (e : expr) =
+  try Stdlib.Obj.Extension_constructor.(name (of_val e)) with _ -> "<unknown>"
+
 (* Target / cvar / file-name positions: cmake convention is unquoted
    identifier. Resolve via subst; unresolved EVar renders as ${name}. *)
 let rec target_arg ?(env = empty_subst) (e : expr) : string =
@@ -117,7 +122,10 @@ let rec target_arg ?(env = empty_subst) (e : expr) : string =
   | EVarLookup inner -> "${" ^ lookup_text ~env inner ^ "}"
   | EString s -> s
   | ETarget name -> name
-  | _ -> fail "emit_ast: cannot erase expression to target name"
+  (* A generator expression in a name position (e.g. $<TARGET_OBJECTS:o> as a
+     target_sources source, or a genex target name) erases to its raw text. *)
+  | ECmakeGenex s -> s
+  | _ -> fail "emit_ast: cannot erase expression to target name (%s)" (ctor_name e)
 
 (* Tokens for cond-position rendering. cmake [cond = string list] composes
    into the parenthesized argument list of [if(...)]. Token rendering
@@ -149,7 +157,8 @@ let rec cond_text ?(env = empty_subst) (e : expr) : string =
   | EBool true -> "ON"
   | EBool false -> "OFF"
   | ETarget name -> name
-  | _ -> fail "emit_ast: cannot erase expression for cond position"
+  | ECmakeGenex s -> s  (* genex erases to its raw $<...> text *)
+  | _ -> fail "emit_ast: cannot erase expression for cond position (%s)" (ctor_name e)
 
 let cond_token ?(env = empty_subst) e : string =
   quote_cond_text (cond_text ~env e)
@@ -688,6 +697,14 @@ let rec emit_exp ~env (e : expr) : C.exp =
     C.Get_property { var; scope; property_name = property; mode }
   | Yelu_cmake_property.ECmakeGetDirectoryProperty { var; property } ->
     C.Get_directory_property { var; directory = ""; property }
+  | Yelu_cmake_property.ECmakeGetGlobalProperty { var; property } ->
+    (* get_property(<var> GLOBAL PROPERTY <property>) *)
+    C.Get_property { var; scope = C.Gps_global;
+                     property_name = property; mode = C.Gpm_value }
+  | Yelu_cmake_property.ECmakeSetDirectoryProperty { property; append; values } ->
+    (* set_property(DIRECTORY PROPERTY <property> <values> [APPEND]) *)
+    C.Set_property { scope = C.Sps_directory None; append; append_string = false;
+                     property; values = List.map values ~f:(arg ~env) }
   | Yelu_cmake_property.ECmakeSetSourceProperty { file; property; values } ->
     C.Set_source_property
       { file = target_arg ~env file; property;
@@ -1369,7 +1386,7 @@ let rec emit_exp ~env (e : expr) : C.exp =
        but emit hasn't been taught about it yet, this catch-all fires.
        The Phase 1 byte-equality oracle retired — add an emit clause above
        for the uncovered constructor, then remove this comment. *)
-    failwith "emit_ast: uncovered expr constructor"
+    failwith (Printf.sprintf "emit_ast: uncovered expr constructor: %s" (ctor_name e))
 
 (* Public API. *)
 
