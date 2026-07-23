@@ -61,6 +61,13 @@ build-check:
 	$(DUNE) dune build src/bin/cmake/v1/ src/bin/yelu/
 	$(DUNE) python3 test/test-build/run_build_check.py
 
+# Build-equivalence checker: build from ref cmake vs yelu-emitted cmake and
+# compare artifacts, exported symbols, and runtime behavior (compiler
+# non-determinism handled via a control build). Needs cmake + C compiler + nm.
+build-equiv:
+	$(DUNE) dune build src/bin/yelu/
+	python3 test/test-build/build_equiv.py
+
 runcmake-compat:
 	$(DUNE) dune build @test/test-runcmake/runcmake-compat
 

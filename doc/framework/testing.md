@@ -20,11 +20,7 @@ Each level subsumes all levels below it (a `build` test also passes `configure`,
 | `build`       | `cmake -S -B` + `cmake --build` | Running the compiled build system (make/ninja) produces identical artifact names; sizes reported                    | `test_cmake_commands.ml` (cmake-commands alias)               |
 | `file-api`    | configure + File API query      | Full binding environment (target → flags, includes, deps) identical between ref and yelu                            | `test-file-api/` (file-api-test alias)                        |
 
-Future (not yet implemented):
-
-| Level    | PL term   | Mechanism          | What it asserts                                            |
-| -------- | --------- | ------------------ | ---------------------------------------------------------- |
-| `symbol` | `run-sym` | `nm -D` inspection | Exported symbol sets identical between ref and yelu builds |
+| `build-equiv` | build ref + yelu + control | Artifacts, **exported symbols** (`nm -D`), and **runtime behavior** all match between reference-cmake and yelu-emitted-cmake builds, tolerating compiler non-determinism | `test-build/build_equiv.py` (`make build-equiv`) |
 
 ---
 
@@ -288,6 +284,42 @@ codemodel-v2 JSON between the cmake-generated reference and yelu-generated outpu
 
 ---
 
+## Level 7 — `build-equiv`: build/symbol/runtime equivalence (added 2026-07-22)
+
+**Runner:** `python3 test/test-build/build_equiv.py [fixture ...]` (`make build-equiv`)
+
+The level above the matrix oracle: the matrix proves the emitted cmake
+*configures* the same; this proves it *builds* and *runs* the same. It is what
+would have caught (and now regression-guards) the `SHARED`/`MODULE` library-type
+emit bug — configure-clean, build-broken.
+
+For each fixture under `test/fixtures/build_equiv/<name>/` (a `CMakeLists.txt`
+reference, a `main.yc`, shared C/C++ sources, and an optional `check.json` giving
+per-executable argv), it builds three trees — **ref** (the reference cmake),
+**yelu** (`yelu compile main.yc`), and **control** (the reference built again in
+a different path) — then compares ref vs yelu at four layers:
+
+1. **artifact set** — the relative paths of build outputs must match (strict).
+2. **symbol set** — `nm -D --defined-only` per artifact, compared as a set (strict).
+3. **runtime** — run each executable, diff exit code + stdout (strict).
+4. **bytes** — sha256 / size, **control-gated**: a byte difference is only a
+   failure when the *control* build was byte-identical (the compiler was
+   reproducible here) yet yelu still differs — otherwise it's compiler noise
+   (embedded paths / timestamps / hash-ordering) and reported as info, not a
+   failure.
+
+The control build is the key to the non-determinism problem: it measures the
+compiler's own noise floor so "yelu differs from cmake" is distinguished from
+"cmake differs from itself." Symbol-set and runtime comparisons are inherently
+deterministic, so they stay strict regardless.
+
+> The older `run_build_check.py` (File-API artifact-existence + magic-byte
+> check) predates the tola→standalone extraction and still has monorepo paths
+> (`_build/default/yelu/src/bin`); `build_equiv.py` supersedes it for the
+> ref-vs-yelu build comparison.
+
+---
+
 ## Level 6 — `matrix-probe`: predictor vs real cmake cache (added 2026-06-03)
 
 A different shape from levels 1–5: instead of comparing emitted text
@@ -364,4 +396,3 @@ cmake 3.28 ignores it; `CLICOLOR_FORCE` is the actual switch cmake respects.
 | `include` ParentVariable*               | Multi-file fixture infra                     |
 | `foreach-all-test` pair                 | PP always emits LISTS-first; needs extension |
 | `cmake_path/GET` stem edge case         | Differs cmake 3.28 vs 4.3                    |
-| `symbol` level                          | `nm` infra not yet wired into test suite     |

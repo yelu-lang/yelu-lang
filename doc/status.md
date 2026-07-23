@@ -71,6 +71,16 @@ Adoption framing (per-rewrite verification chain, not all-or-nothing) is in
 real-world z3/llvm/torch rewrites → optimize-and-prove-equivalent → decide macro
 elimination (Y15 data).
 
+*Down-payment shipped (2026-07-22):* the **build/symbol/runtime** half — a
+`build-equiv` checker (`test/test-build/build_equiv.py`, `make build-equiv`)
+builds from reference vs yelu-emitted cmake and compares artifacts, `nm -D`
+exported symbols, and runtime stdout/exit, with a control build for the
+compiler noise floor. (It already caught the SHARED/MODULE library-type emit
+bug.) The remaining oracle work above is the *configure-time* File API diff.
+Next fixtures: promote the tutorial steps + the fmt probe into
+`test/fixtures/build_equiv/` (currently one `hello` smoke). Older
+`run_build_check.py` has stale monorepo paths — supersede or fix.
+
 ### 3. IR / harness cleanups
 
 Post-retirement cleanup, in value order (detail was in the old yelu_cmake

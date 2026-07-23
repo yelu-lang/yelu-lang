@@ -1,0 +1,5 @@
+cmake_minimum_required '3.10';
+project hello 'C';
+add_lib greet 'greet.c' ~type=Shared;
+add_exe hello 'main.c';
+link_lib hello Private greet
