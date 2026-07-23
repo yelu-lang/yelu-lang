@@ -1,0 +1,4 @@
+cmake_minimum_required '3.10';
+project cd 'C';
+add_exe app 'main.c' 'ver.c';
+compile_defs app Private 'VERSION=42'

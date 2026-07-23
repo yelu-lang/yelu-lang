@@ -66,7 +66,7 @@ build-check:
 # non-determinism handled via a control build). Needs cmake + C compiler + nm.
 build-equiv:
 	$(DUNE) dune build src/bin/yelu/
-	python3 test/test-build/build_equiv.py
+	$(DUNE) python3 test/test-build/build_equiv.py
 
 runcmake-compat:
 	$(DUNE) dune build @test/test-runcmake/runcmake-compat
@@ -80,7 +80,7 @@ cmake-commands:
 file-api-test:
 	$(DUNE) dune build @test/test-file-api/file-api-test
 
-coverage: test cmake-check yelu-check-v2 cmake-only-check runcmake-compat runcmake-yelu cmake-commands file-api-test
+coverage: test cmake-check yelu-check-v2 cmake-only-check runcmake-compat runcmake-yelu cmake-commands file-api-test build-equiv
 	@echo "=== Coverage sweep complete ==="
 
 test-all: test cmake-check file-api-test build-check

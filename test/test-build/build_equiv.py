@@ -215,10 +215,16 @@ def check_fixture(fdir):
     cj = os.path.join(fdir, "check.json")
     if os.path.exists(cj):
         run_spec = json.load(open(cj)).get("run", {})
-    # shared sources = everything but the two cmake sources + check.json
+    # shared sources = every file (recursively, preserving relative paths) except
+    # the two cmake sources + check.json — so fixtures may use include/, src/, …
     skip = {"CMakeLists.txt", "main.yc", "check.json"}
-    sources = [(fn, os.path.join(fdir, fn)) for fn in os.listdir(fdir)
-               if fn not in skip and os.path.isfile(os.path.join(fdir, fn))]
+    sources = []
+    for dp, _, files in os.walk(fdir):
+        for fn in files:
+            rel = os.path.relpath(os.path.join(dp, fn), fdir)
+            if rel in skip:
+                continue
+            sources.append((rel, os.path.join(dp, fn)))
 
     try:
         yelu_cmake = yelu_compile(yc)

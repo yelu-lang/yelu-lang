@@ -313,6 +313,18 @@ compiler's own noise floor so "yelu differs from cmake" is distinguished from
 "cmake differs from itself." Symbol-set and runtime comparisons are inherently
 deterministic, so they stay strict regardless.
 
+Current fixtures (all pass; part of `make coverage`):
+
+| Fixture | Exercises |
+| --- | --- |
+| `hello` | SHARED lib + exe (regression for the `~type=Shared` fix) |
+| `static_lib` | STATIC lib + a header under `include/` (PUBLIC-propagated) + exe |
+| `multi_target` | one SHARED lib + two executables (3-artifact set, two runtime checks) |
+| `compile_defs` | **behavioral**: `target_compile_definitions … VERSION=42` changes the program's output, so a dropped/mangled `-D` is caught by the runtime diff, not just the emitted text |
+
+Source trees may nest (`include/`, `src/`); the runner collects fixture files
+recursively, preserving relative paths.
+
 > The older `run_build_check.py` (File-API artifact-existence + magic-byte
 > check) predates the tola→standalone extraction and still has monorepo paths
 > (`_build/default/yelu/src/bin`); `build_equiv.py` supersedes it for the

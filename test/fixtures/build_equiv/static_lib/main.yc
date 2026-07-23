@@ -1,0 +1,6 @@
+cmake_minimum_required '3.10';
+project st 'C';
+add_lib util 'util.c' ~type=Static;
+include_dirs util Public 'include';
+add_exe app 'main.c';
+link_lib app Private util

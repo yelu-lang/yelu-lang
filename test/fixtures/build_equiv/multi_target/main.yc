@@ -1,0 +1,7 @@
+cmake_minimum_required '3.10';
+project mt 'C';
+add_lib sq 'lib.c' ~type=Shared;
+add_exe a 'a.c';
+add_exe b 'b.c';
+link_lib a Private sq;
+link_lib b Private sq
