@@ -17,6 +17,7 @@ type expr +=
   | ECmakeAddCompileDefinitions of expr list
   | ECmakeAddCompileOptions of expr list
   | ECmakeAddLinkOptions of expr list
+  | ECmakeLinkLibraries of expr list  (* directory-level link_libraries() — legacy *)
   | ECmakeAddDefinitions of expr list
   | ECmakeLinkDirectories of { dirs : expr list; before : bool }
 
@@ -26,6 +27,7 @@ let eval_case ~eval env = function
     Some (add_subdirectory env path, VUnit)
   | ECmakeIncludeDirectories _ | ECmakeAddCompileDefinitions _
   | ECmakeAddCompileOptions _ | ECmakeAddLinkOptions _
+  | ECmakeLinkLibraries _
   | ECmakeAddDefinitions _ | ECmakeLinkDirectories _ ->
     Some (env, VUnit)
   | _ -> None

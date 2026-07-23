@@ -527,6 +527,12 @@ let rec emit_exp ~env (e : expr) : C.exp =
   | ECmakeAddLinkOptions opts ->
     C.Project_cmd
       (C.Add_link_options { options = List.map opts ~f:(target_arg ~env) })
+  | ECmakeLinkLibraries items ->
+    (* directory-level link_libraries(a b c) — each item a plain (general) group *)
+    C.Project_cmd
+      (C.Link_libraries
+         { groups = List.map items ~f:(fun e ->
+             { C.item = target_arg ~env e; items = []; kind = C.Ll_general }) })
   | ECmakeAddCompileDefinitions defs ->
     C.Project_cmd
       (C.Add_compile_definitions

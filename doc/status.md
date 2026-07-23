@@ -170,12 +170,13 @@ Pick up as cmake-corpus expansion demands. Full picture in
   doesn't cover all its argument syntax. Tracked in the registry in
   [`lang_coverage.md`](yelu_cmake/lang_coverage.md) § Emit / semantic coverage
   gaps; the live detector is `make cmake-commands` (not in `dune test` — needs
-  cmake). The 2026-07 dig fixed 4 emit classes (genex-in-name, `get_property GLOBAL`,
-  `set_property DIRECTORY`, `EXCLUDE_FROM_ALL`) + 1 test-authoring bug
-  (compile-definition value over-escaped in the fixture) + 1 more emit bug (`arg`
-  under-quoted bare args with `"`/`#`, e.g. `-DX="#"` — cmake dropped the
-  quotes). **1 open**: `link_line` lib-not-built (needs discussion). Plus 1 ycn
-  gap: `exclude_from_all` doesn't survive the normal-form round-trip.
+  cmake). The 2026-07 dig closed the whole class — **cmake-commands 12 → 0
+  failing, 26/26**: 6 emit gaps (genex-in-name, `get_property GLOBAL`,
+  `set_property DIRECTORY`, `EXCLUDE_FROM_ALL`, `arg` under-quoting `"`/`#`,
+  directory-level `link_libraries` mis-mapped to `add_link_options`) + 2
+  test-authoring over-escaping fixtures. **Remaining: 1 ycn gap** —
+  `exclude_from_all` doesn't survive the normal-form round-trip (yc→ycn drops
+  it; production emit is yc→emit and unaffected).
 
 ### 7. Surface polish (Parked — small, independent, any order)
 

@@ -531,9 +531,9 @@ let dir_statement : Old.yelu_dir_stmt -> Yelu_cmake.expr = function
   | Ydir_link_directories { dirs; before } ->
     ECmakeLinkDirectories { dirs = List.map dirs ~f:expr; before }
   | Ydir_link_libraries { items } ->
-    (* Directory-level link_libraries — rare; render as a stub directive
-       at this slice. *)
-    ECmakeAddLinkOptions (List.map items ~f:expr)
+    (* Directory-level link_libraries — modelled faithfully (emits
+       `link_libraries(...)`, not `add_link_options(...)`). *)
+    ECmakeLinkLibraries (List.map items ~f:expr)
 
 let test_statement : Old.yelu_test_stmt -> Yelu_cmake.expr = function
   | Ytest_enable_testing -> ECmakeEnableTesting

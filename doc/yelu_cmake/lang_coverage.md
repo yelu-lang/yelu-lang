@@ -35,7 +35,7 @@ Runtime: cmake 4.3.1 (`/usr/bin/cmake`, Kitware apt).
 | **Command breadth**       | commands with any test                     | 138 / 138 ✓        | —         | **enforced** by the command-coverage lock (2026-07-20); every `command_names` entry has a parse+emit case. Live table: [`yc_command_reference.md`](surface/yc_command_reference.md) (generated). |
 | **Benchmark suites**      | `Tests/CMakeOnly/`                         | 12 / 12 ✓          | 12        | all tractable dirs done                                                                   |
 | **Benchmark suites**      | `Tests/CMakeCommands/` (written)           | 11 / 12            | 12        | `target_link_libraries` deferred                                                          |
-| **Benchmark suites**      | `Tests/CMakeCommands/` (build-verified)    | 23 / 26            | 26        | `make cmake-commands`; 3 open emit gaps in the registry below (2026-07: was 12 failing)   |
+| **Benchmark suites**      | `Tests/CMakeCommands/` (build-verified)    | 26 / 26 ✓          | 26        | `make cmake-commands`; the 2026-07 dig fixed all 12 that were failing (emit gaps + fixture over-escaping) |
 | **Benchmark suites**      | `Tests/RunCMake/` compat                   | 64 / ~67           | ~67       | cmake 4.3 unblocked 3 tests                                                               |
 | **Benchmark suites**      | `Tests/RunCMake/` pairs                    | 50 / ~65           | ~65       | all tractable dirs done; `get_filename_component` pair todo                               |
 | **Benchmark suites**      | `Tests/` Group 2/3/5 build                 | 15 / ~26 tractable | ~26       | next: ObjectLibrary/Transitive (re-verify 4.3), StringFileTest (Sc_regex_quote)           |
@@ -116,7 +116,7 @@ gaps.
 | `EXCLUDE_FROM_ALL` on `add_library` / `add_executable` | target_link_options, add_link_options, link_directories, target_link_directories | flag dropped end-to-end (utils `?exclude_from_all:_` → IR had no field → emit hardcoded `false`) | ✅ fixed `1ffc95c` |
 | Compile-definition value with embedded quotes (`-DNAME="…"`) | compile_definitions | *not a yc gap* — `escape_quoted` (`\`→`\\`, `"`→`\"`) is correct; the **test** input was over-escaped (`\"` source form vs the semantic `"`). Fixed the fixture. | ✅ fixed `<pending>` |
 | Bare arg with a literal `"` or `#` (e.g. `-DX="#"`) mis-tokenizes | compile_options | **real emit bug**: `arg` quoting predicate didn't trigger on `"`/`#`, so cmake dropped the quotes / started a comment. Fixed. (The rest of compile_options was test over-escaping, like compile_definitions.) | ✅ fixed `<pending>` |
-| Link-line multi-lib ordering | link_line | yc links a library the program never builds (`mold: cannot open One`) — needs investigation | ⬜ open |
+| Directory-level `link_libraries(a b)` (legacy/deprecated) | link_line | **real emit bug**: `yc_link_libraries` was stubbed to `ECmakeAddLinkOptions` → emitted `add_link_options(a b)` (raw linker flags, not resolved targets → `mold: cannot open One`). Modelled faithfully: new `ECmakeLinkLibraries` ctor → `C.Link_libraries`. | ✅ fixed `<pending>` |
 | `exclude_from_all` through the normal form (ycn) | — | `EExecutable`/`ELibrary` don't carry it; `to_normal` drops it, `from_normal` reconstructs `false` | ⬜ open (ycn) |
 
 ### Trackable — no language blocker
@@ -197,7 +197,7 @@ Testing levels — see [`comparison.md`](../cmake/comparison.md) for full defini
 | ---------------------- | ----------------------------------- | ---------------------------------------------- |
 | `Tests/CMakeOnly/`     | Full CMakeLists.txt, NONE compiler  | ✓ 12/12 done (`file-api`); `MajorVersionSelection` uses concrete instantiation (no gersemi string check); `CheckSymbolExists`/`CheckCXXCompilerFlag` not tractable (need C compiler) |
 | `Tests/RunCMake/`      | Per-command `.cmake` snippets, NONE | ✓ 64 compat + 50 pairs done                    |
-| `Tests/CMakeCommands/` | 12 subdirs, one command each, ~50 L | ✓ 11/12 *written*; `target_link_libraries` deferred. Build-verified 23/26 (`make cmake-commands`) — 3 open argument-level emit gaps, see § Emit / semantic coverage gaps |
+| `Tests/CMakeCommands/` | 12 subdirs, one command each, ~50 L | ✓ 11/12 *written*; `target_link_libraries` deferred. Build-verified 26/26 ✓ (`make cmake-commands`) — the argument-level emit gaps are closed, see § Emit / semantic coverage gaps |
 
 #### Group 2 — New tractable, all done (small, focused, C/CXX)
 

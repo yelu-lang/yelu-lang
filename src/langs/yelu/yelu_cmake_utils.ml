@@ -534,9 +534,9 @@ let yc_add_definitions defs = ECmakeAddDefinitions defs
 let yc_link_directories ?(before = false) dirs =
   ECmakeLinkDirectories { dirs; before }
 
-(* Directory-level [link_libraries(...)] — rare; the bridge renders it as
-   [ECmakeAddLinkOptions] (a stub directive at this slice). *)
-let yc_link_libraries items = ECmakeAddLinkOptions items
+(* Directory-level [link_libraries(...)] — legacy/deprecated cmake, but modelled
+   faithfully: emits `link_libraries(...)`, NOT `add_link_options(...)`. *)
+let yc_link_libraries items = ECmakeLinkLibraries items
 
 (* ============================================================
    Test family

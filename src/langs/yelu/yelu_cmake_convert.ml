@@ -875,6 +875,8 @@ let rec to_normal = function
     ECmakeAddCompileOptions (List.map opts ~f:to_normal)
   | ECmakeAddLinkOptions opts ->
     ECmakeAddLinkOptions (List.map opts ~f:to_normal)
+  | ECmakeLinkLibraries items ->
+    ECmakeLinkLibraries (List.map items ~f:to_normal)
   | ECmakeAddDefinitions defs ->
     ECmakeAddDefinitions (List.map defs ~f:to_normal)
   | ECmakeLinkDirectories { dirs; before } ->
@@ -1729,6 +1731,8 @@ let rec from_normal = function
     ECmakeAddCompileOptions (List.map opts ~f:from_normal)
   | ECmakeAddLinkOptions opts ->
     ECmakeAddLinkOptions (List.map opts ~f:from_normal)
+  | ECmakeLinkLibraries items ->
+    ECmakeLinkLibraries (List.map items ~f:from_normal)
   | ECmakeAddDefinitions defs ->
     ECmakeAddDefinitions (List.map defs ~f:from_normal)
   | ECmakeLinkDirectories { dirs; before } ->
