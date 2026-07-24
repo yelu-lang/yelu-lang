@@ -22,6 +22,25 @@ Take **one** real cmake project and reproduce what fmt did:
 Your deliverable is a *passing probe for one project*, plus an honest list of
 what didn't fit. You are **not** improving the yelu_cmake compiler.
 
+## Project layout & path conventions
+
+Every probe follows the same layout (fmt is the reference instance). A new
+project copies this exactly, swapping `<project>` and its options:
+
+| Thing | Convention | fmt instance |
+| --- | --- | --- |
+| **Source tree** | `vendor/<project>` — a **symlink** to the external checkout at `~/code/contrib/<project>-all/<upstream-dir>`. Read-only, not checked in, may be dirty (see boundaries). | `vendor/fmt → ~/code/contrib/fmt-all/fmt` |
+| **Build / matrix output** | `_out/<project>/` — configure/build/worktree scratch. | `_out/fmt/` |
+| **Driver config** | `probes/<project>/main.json` = `{ "project", "source_dir": "vendor/<project>", "out_root": "_out/<project>", "options": [ …flippable option names… ] }` | [`fmt/main.json`](fmt/main.json) |
+| **`.yc` corpus** | `probes/<project>/<path>.yc` mirroring the upstream layout (`CMakeLists.txt` → `main.yc`; subdir `CMakeLists.txt` → `<subdir>/CMakeLists.yc`; `Foo.cmake` → `foo.yc`, snake_case). | `main.yc`, `test/CMakeLists.yc`, `support/cmake/join_paths.yc` |
+| **Corpus-compile gate** | `probes/<project>/dune` — copy fmt's verbatim (globs `*.yc`, runs `yelu compile-corpus .` under `dune test`). Wires the corpus into `dune test` automatically. | [`fmt/dune`](fmt/dune) |
+| **README / plan** | `probes/<project>/README.md` (status landing page) + `migration_status.md` (plan → running log). | [`fmt/README.md`](fmt/README.md) |
+
+**Setup step (part of the plan, not silent):** if `vendor/<project>` doesn't
+exist, the checkout + symlink is a *setup action to propose to the human* — clone
+to `~/code/contrib/<project>-all/<dir>` and `ln -s` it to `vendor/<project>`.
+Pin a commit. Don't invent a path; confirm the location.
+
 ## Hard boundaries (do not cross)
 
 These are the guardrails that make autonomous work safe:
