@@ -85,6 +85,7 @@ new value or type model belongs to `yelu_cmake_normal/`.
 
 | Document | Purpose |
 | --- | --- |
+| [`yelu_cmake_normal/coverage.md`](yelu_cmake_normal/coverage.md) | **ycn coverage status** — measured snapshot (16 theories / 74 ctors / 65-test roundtrip lock) + what's not covered + the ycn gap registry. |
 | [`yelu_cmake_normal/ycn_concrete_syntax.md`](yelu_cmake_normal/ycn_concrete_syntax.md) | Proposed `.ycn` syntax; the next major implementation milestone. |
 | [`yelu_cmake_normal/design/language.md`](yelu_cmake_normal/design/language.md) | Broader core/pack, staging, and type-design directions. |
 | [`yelu_cmake_normal/design/object_value.md`](yelu_cmake_normal/design/object_value.md) | Y18 first-class CMake entity value. |

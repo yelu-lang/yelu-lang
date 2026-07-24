@@ -32,6 +32,10 @@ Tier (b) parser retirement, the doc reorg (layer+facet, then the yc/ycn split).
 
 ### 1. ycn + typing — the forward agenda
 
+> Baseline before starting: [`yelu_cmake_normal/coverage.md`](yelu_cmake_normal/coverage.md)
+> — ycn coverage status (16 theories / 74 ctors / 65-test roundtrip lock, gated
+> in `dune test`; what's not covered; the ycn gap registry).
+
 - **ycn concrete syntax** — see § Now. The gateway.
 - **Y17 — a typing pass over the post-retirement IR.** Placement settled:
   typing is **ycn's** job ([`yc_ycn_boundary.md`](yelu_cmake_normal/typing/yc_ycn_boundary.md)).
