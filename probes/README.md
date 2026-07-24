@@ -3,6 +3,11 @@
 This directory groups the docs around **using real cmake projects to
 test and gain-adapt the yelu_cmake predictor**.
 
+> **Probing a new project as a handoff-mode agent?** Read
+> [`PROBE_CHARTER.md`](PROBE_CHARTER.md) first — mission, boundaries (don't touch
+> yelu_cmake infra), the pause protocol, and the learn → plan → discuss → execute
+> workflow. This README is the *mechanics*; the charter is *how to behave*.
+
 ## What's a "probe"?
 
 A probe is a real cmake project (fmt, z3, llvm, …) pointed at the

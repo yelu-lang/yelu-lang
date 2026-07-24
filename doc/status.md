@@ -22,7 +22,9 @@
 - **Then (unordered):** a 2nd probe project (spdlog for a real
   `find_package(fmt)` consumer, or nlohmann/json for the fastest clean win —
   *not* gated on anything; fmt already covers 13/15 coverage-map rows), and the
-  behavior-level oracle (§ Backlog 2).
+  behavior-level oracle (§ Backlog 2). A probe is a good **handoff-mode** task —
+  charter (mission, boundaries, pause protocol, learn→plan→discuss→execute) in
+  [`probes/PROBE_CHARTER.md`](../probes/PROBE_CHARTER.md).
 
 **Recently landed** (rolling; full history in the worklog): coverage/dispatch
 locks + 5 fixed bugs, the wrong-shaped `~properties=` fix + orphan deletion, the
