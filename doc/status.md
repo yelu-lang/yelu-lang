@@ -174,9 +174,12 @@ Pick up as cmake-corpus expansion demands. Full picture in
   failing, 26/26**: 6 emit gaps (genex-in-name, `get_property GLOBAL`,
   `set_property DIRECTORY`, `EXCLUDE_FROM_ALL`, `arg` under-quoting `"`/`#`,
   directory-level `link_libraries` mis-mapped to `add_link_options`) + 2
-  test-authoring over-escaping fixtures. **Remaining: 1 ycn gap** —
+  test-authoring over-escaping fixtures. **Remaining: 1 ycn gap (deferred)** —
   `exclude_from_all` doesn't survive the normal-form round-trip (yc→ycn drops
-  it; production emit is yc→emit and unaffected).
+  it; production emit is yc→emit and unaffected). Fix mirrors the yc change on
+  `EExecutable`/`ELibrary` (~30 sites in `convert.ml`/`normal_target.ml` + 2 test
+  ctors); **do with the ycn agenda, not before** — approach spelled out in
+  [`lang_coverage.md`](yelu_cmake/lang_coverage.md) § Emit / semantic coverage gaps.
 
 ### 7. Surface polish (Parked — small, independent, any order)
 
