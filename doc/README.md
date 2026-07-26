@@ -58,6 +58,7 @@ new value or type model belongs to `yelu_cmake_normal/`.
 | Document | Purpose |
 | --- | --- |
 | [`cmake/painpoints.md`](cmake/painpoints.md) | CMake failure modes that motivate yelu's design. |
+| [`cmake/install.md`](cmake/install.md) | `install()`/prefix path model + **project principle**: always sandbox installs to a per-test-target `_out/<pj>/<tag>/install`, never system-wide. |
 | [`cmake/comparison.md`](cmake/comparison.md) | PL model and equivalence levels. |
 | [`cmake/cache_semantics.md`](cmake/cache_semantics.md) | Cache and normal-variable namespaces. |
 | [`cmake/cache_var_namespacing.md`](cmake/cache_var_namespacing.md) | Reserved/project cache classification used by the oracle. |

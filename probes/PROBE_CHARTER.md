@@ -63,6 +63,13 @@ These are the guardrails that make autonomous work safe:
   overwrite an upstream `CMakeLists.txt` (documented gotcha — it silently made a
   baseline yelu-vs-yelu). Work on copies / worktrees; check
   `git -C <vendor> status` if a baseline looks suspiciously agreeable.
+- **Never install system-wide.** Install-heavy projects (json and most anchor
+  candidates ship `install()`/`export()`) must, if you verify install at all,
+  target a throwaway per-cell prefix `_out/<project>/<tag>/install` — never a
+  bare `cmake --install` (which defaults to `/usr/local`, and cmake has no
+  uninstall). Configure-time matrix cells don't install; this bites only if you
+  add an install channel. Full rationale + principle:
+  [`../doc/cmake/install.md`](../doc/cmake/install.md).
 - **Do not push.** Commit to a branch; the human pushes.
 
 ## Pause protocol — stop and ask a human when

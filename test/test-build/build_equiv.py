@@ -8,6 +8,12 @@ emitted cmake *configures* the same; this proves it *builds* and *runs* the same
 It is what caught the SHARED/MODULE library-type emit bug (configure-clean,
 build-broken).
 
+It compares build artifacts **in place** and does NOT run `cmake --install`.
+If an install channel is ever added here, it MUST install each side to a
+throwaway per-cell prefix (`_out/<project>/<tag>/install`) — never a bare
+`cmake --install` (defaults to /usr/local; cmake has no uninstall). See
+doc/cmake/install.md.
+
 ## Non-determinism
 
 You cannot demand byte-identity: compilers embed build paths, timestamps, and
