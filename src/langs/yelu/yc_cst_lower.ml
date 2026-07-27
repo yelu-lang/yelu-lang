@@ -145,7 +145,8 @@ let install_names =
 let try_names = [ "try_compile"; "try_run" ]
 let cmake_op_names =
   [ "cmake_minimum_required"; "project"; "message"; "math"; "include";
-    "include_guard"; "policy_set"; "enable_language"; "execute_process";
+    "include_guard"; "policy_set"; "policy_version"; "policy_get";
+    "policy_push"; "policy_pop"; "enable_language"; "execute_process";
     "separate_arguments"; "cmake_call"; "cmake_eval"; "cmake_get_log_level";
     "yc_raw" ]
 

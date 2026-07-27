@@ -906,13 +906,16 @@ and pp_cmake_cmd ff cmd =
           (String.concat ~sep:";" multi_keyword))
   | Cmake_path cmd -> pp_cmake_path ff cmd
   | Cmake_policy_version { min; max } ->
-      Fmt.(
-        pf ff "cmake_policy(VERSION %a...%a)" string
-          (Lang_cmake_strings.of_version min) string (Lang_cmake_strings.of_version max))
+      (match max with
+       | None ->
+         Fmt.(pf ff "cmake_policy(VERSION %a)" string (Lang_cmake_strings.of_version min))
+       | Some max ->
+         Fmt.(pf ff "cmake_policy(VERSION %a...%a)" string
+                (Lang_cmake_strings.of_version min) string (Lang_cmake_strings.of_version max)))
   | Cmake_policy_set { id = policy_id; new_ } ->
       Fmt.(pf ff "cmake_policy(SET %s %s)" policy_id (if new_ then "NEW" else "OLD"))
-  | Cmake_policy_get { var } ->
-      Fmt.(pf ff "cmake_policy(GET %a)" pp_var var)
+  | Cmake_policy_get { id = policy_id; var } ->
+      Fmt.(pf ff "cmake_policy(GET %s %a)" policy_id pp_var var)
   | Cmake_policy_push -> Fmt.string ff "cmake_policy(PUSH)"
   | Cmake_policy_pop -> Fmt.string ff "cmake_policy(POP)"
 

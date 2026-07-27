@@ -685,9 +685,9 @@ and cmake_cmd =
     }
   (* https://cmake.org/cmake/help/latest/command/cmake_path.html *)
   | Cmake_path of cmake_path_cmd
-  | Cmake_policy_version of { min : version; max : version }
+  | Cmake_policy_version of { min : version; max : version option }
   | Cmake_policy_set of { id : string; new_ : bool }
-  | Cmake_policy_get of { var : var }
+  | Cmake_policy_get of { id : string; var : var }
   | Cmake_policy_push
   | Cmake_policy_pop
   | Configure_file of {

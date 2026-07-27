@@ -40,6 +40,10 @@ type expr +=
   (* Additional cmake_op subcommands — emit-faithful, eval-stub. *)
   | ECmakeEnableLanguage of { langs : string list; optional : bool }
   | ECmakePolicySet of { id : string; new_ : bool }
+  | ECmakePolicyVersion of { min : string; max : string option }
+  | ECmakePolicyGet of { id : string; var : string }
+  | ECmakePolicyPush
+  | ECmakePolicyPop
   | ECmakeLanguageCall of { cmd : string; args : expr list }
   | ECmakeLanguageEval of { code : string }
   | ECmakeLanguageGetLogLevel of { out : string }
@@ -374,6 +378,8 @@ let eval_case ~eval env = function
     let env, name = eval_string ~eval env name in
     Some (env, VBool (Option.is_some (find_function env name)))
   | ECmakeEnableLanguage _ | ECmakePolicySet _
+  | ECmakePolicyVersion _ | ECmakePolicyGet _
+  | ECmakePolicyPush | ECmakePolicyPop
   | ECmakeLanguageEval _ | ECmakeVariableWatch _
   | ECmakeIncludeGuard _ | ECmakeQuoteCmd _ ->
     Some (env, VUnit)

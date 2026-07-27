@@ -11,7 +11,7 @@
 > every command below, and the dispatch lock in `test_yc_manifest.ml`
 > requires each to be owned by a family `_inner` (never the raw fallback).
 
-**138 commands.**
+**142 commands.**
 
 ## target (21)
 
@@ -178,7 +178,7 @@
 | `include_directories` |  | — |
 | `link_directories` |  | — |
 
-## cmake_op (14)
+## cmake_op (18)
 
 | command | `~out` | accepted `~labels` |
 | --- | --- | --- |
@@ -192,7 +192,11 @@
 | `include_guard` |  | `~global=` |
 | `math` | ✓ | — |
 | `message` |  | `~mode=` |
+| `policy_get` |  | — |
+| `policy_pop` |  | — |
+| `policy_push` |  | — |
 | `policy_set` |  | — |
+| `policy_version` |  | — |
 | `project` |  | — |
 | `separate_arguments` |  | — |
 | `yc_raw` |  | — |

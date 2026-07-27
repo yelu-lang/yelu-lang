@@ -741,6 +741,14 @@ let rec emit_exp ~env (e : expr) : C.exp =
     C.Project_cmd (C.Enable_language { langs; optional })
   | ECmakePolicySet { id; new_ } ->
     C.Cmake_cmd (C.Cmake_policy_set { id; new_ })
+  | ECmakePolicyVersion { min = min_v; max = max_v } ->
+    C.Cmake_cmd (C.Cmake_policy_version
+      { min = Lang_cmake_utils.version_of_string min_v;
+        max = Option.map max_v ~f:Lang_cmake_utils.version_of_string })
+  | ECmakePolicyGet { id; var } ->
+    C.Cmake_cmd (C.Cmake_policy_get { id; var })
+  | ECmakePolicyPush -> C.Cmake_cmd C.Cmake_policy_push
+  | ECmakePolicyPop -> C.Cmake_cmd C.Cmake_policy_pop
 
   (* String JSON — dispatch on op_name to construct json_op *)
   | ECmakeStringJson { out; error_var; op_name; args = json_args } ->

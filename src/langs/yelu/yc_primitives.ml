@@ -15,6 +15,7 @@ let command_names : Set.M(String).t =
     (* cmake_op *)
     "cmake_minimum_required"; "project"; "message";
     "include"; "include_guard"; "policy_set";
+    "policy_version"; "policy_get"; "policy_push"; "policy_pop";
     "enable_language"; "execute_process"; "separate_arguments";
     "cmake_call"; "cmake_eval"; "cmake_get_log_level"; "math";
     "yc_raw";

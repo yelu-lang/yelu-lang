@@ -39,7 +39,11 @@ project copies this exactly, swapping `<project>` and its options:
 **Setup step (part of the plan, not silent):** if `vendor/<project>` doesn't
 exist, the checkout + symlink is a *setup action to propose to the human* — clone
 to `~/code/contrib/<project>-all/<dir>` and `ln -s` it to `vendor/<project>`.
-Pin a commit. Don't invent a path; confirm the location.
+**Pin to the latest stable release tag** (not HEAD): the probe must mirror a
+*fixed* upstream so the `.yc` corpus and the matrix baseline don't drift when
+upstream moves, and a release tag is what real consumers use. Record the tag +
+resolved commit in `probes/<project>/README.md`. Don't invent a path; confirm
+the location and tag with the human.
 
 ## Hard boundaries (do not cross)
 
@@ -140,4 +144,4 @@ for build-level equivalence.
 | A complete worked example | [`fmt/README.md`](fmt/README.md), [`fmt/migration_status.md`](fmt/migration_status.md), [`fmt/main.json`](fmt/main.json) |
 | Build-level equivalence (optional 2nd bar) | [`../doc/framework/testing.md`](../doc/framework/testing.md) § Level 7, [`../test/fixtures/build_equiv/fmt/`](../test/fixtures/build_equiv/fmt/README.md) |
 | Where yelu_cmake gaps get recorded | [`../doc/yelu_cmake/lang_coverage.md`](../doc/yelu_cmake/lang_coverage.md) § Emit / semantic coverage gaps |
-| Handling `cmake_policy(...)` | [`../doc/cmake/policy.md`](../doc/cmake/policy.md) § Interim handling pattern — `SET … NEW` translates (`policy_set`); other forms → `yc_raw` passthrough + **pause** to confirm |
+| Handling `cmake_policy(...)` | [`../doc/cmake/policy.md`](../doc/cmake/policy.md) — the whole family translates to explicit `policy_*` commands (SET/VERSION/GET/PUSH/POP); no `yc_raw`. Pause only if policy *semantics* (stack eval) matter, which is rare and the matrix uses real cmake anyway. |

@@ -321,6 +321,10 @@ let tier8_misc = ("t8-misc", [
   assert_parses "execute_process" "( execute_process )";
   assert_parses "include_guard" "( include_guard )";
   assert_parses "policy_set" "( policy_set \"CMP0048\" )";
+  assert_parses "policy_version" "( policy_version '3.13' )";
+  assert_parses "policy_get" "( policy_get \"CMP0048\" RESULT )";
+  assert_parses "policy_push" "( policy_push )";
+  assert_parses "policy_pop" "( policy_pop )";
   assert_parses "try_compile" "( try_compile RESULT )";
   assert_parses "try_run" "( try_run RUN_RES COMPILE_RES )";
   assert_parses "enable_language" "( enable_language )";

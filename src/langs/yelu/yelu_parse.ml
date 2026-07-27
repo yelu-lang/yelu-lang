@@ -1421,8 +1421,26 @@ let p_cmake_op_command_inner name args kwargs =
   | "include_guard", []
   | "include_guard", [ EVar "GLOBAL" | EString "GLOBAL" ] ->
     Some (yc_include_guard Lang_cmake.Ig_global)
-  | "policy_set", id :: _ ->
-    Some (yc_policy_set ~new_:true (str_of id))
+  | "policy_set", id :: rest ->
+    (* honour NEW/OLD (was hardcoded NEW); default NEW when the arg is absent *)
+    let new_ = not (List.exists rest ~f:(function
+      | EVar "OLD" | EString "OLD" -> true | _ -> false)) in
+    Some (yc_policy_set ~new_ (str_of id))
+  | "policy_version", v :: _ ->
+    (* VERSION spec is a single (usually quoted) token: "min" or "min...max" *)
+    let s = str_of v in
+    let min_v, max_opt =
+      match String.substr_index s ~pattern:"..." with
+      | Some i ->
+        String.sub s ~pos:0 ~len:i,
+        Some (String.sub s ~pos:(i + 3) ~len:(String.length s - i - 3))
+      | None -> s, None
+    in
+    Some (yc_policy_version ?max:max_opt min_v)
+  | "policy_get", id :: var :: _ ->
+    Some (yc_policy_get ~var:(str_of var) (str_of id))
+  | "policy_push", _ -> Some yc_policy_push
+  | "policy_pop", _ -> Some yc_policy_pop
   | "enable_language", args
     when List.exists args ~f:(function
            | EVar "OPTIONAL" -> true | _ -> false) ->

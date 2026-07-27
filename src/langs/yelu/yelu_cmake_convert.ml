@@ -787,6 +787,8 @@ let rec to_normal = function
   | ECmakeMath { exp; out } -> ECmakeMath { exp; out }
   (* Additional cmake_op subcommands — surface-only passthrough. *)
   | ECmakeEnableLanguage _ | ECmakePolicySet _
+  | ECmakePolicyVersion _ | ECmakePolicyGet _
+  | ECmakePolicyPush | ECmakePolicyPop
   | ECmakeLanguageEval _ | ECmakeLanguageGetLogLevel _
   | ECmakeVariableWatch _ | ECmakeIncludeGuard _
   | ECmakeQuoteCmd _ as e -> e
@@ -1693,6 +1695,8 @@ let rec from_normal = function
   | EAtVar key -> ECmakeAtVar key
   (* Additional cmake_op subcommands — surface-only passthrough on lower. *)
   | ECmakeEnableLanguage _ | ECmakePolicySet _
+  | ECmakePolicyVersion _ | ECmakePolicyGet _
+  | ECmakePolicyPush | ECmakePolicyPop
   | ECmakeLanguageEval _ | ECmakeLanguageGetLogLevel _
   | ECmakeVariableWatch _ | ECmakeIncludeGuard _
   | ECmakeQuoteCmd _ as e -> e

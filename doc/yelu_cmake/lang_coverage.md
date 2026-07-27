@@ -41,7 +41,7 @@ Runtime: cmake 4.3.1 (`/usr/bin/cmake`, Kitware apt).
 | **Benchmark suites**      | `Tests/` Group 2/3/5 build                 | 15 / ~26 tractable | ~26       | next: ObjectLibrary/Transitive (re-verify 4.3), StringFileTest (Sc_regex_quote)           |
 | **Benchmark suites**      | Tutorial V2 cmake-check / yelu-check       | 11 / 11 ✓          | 11        | both 11/11 ✓                                                                              |
 | **Language completeness** | commands fully pipelined (AST→yelu→tested) | ~50                | ~70       | gaps: `cmake_policy`; `cmake_language`/`block`/`cmake_path` yelu layer ✓                  |
-| **Language completeness** | commands AST-only or stubs                 | ~5                 | —         | `cmake_policy` partial stub; `cmake_pkg_config` not started                               |
+| **Language completeness** | commands AST-only or stubs                 | ~5                 | —         | `cmake_policy` **surface complete** (2026-07-27; semantics = Y11); `cmake_pkg_config` not started |
 
 ---
 
@@ -79,7 +79,7 @@ The strongest axes are **benchmark suite coverage** (CMakeOnly and RunCMake both
 
 | Command            | State            | Blocker              |
 | ------------------ | ---------------- | -------------------- |
-| `cmake_policy`     | partial AST stub | Y11 — design blocked |
+| `cmake_policy`     | **surface complete** (SET/VERSION/GET/PUSH/POP emit faithfully, 2026-07-27); **semantics** deferred | Y11 = the *semantic* model only (policy-stack eval / auto-emit); faithful translation is done — see [`../cmake/policy.md`](../cmake/policy.md) |
 | `cmake_pkg_config` | not started      | cmake 4.x only       |
 
 ---
