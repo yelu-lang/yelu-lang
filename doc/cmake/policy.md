@@ -27,6 +27,84 @@ normal way to opt in — explicit `SET` calls are for exceptional overrides.
 
 ---
 
+## Interim handling pattern (pre-Y11)
+
+> Everything below the next divider is the **full Y11 design** (semantic
+> modeling of the policy stack). This section is the **operational pattern we use
+> now**, before Y11 — how policy is handled in probes and faithful translation.
+> It is deliberately small: for faithful emit, yelu does **not** need to *model*
+> policy semantics, only *preserve* the call so real cmake applies it.
+
+### Two contexts (don't conflate them)
+
+- **Faithful translation (probes).** The policy call is *in the source*; yelu's
+  job is only to **emit it back** so real cmake applies it. This is yc's faithful-
+  erasure role — no semantics, no stack modeling. The matrix runs *real* cmake on
+  yelu's output, so a preserved `cmake_policy(...)` just works.
+- **yelu-authored programs (the blocked tests below).** Here yelu must *decide*
+  to emit a policy the user didn't write (CMP0140 for `return(PROPAGATE)`, etc.).
+  That is the compiler-responsibility problem Y11 solves and is **deferred**.
+
+The probe/translation case is the one that matters now, and it's nearly free.
+
+### Measured surface coverage (2026-07-25)
+
+| cmake form | yc surface | status |
+| --- | --- | --- |
+| `cmake_policy(SET CMP#### NEW)` | `policy_set CMP#### NEW` | ✅ works (fmt `main.yc:4` uses it → `Cmake_policy_set { id; new_ }`) |
+| `cmake_policy(SET CMP#### OLD)` | `policy_set` | ⚠️ **silent gap** — the parser hardcodes `~new_:true` (`yelu_parse.ml:1425`), so `OLD` is coerced to `NEW`. Fix = parse the 2nd arg. Recorded, not urgent (OLD is rare). |
+| `if(POLICY CMP####)` | if-predicate | AST has `Exist_policy` (`lang_cmake.ml:309`); verify the yc `if` surface maps it per project. |
+| `cmake_policy(VERSION …)` | — | no surface → `yc_raw` passthrough |
+| `cmake_policy(GET / PUSH / POP)` | — | no surface → `yc_raw` passthrough (AST ctors exist: `Cmake_policy_{get,push,pop}`) |
+
+### The handling recipe
+
+1. **Covered form** (`SET … NEW`) → translate directly with `policy_set`.
+2. **Uncovered form** → **`yc_raw '<verbatim cmake>'`** — a faithful passthrough
+   (the same escape fmt uses for `install(... FILE_SET ...)` etc.). The matrix
+   applies it via real cmake; yelu never evaluates it. **Record it** as a policy
+   gap; per the [probe charter](../../probes/PROBE_CHARTER.md), **pause** on a
+   *novel* form so a human confirms the escape rather than the agent guessing.
+3. Never silently drop a policy call — a dropped `SET` can make a matrix cell
+   diverge for a reason that looks unrelated.
+
+### Detection — explicit vs collect
+
+Both, matched to context:
+
+- **Explicit (probes — do this).** In the *learn* phase, grep the project:
+  `cmake_policy(`, `if(POLICY`, and `cmake_minimum_required`. Policy is
+  source-visible, so this enumerates every form up front — classify each
+  covered/uncovered against the table above before writing any `.yc`. (json:
+  only `SET CMP0077 NEW` → covered by `policy_set`; the `if(POLICY CMP0077)`
+  guard is the one thing to verify.)
+- **Collect (yelu-authored tests).** When a testcase *diverges* and a policy is
+  implicated, classify it policy-related and tag it in the gap registry
+  ([`lang_coverage.md`](../yelu_cmake/lang_coverage.md) § gaps — use a `policy`
+  category). This is the harder Y11 case where yelu must *infer* the policy.
+
+### If/when we extend modeling — files to touch
+
+The AST already carries all five ctors, so extending the *surface* is the
+standard add-a-command recipe (see CLAUDE.md "three edits + coverage lock"):
+
+1. `policy_set` OLD fix — `yelu_parse.ml:1425` (parse `NEW|OLD` instead of
+   hardcoding) + the `yc_cst_lower` arm. ~2 lines.
+2. New forms (`VERSION`/`GET`/`PUSH`/`POP`) — add to `command_names`
+   (`yc_primitives.ml`) + an `_inner` + a ctor (cmake_op fragment) + an emit arm
+   → the existing `Cmake_policy_*` AST ctors + a `test_yelu_cmake_parse.ml`
+   coverage case + `dune promote` for the manifest lock.
+
+### Infra prep (what's already ready)
+
+- **The `yc_raw` passthrough net exists** and is proven (fmt). A probe never
+  crashes on an unmodeled policy form — it escapes + records.
+- **What to add when policy work starts:** a `policy` category in the yc and ycn
+  gap registries, so collected policy-related divergences are classified
+  consistently (mirrors the emit/semantic gap registry).
+
+---
+
 ## The Policy Stack
 
 Policies are stored on a stack. `cmake_policy(PUSH)` saves the current state;
@@ -236,20 +314,25 @@ the user inserting `#[feature(…)]` annotations.
 
 ## Implementation Notes
 
-### Current cmake AST coverage
+### Current cmake AST coverage (updated 2026-07-25)
 
-The cmake AST already has:
+The cmake AST already has all five ctors, and `SET` is now emit-complete:
 ```ocaml
 | Cmake_policy_version of { min : version; max : version }
-| Cmake_policy_set of { nnnn : bool }   (* incomplete: only bool, not CMP number *)
+| Cmake_policy_set of { id : string; new_ : bool }   (* id = "CMP0077"; NEW/OLD *)
 | Cmake_policy_get of { var : var }
 | Cmake_policy_push
 | Cmake_policy_pop
 ```
 
-`Cmake_policy_set { nnnn : bool }` is clearly incomplete — `nnnn` should be an
-integer policy number and `state` should be `NEW | OLD`, not `bool`. This needs to
-be fixed before exposing `cmake_policy(SET …)` in yelu.
+`Cmake_policy_set { id; new_ }` carries the CMP id (as string) and NEW/OLD — so
+the cmake layer *already emits* `cmake_policy(SET CMP0077 NEW)` faithfully, and
+the yc surface `policy_set` (in `command_names`) drives it. The remaining
+surface gaps are the *other* forms (VERSION/GET/PUSH/POP → currently `yc_raw`)
+and the `policy_set` OLD-coercion bug (`yelu_parse.ml:1425`) — see the interim
+handling pattern near the top. `id : string` (vs the typed enum below) is the
+deliberate faithful-emit choice: yc preserves the id verbatim; a typed
+`cmake_policy_id` enum belongs to the Y11 semantic model.
 
 ### Typed policy enum
 

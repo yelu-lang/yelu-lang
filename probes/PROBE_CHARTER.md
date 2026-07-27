@@ -140,3 +140,4 @@ for build-level equivalence.
 | A complete worked example | [`fmt/README.md`](fmt/README.md), [`fmt/migration_status.md`](fmt/migration_status.md), [`fmt/main.json`](fmt/main.json) |
 | Build-level equivalence (optional 2nd bar) | [`../doc/framework/testing.md`](../doc/framework/testing.md) § Level 7, [`../test/fixtures/build_equiv/fmt/`](../test/fixtures/build_equiv/fmt/README.md) |
 | Where yelu_cmake gaps get recorded | [`../doc/yelu_cmake/lang_coverage.md`](../doc/yelu_cmake/lang_coverage.md) § Emit / semantic coverage gaps |
+| Handling `cmake_policy(...)` | [`../doc/cmake/policy.md`](../doc/cmake/policy.md) § Interim handling pattern — `SET … NEW` translates (`policy_set`); other forms → `yc_raw` passthrough + **pause** to confirm |
