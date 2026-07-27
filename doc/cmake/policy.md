@@ -47,18 +47,33 @@ normal way to opt in — explicit `SET` calls are for exceptional overrides.
 
 The probe/translation case is the one that matters now, and it's nearly free.
 
+### Two facts to be clear about
+
+- **Default policy state is version-gated, not "all on."** A policy with no
+  setting behaves as `OLD` and cmake *warns*. `cmake_minimum_required(VERSION x.y)`
+  (or `cmake_policy(VERSION x.y)`) sets every policy introduced **at or before**
+  x.y to `NEW`; policies newer than the declared version stay unset (OLD + warn)
+  until explicitly `SET`. So "what's NEW by default" is exactly what the project's
+  declared minimum version covers.
+- **yelu has no policy interpreter — it translates only.** Every `policy_*`
+  command evaluates to a no-op (`VUnit`) in `yelu_cmake_eval`; yelu never models
+  the policy stack or a policy's behavioral effect. It emits the `cmake_policy(...)`
+  text and **real cmake** (which the matrix and every build run) does the
+  interpreting. This is deliberate faithful erasure; the interpreter is the Y11
+  semantic model, deferred.
+
 ### Surface coverage — the whole family is now first-class (2026-07-27)
 
 Every `cmake_policy(...)` form has an explicit yc command; **no `yc_raw` is
 needed for policy**. Emit is faithful (verified end-to-end):
 
-| cmake form | yc surface | → emits |
-| --- | --- | --- |
-| `cmake_policy(SET CMP#### NEW\|OLD)` | `policy_set CMP#### [NEW\|OLD]` | `cmake_policy(SET CMP#### NEW\|OLD)` — NEW/OLD now honoured (was hardcoded NEW) |
-| `cmake_policy(VERSION min[...max])` | `policy_version 'min[...max]'` | `cmake_policy(VERSION min[...max])` |
-| `cmake_policy(GET CMP#### var)` | `policy_get CMP#### var` | `cmake_policy(GET CMP#### var)` |
-| `cmake_policy(PUSH)` / `(POP)` | `policy_push` / `policy_pop` | `cmake_policy(PUSH)` / `(POP)` |
-| `if(POLICY CMP####)` | if-predicate (`ECmakePolicyCheck`) | `if(POLICY CMP####)` |
+| cmake form                           | yc surface                         | → emits                                                                         |
+| ------------------------------------ | ---------------------------------- | ------------------------------------------------------------------------------- |
+| `cmake_policy(SET CMP#### NEW\|OLD)` | `policy_set CMP#### [NEW\|OLD]`    | `cmake_policy(SET CMP#### NEW\|OLD)` — NEW/OLD now honoured (was hardcoded NEW) |
+| `cmake_policy(VERSION min[...max])`  | `policy_version 'min[...max]'`     | `cmake_policy(VERSION min[...max])`                                             |
+| `cmake_policy(GET CMP#### var)`      | `policy_get CMP#### var`           | `cmake_policy(GET CMP#### var)`                                                 |
+| `cmake_policy(PUSH)` / `(POP)`       | `policy_push` / `policy_pop`       | `cmake_policy(PUSH)` / `(POP)`                                                  |
+| `if(POLICY CMP####)`                 | if-predicate (`ECmakePolicyCheck`) | `if(POLICY CMP####)`                                                            |
 
 These are *faithful erasure* (yc preserves what the source wrote); no policy
 *semantics* is modelled — see the recipe's pause caveat.
@@ -108,6 +123,47 @@ recipe — command_names + `_inner` + cmake_op-fragment ctors + emit arms + conv
 What remains is the *semantic* model (Y11 below): evaluating the policy stack /
 auto-emitting a policy for yelu-authored constructs. Faithful translation no
 longer needs any of that.
+
+### Testing a policy in a probe — worked example (copy this shape)
+
+When a probe project enables a policy, add a test that **flips the policy and
+checks the observable difference on both sides**. That proves yelu *carries* the
+policy state — not just that it emitted some text. (A translate-only bug like the
+old `policy_set` OLD→NEW coercion is invisible unless the two states are compared.)
+
+The cleanest handle is a policy with a deterministic **configure-time** effect —
+which is also what the probe matrix already diffs (the cache channel). Use
+**CMP0077** (`option()` honors normal variables — the policy json actually sets):
+
+```
+# yc  (probes/<project>/… or a standalone cell)
+cmake_minimum_required '3.13';
+MY_OPT := 'ON';                 # a normal variable, set before option()
+policy_set CMP0077 NEW;         # flip this NEW ↔ OLD across two cells
+project pol NONE;
+option MY_OPT 'demo option' OFF
+```
+
+emits faithfully and configures to an observable that **differs by policy state**
+(measured, cmake 4.3):
+
+| `policy_set CMP0077 …` | emits | `MY_OPT` in `CMakeCache.txt` |
+| --- | --- | --- |
+| `NEW` | `cmake_policy(SET CMP0077 NEW)` | *absent* — the normal `ON` wins |
+| `OLD` | `cmake_policy(SET CMP0077 OLD)` | `MY_OPT:BOOL=OFF` — `option()` created a cache entry |
+
+The test (a matrix cell per policy state):
+
+1. Configure **vanilla cmake** and **yelu-emitted cmake** for each state.
+2. Assert the cache observable **matches vanilla ≡ yelu** within each state
+   (faithful carry), **and** **differs NEW vs OLD** (the policy is really applied,
+   not silently coerced). If yelu had the OLD→NEW bug, the `OLD` cell would show
+   *absent* like NEW and the "differs" assertion would fail — the test catches it.
+
+This is the same per-cell shape as an option matrix cell; treat the policy state
+as the cell axis. For a policy whose only effect is a compiler flag / warning
+(toolchain-dependent, e.g. CMP0065's `-rdynamic`), prefer this configure/cache
+form over a build-artifact assertion — behavioral flag effects are not portable.
 
 ### Infra prep (what's already ready)
 

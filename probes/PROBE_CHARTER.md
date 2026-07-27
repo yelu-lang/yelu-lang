@@ -145,3 +145,4 @@ for build-level equivalence.
 | Build-level equivalence (optional 2nd bar) | [`../doc/framework/testing.md`](../doc/framework/testing.md) § Level 7, [`../test/fixtures/build_equiv/fmt/`](../test/fixtures/build_equiv/fmt/README.md) |
 | Where yelu_cmake gaps get recorded | [`../doc/yelu_cmake/lang_coverage.md`](../doc/yelu_cmake/lang_coverage.md) § Emit / semantic coverage gaps |
 | Handling `cmake_policy(...)` | [`../doc/cmake/policy.md`](../doc/cmake/policy.md) — the whole family translates to explicit `policy_*` commands (SET/VERSION/GET/PUSH/POP); no `yc_raw`. Pause only if policy *semantics* (stack eval) matter, which is rare and the matrix uses real cmake anyway. |
+| Testing a policy a project enables | [`../doc/cmake/policy.md`](../doc/cmake/policy.md) § Testing a policy — flip the policy NEW↔OLD as a matrix cell; assert vanilla ≡ yelu per state **and** NEW≠OLD (proves it's carried, not silently coerced). Worked CMP0077 example to copy. |
