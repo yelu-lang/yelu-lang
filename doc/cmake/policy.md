@@ -161,9 +161,34 @@ The test (a matrix cell per policy state):
    *absent* like NEW and the "differs" assertion would fail — the test catches it.
 
 This is the same per-cell shape as an option matrix cell; treat the policy state
-as the cell axis. For a policy whose only effect is a compiler flag / warning
-(toolchain-dependent, e.g. CMP0065's `-rdynamic`), prefer this configure/cache
-form over a build-artifact assertion — behavioral flag effects are not portable.
+as the cell axis.
+
+#### Dynamic (build-observable) policies — toolchain-gated
+
+For a policy whose effect is *behavioral* (a compiler/linker flag, e.g. CMP0065's
+`-rdynamic` → exported symbols), the observable is toolchain-dependent — it shows
+up on some toolchains and not others. We still test it, **gated on the local
+toolchain**, via the `build_equiv` **`policy.json` fixture mode**
+(`check_policy_fixture`):
+
+- The fixture declares `{ "policy", "states": ["NEW","OLD"] }` with a
+  `CMakeLists.txt` + `main.yc` carrying a `@STATE@` placeholder on the policy
+  line. The harness builds the reference and the yelu-emitted cmake for each
+  state and fingerprints each build (artifacts + `nm` symbols).
+- **The gate is self-contained — no hard-coded toolchain knowledge.** If
+  *vanilla cmake* yields an identical build across states, the toolchain doesn't
+  exhibit the policy → **SKIP**. If it differs, assert **yelu == reference in
+  each state** (faithful carry). This generalizes build_equiv's existing
+  SKIP-on-unavailable + control-build philosophy: the reference's own
+  NEW-vs-OLD difference *is* the observability signal.
+- Example fixture: `test/fixtures/build_equiv/policy_cmp0065/` (it SKIPs on our
+  cmake 4.3, which removed CMP0065's `OLD`; runs where the policy is settable
+  both ways and the linker honors it).
+
+Note cmake 4.x **removes the `OLD` behavior of many older policies** (setting
+them to `OLD` is a hard error), so a NEW-vs-OLD behavioral test needs a
+recent-enough policy — or it skips. Configure-time policies (like CMP0077 above)
+are the more portable handle.
 
 ### Infra prep (what's already ready)
 

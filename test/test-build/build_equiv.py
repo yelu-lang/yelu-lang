@@ -34,7 +34,7 @@ byte-identical (compiler was reproducible here) yet yelu still differs.
 
 ## Fixture layout  (test/fixtures/build_equiv/<name>/)
 
-Two kinds of fixture:
+Three kinds of fixture:
 
 **Self-contained** — sources live in the fixture dir:
 
@@ -85,6 +85,14 @@ A cell whose *reference* build fails (e.g. a missing external dep for that
 option) is SKIPPED, not failed — there is no baseline to compare against. If
 `source_tree` is absent from disk (vendored trees are external and Linux-only)
 the whole fixture is SKIPPED.
+
+**Toolchain-gated policy** — test a behavioral cmake_policy. A `policy.json`
+(`{ "policy", "states": ["NEW","OLD"] }`) selects `check_policy_fixture`: it
+substitutes each state into `@STATE@` in `CMakeLists.txt` + `main.yc`, builds the
+reference and yelu for each, and uses the *reference's own* NEW-vs-OLD build
+difference as the observability gate — identical across states → SKIP (this
+toolchain doesn't exhibit the policy); differ → assert yelu == reference per
+state (faithful carry). See `test/fixtures/build_equiv/policy_cmp0065/`.
 
 ## Usage  (from repo root, after `dune build`)
 
@@ -531,9 +539,92 @@ def check_external_tree(name, fdir, cfg):
     return True
 
 
+def build_signature(bld):
+    """A comparable fingerprint of a build's observable outputs: each artifact's
+    relative path + its exported-symbol set (`nm`). Two builds with the same
+    signature are indistinguishable at the level build_equiv observes."""
+    sig = []
+    for rel, info in sorted(artifacts(bld).items()):
+        syms = dyn_symbols(info["abs"])
+        sig.append((rel, tuple(sorted(syms)) if syms else None))
+    return tuple(sig)
+
+
+def check_policy_fixture(name, fdir, cfg):
+    """Toolchain-gated behavioral policy test (a `policy.json` fixture).
+
+    Builds the reference AND the yelu-emitted cmake for each policy state (e.g.
+    NEW/OLD), substituting the literal state into `@STATE@` in `CMakeLists.txt`
+    and `main.yc`. The gate is self-contained — no hard-coded toolchain
+    knowledge: if *vanilla cmake* produces an identical build across states, this
+    toolchain doesn't exhibit the policy → SKIP. If it differs, the toolchain
+    exhibits it, so assert the yelu build matches the reference in each state —
+    proving yelu carries the policy faithfully. A silent OLD→NEW coercion would
+    show up as yelu's OLD build matching the reference's NEW while vanilla's
+    states differ."""
+    policy = cfg.get("policy", "?")
+    states = cfg.get("states", ["NEW", "OLD"])
+    cml_tpl = open(os.path.join(fdir, "CMakeLists.txt")).read()
+    yc_tpl = open(os.path.join(fdir, "main.yc")).read()
+    skip = {"policy.json", "README.md", "CMakeLists.txt", "main.yc"}
+    sources = [(os.path.relpath(os.path.join(dp, fn), fdir), os.path.join(dp, fn))
+               for dp, _, files in os.walk(fdir) for fn in files
+               if os.path.relpath(os.path.join(dp, fn), fdir) not in skip]
+
+    ref_sig, yelu_sig, fails = {}, {}, []
+    for st in states:
+        ref_cmake = cml_tpl.replace("@STATE@", st)
+        tmp = tempfile.mkdtemp(prefix="be_pol_yc_")
+        yc_path = os.path.join(tmp, "main.yc")
+        with open(yc_path, "w") as h:
+            h.write(yc_tpl.replace("@STATE@", st))
+        try:
+            yelu_cmake = yelu_compile(yc_path)
+        except RuntimeError as e:
+            print(f"  {RED}FAIL{RESET} yelu compile ({st}): {e}")
+            shutil.rmtree(tmp, ignore_errors=True)
+            return False
+        shutil.rmtree(tmp, ignore_errors=True)
+        rb, rok, _     = stage_and_build(ref_cmake,  sources, f"ref_{st}")
+        yb, yok, ylog  = stage_and_build(yelu_cmake, sources, f"yelu_{st}")
+        if not rok:
+            print(f"  {YEL}SKIP{RESET} reference build failed for {st} (no baseline)")
+            for d in (rb, yb): shutil.rmtree(d, ignore_errors=True)
+            return None
+        if not yok:
+            print(f"  {RED}FAIL{RESET} yelu build failed ({st}):\n{ylog}")
+            fails.append(f"{st}: yelu build")
+        ref_sig[st]  = build_signature(rb)
+        yelu_sig[st] = build_signature(yb) if yok else None
+        for d in (rb, yb): shutil.rmtree(d, ignore_errors=True)
+
+    # Gate: is the policy observable on this toolchain? (reference self-difference)
+    if len(set(ref_sig.values())) == 1:
+        print(f"  {YEL}SKIP{RESET} policy {policy} not observable on this toolchain "
+              f"— states {states} produce identical reference builds")
+        return None
+
+    # Observable → yelu must match the reference in every state.
+    for st in states:
+        if yelu_sig.get(st) is None:
+            continue
+        if yelu_sig[st] == ref_sig[st]:
+            print(f"  {GRN}ok{RESET}   {policy}={st}: yelu build matches vanilla")
+        else:
+            print(f"  {RED}FAIL{RESET} {policy}={st}: yelu differs from vanilla "
+                  f"(policy not faithfully carried)")
+            fails.append(f"{st}: mismatch")
+    print(f"  {GRN}PASS{RESET} ({policy} observable; yelu faithful across {states})"
+          if not fails else f"  {RED}{len(fails)} failure(s){RESET}")
+    return not fails
+
+
 def check_fixture(fdir):
     name = os.path.basename(fdir.rstrip("/"))
     print(f"\n{YEL}▶ {name}{RESET}")
+    pj = os.path.join(fdir, "policy.json")
+    if os.path.exists(pj):
+        return check_policy_fixture(name, fdir, json.load(open(pj)))
     fj = os.path.join(fdir, "fixture.json")
     if os.path.exists(fj):
         return check_external_tree(name, fdir, json.load(open(fj)))

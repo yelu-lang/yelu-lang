@@ -1,0 +1,4 @@
+{
+  "policy": "CMP0065",
+  "states": ["NEW", "OLD"]
+}
