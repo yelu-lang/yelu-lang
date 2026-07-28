@@ -1,0 +1,16 @@
+{
+  "project": "json",
+  "source_dir": "vendor/json",
+  "out_root": "_out/json",
+  "options": [
+    "JSON_Diagnostics",
+    "JSON_Diagnostic_Positions",
+    "JSON_GlobalUDLs",
+    "JSON_ImplicitConversions",
+    "JSON_DisableEnumSerialization",
+    "JSON_LegacyDiscardedValueComparison",
+    "JSON_Install",
+    "JSON_MultipleHeaders",
+    "JSON_SystemInclude"
+  ]
+}

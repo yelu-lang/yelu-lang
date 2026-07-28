@@ -89,6 +89,7 @@ Small projects may stay at just README.md.
 | project | parse-print | `.yc` corpus | semantic matrix | status |
 |---|---|---|---|---|
 | [fmt](fmt/) | 11/11 OK | 11/11 compile | 24/24 × cache + codemodel + CTest | complete first whole-project probe |
+| [json](json/) | — | — | — | **plan seeded** (v3.12.0, root-only first pass); `vendor/json` set up — see [`migration_status.md`](json/migration_status.md) |
 | [z3](z3/) | 108/108 OK | — | not yet built | parse-print only |
 | [llvm](llvm/) | 3004/3035 OK (30 pre-existing STRUCT) | — | not yet built | parse-print only |
 
