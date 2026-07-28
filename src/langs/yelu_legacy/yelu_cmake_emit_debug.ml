@@ -781,8 +781,8 @@ let rec emit_expr_impl ~env e =
   | ECmakeEnableLanguage { langs; optional } ->
     let opt = if optional then " OPTIONAL" else "" in
     [ Fmt.str "enable_language(%s%s)" (String.concat ~sep:" " langs) opt ]
-  | ECmakePolicySet { id; new_ } ->
-    [ Fmt.str "cmake_policy(SET %s %s)" id (if new_ then "NEW" else "OLD") ]
+  | ECmakePolicySet { id; state } ->
+    [ Fmt.str "cmake_policy(SET %s %s)" id (target_arg state) ]
   | ECmakeLanguageCall { cmd; args } ->
     [ Fmt.str "cmake_language(CALL %s %s)" cmd
         (String.concat ~sep:" " (List.map args ~f:arg)) ]

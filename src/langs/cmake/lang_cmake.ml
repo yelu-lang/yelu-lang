@@ -686,7 +686,9 @@ and cmake_cmd =
   (* https://cmake.org/cmake/help/latest/command/cmake_path.html *)
   | Cmake_path of cmake_path_cmd
   | Cmake_policy_version of { min : version; max : version option }
-  | Cmake_policy_set of { id : string; new_ : bool }
+  | Cmake_policy_set of { id : string; state : string }
+    (* state is NEW / OLD, or a variable reference like ${STATE} — cmake accepts
+       a variable for the policy state, so this is a string, not a bool *)
   | Cmake_policy_get of { id : string; var : var }
   | Cmake_policy_push
   | Cmake_policy_pop

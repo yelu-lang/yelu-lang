@@ -231,7 +231,8 @@ let yc_include ?(optional = false) file =
 let yc_include_guard scope =
   ECmakeIncludeGuard { scope = Lang_cmake_strings.of_include_guard_scope scope }
 
-let yc_policy_set ?(new_ = true) id = ECmakePolicySet { id; new_ }
+let yc_policy_set ?(new_ = true) id =
+  ECmakePolicySet { id; state = EString (if new_ then "NEW" else "OLD") }
 let yc_policy_version ?max min = ECmakePolicyVersion { min; max }
 let yc_policy_get ~var id = ECmakePolicyGet { id; var }
 let yc_policy_push = ECmakePolicyPush

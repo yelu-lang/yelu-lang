@@ -480,7 +480,7 @@ let cmake_op_statement : Old.yelu_cmake_stmt -> Yelu_cmake.expr = function
   | Ycmake_enable_language { langs; optional } ->
     ECmakeEnableLanguage { langs; optional }
   | Ycmake_policy_set { id; new_ } ->
-    ECmakePolicySet { id; new_ }
+    ECmakePolicySet { id; state = EString (if new_ then "NEW" else "OLD") }
   | Ycmake_language_call { cmd; args } ->
     ECmakeLanguageCall { cmd; args = List.map args ~f:expr }
   | Ycmake_language_eval { code } ->

@@ -113,7 +113,11 @@ The full family shipped as explicit yc commands (the standard add-a-command
 recipe — command_names + `_inner` + cmake_op-fragment ctors + emit arms + convert
 + coverage-lock cases + `dune promote`):
 
-1. `policy_set` OLD fix — `yelu_parse.ml` now parses `NEW|OLD` (was hardcoded NEW).
+1. `policy_set` state is now an **expr**, not a `bool` — it carries a literal
+   `NEW`/`OLD` *or* a variable (`policy_set CMP#### $STATE` → `cmake_policy(SET
+   CMP#### ${STATE})`). This fixed the original hardcoded-NEW bug *and* a
+   faithfulness gap: cmake accepts a variable for the policy state, which a
+   `bool` could not represent (it silently coerced `$STATE` to `NEW`).
 2. `policy_version` / `policy_get` / `policy_push` / `policy_pop` added → the
    `Cmake_policy_*` AST ctors. Two small AST fixes came with it: `VERSION`'s
    `max` is now `version option` (bare `VERSION min` renders), and `GET` now
@@ -171,10 +175,13 @@ up on some toolchains and not others. We still test it, **gated on the local
 toolchain**, via the `build_equiv` **`policy.json` fixture mode**
 (`check_policy_fixture`):
 
-- The fixture declares `{ "policy", "states": ["NEW","OLD"] }` with a
-  `CMakeLists.txt` + `main.yc` carrying a `@STATE@` placeholder on the policy
-  line. The harness builds the reference and the yelu-emitted cmake for each
-  state and fingerprints each build (artifacts + `nm` symbols).
+- The fixture declares `{ "policy", "states": ["NEW","OLD"], "state_var": "STATE" }`.
+  The policy state is a cmake **variable** — `cmake_policy(SET CMP#### ${STATE})`
+  in `CMakeLists.txt`, `policy_set CMP#### $STATE` in `main.yc` — varied per state
+  via `-DSTATE=…` (a normal `-D` cell axis, like an option). yelu carries the
+  variable faithfully (a `policy_set` state is an *expr*, not a hardcoded bool),
+  so one yelu compile serves every state. The harness builds the reference and
+  the yelu-emitted cmake for each state and fingerprints each (artifacts + `nm`).
 - **The gate is self-contained — no hard-coded toolchain knowledge.** If
   *vanilla cmake* yields an identical build across states, the toolchain doesn't
   exhibit the policy → **SKIP**. If it differs, assert **yelu == reference in

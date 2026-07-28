@@ -39,7 +39,8 @@ type expr +=
   | ECmakeMath of { exp : string; out : string }
   (* Additional cmake_op subcommands — emit-faithful, eval-stub. *)
   | ECmakeEnableLanguage of { langs : string list; optional : bool }
-  | ECmakePolicySet of { id : string; new_ : bool }
+  | ECmakePolicySet of { id : string; state : expr }
+    (* state: literal NEW/OLD, or a variable ($STATE → ${STATE}) *)
   | ECmakePolicyVersion of { min : string; max : string option }
   | ECmakePolicyGet of { id : string; var : string }
   | ECmakePolicyPush

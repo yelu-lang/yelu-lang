@@ -912,8 +912,8 @@ and pp_cmake_cmd ff cmd =
        | Some max ->
          Fmt.(pf ff "cmake_policy(VERSION %a...%a)" string
                 (Lang_cmake_strings.of_version min) string (Lang_cmake_strings.of_version max)))
-  | Cmake_policy_set { id = policy_id; new_ } ->
-      Fmt.(pf ff "cmake_policy(SET %s %s)" policy_id (if new_ then "NEW" else "OLD"))
+  | Cmake_policy_set { id = policy_id; state } ->
+      Fmt.(pf ff "cmake_policy(SET %s %s)" policy_id state)
   | Cmake_policy_get { id = policy_id; var } ->
       Fmt.(pf ff "cmake_policy(GET %s %a)" policy_id pp_var var)
   | Cmake_policy_push -> Fmt.string ff "cmake_policy(PUSH)"

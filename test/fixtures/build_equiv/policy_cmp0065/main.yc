@@ -1,4 +1,4 @@
 cmake_minimum_required '3.5';
-policy_set CMP0065 @STATE@;
+policy_set CMP0065 $STATE;
 project pol 'C';
 add_exe app 'main.c'

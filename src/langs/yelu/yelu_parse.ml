@@ -1422,10 +1422,10 @@ let p_cmake_op_command_inner name args kwargs =
   | "include_guard", [ EVar "GLOBAL" | EString "GLOBAL" ] ->
     Some (yc_include_guard Lang_cmake.Ig_global)
   | "policy_set", id :: rest ->
-    (* honour NEW/OLD (was hardcoded NEW); default NEW when the arg is absent *)
-    let new_ = not (List.exists rest ~f:(function
-      | EVar "OLD" | EString "OLD" -> true | _ -> false)) in
-    Some (yc_policy_set ~new_ (str_of id))
+    (* state is an expr: literal NEW/OLD, or a variable ($STATE → ${STATE}).
+       Faithful — a variable state is preserved, not coerced to NEW. *)
+    let state = match rest with s :: _ -> s | [] -> EString "NEW" in
+    Some (ECmakePolicySet { id = str_of id; state })
   | "policy_version", v :: _ ->
     (* VERSION spec is a single (usually quoted) token: "min" or "min...max" *)
     let s = str_of v in

@@ -87,12 +87,15 @@ option) is SKIPPED, not failed — there is no baseline to compare against. If
 the whole fixture is SKIPPED.
 
 **Toolchain-gated policy** — test a behavioral cmake_policy. A `policy.json`
-(`{ "policy", "states": ["NEW","OLD"] }`) selects `check_policy_fixture`: it
-substitutes each state into `@STATE@` in `CMakeLists.txt` + `main.yc`, builds the
-reference and yelu for each, and uses the *reference's own* NEW-vs-OLD build
-difference as the observability gate — identical across states → SKIP (this
-toolchain doesn't exhibit the policy); differ → assert yelu == reference per
-state (faithful carry). See `test/fixtures/build_equiv/policy_cmp0065/`.
+(`{ "policy", "states": ["NEW","OLD"], "state_var": "STATE" }`) selects
+`check_policy_fixture`. The policy state is a cmake *variable* — `${STATE}` in
+`CMakeLists.txt`, `$STATE` in `main.yc` (yelu carries it faithfully, since a
+policy state is an expr) — varied per state via `-DSTATE=…`, so one yelu compile
+serves all states and there's no text templating. It builds the reference and
+yelu for each state and uses the *reference's own* NEW-vs-OLD build difference as
+the observability gate — identical across states → SKIP (this toolchain doesn't
+exhibit the policy); differ → assert yelu == reference per state (faithful
+carry). See `test/fixtures/build_equiv/policy_cmp0065/`.
 
 ## Usage  (from repo root, after `dune build`)
 
@@ -132,10 +135,11 @@ def yelu_compile(yc_path):
     return p.stdout
 
 
-def stage_and_build(cmakelists_text, sources, label):
+def stage_and_build(cmakelists_text, sources, label, configure_args=()):
     """Write cmakelists_text + sources into a fresh temp source tree, configure
-    and build it. Returns (build_dir, ok, log). The temp path length varies per
-    call, which is what makes the control build a real reproducibility probe."""
+    (with optional extra -D configure_args) and build it. Returns (build_dir, ok,
+    log). The temp path length varies per call, which is what makes the control
+    build a real reproducibility probe."""
     src = tempfile.mkdtemp(prefix=f"be_{label}_src_")
     bld = tempfile.mkdtemp(prefix=f"be_{label}_bld_")
     with open(os.path.join(src, "CMakeLists.txt"), "w") as h:
@@ -144,7 +148,7 @@ def stage_and_build(cmakelists_text, sources, label):
         dst = os.path.join(src, rel)
         os.makedirs(os.path.dirname(dst), exist_ok=True)
         shutil.copy(abspath, dst)
-    rc, out = run(["cmake", "-S", src, "-B", bld])
+    rc, out = run(["cmake", "-S", src, "-B", bld, *configure_args])
     if rc != 0:
         return bld, False, f"configure failed:\n{out}"
     rc, out = run(["cmake", "--build", bld])
@@ -564,29 +568,29 @@ def check_policy_fixture(name, fdir, cfg):
     states differ."""
     policy = cfg.get("policy", "?")
     states = cfg.get("states", ["NEW", "OLD"])
-    cml_tpl = open(os.path.join(fdir, "CMakeLists.txt")).read()
-    yc_tpl = open(os.path.join(fdir, "main.yc")).read()
+    state_var = cfg.get("state_var", "STATE")
+    ref_cmake = open(os.path.join(fdir, "CMakeLists.txt")).read()
+    yc = os.path.join(fdir, "main.yc")
     skip = {"policy.json", "README.md", "CMakeLists.txt", "main.yc"}
     sources = [(os.path.relpath(os.path.join(dp, fn), fdir), os.path.join(dp, fn))
                for dp, _, files in os.walk(fdir) for fn in files
                if os.path.relpath(os.path.join(dp, fn), fdir) not in skip]
 
+    # The policy state is a cmake VARIABLE (`${STATE}` in CMakeLists.txt, `$STATE`
+    # in main.yc), varied per state via -D — no text templating. yelu carries the
+    # variable faithfully (policy_set state is an expr), so one compile serves all
+    # states; the reference and yelu differ only in the -D cell axis.
+    try:
+        yelu_cmake = yelu_compile(yc)
+    except RuntimeError as e:
+        print(f"  {RED}FAIL{RESET} yelu compile: {e}")
+        return False
+
     ref_sig, yelu_sig, fails = {}, {}, []
     for st in states:
-        ref_cmake = cml_tpl.replace("@STATE@", st)
-        tmp = tempfile.mkdtemp(prefix="be_pol_yc_")
-        yc_path = os.path.join(tmp, "main.yc")
-        with open(yc_path, "w") as h:
-            h.write(yc_tpl.replace("@STATE@", st))
-        try:
-            yelu_cmake = yelu_compile(yc_path)
-        except RuntimeError as e:
-            print(f"  {RED}FAIL{RESET} yelu compile ({st}): {e}")
-            shutil.rmtree(tmp, ignore_errors=True)
-            return False
-        shutil.rmtree(tmp, ignore_errors=True)
-        rb, rok, _     = stage_and_build(ref_cmake,  sources, f"ref_{st}")
-        yb, yok, ylog  = stage_and_build(yelu_cmake, sources, f"yelu_{st}")
+        cfg_args = [f"-D{state_var}={st}"]
+        rb, rok, _     = stage_and_build(ref_cmake,  sources, f"ref_{st}",  cfg_args)
+        yb, yok, ylog  = stage_and_build(yelu_cmake, sources, f"yelu_{st}", cfg_args)
         if not rok:
             print(f"  {YEL}SKIP{RESET} reference build failed for {st} (no baseline)")
             for d in (rb, yb): shutil.rmtree(d, ignore_errors=True)

@@ -739,8 +739,8 @@ let rec emit_exp ~env (e : expr) : C.exp =
   (* cmake_op tail *)
   | ECmakeEnableLanguage { langs; optional } ->
     C.Project_cmd (C.Enable_language { langs; optional })
-  | ECmakePolicySet { id; new_ } ->
-    C.Cmake_cmd (C.Cmake_policy_set { id; new_ })
+  | ECmakePolicySet { id; state } ->
+    C.Cmake_cmd (C.Cmake_policy_set { id; state = target_arg ~env state })
   | ECmakePolicyVersion { min = min_v; max = max_v } ->
     C.Cmake_cmd (C.Cmake_policy_version
       { min = Lang_cmake_utils.version_of_string min_v;
