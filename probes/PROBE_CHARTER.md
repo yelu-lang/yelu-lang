@@ -80,7 +80,7 @@ These are the guardrails that make autonomous work safe:
 
 Autonomy is bounded by these checkpoints. Pause, summarize, and wait:
 
-1. **You hit a yelu_cmake bug** — an emit crash, wrong/After-unbuildable output,
+1. **You hit a yelu_cmake bug** — an emit crash, wrong / unbuildable output,
    a command with no `_inner` / no emit arm, a mis-modelled argument. Capture it
    in the form the yc gap registry uses (construct → symptom → root cause →
    repro), and pause. Do **not** patch the compiler.
@@ -139,10 +139,10 @@ for build-level equivalence.
 | Need | Doc |
 | --- | --- |
 | The 5-step mechanics + per-project state | [`README.md`](README.md) |
-| Which project + its profile | [`candidates.md`](candidates.md) (spdlog is the suggested next; pairs with fmt via `find_package(fmt)`) |
+| Which project + its profile | **nlohmann/json** is the chosen next candidate (2026-07; header-only INTERFACE-library canon, ~238-line root, single-file first pass). [`candidates.md`](candidates.md) ranks the alternatives (spdlog, doctest, cJSON, …). |
 | The matrix oracle methodology | [`cache_matrix.md`](cache_matrix.md) |
 | A complete worked example | [`fmt/README.md`](fmt/README.md), [`fmt/migration_status.md`](fmt/migration_status.md), [`fmt/main.json`](fmt/main.json) |
 | Build-level equivalence (optional 2nd bar) | [`../doc/framework/testing.md`](../doc/framework/testing.md) § Level 7, [`../test/fixtures/build_equiv/fmt/`](../test/fixtures/build_equiv/fmt/README.md) |
 | Where yelu_cmake gaps get recorded | [`../doc/yelu_cmake/lang_coverage.md`](../doc/yelu_cmake/lang_coverage.md) § Emit / semantic coverage gaps |
 | Handling `cmake_policy(...)` | [`../doc/cmake/policy.md`](../doc/cmake/policy.md) — the whole family translates to explicit `policy_*` commands (SET/VERSION/GET/PUSH/POP); no `yc_raw`. Pause only if policy *semantics* (stack eval) matter, which is rare and the matrix uses real cmake anyway. |
-| Testing a policy a project enables | [`../doc/cmake/policy.md`](../doc/cmake/policy.md) § Testing a policy — flip the policy NEW↔OLD as a matrix cell; assert vanilla ≡ yelu per state **and** NEW≠OLD (proves it's carried, not silently coerced). Worked CMP0077 example to copy. |
+| Testing a policy a project enables | [`../doc/cmake/policy.md`](../doc/cmake/policy.md) § Testing a policy — make the state a variable (`policy_set CMP#### $STATE` + `-DSTATE=NEW/OLD`), so it's a normal `-D` matrix cell; assert vanilla ≡ yelu per state **and** NEW≠OLD (proves it's carried, not silently coerced). Two forms: **configure-time** (cache observable, portable — worked CMP0077 example) and **dynamic/build-level** (toolchain-gated `policy.json` `build_equiv` fixture, skips where the toolchain doesn't exhibit it). |
