@@ -7,6 +7,30 @@
 > [`cache_matrix.md`](cache_matrix.md), and the worked example
 > [`fmt/`](fmt/README.md) — this charter is the *how to behave*, not the *how to*.
 
+## Getting started (you were pointed here to work a probe)
+
+If someone said *"read this and start the `<project>` probe,"* this is the whole
+loop — you should not need more than this doc + the project's seeded plan.
+
+1. **Orient.** Read this charter (behaviour), then
+   `probes/<project>/migration_status.md` (the project's plan + running log),
+   then skim the [`fmt/`](fmt/README.md) exemplar. If there is **no**
+   `migration_status.md` yet, you're at the very start — do **learn → plan →
+   discuss** (§ Workflow) first, and don't skip *discuss*.
+2. **Confirm the plan.** Re-read the actual `vendor/<project>/CMakeLists.txt`
+   against the plan (options, policies, install/export). Matches → proceed;
+   something unanticipated → note it in `migration_status.md` and keep going, or
+   pause if it's a real question (§ Pause protocol).
+3. **Drive to the goal.** The goal is **§ Definition of done**: every source file
+   has a `.yc` that compiles (corpus gate green under `dune test`) and the matrix
+   is **N/N cells green** across cache / codemodel / ctest. Run the execute loop
+   (§ Workflow step 4), keeping `migration_status.md` as the running log.
+4. **Autonomy — confirm, then drive.** Once the plan is confirmed and the
+   **first matrix cell is green**, work autonomously toward N/N — don't check in
+   per file. Pause *only* for the three cases in § Pause protocol (a yelu_cmake
+   bug, a milestone, an unclear project question), and never cross § Hard
+   boundaries.
+
 ## Mission
 
 Take **one** real cmake project and reproduce what fmt did:
