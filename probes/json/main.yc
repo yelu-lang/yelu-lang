@@ -1,0 +1,186 @@
+# nlohmann/json v3.12.0 — root CMakeLists.txt
+#
+# Faithful translation of vendor/json/CMakeLists.txt (225 lines).
+# Scope: root only. JSON_BuildTests / JSON_CI are held OFF by the matrix base
+# config, so add_subdirectory(tests) / include(ci) never fire (see
+# migration_status.md § Scope).
+
+##
+## PROJECT
+## name and version
+##
+# GAP J3: the `<min>...<max>` version range is dropped at emit
+# (`Cmake_minimum_required { max = None }`), so `cmake_minimum_required
+# '3.5...4.0'` emits `VERSION 3.5` — a different policy scope.
+yc_raw 'cmake_minimum_required(VERSION 3.5...4.0)';
+# GAP J4: `project(… VERSION …)` is unmodeled — `ECmakeProject` is built with
+# `version = None` unconditionally, so the version is silently dropped. Proven
+# divergent: nlohmann_jsonConfigVersion.cmake and nlohmann_json.pc both get an
+# empty version. Invisible to all three matrix channels.
+yc_raw 'project(nlohmann_json VERSION 3.12.0 LANGUAGES CXX)';
+
+##
+## MAIN_PROJECT CHECK
+##
+MAIN_PROJECT := OFF;
+if str_eq $CMAKE_CURRENT_SOURCE_DIR $CMAKE_SOURCE_DIR then (
+  MAIN_PROJECT := ON
+);
+
+##
+## INCLUDE
+##
+CMAKE_MODULE_PATH := '${CMAKE_CURRENT_SOURCE_DIR}/cmake', $CMAKE_MODULE_PATH;
+include ExternalProject;
+
+##
+## OPTIONS
+##
+if policy CMP0077 then (
+  # Allow CMake 3.13+ to override options when using FetchContent / add_subdirectory.
+  policy_set CMP0077 NEW
+);
+
+# VERSION_GREATER_EQUAL is not available in CMake 3.1
+if $MAIN_PROJECT and ( ver_eq $CMAKE_VERSION '3.13' or ver_gt $CMAKE_VERSION '3.13' ) then (
+  JSON_BuildTests_INIT := ON
+) else (
+  JSON_BuildTests_INIT := OFF
+);
+option JSON_BuildTests 'Build the unit tests when BUILD_TESTING is enabled.' $JSON_BuildTests_INIT;
+option JSON_CI 'Enable CI build targets.' OFF;
+option JSON_Diagnostics 'Use extended diagnostic messages.' OFF;
+option JSON_Diagnostic_Positions 'Enable diagnostic positions.' OFF;
+option JSON_GlobalUDLs 'Place user-defined string literals in the global namespace.' ON;
+option JSON_ImplicitConversions 'Enable implicit conversions.' ON;
+option JSON_DisableEnumSerialization 'Disable default integer enum serialization.' OFF;
+option JSON_LegacyDiscardedValueComparison 'Enable legacy discarded value comparison.' OFF;
+option JSON_Install 'Install CMake targets during install step.' $MAIN_PROJECT;
+option JSON_MultipleHeaders 'Use non-amalgamated version of the library.' ON;
+option JSON_SystemInclude 'Include as system headers (skip for clang-tidy).' OFF;
+
+if $JSON_CI then (
+  include ci
+);
+
+##
+## CONFIGURATION
+##
+include GNUInstallDirs;
+
+if not ( defined NLOHMANN_JSON_TARGET_NAME ) then (
+  # Allow overriding the target name when using FetchContent / add_subdirectory.
+  NLOHMANN_JSON_TARGET_NAME := $PROJECT_NAME
+);
+
+cache NLOHMANN_JSON_CONFIG_INSTALL_DIR := '${CMAKE_INSTALL_DATADIR}/cmake/${PROJECT_NAME}' '' ~type=INTERNAL;
+NLOHMANN_JSON_INCLUDE_INSTALL_DIR := '${CMAKE_INSTALL_INCLUDEDIR}';
+NLOHMANN_JSON_TARGETS_EXPORT_NAME := '${PROJECT_NAME}Targets';
+NLOHMANN_JSON_CMAKE_CONFIG_TEMPLATE := 'cmake/config.cmake.in';
+NLOHMANN_JSON_CMAKE_CONFIG_DIR := '${CMAKE_CURRENT_BINARY_DIR}';
+NLOHMANN_JSON_CMAKE_VERSION_CONFIG_FILE := '${NLOHMANN_JSON_CMAKE_CONFIG_DIR}/${PROJECT_NAME}ConfigVersion.cmake';
+NLOHMANN_JSON_CMAKE_PROJECT_CONFIG_FILE := '${NLOHMANN_JSON_CMAKE_CONFIG_DIR}/${PROJECT_NAME}Config.cmake';
+NLOHMANN_JSON_CMAKE_PROJECT_TARGETS_FILE := '${NLOHMANN_JSON_CMAKE_CONFIG_DIR}/${PROJECT_NAME}Targets.cmake';
+NLOHMANN_JSON_PKGCONFIG_INSTALL_DIR := '${CMAKE_INSTALL_DATADIR}/pkgconfig';
+
+if $JSON_MultipleHeaders then (
+  NLOHMANN_JSON_INCLUDE_BUILD_DIR := '${PROJECT_SOURCE_DIR}/include/';
+  message 'Using the multi-header code from ${NLOHMANN_JSON_INCLUDE_BUILD_DIR}'
+) else (
+  NLOHMANN_JSON_INCLUDE_BUILD_DIR := '${PROJECT_SOURCE_DIR}/single_include/';
+  message 'Using the single-header code from ${NLOHMANN_JSON_INCLUDE_BUILD_DIR}'
+);
+
+if not $JSON_ImplicitConversions then (
+  message 'Implicit conversions are disabled (JSON_USE_IMPLICIT_CONVERSIONS=0)'
+);
+
+if $JSON_DisableEnumSerialization then (
+  message 'Enum integer serialization is disabled (JSON_DISABLE_ENUM_SERIALIZATION=0)'
+);
+
+if $JSON_LegacyDiscardedValueComparison then (
+  message 'Legacy discarded value comparison enabled (JSON_USE_LEGACY_DISCARDED_VALUE_COMPARISON=1)'
+);
+
+if $JSON_Diagnostics then (
+  message 'Diagnostics enabled (JSON_DIAGNOSTICS=1)'
+);
+
+if $JSON_Diagnostic_Positions then (
+  message 'Diagnostic positions enabled (JSON_DIAGNOSTIC_POSITIONS=1)'
+);
+
+if not $JSON_GlobalUDLs then (
+  message 'User-defined string literals are not put in the global namespace (JSON_USE_GLOBAL_UDLS=0)'
+);
+
+if $JSON_SystemInclude then (
+  NLOHMANN_JSON_SYSTEM_INCLUDE := 'SYSTEM'
+);
+
+##
+## TARGET
+## create target and add include path
+##
+add_lib $NLOHMANN_JSON_TARGET_NAME ~type=Interface;
+add_lib_alias '${PROJECT_NAME}::${NLOHMANN_JSON_TARGET_NAME}' ~alias_of='${NLOHMANN_JSON_TARGET_NAME}';
+if ver_lt $CMAKE_VERSION '3.8.0' then (
+  compile_feats $NLOHMANN_JSON_TARGET_NAME Interface 'cxx_range_for'
+) else (
+  compile_feats $NLOHMANN_JSON_TARGET_NAME Interface 'cxx_std_11'
+);
+
+compile_defs $NLOHMANN_JSON_TARGET_NAME Interface '$<$<NOT:$<BOOL:${JSON_GlobalUDLs}>>:JSON_USE_GLOBAL_UDLS=0>' '$<$<NOT:$<BOOL:${JSON_ImplicitConversions}>>:JSON_USE_IMPLICIT_CONVERSIONS=0>' '$<$<BOOL:${JSON_DisableEnumSerialization}>:JSON_DISABLE_ENUM_SERIALIZATION=1>' '$<$<BOOL:${JSON_Diagnostics}>:JSON_DIAGNOSTICS=1>' '$<$<BOOL:${JSON_Diagnostic_Positions}>:JSON_DIAGNOSTIC_POSITIONS=1>' '$<$<BOOL:${JSON_LegacyDiscardedValueComparison}>:JSON_USE_LEGACY_DISCARDED_VALUE_COMPARISON=1>';
+
+include_dirs $NLOHMANN_JSON_TARGET_NAME $NLOHMANN_JSON_SYSTEM_INCLUDE Interface '$<BUILD_INTERFACE:${NLOHMANN_JSON_INCLUDE_BUILD_DIR}>' '$<INSTALL_INTERFACE:${NLOHMANN_JSON_INCLUDE_INSTALL_DIR}>';
+
+## add debug view definition file for msvc (natvis)
+if $MSVC then (
+  NLOHMANN_ADD_NATVIS := TRUE;
+  NLOHMANN_NATVIS_FILE := 'nlohmann_json.natvis';
+  target_sources $NLOHMANN_JSON_TARGET_NAME Interface '$<INSTALL_INTERFACE:${NLOHMANN_NATVIS_FILE}>' '$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/${NLOHMANN_NATVIS_FILE}>'
+);
+
+# Install a pkg-config file, so other tools can find this.
+configure_file '${CMAKE_CURRENT_SOURCE_DIR}/cmake/pkg-config.pc.in' '${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}.pc' '@ONLY';
+
+##
+## TESTS
+## create and configure the unit test target
+##
+if $JSON_BuildTests then (
+  include CTest;
+  enable_testing;
+  add_subdirectory 'tests'
+);
+
+##
+## INSTALL
+## install header files, generate and install cmake config files for find_package()
+##
+include CMakePackageConfigHelpers;
+# use a custom package version config file instead of
+# write_basic_package_version_file to ensure that it's architecture-independent
+# https://github.com/nlohmann/json/issues/1697
+configure_file 'cmake/nlohmann_jsonConfigVersion.cmake.in' $NLOHMANN_JSON_CMAKE_VERSION_CONFIG_FILE '@ONLY';
+configure_file $NLOHMANN_JSON_CMAKE_CONFIG_TEMPLATE $NLOHMANN_JSON_CMAKE_PROJECT_CONFIG_FILE '@ONLY';
+
+if $JSON_Install then (
+  install_directory $NLOHMANN_JSON_INCLUDE_BUILD_DIR ~destination=$NLOHMANN_JSON_INCLUDE_INSTALL_DIR;
+  install_files $NLOHMANN_JSON_CMAKE_PROJECT_CONFIG_FILE $NLOHMANN_JSON_CMAKE_VERSION_CONFIG_FILE ~destination=$NLOHMANN_JSON_CONFIG_INSTALL_DIR;
+  if $NLOHMANN_ADD_NATVIS then (
+    install_files $NLOHMANN_NATVIS_FILE ~destination='.'
+  );
+  # GAP J2: `export(TARGETS …)` has no reachable yc surface — `~targets=[…]`
+  # lowers to flattened kwargs, never the `EList` the install `_inner` matches
+  # on, so the typed form emits a bare `export()` (silently invalid cmake).
+  yc_raw 'export(TARGETS ${NLOHMANN_JSON_TARGET_NAME} NAMESPACE ${PROJECT_NAME}:: FILE ${NLOHMANN_JSON_CMAKE_PROJECT_TARGETS_FILE})';
+  # GAP J1: install(TARGETS … INCLUDES DESTINATION …) is unmodeled — the cmake
+  # AST has no Iak_includes, and `~includes.destination=` is rejected at emit.
+  # See migration_status.md § Gaps found.
+  yc_raw 'install(TARGETS ${NLOHMANN_JSON_TARGET_NAME} EXPORT ${NLOHMANN_JSON_TARGETS_EXPORT_NAME} INCLUDES DESTINATION ${NLOHMANN_JSON_INCLUDE_INSTALL_DIR})';
+  install_export $NLOHMANN_JSON_TARGETS_EXPORT_NAME ~namespace='${PROJECT_NAME}::' ~destination=$NLOHMANN_JSON_CONFIG_INSTALL_DIR;
+  install_files '${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}.pc' ~destination=$NLOHMANN_JSON_PKGCONFIG_INSTALL_DIR;
+  include CPack
+)

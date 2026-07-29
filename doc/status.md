@@ -200,7 +200,7 @@ the task list.
 | **Cross-file collect** | LSP sees one file; `function`/`macro` behind `include`/`add_subdirectory` read as unknown. Kills the last open-world false-positive class. |
 | **"Did you mean X?"** | Levenshtein vs `command_names ∪ defined_names`; cheap `Unknown_command` add-on. |
 | **Manifest `ctor` column** | Populate + test-lock now that `lower` makes the surface↔ctor link verifiable. |
-| **Version literal** | `cmake_minimum_required 3.8...3.25` / `find_package Foo '9.0'` — first-class unquoted version token; bare version positional is accepted-and-dropped today. |
+| **Version literal** | `cmake_minimum_required 3.8...3.25` / `find_package Foo '9.0'` — first-class unquoted version token; bare version positional is accepted-and-dropped today. Concrete consumer: the json probe (**J3**) needs the `<min>...<max>` range to survive emit (`max = None` is hardcoded), and pays a `yc_raw` for it. |
 | **Per-mode `message_*`** | terse `message_fatal`/`_warning`/`_status` → `~mode=` (curated subset). |
 | **`get_property ~mode=Defined`** | trailing `SET`/`DEFINED`/`BRIEF_DOCS`/`FULL_DOCS` flag-as-kwarg-enum; ~30 lines. |
 | **shape-4 install_targets records** | `~library={destination=…}` — dotted-label stopgap stands. |
