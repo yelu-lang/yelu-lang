@@ -107,6 +107,12 @@ gaps.
   self-identifies the missing arm.
 - **This registry** gives human-visible status. A gap leaves the table only when
   its repro test passes (artifacts + symbols).
+- **Probe-found gaps carry a `J`/`F`-style ID and a per-probe fix plan.** The
+  rows below tagged **J1–J5** come from the json probe; their priority order,
+  fix shapes, and verification recipes are in
+  [`../../probes/json/status.md`](../../probes/json/status.md), with the
+  evidence in `probes/json/migration_status.md`. Probe agents may not patch
+  `src/langs/`, so these arrive as plans, not diffs.
 
 | Construct (cmake syntax) | Repro (cmake-commands) | Root cause | Status |
 | --- | --- | --- | --- |

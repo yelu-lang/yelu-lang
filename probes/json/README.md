@@ -28,6 +28,11 @@ channels. Five yelu_cmake gaps were found; all are recorded in
 [`migration_status.md`](migration_status.md) § Gaps found and **none** was
 patched (charter boundary).
 
+> **Picking up the follow-up work? → [`status.md`](status.md).** It is the
+> probe's open-work tracker: the J1–J5 fix queue in priority order, each with a
+> fix shape and a verification recipe, plus the four open decisions that need a
+> human. `migration_status.md` is the evidence behind it.
+
 ## Layout
 
 ```
@@ -35,8 +40,9 @@ probes/json/
 ├── main.json              ← driver config: project, source_dir, out_root, 9 matrix options
 ├── dune                   ← corpus-compile gate (copied verbatim from probes/fmt/dune)
 ├── main.yc                ← CMakeLists.txt (186 lines .yc ← 225 lines cmake)
-├── README.md              ← this file
-└── migration_status.md    ← running log + gap registry
+├── README.md              ← this file (landing page)
+├── status.md              ← open work: J1–J5 fix queue + open decisions
+└── migration_status.md    ← running log + gap evidence
 ```
 
 Scope is **root-only**: `tests/` and `cmake/ci.cmake` are not translated.
@@ -123,7 +129,9 @@ the compiler (no source-level escape needed) — the same mechanism fmt relies o
 
 ## Related
 
-- [`migration_status.md`](migration_status.md) — running log + the J1–J5 gap registry
+- [`status.md`](status.md) — **open work**: the J1–J5 fix queue (priority, fix
+  shape, verification per gap) + the four open decisions
+- [`migration_status.md`](migration_status.md) — running log + the J1–J5 gap evidence
 - [`main.json`](main.json) — hybrid/matrix driver configuration
 - [`../PROBE_CHARTER.md`](../PROBE_CHARTER.md) — mission, boundaries, pause protocol
 - [`../fmt/README.md`](../fmt/README.md) — the worked exemplar this mirrors

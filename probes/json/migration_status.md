@@ -4,6 +4,11 @@
 > `dune test`, hybrid matrix **18/18 across all three channels**. Five
 > yelu_cmake gaps found and recorded (§ Gaps found) — none patched, per
 > [`../PROBE_CHARTER.md`](../PROBE_CHARTER.md).
+>
+> **This file is the record — the evidence for each gap.** The *plan* (fix
+> queue in priority order, fix shapes, per-gap verification recipes, and the
+> open decisions needing a human) is [`status.md`](status.md). Start there if
+> you are picking up the follow-up work.
 
 ## Project & pin
 
@@ -72,6 +77,11 @@ Five gaps. Two are **silently wrong output** (J2, J4) — the class the charter
 exists to surface. None was worked around by changing `src/langs/`; each is
 routed through the sanctioned `yc_raw` escape, which warns at emit so the
 footprint stays visible.
+
+**To act on these, read [`status.md`](status.md)** — it carries the priority
+order, the concrete fix shape per gap, and the verification recipe that proves
+each fix (including the two checks the matrix *cannot* make). The sections below
+are the evidence each of those plans rests on.
 
 ### J1 — `install(TARGETS … INCLUDES DESTINATION …)` is unmodeled
 
@@ -231,11 +241,7 @@ for completeness, not blockers for this probe.
 
 ## Next (later passes)
 
-- Translate `tests/` (many subdirs + thirdparty deps) and `cmake/ci.cmake`, which
-  would put `JSON_BuildTests` / `JSON_CI` on the matrix as real axes.
-- Optional second bar: a `test/fixtures/build_equiv/json/` fixture. json is
-  header-only, so the interesting build-level artifact is a *consumer* linking
-  against the installed package — which is exactly what J4 breaks, so fix J4
-  first.
-- A **generated-file channel** for the matrix (diff `configure_file` outputs).
-  J4 is the argument for it.
+Moved to **[`status.md`](status.md)** — the fix queue (J1–J5 in priority order,
+with fix shapes and verification recipes) and the four open decisions (4th
+matrix channel, `tests/` second pass, `build_equiv/json` fixture, who fixes the
+gaps). Kept in one place so it doesn't drift from this record.
