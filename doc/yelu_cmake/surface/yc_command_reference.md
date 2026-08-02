@@ -197,7 +197,7 @@
 | `policy_push` |  | — |
 | `policy_set` |  | — |
 | `policy_version` |  | — |
-| `project` |  | — |
+| `project` |  | `~version=` |
 | `separate_arguments` |  | — |
 | `yc_raw` |  | — |
 

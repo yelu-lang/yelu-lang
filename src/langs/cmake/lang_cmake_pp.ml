@@ -24,6 +24,8 @@ let pp_list_with_key key pp_ele ff = function
 
 let pp_flag key ff flag = if flag then Fmt.pf ff "@;%s " key else ()
 
+(* No trailing separator — goldens pin `project(Tutorial VERSION 1.0)`. The
+   join to a following clause is the caller's job; see [Project]. *)
 let pp_version_opt ff = function
   | None -> ()
   | Some ver -> Fmt.pf ff "VERSION %s" (Lang_cmake_strings.of_version ver)
@@ -1042,8 +1044,20 @@ and pp_cmake_meta_lang ff = function
 and pp_project_cmd ff cmd =
   match cmd with
   | Project { name; version; description; homepage_url; languages } ->
+      (* [pp_version_opt] carries no trailing separator and the keyed printers
+         carry no *leading* one, so `VERSION x` fused with whatever followed:
+         `project(p VERSION 3.12.0LANGUAGES CXX)`. Join them explicitly. Only
+         the join changes — the goldens pinning the rest of the spacing
+         (`project(MyApp )`, `project(Tutorial VERSION 1.0)`) still hold.
+         Latent until the json probe's J4 fix gave [version] a .yc surface. *)
+      let sep =
+        if Option.is_some version
+           && (Option.is_some description || Option.is_some homepage_url
+               || not (List.is_empty languages))
+        then " " else ""
+      in
       Fmt.(
-        pf ff "project(%a %a%a%a%a)" string name pp_version_opt version
+        pf ff "project(%a %a%s%a%a%a)" string name pp_version_opt version sep
           (pp_with_key "DESCRIPTION" pp_string_quoted)
           description
           (pp_with_key "HOMEPAGE_URL" pp_string_quoted)
@@ -1307,10 +1321,17 @@ and pp_project_cmd ff cmd =
       Fmt.(pf ff "link_libraries(%a)" (list_sp pp_link_library_group) groups)
   (* export *)
   | Export_targets { targets; namespace; file } ->
-      Fmt.(pf ff "export(TARGETS %a%a%a)"
-            (list_sp pp_target) targets
-            (pp_with_key "NAMESPACE" string) namespace
-            (pp_with_key "FILE" pp_arg) file)
+      (* Explicit separators, NOT "%a%a%a": [pp_with_key] emits "KEY value "
+         with a trailing but no *leading* space, so concatenating it straight
+         onto the targets list produced `export(TARGETS ${T}NAMESPACE ns::)`
+         — the last target and the keyword fused into one token. Mirrors the
+         [Install_targets] arm below, which already writes its separators.
+         (Latent until the json probe's J2 fix made this arm reachable from
+         .yc source at all.) *)
+      Fmt.pf ff "export(TARGETS %a" (list_sp pp_target) targets;
+      Option.iter namespace ~f:(fun n -> Fmt.pf ff " NAMESPACE %s" n);
+      Option.iter file ~f:(fun f -> Fmt.pf ff " FILE %a" pp_arg f);
+      Fmt.string ff ")"
   | Export_export { name; file } ->
       Fmt.(
         pf ff "export(EXPORT %a@;%a)" string name

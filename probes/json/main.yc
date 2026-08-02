@@ -13,11 +13,7 @@
 # (`Cmake_minimum_required { max = None }`), so `cmake_minimum_required
 # '3.5...4.0'` emits `VERSION 3.5` — a different policy scope.
 yc_raw 'cmake_minimum_required(VERSION 3.5...4.0)';
-# GAP J4: `project(… VERSION …)` is unmodeled — `ECmakeProject` is built with
-# `version = None` unconditionally, so the version is silently dropped. Proven
-# divergent: nlohmann_jsonConfigVersion.cmake and nlohmann_json.pc both get an
-# empty version. Invisible to all three matrix channels.
-yc_raw 'project(nlohmann_json VERSION 3.12.0 LANGUAGES CXX)';
+project nlohmann_json Cxx ~version='3.12.0';
 
 ##
 ## MAIN_PROJECT CHECK
@@ -172,10 +168,7 @@ if $JSON_Install then (
   if $NLOHMANN_ADD_NATVIS then (
     install_files $NLOHMANN_NATVIS_FILE ~destination='.'
   );
-  # GAP J2: `export(TARGETS …)` has no reachable yc surface — `~targets=[…]`
-  # lowers to flattened kwargs, never the `EList` the install `_inner` matches
-  # on, so the typed form emits a bare `export()` (silently invalid cmake).
-  yc_raw 'export(TARGETS ${NLOHMANN_JSON_TARGET_NAME} NAMESPACE ${PROJECT_NAME}:: FILE ${NLOHMANN_JSON_CMAKE_PROJECT_TARGETS_FILE})';
+  export ~targets=[$NLOHMANN_JSON_TARGET_NAME] ~namespace='${PROJECT_NAME}::' ~file=$NLOHMANN_JSON_CMAKE_PROJECT_TARGETS_FILE;
   # GAP J1: install(TARGETS … INCLUDES DESTINATION …) is unmodeled — the cmake
   # AST has no Iak_includes, and `~includes.destination=` is rejected at emit.
   # See migration_status.md § Gaps found.

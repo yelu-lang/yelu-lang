@@ -31,15 +31,33 @@ unblocking this probe.
 Priority is by **failure mode**, not by size: silently-wrong output first,
 loud-failure second, cosmetic last.
 
-| # | gap | failure mode | size | do it when |
+| # | gap | failure mode | size | status |
 | --- | --- | --- | --- | --- |
-| 1 | **J2** `export(TARGETS …)` | 🔴 silent — emits invalid cmake, no warning | S | next compiler pass |
-| 2 | **J4** `project(… VERSION …)` | 🔴 silent — drops the version, breaks `find_package(pkg <ver>)` | S | next compiler pass, with J2 |
-| 3 | **J1** `install(TARGETS … INCLUDES DESTINATION …)` | 🟡 loud — honest reject at emit | M | when touching the install family |
-| 4 | **J5** `yelu fmt` unquotes `${…}::${…}` | 🟡 loud — output fails to re-parse | S | when touching the CST printer |
-| 5 | **J3** `cmake_minimum_required <min>...<max>` | 🟡 quiet-but-known — range dropped | M | with the parked **Version literal** item |
+| 1 | **J2** `export(TARGETS …)` | 🔴 silent — emits invalid cmake, no warning | S | ✅ **fixed** |
+| 2 | **J4** `project(… VERSION …)` | 🔴 silent — drops the version, breaks `find_package(pkg <ver>)` | S | ✅ **fixed** |
+| 3 | **J1** `install(TARGETS … INCLUDES DESTINATION …)` | 🟡 loud — honest reject at emit | M | ⬜ open — when touching the install family |
+| 4 | **J5** `yelu fmt` unquotes `${…}::${…}` | 🟡 loud — output fails to re-parse | S | ⬜ open — when touching the CST printer |
+| 5 | **J3** `cmake_minimum_required <min>...<max>` | 🟡 quiet-but-known — range dropped | M | ⬜ open — with the parked **Version literal** item |
 
-### 1. J2 — `export(TARGETS …)` emits a bare `export()`
+> **Two printer bugs fell out of J2/J4** — both latent because nothing could
+> reach the field: `export(TARGETS …)` fused the last target into the following
+> keyword (`${T}NAMESPACE ns::`) and `project(…)` fused the version into it
+> (`VERSION 3.12.0LANGUAGES CXX`). Same root cause in both: `pp_with_key` /
+> `pp_list_with_key` carry a **trailing but no leading** separator, so
+> concatenating them with `%a%a` in a format string relies on the preceding
+> printer to supply one. Worth a look if another dormant field is ever woken up.
+
+### 1. J2 — `export(TARGETS …)` emits a bare `export()` — ✅ FIXED
+
+**Landed**: the `export` `_inner` now collects *all* `"targets"` kwargs and
+accepts both shapes (flattened pairs from the CST path, a single `EList` from
+the legacy y1 path), so the TARGETS form is reachable from `.yc`. `~namespace=`
+also learned `EVarLookup` (json passes `'${PROJECT_NAME}::'`). Plus the
+`Export_targets` printer separator bug this uncovered. `probes/json/main.yc`
+now uses the typed `export ~targets=[…] ~namespace= ~file=`; matrix still 18/18,
+fmt still 24/24.
+
+The plan that was carried out is kept below for context.
 
 **Fix shape (smaller of two).** In `src/langs/yelu/yelu_parse.ml`
 (`p_install_command_inner`, ~line 1266) the TARGETS form is selected on
@@ -76,7 +94,23 @@ then `yelu compile probes/json/main.yc` must emit the full
 `export(TARGETS … NAMESPACE … FILE …)`, and `yelu matrix probes/json` must stay
 18/18.
 
-### 2. J4 — `project(… VERSION …)` is silently dropped
+### 2. J4 — `project(… VERSION …)` is silently dropped — ✅ FIXED
+
+**Landed**: `project` accepts `~version=` (registered in
+`Yc_primitives.command_kwargs`, command-reference promoted), and a positional
+`VERSION` / `DESCRIPTION` / `HOMEPAGE_URL` / `LANGUAGES` is now a fatal
+positional reject instead of being swept into *languages*. The two arms merged
+into one (`name_e :: langs` covers `langs = []` identically). Plus the `Project`
+printer separator bug this uncovered. **Verified the way the matrix cannot**:
+`nlohmann_jsonConfigVersion.cmake`, `nlohmann_json.pc` and
+`nlohmann_jsonConfig.cmake` are now byte-identical between the vanilla and
+yelu-emitted builds.
+
+`DESCRIPTION` / `HOMEPAGE_URL` still have no surface — `ECmakeProject` carries
+no field for them, so they route to `yc_raw` **loudly** now rather than
+mis-emitting. That is a smaller, separate gap if anyone wants it.
+
+The plan that was carried out is kept below for context.
 
 **Fix shape.** `ECmakeProject` is constructed with `version = None`
 **unconditionally** at `src/langs/yelu/yelu_parse.ml:1374` and `:1383`. Accept a

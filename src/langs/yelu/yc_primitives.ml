@@ -172,6 +172,7 @@ let command_kwargs : Set.M(String).t Map.M(String).t =
     "find_program", ["name"; "names"; "path"; "paths"];
     "find_file", ["name"; "names"; "path"; "paths"];
     (* cmake_op *)
+    "project", ["version"];
     "message", ["mode"];
     "include", ["optional"];
     "enable_language", ["optional"];

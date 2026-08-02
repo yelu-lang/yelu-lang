@@ -1264,14 +1264,32 @@ let p_install_command_inner name args kwargs =
   | "export", args ->
     (* Two modes. TARGETS form: `~targets=[…]` (+ ~namespace / ~file), no
        leading positional. EXPORT-name form: a single positional export name
-       (+ ~file). The presence of ~targets selects the TARGETS form. *)
-    (match kwarg_opt ~key:"targets" with
-     | Some (EList targets) ->
+       (+ ~file). The presence of ~targets selects the TARGETS form.
+
+       A `~targets=[…]` label arrives in TWO shapes: the CST path lowers a
+       [Yc_cst.Kw_list] to one `("targets", v)` pair per element (see
+       [Yc_cst_lower.convert_args]), while the legacy y1 parser hands over a
+       single [EList]. Accept both — matching only [EList] made the TARGETS
+       form unreachable from any .yc source, so it fell through to the
+       EXPORT-name branch with no positional and emitted a bare `export()`:
+       silently invalid cmake. Found by the json probe (gap J2); the
+       command-coverage lock missed it because that test drives the y1
+       parser, which does build an [EList]. *)
+    let targets =
+      List.concat_map kwargs ~f:(fun (k, v) ->
+        if String.equal k "targets"
+        then (match v with EList items -> items | e -> [ e ])
+        else [])
+    in
+    (match targets with
+     | _ :: _ ->
        let namespace = match kwarg_opt ~key:"namespace" with
-         | Some (EString s | EVar s) -> Some s | _ -> None in
+         | Some (EString s | EVar s) -> Some s
+         | Some (EVarLookup _ as e) -> Some (str_of e)
+         | _ -> None in
        let file = kwarg_opt ~key:"file" in
        Some (yc_export_targets ?namespace ?file targets)
-     | _ ->
+     | [] ->
        (match args with
         | [ name_arg ] ->
           let file = kwarg_opt ~key:"file" in
@@ -1367,20 +1385,39 @@ let p_cmake_op_command_inner name args kwargs =
       | _ -> "3.20"
     in
     Some (ECmakeMinimumRequired version)
-  | "project", [ name_e ] ->
-    let s = match name_e with
-      | EString s | EVar s -> s
-      | _ -> "Project"
-    in
-    Some (ECmakeProject { name = s; languages = []; version = None })
+  (* Labeled-only (Step 2): a positional VERSION / DESCRIPTION / HOMEPAGE_URL /
+     LANGUAGES keyword is a fatal reject. Without it the extra positionals were
+     silently swept into *languages* — `project nlohmann_json VERSION '3.12.0'
+     Cxx` emitted `project(nlohmann_json LANGUAGES VERSION 3.12.0 CXX)`. VERSION
+     now has `~version=`; DESCRIPTION / HOMEPAGE_URL have no surface yet
+     (ECmakeProject carries no field for them), so they route to `yc_raw`
+     rather than mis-emit. (json probe, gap J4.) *)
+  | "project", args
+    when List.exists args ~f:(function
+           | EVar s ->
+             List.mem [ "VERSION"; "DESCRIPTION"; "HOMEPAGE_URL"; "LANGUAGES" ]
+               s ~equal:String.equal
+           | _ -> false) ->
+    Some (ECmakeRawCmd { name = cmake_name_of_yelu name; args;
+                         from_positional = Some "project" })
+  (* One arm for both arities: `langs = []` reproduces the old no-language
+     case exactly. `~version=` was dropped on the floor before — [version] was
+     hardcoded `None`, so `project(… VERSION v)` had NO surface at all and the
+     generated `<pkg>ConfigVersion.cmake` / `.pc` came out with an empty
+     version (json probe, gap J4). The emit arm already handled `Some v`. *)
   | "project", name_e :: langs ->
     let s = match name_e with
       | EString s | EVar s -> s
       | _ -> "Project"
     in
+    let version = match List.Assoc.find kwargs ~equal:String.equal "version" with
+      | Some (EString s | EVar s) -> Some s
+      | Some (EVarLookup _ as e) -> Some (str_of e)
+      | _ -> None
+    in
     let languages = List.map langs ~f:(fun e ->
       str_of ~default:"" e) in
-    Some (ECmakeProject { name = s; languages; version = None })
+    Some (ECmakeProject { name = s; languages; version })
   | "message", args
     when List.exists args ~f:(function
            | EVar s -> List.mem message_modes s ~equal:String.equal
