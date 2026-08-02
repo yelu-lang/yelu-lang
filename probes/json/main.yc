@@ -9,10 +9,7 @@
 ## PROJECT
 ## name and version
 ##
-# GAP J3: the `<min>...<max>` version range is dropped at emit
-# (`Cmake_minimum_required { max = None }`), so `cmake_minimum_required
-# '3.5...4.0'` emits `VERSION 3.5` — a different policy scope.
-yc_raw 'cmake_minimum_required(VERSION 3.5...4.0)';
+cmake_minimum_required '3.5...4.0';
 project nlohmann_json Cxx ~version='3.12.0';
 
 ##

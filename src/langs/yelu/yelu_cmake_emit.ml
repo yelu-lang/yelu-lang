@@ -337,8 +337,28 @@ let rec emit_exp ~env (e : expr) : C.exp =
 
   (* cmake_op: project metadata *)
   | ECmakeMinimumRequired version_s ->
+    (* `<min>...<max>` is a *range*, not a version: it tells cmake the project
+       has been updated for policies through <max>. Hardcoding `max = None`
+       silently narrowed that to <min>, leaving every post-<min> policy unset
+       (and, on cmake 4.x, emitting a deprecation warning upstream doesn't
+       get). The cmake AST + printer already model the range; only this arm
+       dropped it. `version_of_string` truncates a range to its min, so split
+       before calling it — same `...` split as `policy_version`.
+       (json probe, gap J3; the parked "Version literal" item, doc/status.md
+       § 7 — its `find_package Foo '9.0'` half is a separate, surface-side
+       concern and is untouched here.) *)
+    let min_s, max_s =
+      match String.substr_index version_s ~pattern:"..." with
+      | Some i ->
+        String.sub version_s ~pos:0 ~len:i,
+        Some (String.sub version_s ~pos:(i + 3)
+                ~len:(String.length version_s - i - 3))
+      | None -> version_s, None
+    in
     C.Cmake_cmd
-      (C.Cmake_minimum_required { min = Lang_cmake_utils.version_of_string version_s; max = None })
+      (C.Cmake_minimum_required
+         { min = Lang_cmake_utils.version_of_string min_s;
+           max = Option.map max_s ~f:Lang_cmake_utils.version_of_string })
   | ECmakeMessage { mode; texts } ->
     C.Message
       { mode = Yelu_cmake_utils.message_mode_of_string mode;
