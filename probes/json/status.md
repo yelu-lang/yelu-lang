@@ -1,30 +1,39 @@
 # json probe — open work & fix queue
 
-> **The handoff tracker for the json probe.** What the probe found that someone
-> else has to fix, in priority order, with the concrete fix shape and how to
-> verify it. The *evidence* for each item (symptom, root cause, measured
-> divergence) lives in [`migration_status.md`](migration_status.md) § Gaps
-> found — this file is the *plan*, that file is the *record*.
+> **The handoff tracker for the json probe.** What the probe found, in priority
+> order, with the fix shape and how each was verified. The *evidence* (symptom,
+> root cause, measured divergence) lives in
+> [`migration_status.md`](migration_status.md) § Gaps found — this file is the
+> *plan*, that file is the *record*.
 >
-> Written by the probe agent, which is bound by
+> The probe agent that found these is bound by
 > [`../PROBE_CHARTER.md`](../PROBE_CHARTER.md) and **may not touch
-> `src/langs/`**. Every item below is therefore unfixed by design, not by
-> oversight.
+> `src/langs/`**, so they were handed off as plans. **The handoff has since
+> been actioned: J1–J5 are all fixed** (human-directed compiler pass,
+> 2026-07-31). What remains open is the follow-ups and decisions below.
 
-## Probe status: first pass COMPLETE — nothing blocking
+## Probe status: first pass COMPLETE — all five gaps fixed
 
 | bar (charter § Definition of done) | result |
 | --- | --- |
-| root `CMakeLists.txt` → `.yc`, faithful | ✅ 225 L → 186 L `main.yc` |
+| root `CMakeLists.txt` → `.yc`, faithful | ✅ 225 L → 173 L `main.yc`, **zero `yc_raw` escapes**, no emit warnings |
 | corpus-compile gate in `dune test` | ✅ 1/1 ok |
 | matrix N/N × 3 channels | ✅ **18/18** cache · **18/18** codemodel-v2 (128 keys, 0 differ) · **18/18** ctest |
-| every gap recorded, not worked around | ✅ 5 gaps (J1–J5), 4 `yc_raw` escapes, each with an inline `GAP Jn:` comment |
+| every gap recorded, not worked around | ✅ 5 gaps (J1–J5) recorded, then **all 5 fixed** |
 
-Branch `probe/json`, commit `9ddf42b`. Not pushed.
+Branch `probe/json`. Not pushed. Probe landed at `9ddf42b`; the fixes are
+`3ac570b` (J2+J4), `4233183` (J1), `f4dd0be` (J5), `9f4dd23` (J3).
 
-The probe is green **with** the gaps present — all five are routed through
-`yc_raw` or an honest reject. Fixing them is about the *compiler*, not about
-unblocking this probe.
+The probe was green *with* the gaps present (every one routed through `yc_raw`
+or an honest reject), which is what made the fixes safe to do afterwards and in
+any order. It is now green with **no escapes at all** — the whole nlohmann/json
+root goes through the typed surface.
+
+**Regression evidence carried by every fix commit**: `dune test` green,
+`yelu matrix probes/json` 18/18, `yelu matrix probes/fmt` 24/24 (the
+emit-touching regression check), and — for the gaps the matrix is blind to —
+the generated `*Config*.cmake` / `.pc` files byte-identical, plus a sandboxed
+install diff for J1.
 
 ## Fix queue (priority order)
 
@@ -240,7 +249,21 @@ formatter-canonical (it keeps blank lines and section comments). **Do not run
 file. Once fixed, an idempotency check (`fmt ∘ fmt == fmt`) over the probe
 corpora would be a cheap permanent guard.
 
-### 5. J3 — `cmake_minimum_required` `<min>...<max>` range dropped
+### 5. J3 — `cmake_minimum_required` `<min>...<max>` range dropped — ✅ FIXED
+
+**Landed** exactly as planned: split on `"..."` before `version_of_string`
+(which itself truncates a range to its min), mirroring `policy_version`. The
+cmake AST and printer already modelled the range — only the emit arm dropped
+it. `probes/json/main.yc` sheds its last `yc_raw`, and the cmake 4.x
+deprecation warning that the narrowed `VERSION 3.5` provoked is gone from both
+sides of the hybrid configure. fmt's `'3.8...3.28'` now emits its range too;
+matrix still 24/24.
+
+**Only the range half** of the parked *Version literal* item is done. The other
+half — the accepted-and-dropped bare version positional on
+`find_package Foo '9.0'` — is a surface-side concern and is untouched.
+
+The original plan is kept below for context.
 
 Already tracked as the parked **Version literal** item in
 [`../../doc/status.md`](../../doc/status.md) § 7; json is now a concrete
@@ -256,14 +279,26 @@ covers `find_package Foo '9.0'`.
 verbatim, and the cmake 4.3 deprecation warning ("Compatibility with CMake <
 3.10 will be removed") must disappear from the hybrid configure log.
 
+## Follow-ups left open by the fix pass
+
+Small, self-contained, none blocking. Each was scoped *out* deliberately, not
+missed.
+
+| # | item | why it was left | shape |
+| --- | --- | --- | --- |
+| F1 | **`cmake_text_parse` doesn't recognize `INCLUDES DESTINATION`** | J1 was an *emit* gap; the text→AST direction bails safely (`kind_of "INCLUDES"` → `None` → `take_clauses` returns `None` → the command falls back wholesale) rather than parsing and silently stripping | teach `take_clauses` the clause; it needs a 4th component threaded through the recursion |
+| F2 | **ycn doesn't carry `includes_destination`** | `EInstallTargets` has no field, so `from_normal` rebuilds `[]` — the *same* deferral `exclude_from_all` already has in `lang_coverage.md`; the yc→cmake emit path is faithful, only the ycn round-trip is lossy | do it with the ycn agenda, alongside `exclude_from_all` |
+| F3 | **`project(… DESCRIPTION / HOMEPAGE_URL …)` has no surface** | `ECmakeProject` carries no field for them. After J4 they are a **loud** positional reject instead of silently becoming *languages*, so nothing is silently wrong | mirror `~version=`: add fields + labels; `Lang_cmake.Project` already has both |
+| F4 | **`find_package Foo '9.0'` still drops its version** | the other half of the parked *Version literal* item; J3 only fixed the `<min>...<max>` range | surface-side; see `doc/status.md` § 7 |
+
 ## Open decisions (need a human)
 
 | # | decision | recommendation |
 | --- | --- | --- |
-| D1 | **Add a 4th matrix channel: diff `configure_file` outputs per cell?** | **Yes.** J4 is a demonstrated blind spot — an install-breaking divergence that cache + codemodel + ctest all missed. The hybrid driver already walks both build dirs for the file-api reply; globbing the generated `*Config*.cmake` / `*.pc` and diffing them is a small addition. Touches `src/bin/yelu/yelu.ml` (infra) → not the probe agent's call. |
-| D2 | **Second pass — translate `tests/` + `cmake/ci.cmake`?** | **Not next.** It would make `JSON_BuildTests` / `JSON_CI` real matrix axes, but `tests/` is many subdirs with thirdparty deps. Fixing J2/J4 is higher value per hour. |
-| D3 | **`build_equiv/json` fixture (charter's optional 2nd bar)?** | **After J4.** json is header-only, so the meaningful build-level artifact is a *downstream consumer* linking the installed package — which is exactly what J4 breaks. Building the fixture first would just encode the bug. |
-| D4 | **Should the probe agent fix any of J1–J5?** | **No** — charter boundary (`src/langs/` is off-limits). J2 + J4 as one human-directed compiler pass is the recommended shape; both are small and both currently produce silently wrong cmake. |
+| D1 | **Add a 4th matrix channel: diff `configure_file` outputs per cell?** | **Yes — and J4 is now the proof.** The J4 divergence (empty `PACKAGE_VERSION` / `Version:`) was install-breaking and cache + codemodel + ctest were *all* blind to it; it was caught only by diffing the generated files by hand, and that hand check is what verified the fix. Make it a channel so it is not left to whoever remembers. The hybrid driver already walks both build dirs for the file-api reply; globbing `*Config*.cmake` / `*.pc` and diffing is a small addition to `src/bin/yelu/yelu.ml`. |
+| D2 | **Second pass — translate `tests/` + `cmake/ci.cmake`?** | **Now the strongest candidate**, with J1–J5 done. It makes `JSON_BuildTests` / `JSON_CI` real matrix axes. Cost is real: many subdirs and thirdparty deps. |
+| D3 | **`build_equiv/json` fixture (charter's optional 2nd bar)?** | **Unblocked — J4 and J1 were the blockers.** json is header-only, so the meaningful build-level artifact is a *downstream consumer* linking the installed package; that needed a correct package version (J4) and a correct `INTERFACE_INCLUDE_DIRECTORIES` (J1). The sandboxed install diff done for J1 is most of the fixture already. |
+| D4 | ~~Should the probe agent fix J1–J5?~~ | **Resolved**: done as a human-directed compiler pass, 2026-07-31. All five fixed; see the queue above. |
 
 ## Regression guards this probe leaves behind
 
@@ -284,11 +319,10 @@ it when the evaluator improves; never lower it silently.**
 - [`migration_status.md`](migration_status.md) — the running log: full gap
   evidence (symptoms, root causes, measured divergences), translation notes,
   evaluator-channel findings
-- [`README.md`](README.md) — probe landing page: status table, option surface,
-  the 4 raw escapes
+- [`README.md`](README.md) — probe landing page: status table, option surface
 - [`../../doc/yelu_cmake/lang_coverage.md`](../../doc/yelu_cmake/lang_coverage.md)
-  § Emit / semantic coverage gaps — J1, J2, J4, J5 registered in the
-  predictor-wide registry
+  § Emit / semantic coverage gaps — J1, J2, J4, J5 in the predictor-wide
+  registry (all now marked fixed)
 - [`../../doc/status.md`](../../doc/status.md) § 7 — the **Version literal**
   row, now naming J3's consumer
 - [`../PROBE_CHARTER.md`](../PROBE_CHARTER.md) — the boundaries that make every

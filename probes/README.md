@@ -89,7 +89,7 @@ Small projects may stay at just README.md.
 | project | parse-print | `.yc` corpus | semantic matrix | status |
 |---|---|---|---|---|
 | [fmt](fmt/) | 11/11 OK | 11/11 compile | 24/24 × cache + codemodel + CTest | complete first whole-project probe |
-| [json](json/) | — | 1/1 compile | 18/18 × cache + codemodel + CTest | **first pass complete** (v3.12.0, root-only); 5 gaps recorded (J1–J5), fix queue in [`status.md`](json/status.md) — see [`README.md`](json/README.md) |
+| [json](json/) | — | 1/1 compile | 18/18 × cache + codemodel + CTest | **first pass complete** (v3.12.0, root-only); found 5 gaps (J1–J5), **all since fixed** → 0 raw escapes. [`status.md`](json/status.md) / [`README.md`](json/README.md) |
 | [z3](z3/) | 108/108 OK | — | not yet built | parse-print only |
 | [llvm](llvm/) | 3004/3035 OK (30 pre-existing STRUCT) | — | not yet built | parse-print only |
 

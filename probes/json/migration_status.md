@@ -2,13 +2,19 @@
 
 > **Status: first pass COMPLETE.** Root translated, corpus gate wired into
 > `dune test`, hybrid matrix **18/18 across all three channels**. Five
-> yelu_cmake gaps found and recorded (§ Gaps found) — none patched, per
-> [`../PROBE_CHARTER.md`](../PROBE_CHARTER.md).
+> yelu_cmake gaps found and recorded (§ Gaps found) — none patched *by the
+> probe*, per [`../PROBE_CHARTER.md`](../PROBE_CHARTER.md).
 >
-> **This file is the record — the evidence for each gap.** The *plan* (fix
-> queue in priority order, fix shapes, per-gap verification recipes, and the
-> open decisions needing a human) is [`status.md`](status.md). Start there if
-> you are picking up the follow-up work.
+> **Update 2026-07-31 — all five gaps have since been fixed** in a
+> human-directed compiler pass. `main.yc` is down from 4 `yc_raw` escapes to
+> **zero**: the entire nlohmann/json root now translates through the typed
+> surface with no emit warnings. Per-gap fix notes and what fell out of each
+> are in [`status.md`](status.md).
+>
+> **This file is the record — the evidence for each gap**, kept as it was
+> measured. The *plan and outcomes* live in [`status.md`](status.md). Start
+> there if you are picking up the remaining follow-ups (F1–F4) or the open
+> decisions.
 
 ## Project & pin
 
@@ -19,7 +25,7 @@
 | **Commit** | `55f93686c01528224f448c19128836e7df245f72` |
 | Source | `vendor/json` → `~/code/contrib/json-all/json` (symlink; clean at tag) |
 | Build/matrix out | `_out/json/` |
-| Root CMakeLists | 225 lines → `main.yc` 186 lines |
+| Root CMakeLists | 225 lines → `main.yc` 173 lines |
 
 ## Result
 
@@ -29,9 +35,10 @@
 | hybrid matrix — CMakeCache (18 cells) | **18/18** |
 | hybrid matrix — file-api codemodel-v2 | **18/18**, 128 codemodel keys, 0 differ |
 | hybrid matrix — ctest definitions | **18/18** MATCH (101 tests both sides) |
-| generated package files (`…Config.cmake`, `…ConfigVersion.cmake`, `.pc`) | byte-identical (extra check, not a matrix channel) |
+| generated package files (`…Config.cmake`, `…ConfigVersion.cmake`, `.pc`) | byte-identical — an extra hand check, *not* a matrix channel (this is where J4 hid) |
+| installed cmake package (sandboxed prefix, J1 check) | identical, incl. `INTERFACE_INCLUDE_DIRECTORIES` |
 | evaluator-channel smoke (`test_json_matrix_smoke.exe`) | 22 cells, median 11 matched, all cells *stable* |
-| raw cmake escapes | **4** — all four are recorded gaps, not stylistic choices |
+| raw cmake escapes | **0** (was 4; each was a recorded gap, all four now fixed) |
 
 Reproduce:
 
@@ -74,14 +81,15 @@ install/export block is exercised in every cell and additionally flipped.
 ## Gaps found (registry-style — recorded, NOT patched)
 
 Five gaps. Two are **silently wrong output** (J2, J4) — the class the charter
-exists to surface. None was worked around by changing `src/langs/`; each is
+exists to surface. None was worked around by changing `src/langs/`; each was
 routed through the sanctioned `yc_raw` escape, which warns at emit so the
-footprint stays visible.
+footprint stayed visible.
 
-**To act on these, read [`status.md`](status.md)** — it carries the priority
-order, the concrete fix shape per gap, and the verification recipe that proves
-each fix (including the two checks the matrix *cannot* make). The sections below
-are the evidence each of those plans rests on.
+> **All five are now fixed** (2026-07-31). The sections below are preserved as
+> the *evidence as measured at probe time* — the symptom, the root cause, and
+> the divergence numbers. **What was done about each, and what fell out of it,
+> is in [`status.md`](status.md)** along with the four follow-ups (F1–F4) that
+> were deliberately scoped out.
 
 ### J1 — `install(TARGETS … INCLUDES DESTINATION …)` is unmodeled
 

@@ -9,7 +9,7 @@
 > compile definitions, and a dynamic `SYSTEM` include attribute — the shapes fmt
 > (a compiled library) never exercised.
 
-## Status (2026-07-29) — first pass complete
+## Status (2026-07-31) — first pass complete, all five gaps fixed
 
 | oracle | result |
 |---|---|
@@ -18,20 +18,22 @@
 | matrix — file-api codemodel-v2 | **18/18**, 128 keys, 0 differ |
 | matrix — ctest definitions | **18/18** MATCH (101 tests both sides) |
 | generated package files (extra hand check) | `…Config.cmake`, `…ConfigVersion.cmake`, `.pc` byte-identical |
+| installed cmake package (sandboxed prefix) | identical, incl. `INTERFACE_INCLUDE_DIRECTORIES` |
 | evaluator-channel smoke | 22 cells, median 11 matched, all cells stable |
-| raw cmake escapes | **4** — every one a recorded gap (J1–J4), none stylistic |
+| raw cmake escapes | **0** — was 4; every one was a recorded gap, all now fixed |
 
 **Verdict: complete first pass.** The root `CMakeLists.txt` has a `.yc`
 equivalent that parses, wellforms, and emits; the emitted cmake is
 configure-equivalent to upstream across all 18 option cells on all three
-channels. Five yelu_cmake gaps were found; all are recorded in
-[`migration_status.md`](migration_status.md) § Gaps found and **none** was
-patched (charter boundary).
+channels. Five yelu_cmake gaps were found and recorded, **none** patched by the
+probe (charter boundary) — and **all five have since been fixed** in a
+human-directed compiler pass, so the whole root now translates through the
+typed surface with no raw escapes and no emit warnings.
 
-> **Picking up the follow-up work? → [`status.md`](status.md).** It is the
-> probe's open-work tracker: the J1–J5 fix queue in priority order, each with a
-> fix shape and a verification recipe, plus the four open decisions that need a
-> human. `migration_status.md` is the evidence behind it.
+> **Picking up the remaining work? → [`status.md`](status.md).** It carries the
+> J1–J5 outcomes (what was fixed, what fell out of each), the four follow-ups
+> deliberately scoped out (F1–F4), and the open decisions.
+> `migration_status.md` is the evidence behind it.
 
 ## Layout
 
@@ -39,9 +41,9 @@ patched (charter boundary).
 probes/json/
 ├── main.json              ← driver config: project, source_dir, out_root, 9 matrix options
 ├── dune                   ← corpus-compile gate (copied verbatim from probes/fmt/dune)
-├── main.yc                ← CMakeLists.txt (186 lines .yc ← 225 lines cmake)
+├── main.yc                ← CMakeLists.txt (173 lines .yc ← 225 lines cmake)
 ├── README.md              ← this file (landing page)
-├── status.md              ← open work: J1–J5 fix queue + open decisions
+├── status.md              ← J1–J5 outcomes, F1–F4 follow-ups, open decisions
 └── migration_status.md    ← running log + gap evidence
 ```
 
@@ -91,28 +93,31 @@ and `JSON_SystemInclude` are cache-visible *and* codemodel-visible (they change
 the interface include path / its SYSTEM flag), so the codemodel channel is
 load-bearing here, not decorative.
 
-## Adaptation footprint — the 4 raw escapes
+## Adaptation footprint — zero raw escapes
 
-Unlike fmt's escapes (3 of which are *by design* — dynamic `${kind}`
-visibility), **all four json escapes are recorded gaps**. Each `yc_raw` in
-`main.yc` carries an inline `GAP Jn:` comment pointing at
-[`migration_status.md`](migration_status.md).
+`main.yc` needs **no `yc_raw` at all**, and compiles with no emit warnings.
+That is the outcome of fixing the gaps, not of the first translation: the probe
+originally carried **4** escapes, one per gap, each with an inline `GAP Jn:`
+comment. Unlike fmt's escapes — 3 of which are *by design* (dynamic `${kind}`
+visibility) — none of json's were stylistic; every one marked a real compiler
+gap, which is why the count could go to zero.
 
-| line | construct | gap |
+| upstream construct | was | gap → now |
 |---|---|---|
-| 1 | `cmake_minimum_required(VERSION 3.5...4.0)` | **J3** — `<min>...<max>` range dropped at emit |
-| 7 | `project(nlohmann_json VERSION 3.12.0 LANGUAGES CXX)` | **J4** — `project VERSION` silently dropped; proven divergent |
-| ~205 | `export(TARGETS … NAMESPACE … FILE …)` | **J2** — `~targets=[…]` unreachable from the CST path; emits bare `export()` |
-| ~210 | `install(TARGETS … EXPORT … INCLUDES DESTINATION …)` | **J1** — no `Iak_includes` in the cmake AST |
+| `cmake_minimum_required(VERSION 3.5...4.0)` | `yc_raw` | **J3** fixed → `cmake_minimum_required '3.5...4.0'` |
+| `project(nlohmann_json VERSION 3.12.0 LANGUAGES CXX)` | `yc_raw` | **J4** fixed → `project nlohmann_json Cxx ~version='3.12.0'` |
+| `export(TARGETS … NAMESPACE … FILE …)` | `yc_raw` | **J2** fixed → `export ~targets=[…] ~namespace= ~file=` |
+| `install(TARGETS … EXPORT … INCLUDES DESTINATION …)` | `yc_raw` | **J1** fixed → `install_targets … ~export= ~includes_destination=` |
 
-A fifth gap, **J5**, is in the *formatter*: `yelu fmt` unquotes a
-leading-`${…}` atom containing `::` and the result no longer parses. Because of
-it, `main.yc` is intentionally **not** formatter-canonical — do not run
-`yelu fmt -w probes/json/main.yc` until J5 is fixed.
+A fifth gap, **J5**, was in the *formatter*: `yelu fmt` unquoted a
+leading-`${…}` atom containing `::` and the result no longer parsed. Also fixed,
+so `main.yc` is now safe to `yelu fmt -w` — it is nevertheless kept
+un-canonical on purpose, to preserve its blank lines and `##` section comments.
 
-Additionally, `target_include_directories(t ${NLOHMANN_JSON_SYSTEM_INCLUDE}
-INTERFACE …)` goes through the **by-design** dynamic-visibility raw fallback in
-the compiler (no source-level escape needed) — the same mechanism fmt relies on.
+`target_include_directories(t ${NLOHMANN_JSON_SYSTEM_INCLUDE} INTERFACE …)`
+still goes through the **by-design** dynamic-visibility raw fallback inside the
+compiler (no source-level escape needed) — the same mechanism fmt relies on.
+That one is not a gap.
 
 ## Known limitations
 
@@ -121,17 +126,25 @@ the compiler (no source-level escape needed) — the same mechanism fmt relies o
   sides), which is what makes the ctest channel meaningful.
 - **MSVC natvis branch** is translated but never exercised (matrix runs Linux).
   Codegen is verified only insofar as cmake parses it.
-- **No build-level oracle.** json is header-only; the meaningful build-level
-  check is a *downstream consumer* linking the installed package — which J4
-  currently breaks, so that fixture waits on J4.
-- **No install channel.** Per charter, nothing is installed; if added it must
-  target `_out/json/<tag>/install`, never a bare `cmake --install`.
+- **No build-level oracle yet.** json is header-only, so the meaningful
+  build-level check is a *downstream consumer* linking the installed package.
+  That was blocked on J4 (empty package version) and J1 (missing
+  `INTERFACE_INCLUDE_DIRECTORIES`); both are fixed, so a
+  `test/fixtures/build_equiv/json/` fixture is now unblocked — the sandboxed
+  install diff done to verify J1 is most of it already.
+- **No install channel in the matrix.** Nothing is installed per cell. The J1
+  verification installed into a throwaway `_out/json/install-check/` prefix —
+  per charter, never a bare `cmake --install`.
+- **The three matrix channels do not see `configure_file` content** — J4 lived
+  there undetected. Until a generated-file channel exists (decision D1 in
+  [`status.md`](status.md)), that check is a manual step.
 
 ## Related
 
-- [`status.md`](status.md) — **open work**: the J1–J5 fix queue (priority, fix
-  shape, verification per gap) + the four open decisions
-- [`migration_status.md`](migration_status.md) — running log + the J1–J5 gap evidence
+- [`status.md`](status.md) — **the tracker**: J1–J5 outcomes (what was fixed,
+  what fell out of each), the F1–F4 follow-ups scoped out, and the open decisions
+- [`migration_status.md`](migration_status.md) — running log + the J1–J5 gap
+  evidence as originally measured
 - [`main.json`](main.json) — hybrid/matrix driver configuration
 - [`../PROBE_CHARTER.md`](../PROBE_CHARTER.md) — mission, boundaries, pause protocol
 - [`../fmt/README.md`](../fmt/README.md) — the worked exemplar this mirrors
