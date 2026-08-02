@@ -1346,7 +1346,12 @@ let rec from_normal = function
     ECmakeInstallTargets
       {
         targets = List.map targets ~f:from_normal;
-        component = None; artifact_clauses = [];
+        (* [artifact_clauses] and [includes_destination] are reconstructed
+           empty because the normal form carries neither — the same ycn
+           deferral as [exclude_from_all] (lang_coverage.md § Emit / semantic
+           coverage gaps). The yc→cmake emit path carries both faithfully;
+           only the ycn round-trip is lossy. *)
+        component = None; artifact_clauses = []; includes_destination = [];
         destination = Option.map destination ~f:from_normal;
         export = Option.map export ~f:from_normal;
       }

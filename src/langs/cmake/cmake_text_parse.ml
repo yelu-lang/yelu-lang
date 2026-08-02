@@ -2098,6 +2098,13 @@ let parse_install args : L.exp option =
                        { targets;
                          destination = top_dest;
                          artifact_clauses;
+                         (* The text→AST direction does not yet recognize
+                            INCLUDES DESTINATION: [kind_of "INCLUDES"] is None,
+                            so [take_clauses] bails and the whole command falls
+                            back rather than being parsed and silently stripped.
+                            Lossy but safe; teaching the parser this clause is a
+                            follow-up (see probes/json/status.md, J1). *)
+                         includes_destination = [];
                          component = None; rename = None; export;
                          permissions = [] }))
         | _ -> None)

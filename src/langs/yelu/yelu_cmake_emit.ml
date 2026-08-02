@@ -951,18 +951,33 @@ let rec emit_exp ~env (e : expr) : C.exp =
 
   (* Install *)
   | Yelu_cmake_install.ECmakeInstallTargets { targets; destination; component;
-                                              export; artifact_clauses } ->
+                                              export; artifact_clauses;
+                                              includes_destination } ->
     let clauses = List.map artifact_clauses ~f:(fun (kind, dest) ->
       let iak = match kind with
         | "LIBRARY" -> Lang_cmake.Iak_library
         | "ARCHIVE" -> Lang_cmake.Iak_archive
         | "RUNTIME" -> Lang_cmake.Iak_runtime
+        | "OBJECTS" -> Lang_cmake.Iak_objects
+        | "FRAMEWORK" -> Lang_cmake.Iak_framework
+        | "BUNDLE" -> Lang_cmake.Iak_bundle
         | "PUBLIC_HEADER" -> Lang_cmake.Iak_public_header
         | "PRIVATE_HEADER" -> Lang_cmake.Iak_private_header
+        | "RESOURCE" -> Lang_cmake.Iak_resource
+        | "CXX_MODULES_BMI" -> Lang_cmake.Iak_cxx_modules_bmi
         | "FILE_SET" -> Lang_cmake.Iak_file_set ""
         | s when String.is_prefix s ~prefix:"FILE_SET" ->
           Lang_cmake.Iak_file_set (String.chop_prefix_exn s ~prefix:"FILE_SET ")
-        | _ -> Lang_cmake.Iak_library
+        (* Was `| _ -> Iak_library`, which silently emitted `LIBRARY
+           DESTINATION` for every kind missing above — and OBJECTS / FRAMEWORK
+           / BUNDLE / RESOURCE / CXX_MODULES_BMI were all missing, despite
+           being accepted dotted labels (Yc_primitives.install_artifact_kinds).
+           Fail loudly instead: a wrong install destination is invisible until
+           someone installs. (json probe, gap J1.) *)
+        | s ->
+          failwith
+            (Printf.sprintf
+               "emit_ast: install_targets: unknown artifact kind %S" s)
       in
       { Lang_cmake.kind = iak; destination = Some (arg ~env dest) })
     in
@@ -971,6 +986,7 @@ let rec emit_exp ~env (e : expr) : C.exp =
          { targets = List.map targets ~f:(target_arg ~env);
            destination = Option.map destination ~f:(arg ~env);
            artifact_clauses = clauses;
+           includes_destination = List.map includes_destination ~f:(arg ~env);
            component;
            rename = None;
            export = Option.map export ~f:(target_arg ~env);

@@ -145,7 +145,12 @@ let command_kwargs : Set.M(String).t Map.M(String).t =
       ["output"; "command"; "commands"; "depends"; "comment"; "verbatim";
        "command_expand_lists"];
     (* install *)
-    "install_targets", ["component"; "export"; "destination"];
+    (* [includes_destination] is a flat label, not a dotted artifact kind:
+       INCLUDES DESTINATION is a top-level clause of install(TARGETS) that
+       takes a list of directories and sets the exported target's
+       INTERFACE_INCLUDE_DIRECTORIES — it is not an artifact kind. *)
+    "install_targets",
+      ["component"; "export"; "destination"; "includes_destination"];
     "install_files", ["destination"; "component"];
     "install_export", ["destination"; "file"; "namespace"; "component"];
     "install_directory", ["destination"; "component"; "optional"];

@@ -364,7 +364,7 @@ let yelu1_to_yelu2 =
         (ESeq [
           ECmakeAddExecutable { name = EString "app"; exclude_from_all = false; sources = [ EString "main.c" ] };
           ECmakeInstallTargets
-            { targets = [ EString "app" ]; destination = Some (EString "bin"); export = None; component = None; artifact_clauses = [] };
+            { targets = [ EString "app" ]; destination = Some (EString "bin"); export = None; component = None; artifact_clauses = []; includes_destination = [] };
           ECmakeInstallFiles
             { files = [ EString "include/app.h" ]; destination = EString "include"; component = None };
         ])

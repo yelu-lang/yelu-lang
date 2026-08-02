@@ -682,8 +682,10 @@ let yc_get_filename_component ~mode var filename =
 
 open Yelu_cmake_install
 
-let yc_install_targets ?export ?component ?(artifact_clauses = []) targets destination =
-  ECmakeInstallTargets { targets; destination; component; export; artifact_clauses }
+let yc_install_targets ?export ?component ?(artifact_clauses = [])
+    ?(includes_destination = []) targets destination =
+  ECmakeInstallTargets { targets; destination; component; export;
+                         artifact_clauses; includes_destination }
 
 let yc_install_files ?component files destination =
   ECmakeInstallFiles { files; destination; component }

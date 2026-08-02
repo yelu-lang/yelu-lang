@@ -1159,8 +1159,8 @@ let p_install_command_inner name args kwargs =
     let art_kw = ["LIBRARY"; "ARCHIVE"; "RUNTIME"; "OBJECTS"; "FRAMEWORK";
                   "BUNDLE"; "PUBLIC_HEADER"; "PRIVATE_HEADER"; "RESOURCE";
                   "FILE_SET"; "CXX_MODULES_BMI"] in
-    let opt_kw = ["DESTINATION"; "COMPONENT"; "EXPORT"; "PERMISSIONS";
-                  "CONFIGURATIONS"; "NAMELINK_COMPONENT"] in
+    let opt_kw = ["DESTINATION"; "COMPONENT"; "EXPORT"; "INCLUDES";
+                  "PERMISSIONS"; "CONFIGURATIONS"; "NAMELINK_COMPONENT"] in
     (* Match bare [EVar] only — the positional cmake-keyword form is always a
        bare ident; a *quoted* string equal to a keyword (EString) is a literal
        operand and must NOT trigger the reject. All labeled-only reject guards
@@ -1181,7 +1181,20 @@ let p_install_command_inner name args kwargs =
       let component = as_str (kwarg_opt ~key:"component") in
       let export = kwarg_opt ~key:"export" in
       let destination = kwarg_opt ~key:"destination" in
-      Some (yc_install_targets ?export ?component ~artifact_clauses args destination)
+      (* INCLUDES DESTINATION takes a *list* of directories, so collect every
+         `~includes_destination=` pair — the CST flattens `[a, b]` into one
+         pair per element. Deliberately NOT spelled `~includes.destination=`:
+         the dotted lane is for artifact kinds, and INCLUDES is not one (it
+         sets the exported target's INTERFACE_INCLUDE_DIRECTORIES).
+         (json probe, gap J1.) *)
+      let includes_destination =
+        List.concat_map kwargs ~f:(fun (k, v) ->
+          if String.equal k "includes_destination"
+          then (match v with EList items -> items | e -> [ e ])
+          else [])
+      in
+      Some (yc_install_targets ?export ?component ~artifact_clauses
+              ~includes_destination args destination)
   | "install_files", args ->
     (* Labeled-only (Step 2): a positional DESTINATION/COMPONENT/… keyword is a
        fatal reject; the labeled `~destination=`/`~component=` form is the

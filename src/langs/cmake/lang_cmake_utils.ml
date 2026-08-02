@@ -218,11 +218,11 @@ let target_sources_fs target items =
   Project_cmd (Target_sources_file_set { target; items })
 
 let install_targets ?component ?rename ?export ?(permissions = [])
-    ?(artifact_clauses = []) targets destination =
+    ?(artifact_clauses = []) ?(includes_destination = []) targets destination =
   Project_cmd
     (Install_targets
        { targets; destination = Some destination; artifact_clauses;
-         permissions; component; rename; export })
+         includes_destination; permissions; component; rename; export })
 
 let install_export ?file ?namespace ?component ?rename ?(permissions = []) export
     destination =

@@ -35,7 +35,7 @@ loud-failure second, cosmetic last.
 | --- | --- | --- | --- | --- |
 | 1 | **J2** `export(TARGETS …)` | 🔴 silent — emits invalid cmake, no warning | S | ✅ **fixed** |
 | 2 | **J4** `project(… VERSION …)` | 🔴 silent — drops the version, breaks `find_package(pkg <ver>)` | S | ✅ **fixed** |
-| 3 | **J1** `install(TARGETS … INCLUDES DESTINATION …)` | 🟡 loud — honest reject at emit | M | ⬜ open — when touching the install family |
+| 3 | **J1** `install(TARGETS … INCLUDES DESTINATION …)` | 🟡 loud — honest reject at emit | M | ✅ **fixed** |
 | 4 | **J5** `yelu fmt` unquotes `${…}::${…}` | 🟡 loud — output fails to re-parse | S | ⬜ open — when touching the CST printer |
 | 5 | **J3** `cmake_minimum_required <min>...<max>` | 🟡 quiet-but-known — range dropped | M | ⬜ open — with the parked **Version literal** item |
 
@@ -137,7 +137,42 @@ diff _out/json/yelu/build-cmake/nlohmann_json.pc \
 Both must be empty. Before the `yc_raw` workaround they differed:
 `PACKAGE_VERSION "3.12.0"` vs `""`, and `Version: 3.12.0` vs `Version:`.
 
-### 3. J1 — `install(TARGETS … INCLUDES DESTINATION …)`
+### 3. J1 — `install(TARGETS … INCLUDES DESTINATION …)` — ✅ FIXED
+
+**Landed**, and the design question below was resolved the way it suggested:
+`INCLUDES DESTINATION` is **not** an artifact kind. It became a dedicated
+`includes_destination : arg list` field on `Lang_cmake.Install_targets` (and
+`expr list` on `ECmakeInstallTargets`), printed after the per-kind clauses per
+cmake's grammar. Surface is the flat label `~includes_destination=` (scalar or
+list), *not* the dotted `~includes.destination=` — the dotted lane means
+"artifact kind", which this isn't.
+
+**A second, larger silent bug came out with it.** The emit's artifact-kind map
+had no arms for `OBJECTS`, `FRAMEWORK`, `BUNDLE`, `RESOURCE` or
+`CXX_MODULES_BMI` — all five are *accepted* dotted labels
+(`Yc_primitives.install_artifact_kinds`), and all five fell into
+`| _ -> Iak_library`, silently emitting `LIBRARY DESTINATION`. So
+`~resource.destination='res'` installed to the library destination. All five
+arms added; the fallback is now a hard `failwith`, because a wrong install
+destination stays invisible until someone actually installs.
+
+**Verified past the matrix**, since this clause only materializes in the
+*installed* export file: installed both builds into a throwaway
+`_out/json/install-check/` prefix (never system-wide, per charter) and diffed —
+`share/cmake/nlohmann_json/` is identical, with
+`INTERFACE_INCLUDE_DIRECTORIES "${_IMPORT_PREFIX}/include;…"` present on both
+sides. Matrix 18/18, fmt 24/24.
+
+**Known lossy edges, deliberately not chased** (both mirror the existing
+`exclude_from_all` ycn deferral in `lang_coverage.md`):
+- the **ycn normal form** doesn't carry `includes_destination`, so
+  `from_normal` reconstructs `[]`;
+- the **cmake text→AST parser** still doesn't recognize `INCLUDES`
+  (`kind_of` returns `None` → `take_clauses` bails, so the command falls back
+  wholesale rather than being parsed and silently stripped — lossy but safe).
+  Teaching `cmake_text_parse` this clause is a small follow-up.
+
+The original plan is kept below for context.
 
 **Fix shape.** Three edits: add `Iak_includes` to
 `Lang_cmake.install_artifact_kind` (`src/langs/cmake/lang_cmake.ml:115`) and its

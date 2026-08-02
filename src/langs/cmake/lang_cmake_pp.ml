@@ -1342,7 +1342,8 @@ and pp_project_cmd ff cmd =
   | Export_setup { name } ->
       Fmt.(pf ff "export(SETUP %a)" string name)
   (* install *)
-  | Install_targets { targets; destination; artifact_clauses; export; component; _ } ->
+  | Install_targets { targets; destination; artifact_clauses;
+                      includes_destination; export; component; _ } ->
       let pp_kind ff = function
         | Iak_archive -> Fmt.string ff "ARCHIVE"
         | Iak_library -> Fmt.string ff "LIBRARY"
@@ -1369,6 +1370,13 @@ and pp_project_cmd ff cmd =
       Option.iter destination ~f:(fun a ->
         Fmt.pf ff " DESTINATION %a" pp_arg a);
       List.iter artifact_clauses ~f:(pp_clause ff);
+      (* INCLUDES DESTINATION is a top-level clause, not an artifact kind, and
+         cmake's grammar puts it after the per-kind clauses. It takes a list of
+         directories (possibly empty, which is legal and meaningful). *)
+      (match includes_destination with
+       | [] -> ()
+       | dirs ->
+         Fmt.pf ff " INCLUDES DESTINATION %a" (list_sp pp_arg) dirs);
       Fmt.string ff ")"
   | Install_files { files; destination; _ } ->
       Fmt.(

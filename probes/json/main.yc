@@ -169,10 +169,7 @@ if $JSON_Install then (
     install_files $NLOHMANN_NATVIS_FILE ~destination='.'
   );
   export ~targets=[$NLOHMANN_JSON_TARGET_NAME] ~namespace='${PROJECT_NAME}::' ~file=$NLOHMANN_JSON_CMAKE_PROJECT_TARGETS_FILE;
-  # GAP J1: install(TARGETS … INCLUDES DESTINATION …) is unmodeled — the cmake
-  # AST has no Iak_includes, and `~includes.destination=` is rejected at emit.
-  # See migration_status.md § Gaps found.
-  yc_raw 'install(TARGETS ${NLOHMANN_JSON_TARGET_NAME} EXPORT ${NLOHMANN_JSON_TARGETS_EXPORT_NAME} INCLUDES DESTINATION ${NLOHMANN_JSON_INCLUDE_INSTALL_DIR})';
+  install_targets $NLOHMANN_JSON_TARGET_NAME ~export=$NLOHMANN_JSON_TARGETS_EXPORT_NAME ~includes_destination=$NLOHMANN_JSON_INCLUDE_INSTALL_DIR;
   install_export $NLOHMANN_JSON_TARGETS_EXPORT_NAME ~namespace='${PROJECT_NAME}::' ~destination=$NLOHMANN_JSON_CONFIG_INSTALL_DIR;
   install_files '${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}.pc' ~destination=$NLOHMANN_JSON_PKGCONFIG_INSTALL_DIR;
   include CPack

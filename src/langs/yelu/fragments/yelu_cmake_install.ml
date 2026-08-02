@@ -20,6 +20,11 @@ type expr +=
       component : string option;
       export : expr option;
       artifact_clauses : (string * expr) list;
+      (* INCLUDES DESTINATION <dir>… — a top-level clause of install(TARGETS),
+         not an artifact kind (it sets the exported target's
+         INTERFACE_INCLUDE_DIRECTORIES). See Lang_cmake for why it is not an
+         [install_artifact_kind]. *)
+      includes_destination : expr list;
     }
   | ECmakeInstallFiles of {
       files : expr list;
@@ -69,8 +74,14 @@ let eval_optional_string ~eval env = function
     env, Some s
 
 let eval_case ~eval env = function
+  (* [includes_destination] is intentionally dropped here: the evaluator's
+     [InstallTargets] install-rule record does not carry it, and threading it
+     would drag in the ycn normal form (EInstallTargets) for no gain — the
+     same scoping call `exclude_from_all` got (see lang_coverage.md § Emit /
+     semantic coverage gaps). The *emit* path carries it faithfully, which is
+     what produces cmake. *)
   | ECmakeInstallTargets { targets; destination; component; export;
-                            artifact_clauses } ->
+                            artifact_clauses; includes_destination = _ } ->
     let env, targets = eval_string_list ~eval env targets in
     let env, destination = eval_optional_string ~eval env destination in
     let env, export = eval_optional_string ~eval env export in

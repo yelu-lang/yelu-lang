@@ -123,6 +123,14 @@ type install_artifact_clause = {
   destination : arg option;
 }
 
+(* NB `INCLUDES DESTINATION` is deliberately NOT an [install_artifact_kind].
+   In cmake's grammar it is a separate top-level clause of install(TARGETS):
+   it appears once, takes a *list* of directories, and its effect is on the
+   exported target's INTERFACE_INCLUDE_DIRECTORIES rather than on where an
+   artifact is written. Modelling it as a kind would have made it collide
+   with the per-kind DESTINATION emit path. It lives in its own
+   [includes_destination] field on [Install_targets]. *)
+
 (* Scope clause for set_property — exactly one of these prefixes
    the call. See [Set_property] below. *)
 type set_property_scope =
@@ -922,6 +930,7 @@ and project_cmd =
       targets : target list;
       destination : arg option;
       artifact_clauses : install_artifact_clause list;
+      includes_destination : arg list;   (* INCLUDES DESTINATION <dir>… *)
       component : string option;
       rename : string option;
       export : string option;

@@ -153,7 +153,7 @@
 | `install_directory` |  | `~component=` `~destination=` `~optional=` |
 | `install_export` |  | `~component=` `~destination=` `~file=` `~namespace=` |
 | `install_files` |  | `~component=` `~destination=` |
-| `install_targets` |  | `~component=` `~destination=` `~export=` · dotted `~<kind>.destination=` for library/archive/runtime/objects/framework/bundle/public_header/private_header/resource/file_set/cxx_modules_bmi |
+| `install_targets` |  | `~component=` `~destination=` `~export=` `~includes_destination=` · dotted `~<kind>.destination=` for library/archive/runtime/objects/framework/bundle/public_header/private_header/resource/file_set/cxx_modules_bmi |
 | `write_basic_package_version_file` |  | `~compatibility=` `~version=` |
 
 ## find (5)
