@@ -36,7 +36,7 @@ loud-failure second, cosmetic last.
 | 1 | **J2** `export(TARGETS …)` | 🔴 silent — emits invalid cmake, no warning | S | ✅ **fixed** |
 | 2 | **J4** `project(… VERSION …)` | 🔴 silent — drops the version, breaks `find_package(pkg <ver>)` | S | ✅ **fixed** |
 | 3 | **J1** `install(TARGETS … INCLUDES DESTINATION …)` | 🟡 loud — honest reject at emit | M | ✅ **fixed** |
-| 4 | **J5** `yelu fmt` unquotes `${…}::${…}` | 🟡 loud — output fails to re-parse | S | ⬜ open — when touching the CST printer |
+| 4 | **J5** `yelu fmt` unquotes `${…}::${…}` | 🟡 loud — output fails to re-parse | S | ✅ **fixed** |
 | 5 | **J3** `cmake_minimum_required <min>...<max>` | 🟡 quiet-but-known — range dropped | M | ⬜ open — with the parked **Version literal** item |
 
 > **Two printer bugs fell out of J2/J4** — both latent because nothing could
@@ -191,7 +191,34 @@ artifact-clause list. Decide that before writing the AST node.
 (18/18) and diff `nlohmann_jsonTargets.cmake` between the two build dirs — its
 `INTERFACE_INCLUDE_DIRECTORIES` line is what this clause produces.
 
-### 4. J5 — `yelu fmt` breaks `'${A}::${B}'`
+### 4. J5 — `yelu fmt` breaks `'${A}::${B}'` — ✅ FIXED
+
+**Landed**, and the diagnosis in the plan below was close but not exact. The
+culprit was **`is_bare_name`**, not the `A_eval` value-position arm: value slots
+were always quoting correctly (`a := '${A}::${B}'` round-trips fine). Only
+**name/target slots** — the assignment LHS and the first positional of a target
+command — go through `is_bare_name`, which tested `String.is_prefix n "$"` and
+so waved through *any* `$`-starting text. Its own comment already warned about
+this hazard for the non-`$` half (`fmt::fmt-c` must stay quoted).
+
+New `eval_text_is_bare_safe`: text is bare-printable only if every character
+**outside** a `${…}` / `$<…>` group is bare-safe (groups nest, so
+`$<BUILD_INTERFACE:${DIR}>` is handled). `${A}/inc` still elides; `${A}::${B}`
+keeps its quotes.
+
+**Regression test**: `test_yc_cst_bridge.ml` → `elision` →
+`"name-slot quote retention (fmt re-parses)"`, including the `fmt ∘ fmt = fmt`
+property that actually failed. It needs its own surface-level test because
+quoting is invisible to the emit oracle (emit is byte-identical either way) —
+the standing "surface changes are blind to the emit oracle" gotcha.
+
+**No churn**: swept `yelu fmt` over every `.yc` under `probes/`, `examples/` and
+`test/fixtures/` — all re-parse, all idempotent, and the already-canonical
+`probes/fmt` corpus is unchanged. `probes/json/main.yc` may now be safely
+`fmt -w`'d (it is still kept un-canonical on purpose, to preserve its blank
+lines and section comments).
+
+The original diagnosis is kept below for context.
 
 **Fix shape.** The CST printer's quote-elision predicate drops quotes on an atom
 that is pure interpolation starting with `${`. It must instead keep quotes

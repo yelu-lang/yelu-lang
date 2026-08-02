@@ -110,6 +110,37 @@ let test_brace_elision =
     (* idempotent *)
     Alcotest.(check string) "idempotent" "Y := $X\n" (fmt (fmt "Y := ${X}")))
 
+(* fmt must emit text it can read back. A name slot holding eval text elides
+   its quotes only when the NON-eval characters are bare-safe: `${A}/inc` is,
+   `${A}::${B}` is not — the `::` re-lexes as COLON. Before the fix,
+   `is_bare_name` tested only `is_prefix "$"`, so fmt printed
+   `add_lib_alias ${A}::${B}` and could not re-parse its own output; `fmt -w`
+   would have corrupted the file. (json probe, gap J5.)
+
+   This is invisible to the emit oracle — quoting is pure surface, emit is
+   byte-identical either way — so it needs its own surface-level test, per the
+   "surface changes are blind to the emit oracle" gotcha in CLAUDE.md. *)
+let test_name_slot_quoting =
+  Alcotest.test_case "name-slot quote retention (fmt re-parses)" `Quick (fun () ->
+    let fmt s =
+      match Cstp.parse s with
+      | Ok c -> Yelu_langs.Yc_cst_print.print_program c
+      | Error e -> Alcotest.failf "parse %S: %s" s e
+    in
+    (* token-significant `::` between evals ⇒ quotes are retained *)
+    Alcotest.(check string) "`::` keeps quotes"
+      "add_lib_alias \"${A}::${B}\" ~alias_of='${B}'\n"
+      (fmt "add_lib_alias '${A}::${B}' ~alias_of='${B}'");
+    (* bare-safe trailing text ⇒ still elided, no churn on existing corpora *)
+    Alcotest.(check string) "`/` stays bare"
+      "add_lib_alias ${A}/inc\n" (fmt "add_lib_alias '${A}/inc'");
+    (* a plain `${X}` name still elides to the `$X` sugar *)
+    Alcotest.(check string) "plain eval still elides"
+      "add_lib_alias $A\n" (fmt "add_lib_alias '${A}'");
+    (* the property that actually failed: fmt ∘ fmt = fmt *)
+    let once = fmt "add_lib_alias '${A}::${B}' ~alias_of='${B}'" in
+    Alcotest.(check string) "idempotent (output re-parses)" once (fmt once))
+
 (* Enum constructor (visibility): the legacy `:PRIVATE` colon-keyword
    canonicalizes to the leading-cap `Private`; the bare `Public` form already
    reads that way; the `~public:` kwarg key is untouched (lowercase). *)
@@ -458,7 +489,7 @@ let () =
       "value_grammar", [ test_value_grammar ];
       "roundtrip", List.map corpus ~f:roundtrip;
       "comments", [ test_comment_placement ];
-      "elision", [ test_brace_elision ];
+      "elision", [ test_brace_elision; test_name_slot_quoting ];
       "enum", [ test_enum_constructor ];
       "separator", [ test_separator ];
       "value_labels", [ test_value_labels ];

@@ -31,14 +31,47 @@ let pr_string b s =
   then (Buffer.add_char b '"'; Buffer.add_string b (esc_double s); Buffer.add_char b '"')
   else (Buffer.add_char b '\''; Buffer.add_string b s; Buffer.add_char b '\'')
 
-(* A name is safe to print bare iff it is an eval (`${…}` / `$<…>`) or a
-   plain identifier; anything else (e.g. `fmt::fmt-c`, which would re-lex
-   as two colons) must be double-quoted to round-trip. *)
+let is_bare_char c =
+  Char.is_alphanum c || Char.equal c '_' || Char.equal c '-'
+  || Char.equal c '.' || Char.equal c '/'
+
+(* Is eval-bearing text safe to print unquoted? Only if every character
+   OUTSIDE a `${…}` / `$<…>` group is bare-safe. `${A}/inc` is; `${A}::${B}`
+   is not — the `::` re-lexes as COLON.
+
+   This is the `$`-prefixed half of the hazard [is_bare_name] already warned
+   about for plain names. Testing only `is_prefix "$"` let `${A}::${B}` through
+   in a name slot, so `yelu fmt` emitted a file it could not read back
+   (`unexpected COLON`) — `fmt ∘ fmt` failed and `fmt -w` would have corrupted
+   the source. Found by the json probe (gap J5) on
+   `add_lib_alias '${PROJECT_NAME}::${NLOHMANN_JSON_TARGET_NAME}'`. *)
+let eval_text_is_bare_safe s =
+  let n = String.length s in
+  let rec scan i depth =
+    if i >= n then true
+    else if depth > 0 then
+      (* inside a group: anything until it closes (groups can nest, e.g.
+         `$<BUILD_INTERFACE:${DIR}>`) *)
+      match s.[i] with
+      | '{' | '<' -> scan (i + 1) (depth + 1)
+      | '}' | '>' -> scan (i + 1) (depth - 1)
+      | _ -> scan (i + 1) depth
+    else if Char.equal s.[i] '$' && i + 1 < n
+            && (Char.equal s.[i + 1] '{' || Char.equal s.[i + 1] '<')
+    then scan (i + 2) 1
+    else is_bare_char s.[i] && scan (i + 1) 0
+  in
+  scan 0 0
+
+(* A name is safe to print bare iff it is an eval (`${…}` / `$<…>`) whose
+   non-eval text is bare-safe, or a plain identifier; anything else (e.g.
+   `fmt::fmt-c`, which would re-lex as two colons) must be double-quoted to
+   round-trip. *)
 let is_bare_name n =
   (not (String.is_empty n))
-  && (String.is_prefix n ~prefix:"$"
-      || String.for_all n ~f:(fun c ->
-           Char.is_alphanum c || Char.equal c '_' || Char.equal c '-'))
+  && (if String.is_prefix n ~prefix:"$" then eval_text_is_bare_safe n
+      else String.for_all n ~f:(fun c ->
+             Char.is_alphanum c || Char.equal c '_' || Char.equal c '-'))
 
 (* Brace-elision: `${foo}` with a plain-identifier name prints as the lighter
    `$foo`. Charset must match the lexer's `$foo` sugar rule (is_ident_start /
