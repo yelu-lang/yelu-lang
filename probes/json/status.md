@@ -14,12 +14,12 @@
 
 ## Probe status: first pass COMPLETE — all five gaps fixed
 
-| bar (charter § Definition of done) | result |
-| --- | --- |
-| root `CMakeLists.txt` → `.yc`, faithful | ✅ 225 L → 173 L `main.yc`, **zero `yc_raw` escapes**, no emit warnings |
-| corpus-compile gate in `dune test` | ✅ 1/1 ok |
-| matrix N/N × 3 channels | ✅ **18/18** cache · **18/18** codemodel-v2 (128 keys, 0 differ) · **18/18** ctest |
-| every gap recorded, not worked around | ✅ 5 gaps (J1–J5) recorded, then **all 5 fixed** |
+| bar (charter § Definition of done)      | result                                                                            |
+| --------------------------------------- | --------------------------------------------------------------------------------- |
+| root `CMakeLists.txt` → `.yc`, faithful | ✅ 225 L → 173 L `main.yc`, **zero `yc_raw` escapes**, no emit warnings            |
+| corpus-compile gate in `dune test`      | ✅ 1/1 ok                                                                          |
+| matrix N/N × 3 channels                 | ✅ **18/18** cache · **18/18** codemodel-v2 (128 keys, 0 differ) · **18/18** ctest |
+| every gap recorded, not worked around   | ✅ 5 gaps (J1–J5) recorded, then **all 5 fixed**                                   |
 
 Branch `probe/json`. Not pushed. Probe landed at `9ddf42b`; the fixes are
 `3ac570b` (J2+J4), `4233183` (J1), `f4dd0be` (J5), `9f4dd23` (J3).
@@ -40,13 +40,13 @@ install diff for J1.
 Priority is by **failure mode**, not by size: silently-wrong output first,
 loud-failure second, cosmetic last.
 
-| # | gap | failure mode | size | status |
-| --- | --- | --- | --- | --- |
-| 1 | **J2** `export(TARGETS …)` | 🔴 silent — emits invalid cmake, no warning | S | ✅ **fixed** |
-| 2 | **J4** `project(… VERSION …)` | 🔴 silent — drops the version, breaks `find_package(pkg <ver>)` | S | ✅ **fixed** |
-| 3 | **J1** `install(TARGETS … INCLUDES DESTINATION …)` | 🟡 loud — honest reject at emit | M | ✅ **fixed** |
-| 4 | **J5** `yelu fmt` unquotes `${…}::${…}` | 🟡 loud — output fails to re-parse | S | ✅ **fixed** |
-| 5 | **J3** `cmake_minimum_required <min>...<max>` | 🟡 quiet-but-known — range dropped | M | ⬜ open — with the parked **Version literal** item |
+| #   | gap                                                | failure mode                                                   | size | status                                            |
+| --- | -------------------------------------------------- | -------------------------------------------------------------- | ---- | ------------------------------------------------- |
+| 1   | **J2** `export(TARGETS …)`                         | 🔴 silent — emits invalid cmake, no warning                     | S    | ✅ **fixed**                                       |
+| 2   | **J4** `project(… VERSION …)`                      | 🔴 silent — drops the version, breaks `find_package(pkg <ver>)` | S    | ✅ **fixed**                                       |
+| 3   | **J1** `install(TARGETS … INCLUDES DESTINATION …)` | 🟡 loud — honest reject at emit                                 | M    | ✅ **fixed**                                       |
+| 4   | **J5** `yelu fmt` unquotes `${…}::${…}`            | 🟡 loud — output fails to re-parse                              | S    | ✅ **fixed**                                       |
+| 5   | **J3** `cmake_minimum_required <min>...<max>`      | 🟡 quiet-but-known — range dropped                              | M    | ✅ **fixed** (range half of *Version literal*)     |
 
 > **Two printer bugs fell out of J2/J4** — both latent because nothing could
 > reach the field: `export(TARGETS …)` fused the last target into the following
@@ -284,21 +284,121 @@ verbatim, and the cmake 4.3 deprecation warning ("Compatibility with CMake <
 Small, self-contained, none blocking. Each was scoped *out* deliberately, not
 missed.
 
-| # | item | why it was left | shape |
-| --- | --- | --- | --- |
-| F1 | **`cmake_text_parse` doesn't recognize `INCLUDES DESTINATION`** | J1 was an *emit* gap; the text→AST direction bails safely (`kind_of "INCLUDES"` → `None` → `take_clauses` returns `None` → the command falls back wholesale) rather than parsing and silently stripping | teach `take_clauses` the clause; it needs a 4th component threaded through the recursion |
-| F2 | **ycn doesn't carry `includes_destination`** | `EInstallTargets` has no field, so `from_normal` rebuilds `[]` — the *same* deferral `exclude_from_all` already has in `lang_coverage.md`; the yc→cmake emit path is faithful, only the ycn round-trip is lossy | do it with the ycn agenda, alongside `exclude_from_all` |
-| F3 | **`project(… DESCRIPTION / HOMEPAGE_URL …)` has no surface** | `ECmakeProject` carries no field for them. After J4 they are a **loud** positional reject instead of silently becoming *languages*, so nothing is silently wrong | mirror `~version=`: add fields + labels; `Lang_cmake.Project` already has both |
-| F4 | **`find_package Foo '9.0'` still drops its version** | the other half of the parked *Version literal* item; J3 only fixed the `<min>...<max>` range | surface-side; see `doc/status.md` § 7 |
+| #   | item                                                            | why it was left                                                                                                                                                                                                 | shape                                                                                    |
+| --- | --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| F1  | **`cmake_text_parse` doesn't recognize `INCLUDES DESTINATION`** | J1 was an *emit* gap; the text→AST direction bails safely (`kind_of "INCLUDES"` → `None` → `take_clauses` returns `None` → the command falls back wholesale) rather than parsing and silently stripping         | teach `take_clauses` the clause; it needs a 4th component threaded through the recursion |
+| F2  | **ycn doesn't carry `includes_destination`**                    | `EInstallTargets` has no field, so `from_normal` rebuilds `[]` — the *same* deferral `exclude_from_all` already has in `lang_coverage.md`; the yc→cmake emit path is faithful, only the ycn round-trip is lossy | do it with the ycn agenda, alongside `exclude_from_all`                                  |
+| F3  | **`project(… DESCRIPTION / HOMEPAGE_URL …)` has no surface**    | `ECmakeProject` carries no field for them. After J4 they are a **loud** positional reject instead of silently becoming *languages*, so nothing is silently wrong                                                | mirror `~version=`: add fields + labels; `Lang_cmake.Project` already has both           |
+| F4  | **`find_package Foo '9.0'` still drops its version**            | the other half of the parked *Version literal* item; J3 only fixed the `<min>...<max>` range                                                                                                                    | surface-side; see `doc/status.md` § 7                                                    |
 
 ## Open decisions (need a human)
 
 | # | decision | recommendation |
 | --- | --- | --- |
-| D1 | **Add a 4th matrix channel: diff `configure_file` outputs per cell?** | **Yes — and J4 is now the proof.** The J4 divergence (empty `PACKAGE_VERSION` / `Version:`) was install-breaking and cache + codemodel + ctest were *all* blind to it; it was caught only by diffing the generated files by hand, and that hand check is what verified the fix. Make it a channel so it is not left to whoever remembers. The hybrid driver already walks both build dirs for the file-api reply; globbing `*Config*.cmake` / `*.pc` and diffing is a small addition to `src/bin/yelu/yelu.ml`. |
-| D2 | **Second pass — translate `tests/` + `cmake/ci.cmake`?** | **Now the strongest candidate**, with J1–J5 done. It makes `JSON_BuildTests` / `JSON_CI` real matrix axes. Cost is real: many subdirs and thirdparty deps. |
-| D3 | **`build_equiv/json` fixture (charter's optional 2nd bar)?** | **Unblocked — J4 and J1 were the blockers.** json is header-only, so the meaningful build-level artifact is a *downstream consumer* linking the installed package; that needed a correct package version (J4) and a correct `INTERFACE_INCLUDE_DIRECTORIES` (J1). The sandboxed install diff done for J1 is most of the fixture already. |
+| D1 | **4th matrix channel over generated files?** | **Yes** — but scope it as *generated files*, not *`configure_file` outputs*. Measured detail in § D1. |
+| D2 | **Second pass — translate `tests/` + `cmake/ci.cmake`?** | **Yes for `tests/`, separately for `ci.cmake`.** They are very different jobs; split into D2a / D2b. Detail in § D2. |
+| D3 | **`build_equiv/json` fixture (charter's optional 2nd bar)?** | **Unblocked — J4 and J1 were its blockers.** json is header-only, so the meaningful build-level artifact is a *downstream consumer* linking the installed package; that needed a correct package version (J4) and a correct `INTERFACE_INCLUDE_DIRECTORIES` (J1). The sandboxed install diff done for J1 is most of the fixture already. **D2a and D3 reinforce each other** — see § D2. |
 | D4 | ~~Should the probe agent fix J1–J5?~~ | **Resolved**: done as a human-directed compiler pass, 2026-07-31. All five fixed; see the queue above. |
+
+### D1 — a generated-file channel: what it watches, and what it is worth
+
+**What json actually generates.** Three `configure_file(… @ONLY)` calls, all
+unconditional (they run even with `JSON_Install=OFF`), plus one file written by
+`export(TARGETS …)`:
+
+| generator | output (in the build dir) | substituted / derived from |
+| --- | --- | --- |
+| `configure_file cmake/pkg-config.pc.in` | `nlohmann_json.pc` | `@CMAKE_INSTALL_PREFIX@` `@CMAKE_INSTALL_INCLUDEDIR@` `@PROJECT_NAME@` `@PROJECT_VERSION@` |
+| `configure_file cmake/nlohmann_jsonConfigVersion.cmake.in` | `nlohmann_jsonConfigVersion.cmake` | `@PROJECT_VERSION@` `@PROJECT_VERSION_MAJOR@` |
+| `configure_file cmake/config.cmake.in` | `nlohmann_jsonConfig.cmake` | `@PROJECT_NAME@` `@NLOHMANN_JSON_TARGET_NAME@` `@NLOHMANN_JSON_TARGETS_EXPORT_NAME@` |
+| `export(TARGETS …)` | `nlohmann_jsonTargets.cmake` | the target's exported interface |
+
+**The class it catches.** Every `@VAR@` above is an *ordinary* cmake variable —
+not a cache entry, not a target property, not a test. The three existing
+channels see cache entries, codemodel structure, and ctest definitions
+respectively, so **a normal variable is invisible to all of them**.
+`configure_file` is the one place those values become observable. That is
+precisely why J4 (`PROJECT_VERSION` silently empty) sat green at 18/18 while
+breaking `find_package(nlohmann_json 3.12.0)` for every consumer.
+
+**Measured: is it worth doing *per cell*?** I diffed all four generated files
+across a base run and four option flips:
+
+| flip | `.pc` | `ConfigVersion` | `Config` | `Targets.cmake` |
+| --- | --- | --- | --- | --- |
+| `JSON_MultipleHeaders=OFF` | same | same | same | **differs** (`include/` → `single_include/`) |
+| `JSON_Diagnostics=ON` | same | same | same | **differs** (`$<$<BOOL:OFF>:JSON_DIAGNOSTICS=1>` → `BOOL:ON`) |
+| `JSON_SystemInclude=ON` | same | same | same | same |
+| `JSON_Install=OFF` | same | same | same | **absent** |
+
+So the honest answer is a **split verdict**:
+
+- the three `configure_file` outputs are **cell-invariant** for json (they
+  depend only on `PROJECT_*` / `CMAKE_INSTALL_*`, none option-driven) —
+  diffing them 18× would be 18× redundant;
+- `nlohmann_jsonTargets.cmake` **is cell-sensitive**, and it is also where J1's
+  `INCLUDES DESTINATION` lands.
+
+**Therefore scope the channel as "every generated file in the build dir"**
+(glob the `configure_file` outputs *and* the `export()` output), and run it per
+cell — justified by the export file, not by `configure_file`. A cheaper variant
+— check generated files **once per project** rather than per cell — would still
+have caught J4 in full, and is worth considering if per-cell cost matters.
+
+**Implementation note, the only real cost**: `nlohmann_jsonTargets.cmake`
+embeds absolute source paths, which differ by construction between the vendor
+tree and the hybrid worktree (`/home/red/code/contrib/json-all/json/include/`
+vs `…/_out/json/yelu/source/include/`). A naive diff false-positives on every
+cell. It needs the same path normalization the cache channel already applies —
+that, not the diffing, is the work.
+
+### D2 — what `tests/` is, and what translating it buys
+
+**Yes, `tests/` is json's own internal suite** — not a third-party harness. It
+splits into three groups with very different translation value. Full
+file-by-file inventory with line counts and reachability:
+[`migration_status.md`](migration_status.md) § Raw-cmake inventory.
+
+| group | files | what it is |
+| --- | --- | --- |
+| **unit tests** | `tests/CMakeLists.txt` (197 L) + `cmake/test.cmake` (273 L) + `cmake/download_test_data.cmake` (56 L) | doctest-based; `file(GLOB src/unit-*.cpp)` × up to 5 C++ standards via `json_test_add_test_for`. **This is where the 101 ctest entries the probe already matches come from.** doctest / fifo_map are vendored header-only — include dirs, no `add_subdirectory` |
+| **ABI compat** | `tests/abi/` + `config/` `diag/` `inline_ns/` (83 L total) | builds the same TU twice with different macros and links them |
+| **cmake integration** | 6 × `tests/cmake_*/CMakeLists.txt` (114 L total) | **the interesting group** — see below |
+
+**The integration group is the reason to do this.** Those six dirs verify
+json's *packaging*: `cmake_import`, `cmake_import_minver`,
+`cmake_add_subdirectory`, `cmake_fetch_content`, `cmake_fetch_content2`,
+`cmake_target_include_directories`. They are upstream's own oracle for exactly
+what J4 and J1 broke — `cmake_import*` are gated on `JSON_Install` and consume
+the generated `nlohmann_jsonConfig.cmake`, and `cmake_import_minver` does a
+*versioned* `find_package`, which the empty `PACKAGE_VERSION` from J4 would
+have failed outright.
+
+That makes **D2a and D3 mutually reinforcing**, as you say: the integration
+tests are a packaging oracle expressed in cmake, and `build_equiv/json` is the
+same idea expressed as a fixture. Doing D2a gives D3 its assertions for free.
+
+**Caveats to plan around, not discovered late:**
+
+- Each `tests/cmake_*/CMakeLists.txt` is only the *harness half*. The
+  `project/` subdir beside it is **not** `add_subdirectory`'d — it is a
+  separate root project that a nested `cmake` launches at **test-run** time via
+  `add_test`. A configure-time matrix never sees it. Getting real value needs
+  the tests actually **run**, or the `project/` dirs treated as their own tiny
+  probes.
+- `file(GLOB src/unit-*.cpp)` in `tests/CMakeLists.txt` — a glob is a
+  translation hazard worth flagging up front (yc has `file_glob`).
+- **Good news on scope**: the two heavy dirs are *not* reachable from the root.
+  `tests/benchmarks/` (`FetchContent` → `google/benchmark`, i.e. **network**)
+  and `tests/cuda_example/` are only invoked by `cmake/ci.cmake` custom targets
+  as separate cmake processes. A `JSON_BuildTests=ON` pass pulls neither.
+
+**Split D2, because the two halves are not the same job:**
+
+| | scope | size | verdict |
+| --- | --- | --- | --- |
+| **D2a** | `tests/` + `cmake/test.cmake` + `download_test_data.cmake` | **~723 L** across 13 files | **Do it.** Makes `JSON_BuildTests` a real matrix axis and brings upstream's packaging oracle into range |
+| **D2b** | `cmake/ci.cmake` + `clang_flags.cmake` + `gcc_flags.cmake` | **~1081 L** across 3 files | **Defer.** 40+ `add_custom_target` developer conveniences (lint, coverage, sanitizers, per-compiler builds) that launch nested cmake processes; `gcc_flags.cmake` alone is 348 L of warning-flag lists. Not part of json's consumable build, and it is the single largest file in the project |
 
 ## Regression guards this probe leaves behind
 
@@ -316,7 +416,8 @@ it when the evaluator improves; never lower it silently.**
 
 ## Related
 
-- [`migration_status.md`](migration_status.md) — the running log: full gap
+- [`migration_status.md`](migration_status.md) — the running log: the
+  **raw-cmake inventory & translation coverage table** (D2's sizing), full gap
   evidence (symptoms, root causes, measured divergences), translation notes,
   evaluator-channel findings
 - [`README.md`](README.md) — probe landing page: status table, option surface

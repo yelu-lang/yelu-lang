@@ -55,7 +55,9 @@ Translated: **only the root `CMakeLists.txt`** → `probes/json/main.yc`.
 
 | upstream | → `.yc` | notes |
 | --- | --- | --- |
-| `CMakeLists.txt` (225 L) | `probes/json/main.yc` (186 L) | INTERFACE lib + 11 options + install/export block |
+| `CMakeLists.txt` (225 L) | `probes/json/main.yc` (173 L) | INTERFACE lib + 11 options + install/export block |
+
+Full accounting of what that leaves untranslated: § Raw-cmake inventory below.
 
 **Deviation from the plan, worth knowing.** The plan said the base config would
 hold `JSON_BuildTests` OFF so `add_subdirectory(tests)` never fires. In practice
@@ -66,6 +68,79 @@ while making the **ctest channel non-vacuous** (101 tests matched per cell
 instead of zero). `JSON_CI` stays OFF (default), so `include(ci)` never fires.
 `JSON_BuildTests` / `JSON_CI` are therefore not matrix axes; translating
 `tests/` and `cmake/ci.cmake` remains a later pass.
+
+## Raw-cmake inventory & translation coverage
+
+Every cmake file in `vendor/json` at v3.12.0 (42 total), with what reaches it
+and whether it is translated. "Reached from root" means a `JSON_BuildTests=ON`
+configure of the root actually parses it — the boundary that decides whether a
+file is even *in range* for the matrix.
+
+Counted three ways, because the raw "42 files" figure is misleading — 16 of
+them are docs snippets, vendored third-party, or `configure_file` templates:
+
+| denominator | files | lines | translated |
+| --- | --- | --- | --- |
+| every cmake-ish file in the tree | 42 | 2623 | 1 file / 225 L |
+| **real project cmake** (drops 8 docs snippets, 5 vendored Fuzzer, 3 templates) | **26** | **2193** | 1 file / 225 L — **10% of lines** |
+| **reachable from a `JSON_BuildTests=ON` root configure** — the matrix's horizon | **14** | **948** | 1 file / 225 L — **24% of lines** |
+
+The last row is the one that matters: everything outside it is configured by a
+*separate* cmake process and can never be checked by this probe's matrix, no
+matter how much of it gets translated. Closing D2a takes that row to 14/14.
+
+### In scope, translated
+
+| file | L | reached from | status |
+| --- | --- | --- | --- |
+| `CMakeLists.txt` | 225 | — (root) | ✅ `probes/json/main.yc`, 0 raw escapes |
+
+### Reachable from root, NOT translated — the D2a candidate (~723 L / 13 files)
+
+Configured today from **upstream text on both sides** of every hybrid cell, so
+neutral to the comparison but not *verified* by it. This is what makes
+`JSON_BuildTests` a held-out option rather than a matrix axis.
+
+| file | L | reached from | notes |
+| --- | --- | --- | --- |
+| `tests/CMakeLists.txt` | 197 | root, `if(JSON_BuildTests)` | doctest unit tests; **`file(GLOB src/unit-*.cpp)`** × up to 5 C++ standards. Source of the 101 ctest entries the probe matches |
+| `cmake/test.cmake` | 273 | `tests/` `include(test)` | 3 public functions (`json_test_add_test_for`, `json_test_set_test_options`, `json_test_should_build_32bit_test`) + 2 private |
+| `cmake/download_test_data.cmake` | 56 | `cmake/test.cmake` | fetches `nlohmann/json_test_data` unless `JSON_TestDataDirectory` is set — **network unless overridden** |
+| `tests/abi/CMakeLists.txt` | 30 | `tests/` | ABI-compat: same TU built twice with different macros, then linked |
+| `tests/abi/config/CMakeLists.txt` | 22 | `tests/abi/` | |
+| `tests/abi/diag/CMakeLists.txt` | 19 | `tests/abi/` | |
+| `tests/abi/inline_ns/CMakeLists.txt` | 12 | `tests/abi/` | |
+| `tests/cmake_import/CMakeLists.txt` | 19 | `tests/`, `if(JSON_Install)` | **packaging oracle** — nested cmake on `project/` via `add_test`, consumes the generated `nlohmann_jsonConfig.cmake` |
+| `tests/cmake_import_minver/CMakeLists.txt` | 19 | `tests/`, `if(JSON_Install)` | **versioned `find_package`** — this is the test J4's empty `PACKAGE_VERSION` would have failed |
+| `tests/cmake_add_subdirectory/CMakeLists.txt` | 18 | `tests/` | packaging oracle, `add_subdirectory` consumption |
+| `tests/cmake_fetch_content/CMakeLists.txt` | 20 | `tests/` | packaging oracle, `FetchContent` consumption |
+| `tests/cmake_fetch_content2/CMakeLists.txt` | 20 | `tests/` | packaging oracle |
+| `tests/cmake_target_include_directories/CMakeLists.txt` | 18 | `tests/` | packaging oracle |
+
+### Not reachable from root — separate cmake invocations (12 files, 1245 L)
+
+Each of these is configured by its own `cmake` process (launched by a
+`ci.cmake` custom target or an `add_test`), never by the root configure. They
+are therefore **out of scope for the matrix** and would need their own probe
+entries, not a `tests/` pass.
+
+| file | L | launched by | notes |
+| --- | --- | --- | --- |
+| `cmake/ci.cmake` | 713 | root, `if(JSON_CI)` | the **D2b** candidate — 40+ `add_custom_target` developer conveniences (lint, coverage, sanitizers, per-compiler builds). Largest file in the project |
+| `cmake/gcc_flags.cmake` | 348 | `ci.cmake` | warning-flag lists, machine-generated |
+| `cmake/clang_flags.cmake` | 20 | `ci.cmake` | |
+| `tests/benchmarks/CMakeLists.txt` | 34 | `ci_benchmarks` target | `FetchContent` → `google/benchmark` (**network**). *Not* on the `JSON_BuildTests` path |
+| `tests/cuda_example/CMakeLists.txt` | 10 | `ci_cuda_example` target | needs a CUDA toolchain |
+| 6 × `tests/cmake_*/project/CMakeLists.txt` | 96 | nested cmake at **test-run** time | the consumer half of each packaging oracle — separate root projects, invisible to a configure-time matrix |
+| `cmake/scripts/gen_bazel_build_file.cmake` | 24 | `cmake -P` | standalone script |
+
+### Not cmake-build files
+
+| file(s) | count | notes |
+| --- | --- | --- |
+| `cmake/config.cmake.in`, `cmake/nlohmann_jsonConfigVersion.cmake.in`, `cmake/pkg-config.pc.in` | 3 (42 L) | `configure_file` **inputs** — templates, not translated; their *outputs* are what a generated-file channel would diff (see [`status.md`](status.md) § D1) |
+| `docs/mkdocs/docs/integration/*/CMakeLists.txt` | 8 | documentation snippets, never configured |
+| `tests/thirdparty/Fuzzer/**/CMakeLists.txt` | 5 | vendored third-party; **unreachable** — json uses `tests/thirdparty/doctest` and `fifo_map` as header-only include dirs, never `add_subdirectory` |
 
 ## Matrix axes (9 options — the `main.json` list)
 

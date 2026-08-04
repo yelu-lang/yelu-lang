@@ -47,7 +47,9 @@ probes/json/
 └── migration_status.md    ← running log + gap evidence
 ```
 
-Scope is **root-only**: `tests/` and `cmake/ci.cmake` are not translated.
+Scope is **root-only**: 1 of the 14 cmake files a root configure reaches
+(225 of 948 lines, **24%**). Full file-by-file inventory with reachability:
+[`migration_status.md`](migration_status.md) § Raw-cmake inventory.
 `JSON_BuildTests` defaults ON and `tests/` therefore configures — from
 *upstream* text on both sides of every cell, which keeps it neutral to the
 comparison while making the ctest channel non-vacuous. Details and the
