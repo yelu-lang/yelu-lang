@@ -9,12 +9,17 @@
 >   *why*; each item points at its design home when there is one.
 > - If a task isn't here, it's either shipped or not yet a task.
 >
-> Last touched: 2026-07-22.
+> Last touched: 2026-08-07.
 
 ## Now
 
 - **In flight:** *(nothing active)*
-- **Next big rock: ycn concrete syntax** — the gateway to the whole ycn agenda
+- **Next: ycn theory-decomposition review** — decision checkpoint (good /
+  improve / leave for future) on the 16-fragment decomposition, before any
+  further ycn work. Evidence + discussion in
+  [`theory_decomposition_review.md`](yelu_cmake_normal/typing/theory_decomposition_review.md)
+  and the runnable probe `src/bin/debug/debug_ycn_decomp.ml`.
+- **Then: ycn concrete syntax** — the gateway to the whole ycn agenda
   (records-as-values, Y17 typing, Y18 entity value are all unwritable until ycn
   has a surface). Design notes:
   [`ycn_concrete_syntax.md`](yelu_cmake_normal/ycn_concrete_syntax.md);
@@ -218,6 +223,30 @@ the task list.
 - **Y5** File API cache-v2 diff (extend the oracle beyond codemodel-v2).
 - **Y12** cmake-layer test mirroring (sync cmake PP tests with yelu coverage).
 
+### 9. Source-level harness for AI-generated code (Y19)
+
+Motivation (observed 2026-08): an agent was told "never invoke a shell script
+directly in a module — always call the utility wrapper that owns it", and
+sometimes violated it. Behavior tests pass either way, so the violation was
+invisible until a **test-flavored harness checked the code concretely from the
+source** — then the constraint became enforceable. Generalizes: AI-authored
+code needs source-level invariants run as tests, not just post-plan behavior
+checks.
+
+- **Y19 — source-level test harness + authoring interface.** Two halves:
+  1. **Harness** — a test-flavored API for asserting source-level invariants
+     ("no raw shell calls outside the owning wrapper module", "every process
+     goes through the wrapper") that runs with the normal test suite and
+     reports file/line-shaped findings. The wellform pass generalized from one
+     pack's checks to arbitrary user invariants.
+  2. **Interface** — an easy LSP/syntax/macro programming surface so invariants
+     are cheap to write and violations surface at edit time (LSP diagnostics),
+     not only in CI. Macro machinery (Y8 quote/splice) and wellform are the
+     natural building blocks; the corpus gate is the precedent for "checked in
+     the build".
+- Design home: none yet (new doc when started). Ties: `surface_lsp_framework.md`
+  §7.5 / §8, wellform, Y8, corpus gate, and the verifier-feedback thesis.
+
 ## Numbered backlog (Y-IDs — stable, never renumbered)
 
 Quick reference; each maps to an area above. Done: **Y1, Y9, Y10** (worklog 04).
@@ -238,6 +267,7 @@ Quick reference; each maps to an area above. Done: **Y1, Y9, Y10** (worklog 04).
 | Y16 | Real-world cmake rewrite | § 2 (behavior oracle / hybrid) |
 | Y17 | Types on **ycn** | § 1 |
 | Y18 | First-class object value | § 1 (ycn); [`object_value.md`](yelu_cmake_normal/design/object_value.md) |
+| Y19 | Source-level test harness + LSP/syntax/macro interface | § 9 |
 
 ## Where done work + design rationale live
 

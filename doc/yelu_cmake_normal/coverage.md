@@ -24,14 +24,14 @@ operate on. So "coverage" here means **convert + eval**, not emit-to-text.
 
 ## Coverage matrix (measured)
 
-| Axis | Status | Detail |
-| --- | --- | --- |
-| **Theories** | 16 | the 14 yc theories + `bool` + `int` (theory primitives the cmake form folds into command shapes). Fragments: `yelu_cmake_normal_<theory>.ml`. |
-| **Constructors** | 74 | `E*` across the 16 normal fragments. |
-| **Convert — `to_normal`** | all theories | `yc → ycn` (`yelu_cmake_convert.ml`, ~1,750 LOC total). |
-| **Convert — `from_normal`** | all theories | `ycn → yc`. |
-| **Eval** | 16 / 16 theories | every normal fragment defines an `eval_case`; dual evaluator is `yelu_cmake_normal_eval.ml`. |
-| **Roundtrip lock** | **65 tests, gated** | `test_yelu_lift_lower.ml` — 31 `yc→ycn`, 32 `ycn→yc`, 2 full roundtrip. Runs under `dune test` (unlike `make cmake-commands`), so a convert regression **fails the build**. Spans all 16 theories. |
+| Axis                        | Status              | Detail                                                                                                                                                                                             |
+| --------------------------- | ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Theories**                | 16                  | the 14 yc theories + `bool` + `int` (theory primitives the cmake form folds into command shapes). Fragments: `yelu_cmake_normal_<theory>.ml`.                                                      |
+| **Constructors**            | 74                  | `E*` across the 16 normal fragments.                                                                                                                                                               |
+| **Convert — `to_normal`**   | all theories        | `yc → ycn` (`yelu_cmake_convert.ml`, ~1,750 LOC total).                                                                                                                                            |
+| **Convert — `from_normal`** | all theories        | `ycn → yc`.                                                                                                                                                                                        |
+| **Eval**                    | 16 / 16 theories    | every normal fragment defines an `eval_case`; dual evaluator is `yelu_cmake_normal_eval.ml`.                                                                                                       |
+| **Roundtrip lock**          | **65 tests, gated** | `test_yelu_lift_lower.ml` — 31 `yc→ycn`, 32 `ycn→yc`, 2 full roundtrip. Runs under `dune test` (unlike `make cmake-commands`), so a convert regression **fails the build**. Spans all 16 theories. |
 
 The almost-roundtrip property is `from_normal ∘ to_normal ≡ identity-modulo-emission`.
 
@@ -51,8 +51,8 @@ The almost-roundtrip property is `from_normal ∘ to_normal ≡ identity-modulo-
 Parallel to yc's [emit/semantic gap registry](../yelu_cmake/lang_coverage.md).
 A gap leaves the table when its roundtrip case passes.
 
-| Construct | Symptom | Root cause | Status |
-| --- | --- | --- | --- |
+| Construct                                            | Symptom                                    | Root cause                                                                                                                        | Status                                                                                                                                                                                                                                |
+| ---------------------------------------------------- | ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `exclude_from_all` on `add_library`/`add_executable` | flag lost across `to_normal`/`from_normal` | `EExecutable`/`ELibrary` (normal target fragment) don't carry the field; `to_normal` drops it, `from_normal` reconstructs `false` | ⬜ **deferred** — fix mirrors the yc-side change (add the field to the 2 ctors + thread `convert.ml`/`normal_target.ml`, ~30 sites; w9 forces every read site). Do with the ycn agenda. Discovered 2026-07 via the cmake-commands dig. |
 
 ## How ycn coverage is tracked
