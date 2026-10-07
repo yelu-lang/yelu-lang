@@ -111,6 +111,7 @@ new value or type model belongs to `yelu_cmake_normal/`.
 | [`worklog/worklog_2026_04.md`](worklog/worklog_2026_04.md) | April implementation history. |
 | [`worklog/worklog_2026_05.md`](worklog/worklog_2026_05.md) | IR harness, retirement, and round-trip history. |
 | [`worklog/worklog_2026_06.md`](worklog/worklog_2026_06.md) | fmt migration, surface work, audit closure, and parser retirement. |
+| [`worklog/worklog_2026_07.md`](worklog/worklog_2026_07.md) | json probe + the five compiler gaps it found (J1–J5); the open ycn decomposition checkpoint. |
 | [`worklog/syntax_audit_request_2026-06.md`](worklog/syntax_audit_request_2026-06.md) | Archived independent-audit brief. |
 | [`worklog/syntax_audit_report_2026-06.md`](worklog/syntax_audit_report_2026-06.md) | Archived audit findings. |
 | [`archive/README.md`](archive/README.md) | Index of resolved bugs and superseded parser notes. |

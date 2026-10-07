@@ -9,7 +9,7 @@
 >   *why*; each item points at its design home when there is one.
 > - If a task isn't here, it's either shipped or not yet a task.
 >
-> Last touched: 2026-08-07.
+> Last touched: 2026-10-07.
 
 ## Now
 
@@ -24,16 +24,18 @@
   has a surface). Design notes:
   [`ycn_concrete_syntax.md`](yelu_cmake_normal/ycn_concrete_syntax.md);
   65-program acceptance corpus already in `test_yelu_lift_lower.ml`.
-- **Then (unordered):** a 2nd probe project (spdlog for a real
-  `find_package(fmt)` consumer, or nlohmann/json for the fastest clean win —
-  *not* gated on anything; fmt already covers 13/15 coverage-map rows), and the
-  behavior-level oracle (§ Backlog 2). A probe is a good **handoff-mode** task —
-  charter (mission, boundaries, pause protocol, learn→plan→discuss→execute) in
+- **Then (unordered):** the json-probe follow-ups (§ Backlog 10 — a
+  generated-file matrix channel is the pick), a 3rd probe project (spdlog, for a
+  real `find_package(fmt)` consumer), and the behavior-level oracle
+  (§ Backlog 2). A probe is a good **handoff-mode** task — charter (mission,
+  boundaries, pause protocol, learn→plan→discuss→execute) in
   [`probes/PROBE_CHARTER.md`](../probes/PROBE_CHARTER.md).
 
-**Recently landed** (rolling; full history in the worklog): coverage/dispatch
-locks + 5 fixed bugs, the wrong-shaped `~properties=` fix + orphan deletion, the
-Tier (b) parser retirement, the doc reorg (layer+facet, then the yc/ycn split).
+**Recently landed** (rolling; full history in the worklog): the **nlohmann/json
+probe** (18/18 × 3 channels, root at zero raw escapes) and the five compiler
+gaps it found (J1–J5, all fixed — two of them silently-wrong emit); coverage/
+dispatch locks + 5 fixed bugs; the wrong-shaped `~properties=` fix + orphan
+deletion; the Tier (b) parser retirement; the doc reorg.
 
 ## Backlog
 
@@ -246,6 +248,30 @@ checks.
      the build".
 - Design home: none yet (new doc when started). Ties: `surface_lsp_framework.md`
   §7.5 / §8, wellform, Y8, corpus gate, and the verifier-feedback thesis.
+
+### 10. json-probe follow-ups
+
+The [json probe](../probes/json/README.md) is complete (18/18 × 3 channels, root
+at zero raw escapes) and the five gaps it found are fixed. What it left behind
+is tracked per-item in [`probes/json/status.md`](../probes/json/status.md) —
+F1–F4 (small, self-contained) and three decisions. The two that are project-wide
+rather than probe-local:
+
+- **Generated-file matrix channel** (probe decision D1) — the three existing
+  channels (cache / codemodel-v2 / ctest) cannot see `configure_file` *content*
+  or the *installed* export file, and **two of the five json gaps hid exactly
+  there** (J4 an empty `PROJECT_VERSION`, J1 a missing `INCLUDES DESTINATION`),
+  both green at 18/18. Scope it as *generated files* (glob the `configure_file`
+  outputs **and** the `export()` output), not as "`configure_file` outputs":
+  measured on json, the `configure_file` outputs are cell-invariant while
+  `…Targets.cmake` is cell-sensitive. Touches `src/bin/yelu/yelu.ml`; the real
+  cost is path normalization, since `…Targets.cmake` embeds absolute source
+  paths that differ vendor-vs-worktree by construction.
+- **Translate json's `tests/`** (probe decision D2a, ~723 L / 13 files) — makes
+  `JSON_BuildTests` a real matrix axis, and brings the six `tests/cmake_*/`
+  dirs into range: they are upstream's own packaging oracle, and
+  `cmake_import_minver` does a *versioned* `find_package` — precisely what J4
+  broke. Pairs with a `build_equiv/json` fixture (D3), now unblocked.
 
 ## Numbered backlog (Y-IDs — stable, never renumbered)
 
